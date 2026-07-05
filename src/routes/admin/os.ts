@@ -10,6 +10,7 @@ import { AdminOsTaxonomyController } from "../../controllers/admin-os/AdminOsTax
 import { AdminOsTrashController } from "../../controllers/admin-os/AdminOsTrashController";
 import { AdminOsLocksController } from "../../controllers/admin-os/AdminOsLocksController";
 import { AdminOsSearchController } from "../../controllers/admin-os/AdminOsSearchController";
+import { AdminOsLinksController } from "../../controllers/admin-os/AdminOsLinksController";
 import { getOsKnowledgeBaseConfig } from "../../config/osKnowledgeBase";
 import {
   osIdParamsSchema,
@@ -25,6 +26,9 @@ import {
   osUpdateFolderSchema,
   osCreateCategorySchema,
   osSearchQuerySchema,
+  osCreateLinkSchema,
+  osLinkIdParamsSchema,
+  osUpdateLinkSchema,
 } from "../../validation/os.schemas";
 
 // Fail fast at boot (§5.6): parsing validates every OS_* value, including the
@@ -99,6 +103,25 @@ router.post(
   "/documents/:id/reindex",
   params(osIdParamsSchema),
   AdminOsDocumentsController.reindex
+);
+
+// ── Related links (P4 T4) ────────────────────────────────────────────────────
+router.get(
+  "/documents/:id/links",
+  params(osIdParamsSchema),
+  AdminOsLinksController.list
+);
+router.post(
+  "/documents/:id/links",
+  params(osIdParamsSchema),
+  body(osCreateLinkSchema),
+  AdminOsLinksController.create
+);
+router.patch(
+  "/links/:id",
+  params(osLinkIdParamsSchema),
+  body(osUpdateLinkSchema),
+  AdminOsLinksController.updateStatus
 );
 
 // ── Versions (diff before :versionNo so "diff" never parses as a number) ────

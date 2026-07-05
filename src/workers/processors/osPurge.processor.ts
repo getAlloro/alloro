@@ -5,6 +5,12 @@
  * wipes versions, drafts, ai_index, chunks, links, locks, comments, imports
  * and asset rows. S3 object deletion joins in P6 when assets exist.
  *
+ * P4 note: os.document_chunks and os.document_links both declare
+ * `.references("id").inTable("os.documents").onDelete("CASCADE")` in migration
+ * 20260704000000, so deleting the os.documents row removes every chunk and both
+ * link directions automatically (document_links FKs source AND target as CASCADE).
+ * No explicit chunk/link delete is needed here — the FK cascade is authoritative.
+ *
  * Idempotency (§21.1): jobId = os-purge:{documentId}; a repeat run finds the
  * row already gone and no-ops. Failures throw so BullMQ retries with backoff
  * and retains the exhausted job for inspection (§21.2).

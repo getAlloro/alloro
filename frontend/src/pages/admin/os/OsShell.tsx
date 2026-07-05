@@ -1,12 +1,16 @@
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Library, MessageSquare, Trash2 } from "lucide-react";
+import { Library, MessageSquare, Search, Trash2 } from "lucide-react";
+import { OsCommandPalette } from "../../../components/Admin/os/search/OsCommandPalette";
+import { openOsCommandPalette } from "../../../hooks/queries/useOsCommandPalette";
 
 /**
  * OS knowledge base shell (plans/07042026-alloro-os-admin-port, D1/D2/D13).
  * Full-width warm-paper surface under the admin top bar: Spectral page title,
  * Plus Jakarta sub-tab bar (Library · Chat) with the terracotta underline
  * motif from AdminTopBar, a quiet Trash link, and an <Outlet/> for sub-pages.
+ * The ⌘K command palette (P4) mounts here — scoped to /admin/os routes because
+ * OsShell only renders on them — with a click-to-open search pill in the nav.
  */
 
 const SUB_TABS = [
@@ -67,9 +71,19 @@ export default function OsShell() {
               </Link>
             );
           })}
+          <button
+            type="button"
+            onClick={openOsCommandPalette}
+            className="ml-auto flex items-center gap-1.5 rounded-md border border-gray-200 bg-alloro-surface px-2.5 py-1.5 text-[12px] font-medium text-gray-400 transition-colors duration-150 hover:text-gray-700"
+            aria-label="Search the knowledge base"
+          >
+            <Search className="h-3.5 w-3.5" strokeWidth={1.5} />
+            <span className="hidden sm:inline">Search</span>
+            <kbd className="font-mono text-[10px] text-gray-300">⌘K</kbd>
+          </button>
           <Link
             to="/admin/os/trash"
-            className={`ml-auto flex items-center gap-1.5 px-2 py-2.5 text-[12px] font-medium transition-colors duration-150 ${
+            className={`flex items-center gap-1.5 px-2 py-2.5 text-[12px] font-medium transition-colors duration-150 ${
               isTrash ? "text-gray-800" : "text-gray-400 hover:text-gray-700"
             }`}
           >
@@ -82,6 +96,9 @@ export default function OsShell() {
           <Outlet />
         </main>
       </div>
+
+      {/* ⌘K palette — scoped to OS routes (mounted only in this shell). */}
+      <OsCommandPalette />
     </div>
   );
 }

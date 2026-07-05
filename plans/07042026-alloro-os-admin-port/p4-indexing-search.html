@@ -39,11 +39,11 @@
     <header class="spec-hero">
       <div class="hero-topline">
         <p class="eyebrow">Alloro Plan Spec · Phase 4 of 7 · plans/07042026-alloro-os-admin-port</p>
-        <span class="status-pill">Pending Execution</span>
+        <span class="status-pill">Completed</span>
       </div>
       <h1>P4 — Indexing Pipeline, Semantic Search, ⌘K, Related Docs</h1>
       <dl class="meta-grid">
-        <div class="status-card"><dt>Status</dt><dd>Pending Execution</dd></div>
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
         <div><dt>Depends on</dt><dd>P2 (API) · P3 (UI hooks)</dd></div>
         <div><dt>Size</dt><dd>Medium (~14 new files, 3 edits)</dd></div>
         <div><dt>Unlocks</dt><dd>P5 (retrieval), P6 (auto-index)</dd></div>
@@ -146,6 +146,15 @@ cd /Users/rustinedave/Desktop/alloro/frontend && npm run build</pre>
         <li><input type="checkbox" disabled> ⌘K palette works on OS routes only; Related rail live with full suggestion lifecycle.</li>
         <li><input type="checkbox" disabled> Gates green; status pill + master index updated.</li>
       </ul>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-07-05</h3>
+        <p><strong>Change:</strong> P4 executed on worktree (first agent died at ~30% on the Fable 5 limit leaving 7 unwired draft files; re-run on Opus verified/completed them). All 8 gate steps green (BE tsc 0, conventions --strict 0, P4 hermetic 27, full backend 267, integration 14 on live pgvector, FE tsc 0, FE tests 47, FE build). Coded against installed @google/genai 1.43 (GoogleGenAI/models.generateContent/response.text getter). Deviations: /search response reshaped to {mode,lexical,semantic} (spec-mandated; palette is its first consumer; P2 FTS test updated); self-link error OS_LINK_SELF → 400 (omits CONFLICT substring on purpose); purge relies on verified FK CASCADE for chunks+links (code-commented, no redundant deletes); vector queries parameterized via ?::vector bindings.</p>
+        <p><strong>Reason:</strong> Execution deviation: mid-run model-limit handoff + spec-mandated search reshape + error-code-to-HTTP mapping precision.</p>
+        <p><strong>Updated Done criteria:</strong> none — all phase Done items met; live post-deploy dot-turns-green smoke deferred to final acceptance T3/T5.</p>
+      </article>
     </section>
   </main>
 </body>

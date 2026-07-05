@@ -19,11 +19,21 @@ export type AdminOsDocumentDetail = {
   version: OsDocumentVersion | null;
 };
 
+/** Poll cadence while the ingest pipeline runs, so the status dot turns green
+ *  (or red) without a manual refresh (P4 T5). Stops the moment status settles. */
+const OS_PROCESSING_POLL_MS = 4000;
+
 export function useAdminOsDocument(documentId: string | null) {
   return useQuery<AdminOsDocumentDetail>({
     queryKey: QUERY_KEYS.adminOsDocument(documentId),
     queryFn: () => adminOsGetDocument(documentId as string),
     enabled: Boolean(documentId),
+    // While indexing, refetch every ~4s so the read view reflects indexed /
+    // processing_failed as soon as the worker lands; idle otherwise.
+    refetchInterval: (query) =>
+      query.state.data?.document.status === "processing"
+        ? OS_PROCESSING_POLL_MS
+        : false,
   });
 }
 

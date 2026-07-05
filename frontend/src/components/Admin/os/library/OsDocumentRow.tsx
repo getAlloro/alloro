@@ -1,14 +1,40 @@
 import { Link } from "react-router-dom";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, RotateCw } from "lucide-react";
 import type { MouseEvent } from "react";
 import type { OsDocumentListItem } from "../../../../api/admin-os";
+import { useReindexOsDocument } from "../../../../hooks/queries/useAdminOsDocumentMutations";
 import { OsStatusDot } from "../shared/OsStatusDot";
 import { formatOsRelativeTime, osOwnerLabel } from "../shared/osFormat";
+
+/** Row-level Reindex control shown only for a failed document. Prevents the
+ *  wrapping Link from navigating so the click just re-queues ingest (P4 T5). */
+function OsRowReindexButton({ documentId }: { documentId: string }) {
+  const reindex = useReindexOsDocument(documentId);
+  return (
+    <button
+      type="button"
+      onClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        reindex.mutate();
+      }}
+      disabled={reindex.isPending}
+      className="inline-flex items-center gap-1 rounded-md border border-alloro-danger/30 px-2 py-0.5 text-[11px] font-semibold text-alloro-danger transition-colors duration-150 hover:bg-danger-soft disabled:opacity-60"
+    >
+      <RotateCw
+        className={`h-3 w-3 ${reindex.isPending ? "motion-safe:animate-spin" : ""}`}
+        strokeWidth={1.75}
+      />
+      {reindex.isPending ? "Reindexing…" : "Reindex"}
+    </button>
+  );
+}
 
 /**
  * One Library entry — a hairline-divided row, not a card (D13): status dot,
  * Spectral title, quiet category pill, then a mono meta cluster (relative
- * time · owner). Wrapped by the dnd views; plain in the list view.
+ * time · owner). Failed documents get an inline Reindex control. Wrapped by the
+ * dnd views; plain in the list view.
  */
 export function OsDocumentRow({
   doc,
@@ -18,6 +44,7 @@ export function OsDocumentRow({
   onLinkClick?: (event: MouseEvent<HTMLAnchorElement>) => void;
 }) {
   const isArchived = doc.status === "archived";
+  const isFailed = doc.status === "processing_failed";
   const ownerLabel = osOwnerLabel(doc.owner);
 
   return (
@@ -42,6 +69,7 @@ export function OsDocumentRow({
         )}
       </div>
       <div className="flex shrink-0 items-center gap-3 sm:gap-4">
+        {isFailed && <OsRowReindexButton documentId={doc.id} />}
         {ownerLabel && (
           <span className="hidden max-w-[140px] truncate font-mono text-[11px] text-gray-400 md:inline">
             {ownerLabel}

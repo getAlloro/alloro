@@ -107,6 +107,22 @@ export const osCreateCategorySchema = z.object({
 
 // ── Search ───────────────────────────────────────────────────────────────────
 
+/** Hybrid search (P4): q required; mode picks lexical/semantic/both (default hybrid). */
 export const osSearchQuerySchema = z.looseObject({
   q: z.string().trim().min(1),
+  mode: z.enum(["hybrid", "lexical", "semantic"]).optional(),
+});
+
+// ── Related links (P4) ───────────────────────────────────────────────────────
+
+/** POST …/links body — the target document to link to (source is the :id). */
+export const osCreateLinkSchema = z.object({
+  target_document_id: uuidSchema,
+});
+
+/** PATCH /links/:id — accept or reject a suggestion. */
+export const osLinkIdParamsSchema = z.looseObject({ id: uuidSchema });
+
+export const osUpdateLinkSchema = z.object({
+  status: z.enum(["accepted", "rejected"]),
 });

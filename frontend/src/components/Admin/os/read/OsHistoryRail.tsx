@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Clock, GitCompareArrows, History, Link2, MessageSquare, RotateCcw, X } from "lucide-react";
+import { Clock, GitCompareArrows, History, MessageSquare, RotateCcw, X } from "lucide-react";
 import type { OsDiffHunk, OsDocumentVersion } from "../../../../api/admin-os";
 import {
   useAdminOsVersionDiff,
@@ -8,13 +8,15 @@ import {
 } from "../../../../hooks/queries/useAdminOsVersions";
 import { useConfirm } from "../../../ui/ConfirmModal";
 import { OsErrorState } from "../shared/OsErrorState";
+import { OsRelatedRail } from "./OsRelatedRail";
 import { formatOsDateTime, formatOsRelativeTime } from "../shared/osFormat";
 
 /**
  * Right rail on the read view (P3 T3/T5): version history with line-diff and
- * non-destructive restore, plus quiet placeholders for the Related (P4) and
- * Comments (P7) sections. Diff hunks use the semantic soft tokens —
- * add = success-soft, remove = danger-soft (D13).
+ * non-destructive restore, the live Related section (P4), and a quiet
+ * placeholder for Comments (P7). Order: History → Related → Comments. Diff
+ * hunks use the semantic soft tokens — add = success-soft, remove = danger-soft
+ * (D13).
  */
 
 const DIFF_ROW_CLASSES: Record<OsDiffHunk["type"], string> = {
@@ -169,7 +171,7 @@ function OsRailPlaceholder({
   title,
   phase,
 }: {
-  icon: typeof Link2;
+  icon: typeof MessageSquare;
   title: string;
   phase: string;
 }) {
@@ -266,7 +268,7 @@ export function OsHistoryRail({
           )}
         </div>
       </section>
-      <OsRailPlaceholder icon={Link2} title="Related" phase="P4" />
+      <OsRelatedRail documentId={documentId} />
       <OsRailPlaceholder icon={MessageSquare} title="Comments" phase="P7" />
     </div>
   );

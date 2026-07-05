@@ -154,6 +154,52 @@ export type OsSearchHit = {
   snippet: string;
 };
 
+/** A semantic (vector) hit — one chunk of a document, with its heading path. */
+export type OsPassageHit = {
+  document_id: string;
+  title: string;
+  slug: string;
+  version_no: number;
+  chunk_index: number;
+  heading_path: string | null;
+  similarity: number;
+  snippet: string;
+};
+
+export type OsSearchMode = "hybrid" | "lexical" | "semantic";
+
+/** GET /search response — the lexical (FTS) and semantic (vector) sections. */
+export type OsHybridSearchData = {
+  mode: OsSearchMode;
+  lexical: { results: OsSearchHit[]; pagination: OsPagination };
+  semantic: { results: OsPassageHit[] };
+};
+
+// ── Related links (P4) ───────────────────────────────────────────────────────
+
+export type OsLinkOrigin = "manual" | "ai_suggested" | "content_parsed";
+export type OsLinkStatus = "suggested" | "accepted" | "rejected";
+
+/** One link edge as the Related rail renders it (the "other" document nested). */
+export type OsLinkDto = {
+  id: string;
+  origin: string;
+  status: OsLinkStatus;
+  document: {
+    id: string;
+    title: string;
+    status: string;
+    archived: boolean;
+  };
+};
+
+/** The Related rail payload: accepted out-links, backlinks, pending suggestions. */
+export type OsLinksView = {
+  links: OsLinkDto[];
+  backlinks: OsLinkDto[];
+  suggested: OsLinkDto[];
+};
+
 // ── Request params ───────────────────────────────────────────────────────────
 
 export type OsDocumentListParams = {
@@ -466,14 +512,15 @@ export async function adminOsPurgeDocument(
   return unwrap(await apiDelete({ path: `/admin/os/trash/${documentId}` }));
 }
 
-// ── Search (FTS) ─────────────────────────────────────────────────────────────
+// ── Search (hybrid: lexical FTS + semantic vector) ───────────────────────────
 
 export async function adminOsSearch(
   q: string,
-  params: OsSearchParams = {},
-): Promise<{ results: OsSearchHit[]; pagination: OsPagination }> {
+  params: OsSearchParams & { mode?: OsSearchMode } = {},
+): Promise<OsHybridSearchData> {
   const qs = buildQueryString({
     q,
+    mode: params.mode,
     folder_id: params.folderId,
     category: params.category,
     tag: params.tag,
@@ -483,4 +530,40 @@ export async function adminOsSearch(
     limit: params.limit,
   });
   return unwrap(await apiGet({ path: `/admin/os/search${qs}` }));
+}
+
+// ── Related links (P4) ───────────────────────────────────────────────────────
+
+export async function adminOsGetLinks(
+  documentId: string,
+): Promise<OsLinksView> {
+  return unwrap(
+    await apiGet({ path: `/admin/os/documents/${documentId}/links` }),
+  );
+}
+
+/** Manual link source → target (created accepted). 409 if already linked. */
+export async function adminOsCreateLink(
+  documentId: string,
+  targetDocumentId: string,
+): Promise<{ link: OsLinkDto }> {
+  return unwrap(
+    await apiPost({
+      path: `/admin/os/documents/${documentId}/links`,
+      passedData: { target_document_id: targetDocumentId },
+    }),
+  );
+}
+
+/** Accept or reject a link (PATCH /links/:id). */
+export async function adminOsUpdateLinkStatus(
+  linkId: string,
+  status: Extract<OsLinkStatus, "accepted" | "rejected">,
+): Promise<{ link: { id: string; status: OsLinkStatus } }> {
+  return unwrap(
+    await apiPatch({
+      path: `/admin/os/links/${linkId}`,
+      passedData: { status },
+    }),
+  );
 }

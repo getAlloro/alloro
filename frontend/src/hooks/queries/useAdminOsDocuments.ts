@@ -18,6 +18,8 @@ import { QUERY_KEYS } from "../../lib/queryClient";
  */
 
 const OS_LIST_STALE_TIME_MS = 15_000;
+/** While any row is still indexing, poll the list so its dot settles (P4 T5). */
+const OS_PROCESSING_POLL_MS = 4000;
 
 export type AdminOsDocumentsData = {
   documents: OsDocumentListItem[];
@@ -29,6 +31,11 @@ export function useAdminOsDocuments(params: OsDocumentListParams = {}) {
     queryKey: QUERY_KEYS.adminOsDocuments(params),
     queryFn: () => adminOsListDocuments(params),
     staleTime: OS_LIST_STALE_TIME_MS,
+    // Refetch only while a visible row is processing; otherwise stay idle.
+    refetchInterval: (query) =>
+      query.state.data?.documents.some((d) => d.status === "processing")
+        ? OS_PROCESSING_POLL_MS
+        : false,
   });
 }
 

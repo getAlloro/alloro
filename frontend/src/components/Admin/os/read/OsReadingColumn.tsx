@@ -77,6 +77,38 @@ function OsEmptyBody({
   );
 }
 
+/** Compact "Indexing failed — Reindex" banner shown whenever a document is in
+ *  the processing_failed state, even if it still has a readable live version
+ *  (a reindex of existing content can fail). Complements the red status dot. */
+function OsReindexBanner({
+  onReindex,
+  isReindexing,
+}: {
+  onReindex: () => void;
+  isReindexing: boolean;
+}) {
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-2 rounded-[9px] bg-danger-soft px-3 py-2">
+      <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-alloro-danger" />
+      <span className="text-[12px] text-alloro-danger">
+        Indexing failed — search and related links may be stale.
+      </span>
+      <button
+        type="button"
+        onClick={onReindex}
+        disabled={isReindexing}
+        className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-alloro-danger/30 bg-alloro-surface px-2.5 py-1 text-[11px] font-semibold text-alloro-danger transition-colors duration-150 hover:bg-danger-soft disabled:opacity-60"
+      >
+        <RotateCw
+          className={`h-3 w-3 ${isReindexing ? "motion-safe:animate-spin" : ""}`}
+          strokeWidth={1.75}
+        />
+        {isReindexing ? "Reindexing…" : "Reindex"}
+      </button>
+    </div>
+  );
+}
+
 function OsReadingHeader({
   document,
   version,
@@ -87,6 +119,8 @@ function OsReadingHeader({
   onEdit,
   onArchive,
   isArchiving,
+  onReindex,
+  isReindexing,
 }: {
   document: OsDocumentListItem;
   version: OsDocumentVersion | null;
@@ -97,6 +131,8 @@ function OsReadingHeader({
   onEdit: () => void;
   onArchive: () => void;
   isArchiving: boolean;
+  onReindex: () => void;
+  isReindexing: boolean;
 }) {
   return (
     <header className="border-b border-line-soft pb-5">
@@ -157,6 +193,11 @@ function OsReadingHeader({
           isSaving={isMetaSaving}
         />
       </div>
+      {/* Failed + still has a readable version → surface Reindex here too
+          (the null-version case shows its own Reindex in OsEmptyBody). */}
+      {document.status === "processing_failed" && version && (
+        <OsReindexBanner onReindex={onReindex} isReindexing={isReindexing} />
+      )}
     </header>
   );
 }
@@ -208,6 +249,8 @@ export function OsReadingColumn({
         onEdit={() => navigate(`/admin/os/doc/${document.id}/edit`)}
         onArchive={() => void handleArchive()}
         isArchiving={archive.isPending}
+        onReindex={() => reindex.mutate()}
+        isReindexing={reindex.isPending}
       />
 
       <div className="mt-6">

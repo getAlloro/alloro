@@ -289,6 +289,10 @@ export const QUERY_KEYS = {
     ["admin", "os", "document", id, "diff", from, to] as const,
   adminOsLock: (id: string | null) =>
     ["admin", "os", "document", id, "lock"] as const,
+  // Related-document links (P4) — under the document prefix so a document
+  // invalidation refreshes its Related rail too.
+  adminOsLinks: (id: string | null) =>
+    ["admin", "os", "document", id, "links"] as const,
   adminOsFolders: ["admin", "os", "folders"] as const,
   adminOsCategories: ["admin", "os", "categories"] as const,
   adminOsTrash: (params?: Record<string, unknown>) =>

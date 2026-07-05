@@ -23,6 +23,9 @@ export const OS_ACTIVITY_ACTIONS = [
   "folder.updated",
   "folder.deleted",
   "category.created",
+  // P4 (plans/07042026-alloro-os-admin-port) — related-document link lifecycle.
+  "link.accepted",
+  "link.rejected",
 ] as const;
 
 export type OsActivityAction = (typeof OS_ACTIVITY_ACTIONS)[number];
@@ -34,6 +37,8 @@ export const OS_ACTIVITY_TARGET_TYPES = [
   "folder",
   "category",
   "lock",
+  // P4 — target of link.accepted / link.rejected (os.document_links.id).
+  "link",
 ] as const;
 
 export type OsActivityTargetType = (typeof OS_ACTIVITY_TARGET_TYPES)[number];
