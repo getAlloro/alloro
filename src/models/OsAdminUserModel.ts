@@ -27,4 +27,15 @@ export class OsAdminUserModel extends BaseModel {
       .select("id", "email", "name", "first_name", "last_name")
       .orderBy("email", "asc");
   }
+
+  /** Owner-picker validation: the assignee must be an internal Alloro user. */
+  static async findInternalUserById(
+    id: number,
+    trx?: QueryContext
+  ): Promise<IOsAdminUser | undefined> {
+    return this.table(trx)
+      .where({ id, is_internal: true })
+      .select("id", "email", "name", "first_name", "last_name")
+      .first();
+  }
 }

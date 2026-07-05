@@ -39,11 +39,11 @@
     <header class="spec-hero">
       <div class="hero-topline">
         <p class="eyebrow">Alloro Plan Spec · Phase 2 of 7 · plans/07042026-alloro-os-admin-port</p>
-        <span class="status-pill">Pending Execution</span>
+        <span class="status-pill">Completed</span>
       </div>
       <h1>P2 — Library Backend: Documents, Versions, Folders, Trash, Locks, FTS</h1>
       <dl class="meta-grid">
-        <div class="status-card"><dt>Status</dt><dd>Pending Execution</dd></div>
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
         <div><dt>Depends on</dt><dd>P1 Completed</dd></div>
         <div><dt>Size</dt><dd>Large-in-phase (~16 new files)</dd></div>
         <div><dt>Unlocks</dt><dd>P3, P4, P6</dd></div>
@@ -152,6 +152,15 @@ npm test   # full suite — no regressions</pre>
         <li><input type="checkbox" disabled> All queries in models; conventions gate green; full test suite green.</li>
         <li><input type="checkbox" disabled> Status pill + master Phase Index updated.</li>
       </ul>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-07-05</h3>
+        <p><strong>Change:</strong> P2 executed on worktree <code>dave/os-admin-port</code>; gates green (tsc 0, conventions --strict 0, 35/35 phase tests, full suite 238/238, integration 10/10 on the local pgvector replica, DB left clean). Deviations: validation file named <code>os.schemas.ts</code> (house pattern) applied as enforce-mode route middleware; activity vocabulary in <code>src/config/osActivityActions.ts</code>; a 7th controller <code>AdminOsVersionsController</code> for the §2.4 split; purge job carries {documentId} only until P6 assets exist; create seeds v1+draft and publish clears the draft; <code>diff</code> pkg absent so a minimal LCS line-diff util (<code>osLineDiff.ts</code>, 2000-line DP cap) implements version diff with zero new deps; enqueues use removeOnComplete:true so the fixed <code>os-ingest:{id}</code> jobId can re-fire after completion while deduping in-flight.</p>
+        <p><strong>Reason:</strong> Execution deviation: house-pattern alignment (validation naming/middleware), §2.4 file-size discipline, dependency discipline (§4.4), and BullMQ jobId-dedup semantics discovered during implementation.</p>
+        <p><strong>Updated Done criteria:</strong> none — all phase Done items met as written.</p>
+      </article>
     </section>
   </main>
 </body>

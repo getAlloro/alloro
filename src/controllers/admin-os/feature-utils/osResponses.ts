@@ -30,7 +30,17 @@ export function handleOsError(res: Response, error: unknown): Response {
     let status = 400;
     if (error.code.includes("NOT_FOUND")) status = 404;
     if (error.code.includes("ACCESS_DENIED")) status = 403;
-    if (error.code.includes("CONFLICT") || error.code.includes("LOCKED")) status = 409;
+    // LOCK_HELD / NOT_HELD are the edit-lock conflicts (master spec D8):
+    // OS_LOCK_HELD (someone else holds it) and OS_LOCK_NOT_HELD (heartbeat
+    // after losing it) both surface as 409, like every other conflict.
+    if (
+      error.code.includes("CONFLICT") ||
+      error.code.includes("LOCKED") ||
+      error.code.includes("LOCK_HELD") ||
+      error.code.includes("NOT_HELD")
+    ) {
+      status = 409;
+    }
     return fail(res, status, error.code, error.message, error.details);
   }
 
