@@ -285,6 +285,12 @@
         <p><strong>Reason:</strong> User QA: owner prefers the folder-organized view as the landing view for the Library.</p>
         <p><strong>Updated Done criteria:</strong> none changed — cosmetic default-view preference. tsc (<code>tsconfig.app.json</code>) clean. Separately: the T10 import-the-real-corpus effort was dropped this session (owner will re-upload docs via the UI themselves); no content was imported to dev or prod.</p>
       </article>
+      <article class="revision-entry">
+        <h3>Rev 7 - 2026-07-06</h3>
+        <p><strong>Change:</strong> Prepped the <strong>prod</strong> Apache vhost for OS chat SSE streaming (the item Rev 5 left remaining for prod). Added a <code>&lt;Location /api/admin/os/chat/&gt;</code> block to <code>/etc/apache2/sites-available/app.getalloro.com-le-ssl.conf</code>, placed before the catch-all <code>ProxyPass "/"</code>, mirroring prod's proven <code>/api/minds/</code> block (<code>flushpackets=on</code> + <code>proxy-sendchunked</code> + <code>proxy-interim-response RFC</code> + <code>Connection ""</code> + <code>X-Accel-Buffering "no"</code>) rather than dev's simpler 3-line version. Backed up the vhost to <code>~/apache-backups/app-le-ssl.conf.bak-20260705-211720</code>, <code>apache2ctl configtest</code> = Syntax OK, graceful reload, Apache active. Verified read-only that prod has <strong>no <code>os</code> schema</strong> and the OS migration <code>20260704000000</code> has <strong>not</strong> run — so OS is still dev-only and this Apache block is inert (the proxied path returns 401 from prod's global auth guard until the OS code + migration land via a <code>dev/dave → main</code> merge).</p>
+        <p><strong>Reason:</strong> User request: prepare the prod server env (like dev) so streaming works the moment we merge.</p>
+        <p><strong>Updated Done criteria:</strong> Prod Apache SSE block DONE (inert until merge). REMAINING for the prod cutover: (1) merge <code>dev/dave → main</code> — the deploy runs <code>npm run db:migrate</code> (creates the additive <code>os</code> schema; pgvector already live on prod) + ships the OS code + restarts the worker; (2) asset-auth hardening (task_38bac217) before relying on OS in prod; (3) prod app.env already has OPENAI_API_KEY / GEMINI_API_KEY / AWS creds and needs no new required OS_* var (all default; OS_EMBEDDING_DIM defaults to the migration's 1536).</p>
+      </article>
     </section>
   </main>
 </body>
