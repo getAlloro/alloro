@@ -108,7 +108,7 @@ function OsLibraryNoMatches({ onClear }: { onClear: () => void }) {
 }
 
 export default function OsLibrary() {
-  const [view, setView] = useState<OsLibraryView>("list");
+  const [view, setView] = useState<OsLibraryView>("folders");
   const [filters, setFilters] = useState<OsLibraryFilters>(
     OS_EMPTY_LIBRARY_FILTERS,
   );

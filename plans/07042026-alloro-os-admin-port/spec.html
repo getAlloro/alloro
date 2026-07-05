@@ -279,6 +279,12 @@
         <p><strong>Reason:</strong> User request: merge + push to dev, update the dev server for streaming, and test locally + on dev.</p>
         <p><strong>Updated Done criteria:</strong> Dev merge + migration + Apache block DONE. REMAINING: (1) owner runs T10 imports (one real file) to close acceptance; (2) prod: merge dev/dave -> main (adds the same Apache block to the prod vhost + runs the migration on prod); (3) asset-auth hardening (task_38bac217) before prod. Local pre-merge smoke caught + fixed a must-fix BullMQ colon-jobId bug (see p4 Rev 2) that would have broken indexing.</p>
       </article>
+      <article class="revision-entry">
+        <h3>Rev 6 - 2026-07-06</h3>
+        <p><strong>Change:</strong> Library default view flipped from <code>list</code> to <code>folders</code> — <code>frontend/src/pages/admin/os/OsLibrary.tsx</code>, the initial <code>useState&lt;OsLibraryView&gt;</code> now defaults to <code>"folders"</code>. One-line change; the view has no persisted preference (plain component state), and all three views (list/grouped/folders) already render, so the folders view is the first thing shown on load. List/Categories/Folders toggle unchanged.</p>
+        <p><strong>Reason:</strong> User QA: owner prefers the folder-organized view as the landing view for the Library.</p>
+        <p><strong>Updated Done criteria:</strong> none changed — cosmetic default-view preference. tsc (<code>tsconfig.app.json</code>) clean. Separately: the T10 import-the-real-corpus effort was dropped this session (owner will re-upload docs via the UI themselves); no content was imported to dev or prod.</p>
+      </article>
     </section>
   </main>
 </body>
