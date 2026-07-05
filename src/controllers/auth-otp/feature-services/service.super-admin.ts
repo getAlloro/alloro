@@ -1,28 +1,16 @@
 /**
  * Super Admin Service
  *
- * Determines if an email belongs to a super admin. Admin authorization is
- * DOMAIN-based (plans/07052026-google-sso-admin-and-user-login): any verified
- * @getalloro.com account is an admin. SUPER_ADMIN_EMAILS is retained as an
- * OPTIONAL additional grant (e.g. a non-@getalloro break-glass address) — empty
- * it to fall back to domain-only.
+ * Admin authorization is purely DOMAIN-based
+ * (plans/07052026-google-sso-admin-and-user-login): a verified @getalloro.com
+ * account is an admin — the same gate the Google login enforces
+ * (assertAdminDomain). There is NO SUPER_ADMIN_EMAILS dependence: admin access
+ * is the identity, not an env allowlist, and there is no separate admin table —
+ * admins are `users` rows identified by id, flagged is_internal for rosters.
  */
 
 import { ADMIN_ALLOWED_DOMAIN } from "../../../config/googleLogin";
 
 export function isSuperAdmin(email: string): boolean {
-  const normalized = email.toLowerCase();
-
-  // Primary gate: the admin domain.
-  if (normalized.endsWith(`@${ADMIN_ALLOWED_DOMAIN}`)) {
-    return true;
-  }
-
-  // Optional additional grant: the explicit allowlist.
-  const superAdminEmails = (process.env.SUPER_ADMIN_EMAILS || "")
-    .split(",")
-    .map((e) => e.trim().toLowerCase())
-    .filter((e) => e.length > 0);
-
-  return superAdminEmails.includes(normalized);
+  return email.toLowerCase().endsWith(`@${ADMIN_ALLOWED_DOMAIN}`);
 }

@@ -5,10 +5,10 @@ import logger from "../lib/logger";
 
 /**
  * Super Admin Middleware
- * Restricts access to super admins. Authorization is DOMAIN-based (any verified
- * @getalloro.com account), with SUPER_ADMIN_EMAILS as an optional extra grant —
- * both live in one place, service.super-admin.isSuperAdmin (§4.3). Requires
- * authenticateToken to run first (populates req.user).
+ * Restricts access to super admins. Authorization is purely DOMAIN-based (any
+ * verified @getalloro.com account) — no SUPER_ADMIN_EMAILS — resolved in one
+ * place, service.super-admin.isSuperAdmin (§4.3). Requires authenticateToken to
+ * run first (populates req.user).
  */
 export const superAdminMiddleware = async (
   req: AuthRequest,

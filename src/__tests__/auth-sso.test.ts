@@ -78,15 +78,13 @@ describe("assertAdminDomain", () => {
   });
 });
 
-describe("isSuperAdmin (domain OR allowlist)", () => {
-  beforeEach(() => {
-    process.env.SUPER_ADMIN_EMAILS = "laggy80@gmail.com";
-  });
+describe("isSuperAdmin (domain-only, no SUPER_ADMIN_EMAILS)", () => {
   it("grants any @getalloro.com account by domain", () => {
     expect(isSuperAdmin("anyone@getalloro.com")).toBe(true);
   });
-  it("grants an allowlisted non-domain email", () => {
-    expect(isSuperAdmin("laggy80@gmail.com")).toBe(true);
+  it("denies a non-domain email even if it was formerly allowlisted", () => {
+    process.env.SUPER_ADMIN_EMAILS = "laggy80@gmail.com";
+    expect(isSuperAdmin("laggy80@gmail.com")).toBe(false);
   });
   it("denies a random external email", () => {
     expect(isSuperAdmin("random@example.com")).toBe(false);

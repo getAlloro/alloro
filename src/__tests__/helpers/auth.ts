@@ -17,8 +17,12 @@ import { generateToken } from "../../controllers/auth-otp/feature-services/servi
 const DEFAULT_USER_ID = 1;
 const DEFAULT_EMAIL = "smoketest@test.alloro";
 
-/** The email seeded into SUPER_ADMIN_EMAILS by the test setup. */
-export const SUPER_ADMIN_EMAIL = "superadmin@test.alloro";
+/**
+ * A super-admin identity for protected-route tests. Admin authorization is
+ * domain-based (@getalloro.com) — no SUPER_ADMIN_EMAILS — so this must be an
+ * @getalloro address for superAdminMiddleware to let it through.
+ */
+export const SUPER_ADMIN_EMAIL = "superadmin@getalloro.com";
 
 export interface TestTokenOptions {
   userId?: number;

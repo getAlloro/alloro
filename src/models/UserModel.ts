@@ -122,6 +122,26 @@ export class UserModel extends BaseModel {
     return updated as IUser;
   }
 
+  /**
+   * All internal Alloro staff (is_internal), for admin people-pickers and
+   * rosters — the DB-driven replacement for the SUPER_ADMIN_EMAILS env roster.
+   * @getalloro accounts land here automatically on first Google sign-in.
+   */
+  static async listInternalUsers(trx?: QueryContext): Promise<
+    Array<{
+      id: number;
+      email: string;
+      name: string | null;
+      first_name: string | null;
+      last_name: string | null;
+    }>
+  > {
+    return this.table(trx)
+      .where({ is_internal: true })
+      .select("id", "email", "name", "first_name", "last_name")
+      .orderBy("email", "asc");
+  }
+
   /** Bind a google_sub (and refresh the avatar) onto an existing user row. */
   static async attachGoogleIdentity(
     id: number,
