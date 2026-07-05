@@ -2,6 +2,32 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.155] - July 2026
+
+### Admin Sign-In: Google SSO (replaces OTP)
+
+Admin access now uses Google sign-in restricted to verified `@getalloro.com` accounts, replacing the email-OTP admin login. Built on `plans/07052026-google-sso-admin-and-user-login` (P1) and verified end-to-end on dev via browser automation — acceptance T1–T9 pass, run twice through a real Google round-trip. Live on dev; not on production until the `main` merge (prod env already staged). Client login (email + password) is unchanged; the optional client "Sign in with Google" is deferred (P2). Docs parity is N/A — this is admin-only and `alloro-docs` is client-facing only.
+
+**Key Changes:**
+- **Admin login is a single "Sign in with Google" button.** The OTP admin login endpoints (`/api/auth/otp/request`, `/verify`) and the OTP admin UI are retired; `/api/auth/otp/validate` stays (website-builder). No break-glass — Google is the only admin door.
+- **New `auth-sso` backend domain** runs the OAuth authorization-code flow (backend code exchange so the client secret never reaches the browser, ID-token signature + nonce verify, CSRF state as a signed-JWT cookie), gates the `@getalloro.com` domain, then mints the **same** bearer JWT the app already issues — one session model, not two. The callback finishes with a relative redirect through `/auth/google/finish`, which copies the token into the existing session storage.
+- **Zero-registration admin.** Any `@getalloro.com` Google account gets immediate admin on first sign-in (auto-provisioned, `is_internal=true`) — no invite, allowlist entry, or registration. The Internal consent screen double-gates it to Workspace accounts.
+- **`SUPER_ADMIN_EMAILS` dependence removed.** Admin authorization is now purely `@getalloro.com` domain-based, and the admin roster (PM people-picker, GSC admin-owned connections) is DB-driven from `users.is_internal`, so new admins appear automatically without editing an env var. No separate admin table — admins are `users` rows identified by id.
+- **Migration:** `users.google_sub` (partial-unique) + `avatar_url`; additive, reversible, applied on dev.
+- Added `google-auth-library@^10` (matches the existing `googleapis` version). Distinct `GOOGLE_LOGIN_*` env vars, validated fail-closed at first use, set on dev + prod.
+
+**Commits:**
+- `src/controllers/auth-sso/**` — OAuth flow, domain gate, find-or-create session mint (new domain, mirrors `gbp-automation/`)
+- `src/config/googleLogin.ts` — `GOOGLE_LOGIN_*` config (distinct from GBP OAuth), fails closed
+- `src/database/migrations/20260705000000_add_google_sub_to_users.ts` — `google_sub` + `avatar_url`
+- `src/models/UserModel.ts` — `findByGoogleSub` / `createFromGoogle` / `attachGoogleIdentity` / `markInternal` / `listInternalUsers`
+- `src/middleware/superAdmin.ts` + `src/controllers/auth-otp/feature-services/service.super-admin.ts` — domain-only admin gate
+- `src/routes/auth-sso.ts` + `src/app.ts` — `/api/auth/google` mounted before the GBP `/api/auth` router (route-collision fix)
+- `src/controllers/auth-otp/AuthOtpController.ts` + `src/routes/auth-otp.ts` — OTP admin login retired
+- `src/controllers/pm/PmController.ts` + `src/controllers/admin-websites/feature-services/service.gsc-integration.ts` — DB-driven admin roster
+- `frontend/src/components/Admin/shell/AdminLogin.tsx` + `pages/AuthGoogleFinish.tsx` + `api/auth-sso.ts` + `App.tsx` — Google button + finish-route bridge
+- Dev commits: `b4bdda53`, `0cf726a4`, `358f2f9f`, `50017acc`
+
 ## [0.0.154] - July 2026
 
 ### Support Help Desk: Pill Placement + Staff Name Masking
