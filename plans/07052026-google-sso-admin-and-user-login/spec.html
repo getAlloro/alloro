@@ -355,7 +355,7 @@
         <li><input type="checkbox" disabled> Password login, signup, email-verify, and <code>/api/auth/otp/validate</code> unchanged</li>
         <li><input type="checkbox" disabled> No regression across <code>/api/admin/*</code> under the new domain gate</li>
         <li><input type="checkbox" disabled> <code>test.html</code> / <code>test-results.json</code> generated and rolled up to Passed (Layer 2, §20.5)</li>
-        <li><input type="checkbox" disabled> <code>alloro-docs</code> updated for the new admin Google login</li>
+        <li><input type="checkbox" disabled> <code>alloro-docs</code> — N/A: admin-only change; alloro-docs is client-facing only (owner, Rev 8)</li>
       </ul>
     </section>
 
@@ -402,6 +402,12 @@
         <p><strong>Change:</strong> Live browser acceptance on dev (owner's Chrome session). Logged out of <code>/admin</code> → the login card shows "Sign in with your Alloro account", "requires a @getalloro.com Google account", and a single Google button, no OTP (T2 pass). Clicked it → Google chooser (client 901385743946, hd=getalloro.com, dev redirect_uri, signed-JWT state) restricted to "accounts from getalloro.com" (T4 evidence) → selected info@getalloro.com → callback → <code>/auth/google/finish</code> → landed on the Admin Hub / Mission Control with authenticated admin data, no OTP, no console errors (T3 pass). Confirms the route-collision fix + domain admin gate end-to-end. <code>test-results.json</code> now rolls up to <strong>Passed</strong> (T1–T9); T2/T3/T4 flipped to pass with browser evidence.</p>
         <p><strong>Reason:</strong> User QA: owner asked to run the real Google sign-in on dev with their logged-in session.</p>
         <p><strong>Updated Done criteria:</strong> Acceptance artifact Passed. Remaining for <code>-d</code>: alloro-docs update for the new admin login, then the main merge for prod (prod env already staged).</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 8 - 2026-07-06</h3>
+        <p><strong>Change:</strong> alloro-docs parity waived for this feature. The admin Google SSO login is admin-only (super-admin gated) and alloro-docs is client-facing only, so there is no client-facing surface to document. The Done checklist docs item is marked N/A. Only remaining pre-prod item: the <code>main</code> merge (prod env already staged).</p>
+        <p><strong>Reason:</strong> Owner (07-06): "no need to sync with docs as we only want docs to be client-facing."</p>
+        <p><strong>Updated Done criteria:</strong> Docs parity N/A (admin-only). Ready to finalize (<code>-d</code>) on dev; prod deploy is the owner's call.</p>
       </article>
     </section>
   </main>
