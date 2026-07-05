@@ -37,7 +37,8 @@ const DOC_ID = "c3a98541-05b1-414c-ba96-cf9588742abe";
 const IMPORT_ID = "d4b09652-16c2-525d-a9ce-df6699853bcf";
 
 function lastJobId(): string {
-  const opts = queueAdd.mock.calls.at(-1)?.[2] as { jobId?: string } | undefined;
+  const calls = queueAdd.mock.calls;
+  const opts = calls[calls.length - 1]?.[2] as { jobId?: string } | undefined;
   return opts?.jobId ?? "";
 }
 
