@@ -1,0 +1,53 @@
+{
+  "plan": "plans/07062026-unify-leadgen-email-sender",
+  "generatedAt": "2026-07-06",
+  "status": "In Progress",
+  "items": [
+    {
+      "id": "T1",
+      "title": "Leadgen report sender delegates to central sendEmail (code)",
+      "surface": "none",
+      "precondition": "Working tree on dev/dave with T1 applied",
+      "steps": [
+        "1. grep the file for axios / interceptEmailPayload / N8N_EMAIL_URL",
+        "2. confirm sendAuditReportEmail calls sendEmail(...) and maps result.success -> { ok }"
+      ],
+      "expected": "No axios.post, no interceptEmailPayload, no N8N_EMAIL_URL in the file; sendEmail is the only transport. tsc --noEmit exits 0; check:conventions --strict exits 0.",
+      "status": "pass",
+      "evidence": "grep: 'NONE — clean' and 'NO MATCHES — clean'; tsc exit 0; check:conventions exit 0 (backend structural violations: 0)",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "{ ok, error? } contract preserved — call sites unchanged (code)",
+      "surface": "none",
+      "precondition": "T1 applied",
+      "steps": [
+        "1. Inspect service.email-notification-queue.ts lines 81, 87, 137, 143",
+        "2. Confirm both call sites still read result.ok and the file was not modified"
+      ],
+      "expected": "Both call sites compile against the unchanged { ok, error? } return type; no edits to the queue service.",
+      "status": "pass",
+      "evidence": "grep shows result.ok at lines 87 and 143; tsc exit 0 with no changes to service.email-notification-queue.ts",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "End-to-end leadgen report email still sends (behavioral)",
+      "surface": "api",
+      "precondition": "Deployed to dev; a leadgen audit exists that is completed; access to the dave@getalloro.com inbox (dev intercepts all mail there)",
+      "steps": [
+        "1. On the leadgen audit tool, submit the 'Email me when ready' FAB with an email for a completed audit (triggers the inline send path in enqueueEmailNotification)",
+        "2. Alternatively, let the audit worker drain a pending notification on audit completion",
+        "3. Check the dave@getalloro.com inbox on dev"
+      ],
+      "expected": "A report email arrives with subject '[Intercepted] 📊 Your Alloro Practice Analysis Report' (dev interception rewrites the recipient to dave@getalloro.com and prefixes the subject). The 'View Your Full Report' link points at https://audit.getalloro.com?audit_id=<id>. The leadgen_email_notifications row flips to 'sent'.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "Requires a live dev deploy + a completed audit + inbox access. Payload is byte-identical to the pre-refactor sender and targets the same alloro-email-service n8n workflow, so no behavioral change is expected.",
+      "waiver": ""
+    }
+  ]
+}

@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Unify Leadgen Email Sender Spec</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); margin-top: 12px; }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 840px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; letter-spacing: 0; }
+    h2 { font-size: 1.35rem; letter-spacing: 0; }
+    h3 { font-size: 1rem; letter-spacing: 0; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    .revision-entry { border-top: 1px solid var(--line); padding-top: 14px; margin-top: 14px; }
+    .revision-entry:first-of-type { border-top: 0; padding-top: 0; margin-top: 0; }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill">In Progress</span>
+      </div>
+      <h1>Unify Leadgen Email Sender</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>In Progress</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/07062026-unify-leadgen-email-sender</dd></div>
+        <div><dt>Size</dt><dd>Small</dd></div>
+        <div><dt>Risk</dt><dd>Level 2</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>Alloro has three independent outbound-email senders, each making its own HTTP call to n8n. The leadgen "email me when ready" report sender (<code>sendAuditReportEmail</code>) duplicates the transport, payload build, and environment interception that the central <code>sendEmail</code> already owns. Collapsing it removes that duplication and drops the sender count from three to two. This is step one; <code>sendEmailWebhook</code> (public website forms) is a later, separate task.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p><code>sendAuditReportEmail</code> stops building its own payload, calling <code>interceptEmailPayload</code>, and posting to <code>N8N_EMAIL_URL</code> via raw <code>axios</code>. Instead it renders the leadgen HTML template (unchanged) and delegates to the central <code>sendEmail</code>, mapping the <code>EmailResult</code> back to its existing <code>{ ok, error? }</code> contract. The two queue call sites are untouched. Done when: the leadgen report email still sends with a byte-identical n8n payload, interception still applies on non-prod, <code>tsc</code> is clean, and <code>N8N_EMAIL_URL</code> is no longer referenced in code.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>src/controllers/leadgen-tracking/feature-services/service.n8n-email-sender.ts</code> - the file being refactored (owns the leadgen report template + the <code>{ ok }</code> wrapper).</li>
+        <li><code>src/emails/emailService.ts</code> - the central <code>sendEmail</code> the wrapper delegates to (payload build + interception + <code>axios.post</code> + logging).</li>
+        <li><code>src/emails/index.ts</code> - barrel; re-exports <code>sendEmail</code>. Import target.</li>
+        <li><code>src/controllers/leadgen-tracking/feature-services/service.email-notification-queue.ts</code> - the only caller (2 sites, both check <code>result.ok</code>). NOT modified.</li>
+      </ul>
+      <h3>Payload equivalence (verified)</h3>
+      <ul>
+        <li>Both senders POST to the same n8n workflow <code>alloro-email-service</code> on dev AND prod (env compared: <code>ALLORO_EMAIL_SERVICE_WEBHOOK</code> == <code>N8N_EMAIL_URL</code> on both boxes).</li>
+        <li>Payload keys are identical: <code>subject, body, recipients, cc, bcc, from, fromName</code>. Current leadgen values (<code>from: info@getalloro.com</code>, <code>fromName: Alloro</code>, <code>cc: []</code>) equal <code>sendEmail</code>'s brand defaults, so omitting them yields the same wire payload. <code>bcc: ["info@getalloro.com"]</code> and the leadgen subject are passed explicitly.</li>
+      </ul>
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li>§6.1 / §6.3 reference analog: keep the file in <code>feature-services/</code>; thin wrapper over the shared service.</li>
+        <li>§3.1 keep the defensive try/catch so the wrapper never throws (the worker drain relies on it).</li>
+        <li>§4.2 extract the leadgen subject and self-BCC to named constants.</li>
+      </ul>
+      <p><strong>Reference file:</strong> <code>src/emails/templates/UserSendNotification.ts</code> - closest analog of a template module that renders HTML then calls <code>sendEmail</code>.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Preserve the <code>{ ok, error? }</code> return contract exactly — call sites unchanged.</li>
+            <li>Keep <code>generateEmailHTML</code> and the report template byte-for-byte.</li>
+            <li>Let <code>sendEmail</code> own interception — remove the wrapper's own <code>interceptEmailPayload</code> call (avoid double-interception / double subject prefix).</li>
+            <li>Keep the never-throws guarantee (try/catch around the delegate).</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>No new dependencies. No new n8n webhook.</li>
+            <li>Do not touch <code>service.email-notification-queue.ts</code> or any other consumer.</li>
+            <li>Do not change <code>sendEmail</code>, the interceptor, or the website-form sender.</li>
+            <li>Do not remove the <code>N8N_EMAIL_URL</code> env var from the servers (harmless; only remove the dead code reference).</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Narrowing / folding <code>sendEmailWebhook</code> (public website forms) — deliberate later task.</li>
+        <li>Adding retry/DB-logging to the main email path.</li>
+        <li>Removing the dead <code>dist/</code>-only checkup email pipeline.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 2 (Concern) — an email path with no automatic retry; a broken send is a lost leadgen notification.</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li>Transport re-route: leadgen now sends via <code>ALLORO_EMAIL_SERVICE_WEBHOOK</code> instead of <code>N8N_EMAIL_URL</code>. <strong>Mitigation:</strong> verified both env vars resolve to the same <code>alloro-email-service</code> workflow on dev AND prod, and the payload shape is identical — no observable change on the wire.</li>
+        <li>Double interception if the local intercept call is left in. <strong>Mitigation:</strong> remove the wrapper's <code>interceptEmailPayload</code> call; <code>sendEmail</code> is the single interception point.</li>
+        <li>Log-tag change: intercept log line moves from <code>[Leadgen Email]</code> to <code>sendEmail</code>'s generic line, and leadgen sends now also append to <code>email.log</code>. <strong>Mitigation:</strong> accepted — this is unified observability, an improvement.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> <code>sendAuditReportEmail</code> has exactly one consumer, <code>service.email-notification-queue.ts</code> (lines 81, 137), both reading <code>result.ok</code>. Contract preserved → zero call-site impact. <code>N8N_EMAIL_URL</code> is read only in the file being edited.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li>The file header currently says "consolidate sending behind the backend exclusively (flagged in Pushback)". This task is exactly that consolidation — no divergence. The one judgment call is omitting <code>from</code>/<code>fromName</code> to inherit central defaults vs. passing them explicitly; chose to inherit because the values are identical and it is DRY (§4.3), while noting the defaults are the Alloro brand address so future changes should flow through.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <article class="task-card">
+        <h3>T1: Delegate leadgen report sender to the central sendEmail</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Rewrite <code>sendAuditReportEmail</code> to call <code>sendEmail({ subject, body, recipients, bcc })</code> and map <code>result.success</code> → <code>{ ok }</code>. Remove the local <code>interceptEmailPayload</code> call, the <code>axios</code> import, the <code>logger</code> import (now unused), and the <code>N8N_EMAIL_URL</code> constant. Extract the leadgen subject and self-BCC to named constants (§4.2). Keep <code>generateEmailHTML</code> unchanged. Update the file header comment to describe delegation. Import <code>sendEmail</code> from <code>../../../emails</code>.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/leadgen-tracking/feature-services/service.n8n-email-sender.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code> · <code>npm run check:conventions --strict</code> · <code>grep -rn N8N_EMAIL_URL src/</code> returns nothing</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled> <code>npx tsc --noEmit</code> - zero new errors</li>
+        <li><input type="checkbox" disabled> <code>npm run check:conventions --strict</code> - passes (no new backend violations)</li>
+        <li><input type="checkbox" disabled> <code>grep -rn "N8N_EMAIL_URL" src/</code> - no matches (dead reference removed)</li>
+        <li><input type="checkbox" disabled> <code>sendAuditReportEmail</code> still returns <code>{ ok, error? }</code>; both call sites in <code>service.email-notification-queue.ts</code> compile unchanged</li>
+        <li><input type="checkbox" disabled> No raw <code>axios.post</code> / <code>interceptEmailPayload</code> left in the file — transport + interception delegated to <code>sendEmail</code></li>
+        <li><input type="checkbox" disabled> Sender count reduced 3 → 2 (only <code>sendEmail</code> and <code>sendEmailWebhook</code> post to n8n directly)</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>
