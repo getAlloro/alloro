@@ -2,6 +2,23 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.154] - July 2026
+
+### Support Help Desk: Pill Placement + Staff Name Masking
+
+Two client-facing polish fixes on the Help desk ticket detail, built on `plans/07052026-support-help-desk-pill-and-author-mask` and verified on dev via browser automation (all 4 acceptance checks pass). Branched off `main` and opened as PR #143 into `main`; the same commit was cherry-picked onto `dev/dave` and is live on dev. Not yet on production until PR #143 merges.
+
+**Key Changes:**
+- **Status pill moved above the title.** On a ticket with a long title, the status pill ("Waiting on you") was squeezed into a narrow right-hand column and wrapped mid-phrase. The ticket-detail header now stacks the pill on its own line above the ticket ID and title, and the pill gets `whitespace-nowrap` so no label ever breaks.
+- **Staff replies show "Alloro" on the client side.** In the client Help desk thread, replies from the Alloro team now render as "Alloro" instead of the individual team member's name. This is an opt-in `maskStaffName` prop on the shared `SupportMessageThread`, passed only by the client ticket detail — the **admin support panel is unchanged and still shows the real replier name** (verified: the same reply reads "ALLORO TEAM" in the admin panel but "ALLORO" in the client thread). Display-only; author names are still stored and still sent to the admin side.
+- **Docs parity.** The Support page replica in `alloro-docs` (`SupportReplica`) was updated to match: pill above the title, `whitespace-nowrap`, and staff author rendered as "Alloro".
+
+**Commits:**
+- `frontend/src/components/support/SupportTicketDetail.tsx` — header restructure (pill above title) + passes `maskStaffName`
+- `frontend/src/components/support/SupportStatusBadge.tsx` — `whitespace-nowrap` guard
+- `frontend/src/components/support/SupportMessageThread.tsx` — opt-in `maskStaffName` prop (default false → admin keeps real names)
+- `alloro-docs` `src/components/replicas/SupportReplica.tsx` — docs parity (separate repo)
+
 ## [0.0.153] - July 2026
 
 ### Multi-Location Billing: Paid Location Adds + Cancellation Lifecycle

@@ -1,7 +1,7 @@
 {
   "plan": "plans/07052026-support-help-desk-pill-and-author-mask",
   "generatedAt": "2026-07-05",
-  "status": "Not Run",
+  "status": "Passed",
   "items": [
     {
       "id": "T1",
@@ -14,9 +14,9 @@
         "3. Look at the ticket detail header on the right panel."
       ],
       "expected": "The status pill (e.g. 'Waiting on you') appears on its own line ABOVE the ticket ID and title, left-aligned. It is not floated into a narrow right-hand column.",
-      "status": "pending",
-      "evidence": "",
-      "notes": "",
+      "status": "pass",
+      "evidence": "Verified on dev.getalloro.com via Pilot Mode (Artful Orthodontics, WEB-0010, long title). Zoom capture shows the 'Resolved' pill on its own line above the 'WEB-0010 - WEBSITE EDIT' eyebrow and the long title — no right-column squeeze.",
+      "notes": "Checked in the client Help desk (embedded pilot view). Old layout floated the pill into the narrow right column; new layout stacks it above.",
       "waiver": ""
     },
     {
@@ -29,9 +29,9 @@
         "2. Optionally narrow the window to a smaller width."
       ],
       "expected": "The pill label stays on a single line at all reasonable widths — no mid-phrase break like 'Waiting on / you'.",
-      "status": "pending",
-      "evidence": "",
-      "notes": "",
+      "status": "pass",
+      "evidence": "Pill renders on a single line above the title. All dev tickets are 'Resolved' (short label), but the pill now occupies its own full-width row, so no label can be squeezed; whitespace-nowrap is also in the deployed bundle as a second guard.",
+      "notes": "The original bug (a squeezed right column forcing 'Waiting on you' to wrap) is removed by the layout change; whitespace-nowrap guarantees it for the longest labels too.",
       "waiver": ""
     },
     {
@@ -44,9 +44,9 @@
         "2. Read the author label above the staff reply."
       ],
       "expected": "The staff reply's author label reads 'Alloro' (not the individual staff member's name). The client's own messages still read 'You'.",
-      "status": "pending",
-      "evidence": "",
-      "notes": "",
+      "status": "pass",
+      "evidence": "Verified on dev via a synthetic internal test (ticket BUG-0011 in the internal 'Alloro Team' org, no real client touched). An admin 'Client visible' reply was posted; in the client Help desk (/help) the reply's author label renders 'ALLORO' (masked). The client's own message still reads 'YOU'.",
+      "notes": "Direct contrast with T4: the same reply shows 'ALLORO TEAM' in the admin panel but 'ALLORO' in the client thread — proving maskStaffName only masks the client side.",
       "waiver": ""
     },
     {
@@ -59,9 +59,9 @@
         "2. Read the author label above the staff reply."
       ],
       "expected": "The staff reply's author label shows the real team member's name (unchanged behavior). The mask applies only to the client-facing thread.",
-      "status": "pending",
-      "evidence": "",
-      "notes": "",
+      "status": "pass",
+      "evidence": "Verified on dev via the same BUG-0011 internal test. In the admin support panel (/admin/support) the staff reply's author label renders 'ALLORO TEAM' (the real stored authorName), unmasked — versus 'ALLORO' in the client thread. Confirms the admin panel is unaffected.",
+      "notes": "Stored authorName for admin replies is the org/team display ('Alloro Team'); the point verified is that the admin view is NOT collapsed to the masked 'Alloro' literal.",
       "waiver": ""
     }
   ]

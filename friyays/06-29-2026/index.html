@@ -102,6 +102,28 @@
             <tbody>
               <tr>
                 <td>Client dashboard</td>
+                <td>Support Help desk: status pill above title + staff name shown as "Alloro"</td>
+                <td>All client dashboard users on the Support / Help desk page</td>
+                <td>Deployed to dev, user-verified</td>
+                <td>Needs classification</td>
+                <td>
+                  On the ticket detail, the status pill ("Waiting on you") no
+                  longer wraps mid-phrase on long titles &mdash; it now sits on
+                  its own line above the title &mdash; and staff replies in the
+                  client thread render as "Alloro" instead of the individual team
+                  member's name (the admin panel still shows the real name).
+                  Branched off <code>main</code> &rarr; PR #143; cherry-picked to
+                  <code>dev/dave</code>, Changelog 0.0.154. Verified on dev via
+                  browser automation (pill on Artful WEB-0010; masking via an
+                  internal synthetic ticket). See
+                  <code>plans/07052026-support-help-desk-pill-and-author-mask/test-results.json</code>
+                  (4/4 passed). Docs parity applied in alloro-docs
+                  <code>SupportReplica</code>. Owner to confirm whether this joins
+                  a customer email.
+                </td>
+              </tr>
+              <tr>
+                <td>Client dashboard</td>
                 <td>Generic Revenue Hub wording</td>
                 <td>Generic local-service organizations and health clients</td>
                 <td>User-verified locally</td>

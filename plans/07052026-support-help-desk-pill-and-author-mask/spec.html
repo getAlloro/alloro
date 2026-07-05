@@ -54,11 +54,11 @@
     <header class="spec-hero">
       <div class="hero-topline">
         <p class="eyebrow">Alloro Plan Spec</p>
-        <span class="status-pill">In Progress</span>
+        <span class="status-pill">Completed</span>
       </div>
       <h1>Support Help Desk — Pill Placement &amp; Author Mask</h1>
       <dl class="meta-grid">
-        <div class="status-card"><dt>Status</dt><dd>In Progress</dd></div>
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
         <div><dt>Plan Folder</dt><dd>plans/07052026-support-help-desk-pill-and-author-mask</dd></div>
         <div><dt>Size</dt><dd>Small</dd></div>
         <div><dt>Risk</dt><dd>Level 1</dd></div>
@@ -169,10 +169,10 @@
       <ul class="checklist">
         <li><input type="checkbox" disabled checked> <code>tsc -p tsconfig.app.json --noEmit</code> - zero errors</li>
         <li><input type="checkbox" disabled checked> <code>eslint</code> on the three changed files - clean</li>
-        <li><input type="checkbox" disabled> Manual: client ticket detail — pill above the title, one line, on a long-title ticket</li>
-        <li><input type="checkbox" disabled> Manual: client thread — staff replies show "Alloro"</li>
-        <li><input type="checkbox" disabled> Manual: admin support panel — replies still show the real staff name (no regression)</li>
-        <li><input type="checkbox" disabled> Branch off <code>main</code>, PR opened into <code>main</code>, same commit merged into <code>dev/dave</code></li>
+        <li><input type="checkbox" disabled checked> Manual: client ticket detail — pill above the title, one line, on a long-title ticket (verified on dev, Artful WEB-0010)</li>
+        <li><input type="checkbox" disabled checked> Manual: client thread — staff replies show "Alloro" (verified on dev, BUG-0011 internal test)</li>
+        <li><input type="checkbox" disabled checked> Manual: admin support panel — replies still show the real staff name (verified: admin shows "ALLORO TEAM", client shows "ALLORO")</li>
+        <li><input type="checkbox" disabled checked> Branch off <code>main</code>, PR opened into <code>main</code> (#143), same commit merged into <code>dev/dave</code></li>
       </ul>
     </section>
 
@@ -183,6 +183,12 @@
         <p><strong>Change:</strong> Initial build under <code>-i</code>. T1–T3 implemented on branch <code>fix/support-help-desk-pill-author</code> (off <code>origin/main</code>). Header stacked with pill above title; <code>whitespace-nowrap</code> on badge; <code>maskStaffName</code> prop added and passed by client detail only.</p>
         <p><strong>Reason:</strong> User request (client-facing Help desk polish).</p>
         <p><strong>Updated Done criteria:</strong> build + lint checked (pass); three manual UI checks + the branch/PR/dev-merge step remain for owner verification on dev.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 2 - 2026-07-05</h3>
+        <p><strong>Change:</strong> Acceptance verified on dev via browser automation and finalized. T1/T2 (pill above title, no wrap) confirmed in the client Help desk (Pilot into Artful, WEB-0010, long title). T3/T4 (masking) verified via a synthetic internal test — created a throwaway ticket in the internal "Alloro Team" org, posted an admin "Client visible" reply, and confirmed the same reply renders "ALLORO" in the client thread but "ALLORO TEAM" (real stored authorName) in the admin panel; no real client was touched. Closed the internal test ticket after. All 4 acceptance items pass. Docs parity applied in alloro-docs (SupportReplica: pill above title, whitespace-nowrap, staff author → "Alloro"). CHANGELOG bumped to 0.0.154; Friyay row added.</p>
+        <p><strong>Reason:</strong> User QA: owner asked me to run the acceptance checks and finalize (-d).</p>
+        <p><strong>Updated Done criteria:</strong> all Done items now met — the three manual UI checks are behaviorally verified on dev and the admin-panel no-regression check is confirmed; test-results.json rolls up to Passed.</p>
       </article>
     </section>
   </main>
