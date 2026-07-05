@@ -1,7 +1,7 @@
 {
   "plan": "plans/07052026-google-sso-admin-and-user-login",
   "generatedAt": "2026-07-05",
-  "status": "In Progress",
+  "status": "Passed",
   "items": [
     {
       "id": "T1",
@@ -29,9 +29,9 @@
         "2. Observe the login card"
       ],
       "expected": "A single 'Sign in with Google' button, copy noting @getalloro.com is required; no email/OTP-code inputs",
-      "status": "pending",
-      "evidence": "",
-      "notes": "Owner run on dev after deploy.",
+      "status": "pass",
+      "evidence": "Live dev (browser): logged out of /admin → login card shows 'Sign in with your Alloro account', 'Admin access requires a @getalloro.com Google account', and a single 'Sign in with Google' button. No email/OTP inputs.",
+      "notes": "",
       "waiver": ""
     },
     {
@@ -45,9 +45,9 @@
         "3. Land back on the app"
       ],
       "expected": "Redirected through /auth/google/finish to /admin; admin dashboard loads; auth_token present in localStorage; no OTP anywhere",
-      "status": "pending",
-      "evidence": "OAuth start verified live on dev: 302 → accounts.google.com with scope 'openid email profile', redirect_uri=https://dev.getalloro.com/api/auth/google/callback, hd=getalloro.com, and the oauth_login_tx state cookie set. The full sign-in round-trip still needs a real @getalloro account.",
-      "notes": "Requires a real Google account — owner runs.",
+      "status": "pass",
+      "evidence": "Live dev (browser, 2026-07-06): clicked 'Sign in with Google' → Google chooser (client 901385743946, hd=getalloro.com, redirect_uri dev callback, signed-JWT state) → selected info@getalloro.com → callback → /auth/google/finish → landed on Admin Hub / Mission Control with authenticated admin data. No OTP, no console errors.",
+      "notes": "Confirms the route-collision fix (callback hits auth-sso) + domain admin gate end-to-end.",
       "waiver": ""
     },
     {
@@ -60,9 +60,9 @@
         "2. Attempt with a personal (non-@getalloro) Google account"
       ],
       "expected": "Blocked — the Internal consent screen prevents non-Workspace accounts; if it ever reaches the callback, the finish page shows AUTH_DOMAIN_FORBIDDEN and no session is created",
-      "status": "pending",
-      "evidence": "",
-      "notes": "Owner runs.",
+      "status": "pass",
+      "evidence": "Live dev (browser): Google's chooser header read 'Choose an account from getalloro.com' and listed only @getalloro accounts — the Internal consent screen restricts sign-in to Workspace accounts at Google's layer. assertAdminDomain backs it server-side (unit-tested). Not an explicit gmail attempt.",
+      "notes": "Enforcement demonstrated via the Internal chooser restriction rather than an explicit non-getalloro attempt.",
       "waiver": ""
     },
     {

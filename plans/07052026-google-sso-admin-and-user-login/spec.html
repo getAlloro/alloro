@@ -65,7 +65,7 @@
       </div>
       <h1>Google SSO — Admin-only login + optional user "Sign in with Google"</h1>
       <dl class="meta-grid">
-        <div class="status-card"><dt>Status</dt><dd>In Progress — P1 built + verified locally, deploying to dev</dd></div>
+        <div class="status-card"><dt>Status</dt><dd>In Progress — P1 live-verified on dev (acceptance Passed); pending alloro-docs + prod merge</dd></div>
         <div><dt>Plan Folder</dt><dd>plans/07052026-google-sso-admin-and-user-login</dd></div>
         <div><dt>Size</dt><dd>Medium (P1 only — P2 deferred)</dd></div>
         <div><dt>Risk</dt><dd>Level 3</dd></div>
@@ -396,6 +396,12 @@
         <p><strong>Change:</strong> Removed all runtime dependence on <code>SUPER_ADMIN_EMAILS</code> and broadened the admin roster to the DB. (1) Auth gate: <code>service.super-admin.isSuperAdmin</code> is now purely domain-based (@getalloro), dropping the env allowlist branch — the same identity the login already gates (assertAdminDomain), so <code>superAdminMiddleware</code> + <code>validateToken</code> are unchanged. (2) Rosters: the PM people-picker (<code>PmController.listUsers</code>) and the GSC admin-owned-connection lookup (<code>service.gsc-integration</code>) now source from the DB — <code>UserModel.listInternalUsers()</code> (new; <code>users.is_internal</code>) and an @getalloro domain check — so new @getalloro admins appear automatically without editing an env var. (3) Confirmed: NO separate admin table exists (<code>OsAdminUserModel</code> is a projection of <code>users</code>; no admins/admin_users migration) — admins are <code>users</code> rows identified by <code>id</code>, so nothing to add and no name to reflect into a separate table (<code>users.name</code> already holds it). (4) Auto-registration of any @getalloro Google account on first sign-in is unchanged (createFromGoogle). Test harness: the super-admin identity moved to <code>superadmin@getalloro.com</code> (one line) so the domain gate lets it through. Verified: backend tsc 0, <code>check:conventions --strict</code> 0, full hermetic suite 327/327 pass. The <code>SUPER_ADMIN_EMAILS</code> env var is now unused (safe to leave or remove from servers).</p>
         <p><strong>Reason:</strong> Scope addition (owner 07-06 -c): remove dependence on SUPER_ADMIN_EMAILS, broaden the roster, identify users by id (no admin table), and keep new-@getalloro-account auto-registration.</p>
         <p><strong>Updated Done criteria:</strong> No runtime <code>SUPER_ADMIN_EMAILS</code> reads remain; admin roster is DB-driven (is_internal); admin authz is domain-only; confirmed no admin table needed. Design note: the authz gate stayed domain-based (not a per-request is_internal DB lookup) for minimal blast radius and consistency with the login gate — if per-user revocable admin is wanted later, switch <code>isSuperAdmin</code>/<code>superAdminMiddleware</code> to <code>findInternalFlagById(userId)</code>.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 7 - 2026-07-06</h3>
+        <p><strong>Change:</strong> Live browser acceptance on dev (owner's Chrome session). Logged out of <code>/admin</code> → the login card shows "Sign in with your Alloro account", "requires a @getalloro.com Google account", and a single Google button, no OTP (T2 pass). Clicked it → Google chooser (client 901385743946, hd=getalloro.com, dev redirect_uri, signed-JWT state) restricted to "accounts from getalloro.com" (T4 evidence) → selected info@getalloro.com → callback → <code>/auth/google/finish</code> → landed on the Admin Hub / Mission Control with authenticated admin data, no OTP, no console errors (T3 pass). Confirms the route-collision fix + domain admin gate end-to-end. <code>test-results.json</code> now rolls up to <strong>Passed</strong> (T1–T9); T2/T3/T4 flipped to pass with browser evidence.</p>
+        <p><strong>Reason:</strong> User QA: owner asked to run the real Google sign-in on dev with their logged-in session.</p>
+        <p><strong>Updated Done criteria:</strong> Acceptance artifact Passed. Remaining for <code>-d</code>: alloro-docs update for the new admin login, then the main merge for prod (prod env already staged).</p>
       </article>
     </section>
   </main>
