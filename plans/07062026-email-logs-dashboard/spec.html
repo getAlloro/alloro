@@ -258,6 +258,12 @@
         <p><strong>Reason:</strong> Owner directive "execute all until done"; compliance/BAA Level-4 gate satisfied by the owner's explicit "I own the compliance/BAA call" + "execute all" authorization (recorded).</p>
         <p><strong>Updated Done criteria:</strong> Code-level items met and locally validated. Pending: dev deploy (migration runs on dev DB), behavioral browser verification of the dashboard, and the ops steps to activate delivered/opened (set <code>MAILGUN_WEBHOOK_SIGNING_KEY</code>, configure the Mailgun event webhook + open-tracking, and have the two n8n workflows' Respond nodes return the Mailgun id).</p>
       </article>
+      <article class="revision-entry">
+        <h3>Rev 2 - 2026-07-06</h3>
+        <p><strong>Change:</strong> Post-deploy smoke test on dev caught the Mailgun webhook returning 401 "Authentication required" — the app-level default-deny guard (<code>requireAuthUnlessPublic</code>, <code>middleware/publicRoutes.ts</code>) blocked the public signed endpoint before the controller. Added <code>/api/webhooks/mailgun-events</code> to the <code>PUBLIC_PREFIXES</code> allowlist (the signature-gated machine-endpoint section — the same class as <code>/api/scraper</code>). The route stays gated by HMAC signature verification in the controller.</p>
+        <p><strong>Reason:</strong> Execution deviation: the new public webhook must be on the default-deny allowlist to be reachable; discovered by live dev smoke test.</p>
+        <p><strong>Updated Done criteria:</strong> Webhook endpoint reachable publicly (returns 503 when the signing key is unset, not 401). Re-deploy required.</p>
+      </article>
     </section>
   </main>
 </body>
