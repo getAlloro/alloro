@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Unify Leadgen Email Sender Spec</title>
+  <title>Unify Email Senders Spec</title>
   <style>
     :root {
       color-scheme: light;
@@ -57,13 +57,14 @@
         <p class="eyebrow">Alloro Plan Spec</p>
         <span class="status-pill">In Progress</span>
       </div>
-      <h1>Unify Leadgen Email Sender</h1>
+      <h1>Unify Email Senders</h1>
       <dl class="meta-grid">
-        <div class="status-card"><dt>Status</dt><dd>In Progress</dd></div>
+        <div class="status-card"><dt>Status</dt><dd>In Progress — P1 shipped, P2 pending</dd></div>
         <div><dt>Plan Folder</dt><dd>plans/07062026-unify-leadgen-email-sender</dd></div>
-        <div><dt>Size</dt><dd>Small</dd></div>
+        <div><dt>Size</dt><dd>Medium</dd></div>
         <div><dt>Risk</dt><dd>Level 2</dd></div>
       </dl>
+      <p class="eyebrow" style="margin-top:16px;">Phase 1 — leadgen sender (T1): live on dev (commit fbe2b4de). Phase 2 — website-form sender (T2): built + verified (tsc + conventions), pending dev deploy verification.</p>
     </header>
 
     <section class="spec-card" id="why">
@@ -156,6 +157,26 @@
           <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code> · <code>npm run check:conventions --strict</code> · <code>grep -rn N8N_EMAIL_URL src/</code> returns nothing</dd></div>
         </dl>
       </article>
+
+      <article class="task-card">
+        <h3>T2 (Rev 1): Fold the website-form sender into the central sendEmail</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Rewrite <code>sendEmailWebhook</code> as a thin adapter over <code>sendEmail</code>: map the <code>EmailWebhookPayload</code> to <code>SendEmailOptions</code>, call <code>sendEmail</code>, and re-throw <code>WebhookError</code> on <code>!result.success</code> to preserve the throw-based contract every caller depends on. Remove the <code>fetch</code> transport, the <code>ALLORO_CUSTOM_WEBSITE_EMAIL_WEBHOOK</code> read, and the local <code>interceptEmailPayload</code> call (sendEmail owns interception). Zero call-site changes. After dev proves out, retire the redundant <code>public-websites-email</code> n8n workflow and the <code>ALLORO_CUSTOM_WEBSITE_EMAIL_WEBHOOK</code> env var (ops step, tracked separately — not code).</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/websiteContact/websiteContact-services/emailWebhookService.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none (T1 already shipped)</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code> · <code>npm run check:conventions --strict</code> · <code>grep -rn ALLORO_CUSTOM_WEBSITE_EMAIL_WEBHOOK src/</code> returns nothing · all 6 callers compile unchanged</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2-alt (Option B — deferred, not selected): inline sendEmail at all call sites</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Delete <code>sendEmailWebhook</code> + <code>EmailWebhookPayload</code> entirely; replace each of the 6 call sites with a direct <code>sendEmail(...)</code> call and rewrite each site's error handling to inspect <code>result.success</code>. More churn on public unauthenticated endpoints. Recommended as a follow-up pass only after Option A is verified on dev.</dd></div>
+          <div><dt>Files</dt><dd><code>emailWebhookService.ts</code> (delete), <code>websiteContactController.ts</code>, <code>formSubmissionController.ts</code>, <code>newsletterConfirmationService.ts</code>, <code>newsletterConfirmController.ts</code>, <code>FormSubmissionsController.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T2</dd></div>
+          <div><dt>Verify</dt><dd>N/A — deferred</dd></div>
+        </dl>
+      </article>
     </section>
 
     <section class="spec-card" id="done">
@@ -167,7 +188,26 @@
         <li><input type="checkbox" disabled> <code>sendAuditReportEmail</code> still returns <code>{ ok, error? }</code>; both call sites in <code>service.email-notification-queue.ts</code> compile unchanged</li>
         <li><input type="checkbox" disabled> No raw <code>axios.post</code> / <code>interceptEmailPayload</code> left in the file — transport + interception delegated to <code>sendEmail</code></li>
         <li><input type="checkbox" disabled> Sender count reduced 3 → 2 (only <code>sendEmail</code> and <code>sendEmailWebhook</code> post to n8n directly)</li>
+        <li><input type="checkbox" disabled> (T2) <code>sendEmailWebhook</code> delegates to <code>sendEmail</code>; no <code>fetch</code>, no <code>ALLORO_CUSTOM_WEBSITE_EMAIL_WEBHOOK</code>, no local <code>interceptEmailPayload</code> in the file</li>
+        <li><input type="checkbox" disabled> (T2) All 6 website callers compile unchanged; <code>WebhookError</code> throw contract preserved (HTTP 502 mapping intact)</li>
+        <li><input type="checkbox" disabled> (T2) <code>sendEmail</code> is the ONLY function posting to n8n — one webhook, one workflow</li>
       </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-07-06</h3>
+        <p><strong>Change:</strong> Scope broadened from leadgen-only to all internal senders. Added Phase 2 (T2): fold <code>sendEmailWebhook</code> (public website contact/lead/newsletter forms) into the central <code>sendEmail</code> via a thin adapter that preserves the <code>WebhookError</code> throw contract. Grounded in evidence gathered this session: (a) the two n8n workflows — <code>alloro-email-service</code> and <code>public-websites-email</code> — are functionally identical: same Mailgun credential (<code>KM4uwQfjcJs9fByo</code>), same hardcoded <code>fromEmail</code> (<code>Alloro &lt;notifications@email.getalloro.com&gt;</code>), same payload contract; the website workflow is a less-defensive clone (no <code>|| []</code> guard). (b) n8n's Mailgun node hardcodes the From address, so the backend's <code>from</code>/<code>fromName</code> are ignored on both paths — the from-difference between senders is moot. (c) <code>bcc</code> is <code>[]</code> in all 6 website callers; recipients are already resolved before the send in every caller except <code>websiteContactController</code> (env list). The one real blocker is the error-contract flip (webhook throws vs sendEmail returns), handled by the adapter re-throwing. Option B (delete the wrapper, inline sendEmail at all 6 sites) is documented as a deferred follow-up.</p>
+        <p><strong>Reason:</strong> Scope addition: user directive to unify the website sender into the same spec, after investigating the two n8n pipelines.</p>
+        <p><strong>Updated Done criteria:</strong> Added four T2 checklist items (adapter delegates to sendEmail; 6 callers unchanged; throw contract preserved; sendEmail is the sole n8n poster).</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 2 - 2026-07-06</h3>
+        <p><strong>Change:</strong> Executed T2. Rewrote <code>sendEmailWebhook</code> as a thin adapter over <code>sendEmail</code> — removed the <code>fetch</code> transport, the <code>ALLORO_CUSTOM_WEBSITE_EMAIL_WEBHOOK</code> read, the local <code>interceptEmailPayload</code> call, and the <code>logger</code> import; kept <code>EmailWebhookPayload</code> + <code>WebhookError</code>; map <code>!result.success</code> → <code>throw WebhookError</code>. Verified: <code>tsc --noEmit</code> exit 0; <code>check:conventions --strict</code> exit 0 (backend structural violations 0); <code>ALLORO_CUSTOM_WEBSITE_EMAIL_WEBHOOK</code> no longer referenced in <code>src/</code>; all 6 consumers (websiteContactController, formSubmission newsletter path, newsletterConfirmController, FormSubmissionsController single+bulk) compile unchanged with the throw contract intact. Minor behavior note: the missing-config case now throws <code>WebhookError</code> instead of a plain <code>Error</code> (more consistent; <code>ALLORO_EMAIL_SERVICE_WEBHOOK</code> is set on dev+prod so it never triggers). <code>sendEmail</code> is now the ONLY function posting to n8n; the <code>public-websites-email</code> workflow + <code>ALLORO_CUSTOM_WEBSITE_EMAIL_WEBHOOK</code> env are now retirable (ops step, deferred).</p>
+        <p><strong>Reason:</strong> Execution deviation: none — built as specced (Option A). Owner directive "execute all until done."</p>
+        <p><strong>Updated Done criteria:</strong> All four T2 items met in code; behavioral acceptance pending dev deploy verification.</p>
+      </article>
     </section>
   </main>
 </body>
