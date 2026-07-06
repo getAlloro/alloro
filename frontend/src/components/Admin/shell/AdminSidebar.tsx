@@ -20,6 +20,7 @@ import {
   Settings,
   Clock,
   Inbox,
+  Mail,
   Radar,
   UserCheck,
   Blocks,
@@ -37,6 +38,7 @@ export type AdminNavKey =
   | "minds"
   | "leadgen-submissions"
   | "app-logs"
+  | "email-logs"
   | "organization-management"
   | "websites"
   | "templates"
@@ -74,6 +76,7 @@ const TOP_ITEMS: NavItem[] = [
 
 const BOTTOM_ITEMS: NavItem[] = [
   { key: "app-logs", label: "App Logs", icon: FileText },
+  { key: "email-logs", label: "Email Logs", icon: Mail },
   { key: "schedules", label: "Schedules", icon: Clock },
   { key: "settings", label: "Settings", icon: Settings },
 ];

@@ -9,8 +9,14 @@ import axios from "axios";
 import fs from "fs";
 import path from "path";
 import dotenv from "dotenv";
-import type { EmailPayload, EmailResult, SendEmailOptions } from "./types";
+import type {
+  EmailCategory,
+  EmailPayload,
+  EmailResult,
+  SendEmailOptions,
+} from "./types";
 import { interceptEmailPayload } from "./emailInterceptor";
+import { EmailLogModel } from "../models/EmailLogModel";
 import logger from "../lib/logger";
 
 dotenv.config();
@@ -48,13 +54,6 @@ function logEmail(
   ensureLogDir();
 
   const timestamp = new Date().toISOString();
-  const logEntry = {
-    timestamp,
-    level,
-    message,
-    ...data,
-  };
-
   const logLine = `[${timestamp}] [${level}] ${message} ${
     data ? JSON.stringify(data) : ""
   }\n`;
@@ -117,6 +116,44 @@ function validatePayload(payload: SendEmailOptions): string[] {
   });
 
   return errors;
+}
+
+/**
+ * Best-effort write of one email_logs row. Never throws — a logging failure
+ * must never fail or delay the actual send (plan Risk mitigation). Called
+ * from both the success and failure branches of sendEmail.
+ */
+async function recordEmailLog(params: {
+  category: EmailCategory;
+  payload: EmailPayload & { from: string; fromName: string };
+  intercepted: boolean;
+  originalRecipients: string[];
+  status: "sent" | "failed";
+  providerMessageId: string | null;
+  error: string | null;
+}): Promise<void> {
+  try {
+    await EmailLogModel.createLog({
+      category: params.category,
+      status: params.status,
+      from_email: params.payload.from,
+      from_name: params.payload.fromName,
+      recipients: params.payload.recipients,
+      cc: params.payload.cc ?? [],
+      bcc: params.payload.bcc ?? [],
+      subject: params.payload.subject,
+      body_html: params.payload.body,
+      provider_message_id: params.providerMessageId,
+      intercepted: params.intercepted,
+      original_recipients: params.intercepted ? params.originalRecipients : null,
+      error: params.error,
+    });
+  } catch (err) {
+    logEmail("WARN", "Failed to write email_logs row (send unaffected)", {
+      error: err instanceof Error ? err.message : String(err),
+      subject: params.payload.subject,
+    });
+  }
 }
 
 /**
@@ -209,6 +246,23 @@ export async function sendEmail(
       status: response.status,
     });
 
+    // Store the real provider id only (null when n8n returns none) so Mailgun
+    // delivery/open events can correlate; the synthesized msg_* fallback that
+    // the EmailResult carries must not be persisted as the correlation key.
+    const rawProviderId = response.data?.id ?? response.data?.messageId;
+    await recordEmailLog({
+      category: options.category ?? "uncategorized",
+      payload,
+      intercepted,
+      originalRecipients,
+      status: "sent",
+      providerMessageId:
+        typeof rawProviderId === "string"
+          ? rawProviderId.replace(/^<|>$/g, "")
+          : null,
+      error: null,
+    });
+
     return {
       success: true,
       messageId,
@@ -224,6 +278,16 @@ export async function sendEmail(
       recipients: payload.recipients,
       status: error.response?.status,
       responseData: error.response?.data,
+    });
+
+    await recordEmailLog({
+      category: options.category ?? "uncategorized",
+      payload,
+      intercepted,
+      originalRecipients,
+      status: "failed",
+      providerMessageId: null,
+      error: errorMessage,
     });
 
     return {
@@ -258,6 +322,7 @@ export async function sendToAdmins(
     recipients: adminEmails,
     cc: options?.cc,
     bcc: options?.bcc,
+    category: "notification",
   });
 }
 

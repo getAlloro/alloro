@@ -9,6 +9,7 @@ import { AdminGuard } from "@/components/Admin/shell/AdminGuard";
 import AIDataInsightsList from "./admin/AIDataInsightsList";
 import AIDataInsightsDetail from "./admin/AIDataInsightsDetail";
 import AppLogs from "./admin/AppLogs";
+import EmailLogs from "./admin/EmailLogs";
 import { OrganizationManagement } from "./admin/OrganizationManagement";
 import AgentOutputsList from "./admin/AgentOutputsList";
 import { PracticeRanking } from "./admin/PracticeRanking";
@@ -97,6 +98,7 @@ function AdminWithLayout() {
         />
         <Route path="webdev-engine" element={<WebDevEngine />} />
         <Route path="app-logs" element={<AppLogs />} />
+        <Route path="email-logs" element={<EmailLogs />} />
         <Route
           path="organization-management"
           element={<OrganizationManagement />}

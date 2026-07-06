@@ -38,6 +38,7 @@ export async function sendQuantityUpdateEmail(
     const direction = newQuantity > oldQuantity ? "added" : "removed";
 
     await sendEmail({
+      category: "billing",
       subject: `Your Alloro subscription has been updated`,
       body: `
         <div style="font-family: sans-serif; padding: 20px; max-width: 600px;">
@@ -113,6 +114,7 @@ export async function sendLocationLifecycleEmail(
       : null;
 
     await sendEmail({
+      category: "billing",
       subject: `Location update for ${org.name}`,
       body: `
         <div style="font-family: sans-serif; padding: 20px; max-width: 600px;">

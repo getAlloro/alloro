@@ -30,6 +30,7 @@ export async function sendEmailWebhook(payload: EmailWebhookPayload): Promise<vo
     bcc: payload.bcc,
     from: payload.from,
     fromName: payload.fromName,
+    category: "website_form",
   });
 
   if (!result.success) {

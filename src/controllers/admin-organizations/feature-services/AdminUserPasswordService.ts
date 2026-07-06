@@ -59,6 +59,7 @@ export async function setTemporaryPassword(
         : "http://localhost:5173";
 
     const emailResult = await sendEmail({
+      category: "account",
       subject: "Your Alloro password has been set",
       body: adminEmailTemplates.setPasswordEmail({
         userName: user.name,

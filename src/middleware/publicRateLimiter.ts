@@ -88,6 +88,18 @@ export const referralFormLimiter = rateLimit({
   message: RATE_LIMIT_MESSAGE,
 });
 
+// Inbound Mailgun event webhook (delivered/opened/bounced/complained). The real
+// gate is HMAC signature verification in the controller; this limiter is
+// defense-in-depth against non-Mailgun abuse of the public endpoint. Generous
+// ceiling so legitimate delivery-event bursts are never dropped.
+export const mailgunWebhookLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 600,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: RATE_LIMIT_MESSAGE,
+});
+
 export const gbpAuthLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
   max: 10,

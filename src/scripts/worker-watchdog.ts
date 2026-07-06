@@ -113,6 +113,7 @@ async function main(): Promise<void> {
     "  PATH=/home/ubuntu/.nvm/versions/node/v22.18.0/bin:$PATH pm2 restart minds-worker",
   ];
   const result = await sendEmail({
+    category: "system",
     subject: `[ALLORO][worker] minds-worker stalled on ${host}`,
     body: `<pre>${lines.join("\n")}</pre>`,
     recipients: [ALERT_RECIPIENT],

@@ -297,6 +297,12 @@ export const QUERY_KEYS = {
   // invalidation refreshes its Comments rail too.
   adminOsComments: (id: string | null) =>
     ["admin", "os", "document", id, "comments"] as const,
+
+  // Admin — Email Logs (plans/07062026-email-logs-dashboard)
+  adminEmailLogs: (params?: Record<string, unknown>) =>
+    ["admin", "email-logs", params] as const,
+  adminEmailLog: (id: string | null) =>
+    ["admin", "email-log", id] as const,
   // Import provenance poll (P6) — under the document prefix so a document
   // invalidation refreshes its import status too.
   adminOsDocumentImport: (id: string | null) =>

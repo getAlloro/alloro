@@ -116,6 +116,7 @@ export async function sendAuditReportEmail(
       body,
       recipients: [opts.recipientEmail],
       bcc: REPORT_SELF_BCC,
+      category: "leadgen",
     });
 
     return result.success

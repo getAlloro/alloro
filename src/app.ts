@@ -62,6 +62,8 @@ import adminGbpAutomationRoutes from "./routes/admin/gbpAutomation";
 import adminMissionControlRoutes from "./routes/admin/missionControl";
 import adminAiSeoAuditRoutes from "./routes/admin/aiSeoAudit";
 import adminOsRoutes from "./routes/admin/os";
+import adminEmailLogsRoutes from "./routes/admin/emailLogs";
+import mailgunEventsRoutes from "./routes/webhooks/mailgunEvents";
 import leadgenTrackingRoutes from "./routes/leadgenTracking";
 import practiceRankingRoutes from "./routes/practiceRanking";
 import supportRoutes from "./routes/support";
@@ -242,6 +244,7 @@ app.use("/api/admin/gbp-automation", adminGbpAutomationRoutes);
 app.use("/api/admin/mission-control", adminMissionControlRoutes);
 app.use("/api/admin/ai-seo-audit", adminAiSeoAuditRoutes);
 app.use("/api/admin/os", adminOsRoutes); // OS knowledge base (super-admin, plans/07042026-alloro-os-admin-port)
+app.use("/api/admin/email-logs", adminEmailLogsRoutes); // Email Logs dashboard (super-admin, plans/07062026-email-logs-dashboard)
 app.use("/api/leadgen", leadgenTrackingRoutes);
 app.use("/api/admin/practice-ranking", practiceRankingRoutes);
 app.use("/api/practice-ranking", practiceRankingRoutes); // Client-facing endpoint for /latest
@@ -252,6 +255,7 @@ app.use("/api/places", placesRoutes); // Google Places API for GBP search
 app.use("/api/audit", auditRoutes); // Audit process tracking for leadgen tool
 app.use("/api/imports", importsRoutes); // Public file serving for self-hosted imports
 app.use("/api/websites", websiteContactRoutes); // Public contact form for rendered sites
+app.use("/api/webhooks/mailgun-events", mailgunEventsRoutes); // Signed Mailgun event webhook (delivery/open tracking)
 app.use("/api/user/website", userWebsiteRoutes); // User website management (DFY tier)
 app.use("/api/locations", locationRoutes); // Location management for multi-location orgs
 app.use("/api/admin/minds", mindsRoutes); // Minds MVP — AI chatbot profiles with knowledge sync

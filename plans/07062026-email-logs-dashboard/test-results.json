@@ -1,0 +1,103 @@
+{
+  "plan": "plans/07062026-email-logs-dashboard",
+  "generatedAt": "2026-07-06",
+  "status": "In Progress",
+  "items": [
+    {
+      "id": "T1",
+      "title": "email_logs migration applies and rolls back cleanly",
+      "surface": "cli",
+      "precondition": "Postgres reachable via the app connection",
+      "steps": ["1. npm run db:migrate", "2. inspect columns + indexes", "3. npm run db:rollback", "4. npm run db:migrate"],
+      "expected": "Table created with 18 columns (jsonb recipients/cc/bcc/original_recipients, timestamptz timestamps) + 4 indexes; down() drops it; re-apply clean.",
+      "status": "pass",
+      "evidence": "Batch 129 run/rolled-back/run on local PG; verified 18 cols + email_logs_{category,status,created_at,provider_message_id}_idx; hasTable=false after rollback.",
+      "notes": "Local (localhost/appdb) validation; dev DB migration runs on deploy.",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "EmailLogModel round-trips against Postgres",
+      "surface": "cli",
+      "precondition": "email_logs table present",
+      "steps": ["1. createLog with jsonb arrays + intercepted", "2. listLogs filtered by category+search", "3. getDetailById", "4. recordEvent delivered then opened"],
+      "expected": "Insert stores jsonb arrays; list omits body_html and filters correctly; detail returns body_html; delivered sets status+delivered_at (1 row); opened advances to opened+opened_at (1 row).",
+      "status": "pass",
+      "evidence": "Round-trip script: recipients came back as parsed array, body_html absent in list / present in detail, delivered→opened correlation both updated 1 row.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "sendEmail choke-point logs every send, non-blocking",
+      "surface": "none",
+      "precondition": "T2 applied",
+      "steps": ["1. inspect emailService.ts success + catch branches", "2. confirm recordEmailLog wrapped in try/catch that never throws"],
+      "expected": "Both branches call recordEmailLog; a logging error is swallowed (WARN) and never fails/blocks the send; provider_message_id stored bracket-normalized.",
+      "status": "pass",
+      "evidence": "tsc 0; recordEmailLog internal try/catch; success + failure branches both record. Behavioral send verification is T10.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T4",
+      "title": "Category set at every live sender",
+      "surface": "none",
+      "precondition": "T3 applied",
+      "steps": ["1. grep sendEmail call sites", "2. confirm category on auth/account/billing/support/notification/leadgen/website_form/system"],
+      "expected": "Each live sender passes an explicit category; unset paths default to uncategorized.",
+      "status": "pass",
+      "evidence": "Tagged: AuthPasswordController x3 (auth), user-management x2 + AdminUserPasswordService (account), billingEmails x2 (billing), SupportEmailService x3 (support), sendToAdmins + UserSendNotification (notification), leadgen wrapper (leadgen), website wrapper (website_form), worker-watchdog (system). tsc 0.",
+      "notes": "Dead dist-only checkup templates left untagged.",
+      "waiver": ""
+    },
+    {
+      "id": "T5",
+      "title": "Signed Mailgun event webhook flips rows (delivered/opened)",
+      "surface": "api",
+      "precondition": "Deployed to dev; MAILGUN_WEBHOOK_SIGNING_KEY set; Mailgun event webhook + open-tracking configured; a logged email with a provider_message_id",
+      "steps": ["1. Send a Mailgun test event (or real) to POST /api/webhooks/mailgun-events", "2. Send an event with a bad signature", "3. Re-send the same event"],
+      "expected": "Valid delivered event flips the matching row to delivered (+delivered_at); bad signature → 401; duplicate event is idempotent; missing key → 503 (dormant, boot unaffected).",
+      "status": "pending",
+      "evidence": "",
+      "notes": "Blocked on ops: signing key + Mailgun dashboard config + n8n Respond node returning the Mailgun id. Code + signature verify unit-shaped and build-clean.",
+      "waiver": ""
+    },
+    {
+      "id": "T6",
+      "title": "Admin list + detail API is super-admin gated",
+      "surface": "api",
+      "precondition": "Deployed to dev; a @getalloro.com admin JWT; at least one email_logs row",
+      "steps": ["1. GET /api/admin/email-logs (authed) with filters", "2. GET /api/admin/email-logs/:id", "3. call both without/with a non-admin token"],
+      "expected": "Authed internal admin gets the §8.1 { success, data } envelope (paginated list; detail with body_html); non-admin → 403; bad id → 400; missing → 404.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "Build-clean; behavioral run needs the dev deploy.",
+      "waiver": ""
+    },
+    {
+      "id": "T7",
+      "title": "Email Logs dashboard renders, filters, and previews HTML safely",
+      "surface": "ui",
+      "precondition": "Deployed to dev; logged in as @getalloro.com admin at dev.getalloro.com/admin",
+      "steps": ["1. Open the Email Logs sidebar item", "2. Filter by category/status/date, search a recipient", "3. Click a row → detail modal", "4. Confirm the body renders in a sandboxed iframe (no script execution)"],
+      "expected": "List loads with category/status badges (opened marked best-effort *), filters + pagination work, detail modal shows metadata + the exact sent HTML inside a sandbox='' iframe; intercepted rows show the original recipients.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "Frontend tsc + vite build pass; behavioral browser run needs the dev deploy.",
+      "waiver": ""
+    },
+    {
+      "id": "T10",
+      "title": "A real email sent on dev appears in the dashboard",
+      "surface": "ui",
+      "precondition": "Deployed to dev",
+      "steps": ["1. Trigger any email on dev (e.g. forgot-password for a @getalloro.com account, or a support ticket)", "2. Open Email Logs and find it"],
+      "expected": "The email appears with the correct category, status=sent, intercepted flag (→ dave@getalloro.com on dev), and the exact rendered HTML in the viewer.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "End-to-end proof of the choke-point capture. Needs the dev deploy.",
+      "waiver": ""
+    }
+  ]
+}
