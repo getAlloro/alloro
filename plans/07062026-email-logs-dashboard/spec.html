@@ -264,6 +264,12 @@
         <p><strong>Reason:</strong> Execution deviation: the new public webhook must be on the default-deny allowlist to be reachable; discovered by live dev smoke test.</p>
         <p><strong>Updated Done criteria:</strong> Webhook endpoint reachable publicly (returns 503 when the signing key is unset, not 401). Re-deploy required.</p>
       </article>
+      <article class="revision-entry">
+        <h3>Rev 3 - 2026-07-06</h3>
+        <p><strong>Change:</strong> Deployed to dev (commits 952e56cd + 9544f734) — migration ran on the dev DB, PM2 reloaded, health green. Live smoke: <code>/api/admin/email-logs</code> → 401 (gated), <code>/api/webhooks/mailgun-events</code> → 503 not_configured (reachable, fail-safe). End-to-end verified: triggered a real <code>forgot-password</code> send on dev; <code>email_logs</code> went 0→1 with <code>category=auth</code>, <code>status=sent</code>, <code>intercepted=true</code>, <code>recipients=[dave@getalloro.com]</code>, <code>original_recipients=[info@getalloro.com]</code>, <code>provider_message_id</code> SET. This proves T3 (choke-point capture), T4 (category), and the interception path live. <strong>Finding:</strong> <code>provider_message_id</code> is populated, so n8n already returns the Mailgun id — the delivered/opened correlation needs NO n8n Respond-node change (the earlier pre-execution unknown is resolved).</p>
+        <p><strong>Reason:</strong> Execution verification on the live dev environment.</p>
+        <p><strong>Updated Done criteria:</strong> T1–T4 + T10 verified (code + live). Remaining: T6 authed API happy-path + T7 dashboard browser check (owner, authenticated session), and T5 delivered/opened activation — now reduced to two ops steps: set <code>MAILGUN_WEBHOOK_SIGNING_KEY</code> and enable the Mailgun event webhook + open-tracking (no n8n change required).</p>
+      </article>
     </section>
   </main>
 </body>

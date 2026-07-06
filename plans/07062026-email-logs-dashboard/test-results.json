@@ -94,9 +94,9 @@
       "precondition": "Deployed to dev",
       "steps": ["1. Trigger any email on dev (e.g. forgot-password for a @getalloro.com account, or a support ticket)", "2. Open Email Logs and find it"],
       "expected": "The email appears with the correct category, status=sent, intercepted flag (→ dave@getalloro.com on dev), and the exact rendered HTML in the viewer.",
-      "status": "pending",
-      "evidence": "",
-      "notes": "End-to-end proof of the choke-point capture. Needs the dev deploy.",
+      "status": "pass",
+      "evidence": "Live dev: triggered forgot-password → email_logs 0→1 row: category=auth, status=sent, intercepted=true, recipients=[dave@getalloro.com], original_recipients=[info@getalloro.com], provider_message_id SET, subject='[Intercepted] Reset your Alloro password'.",
+      "notes": "Proves T3 (choke-point capture) and T4 (category) live too. provider_message_id being set confirms n8n returns the Mailgun id — delivered/opened correlation works with no n8n change needed.",
       "waiver": ""
     }
   ]
