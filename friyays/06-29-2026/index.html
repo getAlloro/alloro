@@ -300,6 +300,60 @@
                   whether the client-value story joins a customer email.
                 </td>
               </tr>
+              <tr>
+                <td>Admin access</td>
+                <td>Google SSO admin sign-in (replaces email OTP)</td>
+                <td>Internal &mdash; Alloro admins signing into the admin panel</td>
+                <td>Deployed to dev, user-verified</td>
+                <td>No</td>
+                <td>
+                  Admin login now uses &ldquo;Sign in with Google&rdquo;
+                  restricted to verified <code>@getalloro.com</code> accounts,
+                  replacing the email-OTP flow. New <code>@getalloro.com</code>
+                  admins are auto-provisioned on first sign-in (zero
+                  registration) and marked <code>is_internal</code> so they stay
+                  out of client-facing pickers and product telemetry;
+                  <code>SUPER_ADMIN_EMAILS</code> was dropped in favor of the
+                  domain gate plus the DB internal roster. Built on
+                  <code>google-auth-library</code> with distinct
+                  <code>GOOGLE_LOGIN_*</code> env on dev and prod. Changelog
+                  0.0.155, commit <code>dc792a0a</code>. Verified end-to-end on
+                  dev via a real Google round-trip &mdash; see
+                  <code>plans/07052026-google-sso-admin-and-user-login/test-results.json</code>
+                  (T1&ndash;T9 Passed, run twice). Live on dev; production waits
+                  on the <code>main</code> merge (prod env already staged). Docs
+                  parity N/A &mdash; admin-only, alloro-docs is client-facing.
+                  Client &ldquo;Sign in with Google&rdquo; (P2) is deferred
+                  (needs a separate External OAuth project). Internal admin
+                  change; not customer-email material.
+                </td>
+              </tr>
+              <tr>
+                <td>Admin tooling</td>
+                <td>Alloro OS admin port: internal Library + grounded RAG chat</td>
+                <td>Internal &mdash; Alloro admins/operators in the admin panel OS tab</td>
+                <td>Deployed to dev; acceptance in progress (T10 file-imports pending), not yet finalized</td>
+                <td>No</td>
+                <td>
+                  A new admin &ldquo;OS&rdquo; tab that brings the internal
+                  knowledge base in-house: a document Library (list/grouped/folder
+                  views with drag-drop, a 3-pane reader, a TipTap markdown editor
+                  with autosave/locks/publish, versions/diff/restore, and trash),
+                  plus a grounded RAG chat (SSE streaming, server-built citations,
+                  grounded refusal, auto-title) over a pgvector index with hybrid
+                  search and a keyboard command palette. Ships a 16-table
+                  <code>os</code> schema migration, a RAG ingest pipeline
+                  (chunk/embed/AI-metadata/link-suggest), file imports
+                  (docx/xlsx/pdf/md &rarr; markdown) with S3 image assets, and
+                  threaded comments. Built as P1&ndash;P7 on <code>dev/dave</code>
+                  (<code>724d5671</code>&ndash;<code>037b1345</code>), pushed and
+                  deployed to dev. Acceptance 11/12 pass &mdash; see
+                  <code>plans/07042026-alloro-os-admin-port/test-results.json</code>
+                  (T10 file imports still pending). Not yet finalized (no
+                  changelog) and not on production. Internal admin tooling; not
+                  customer-email material. Needs owner verification.
+                </td>
+              </tr>
             </tbody>
           </table>
         </div>
