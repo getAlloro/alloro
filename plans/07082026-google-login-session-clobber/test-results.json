@@ -1,0 +1,84 @@
+{
+  "plan": "plans/07082026-google-login-session-clobber",
+  "generatedAt": "2026-07-08",
+  "status": "In Progress",
+  "items": [
+    {
+      "id": "A1",
+      "title": "Cross-identity sliding refresh is dropped (the clobber fix)",
+      "surface": "api",
+      "precondition": "storeRefreshedToken exercised under jsdom (vitest)",
+      "steps": [
+        "1. Set localStorage auth_token to a token for user 76 (dave)",
+        "2. Call storeRefreshedToken with an x-session-refresh token for user 72 (info)",
+        "3. Read localStorage auth_token"
+      ],
+      "expected": "localStorage still holds user 76's token — a different-identity refresh is never persisted",
+      "status": "pass",
+      "evidence": "frontend/src/api/index.test.ts: 'drops a different-identity refresh (no clobber)', 'drops a refresh when no session is present', pilot-mode drop variant — vitest 6/6",
+      "notes": "This is the direct fix for the dave -> info clobber.",
+      "waiver": ""
+    },
+    {
+      "id": "A2",
+      "title": "Same-identity sliding refresh still persists (no forced logout)",
+      "surface": "api",
+      "precondition": "storeRefreshedToken exercised under jsdom (vitest)",
+      "steps": [
+        "1. Set localStorage auth_token to an older token for user 76",
+        "2. Call storeRefreshedToken with a newer x-session-refresh token for user 76",
+        "3. Read localStorage auth_token"
+      ],
+      "expected": "localStorage is updated to the newer same-user token — sliding expiry is preserved",
+      "status": "pass",
+      "evidence": "frontend/src/api/index.test.ts: 'persists a same-identity refresh (extends the session)', pilot-mode same-identity write",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "A3",
+      "title": "JWT decode helper reads userId and fails safe",
+      "surface": "cli",
+      "precondition": "vitest",
+      "steps": ["1. Run frontend unit tests for decodeJwtUserId"],
+      "expected": "userId / id / user_id decoded to a number; malformed or empty token -> null",
+      "status": "pass",
+      "evidence": "frontend/src/utils/jwt.test.ts — 5/5",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "A4",
+      "title": "End-to-end: signing in as a 2nd @getalloro account over a stale session lands as that account",
+      "surface": "ui",
+      "precondition": "Deployed to dev; a stale admin session already in the browser (localStorage token past half-life); a second @getalloro.com Google account available",
+      "steps": [
+        "1. While a stale admin session (account A) sits in the browser, go to /admin and click Sign in with Google",
+        "2. Choose a different @getalloro.com account B in the Google chooser",
+        "3. Land on /admin",
+        "4. Open the account menu, or run the console snapshot, to read the session identity"
+      ],
+      "expected": "The top bar and the localStorage token both resolve to account B, not A",
+      "status": "pending",
+      "evidence": "",
+      "notes": "Cannot be automated — Google OAuth account selection. Owner/human run on dev after deploy.",
+      "waiver": ""
+    },
+    {
+      "id": "A5",
+      "title": "Regression: normal single-account Google sign-in still works",
+      "surface": "ui",
+      "precondition": "Deployed to dev; cleared browser session",
+      "steps": [
+        "1. Clear site data",
+        "2. Go to /admin, click Sign in with Google, choose an @getalloro.com account",
+        "3. Land on /admin"
+      ],
+      "expected": "Signs in and lands on the admin app as that account, with no error screen",
+      "status": "pending",
+      "evidence": "",
+      "notes": "Human run on dev.",
+      "waiver": ""
+    }
+  ]
+}

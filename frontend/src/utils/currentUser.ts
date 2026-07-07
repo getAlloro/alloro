@@ -9,20 +9,9 @@
  * normal-mode (localStorage) sessions both resolve to the current user.
  */
 import { getPriorityItem } from "../hooks/useLocalStorage";
+import { decodeJwtUserId } from "./jwt";
 
 export function getCurrentUserId(): number | null {
-  try {
-    const token =
-      getPriorityItem("auth_token") || getPriorityItem("token");
-    if (!token) return null;
-    const payload = token.split(".")[1];
-    if (!payload) return null;
-    const decoded = JSON.parse(
-      atob(payload.replace(/-/g, "+").replace(/_/g, "/"))
-    );
-    const id = decoded?.userId ?? decoded?.id ?? decoded?.user_id;
-    return typeof id === "number" ? id : null;
-  } catch {
-    return null;
-  }
+  const token = getPriorityItem("auth_token") || getPriorityItem("token");
+  return decodeJwtUserId(token);
 }

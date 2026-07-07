@@ -5,6 +5,7 @@ import axios, {
 } from "axios";
 import { getPriorityItem } from "../hooks/useLocalStorage";
 import { logger } from "../lib/logger";
+import { decodeJwtUserId } from "../utils/jwt";
 import {
   getEmbeddedPilotSession,
   isEmbeddedPilotSession,
@@ -414,17 +415,32 @@ let sessionExpiredFired = false;
  * same store getCommonHeaders() reads from — sessionStorage in pilot mode, else
  * localStorage — so the next request rides the fresh token.
  */
-const storeRefreshedToken = (headers: unknown) => {
+export const storeRefreshedToken = (headers: unknown) => {
   const refreshed = (headers as Record<string, string> | undefined)?.[
     "x-session-refresh"
   ];
   if (!refreshed) return;
 
+  // A sliding refresh may only EXTEND the current session, never change who it
+  // belongs to. Compare the re-issued token against the token currently in the
+  // store we would write to; if they are not the same user (or there is no
+  // current session), drop it. This stops an in-flight request from a previous
+  // identity re-persisting its token over a freshly-established session — the
+  // SSO login clobber (plans/07082026-google-login-session-clobber).
+  const refreshedUserId = decodeJwtUserId(refreshed);
+  if (refreshedUserId === null) return;
+
   if (isEmbeddedPilotSession()) {
+    const current = getEmbeddedPilotSession()?.token ?? null;
+    if (decodeJwtUserId(current) !== refreshedUserId) return;
     updateEmbeddedPilotToken(refreshed);
   } else if (isPilotSession()) {
+    const current = window.sessionStorage.getItem("token");
+    if (decodeJwtUserId(current) !== refreshedUserId) return;
     window.sessionStorage.setItem("token", refreshed);
   } else {
+    const current = window.localStorage.getItem("auth_token");
+    if (decodeJwtUserId(current) !== refreshedUserId) return;
     window.localStorage.setItem("auth_token", refreshed);
   }
 };

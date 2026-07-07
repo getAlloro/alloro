@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Google Login Session Clobber Fix Spec</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); margin-top: 14px; }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 840px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 4rem); line-height: 0.98; letter-spacing: 0; }
+    h2 { font-size: 1.35rem; letter-spacing: 0; }
+    h3 { font-size: 1rem; letter-spacing: 0; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    ul { margin: 0; padding-left: 18px; }
+    li { margin: 4px 0; }
+    .flow { border: 1px solid var(--line); border-radius: 8px; background: var(--soft); padding: 16px; margin-top: 12px; font-size: 0.95rem; }
+    .flow ol { margin: 0; padding-left: 20px; }
+    .tag { display: inline-block; border: 1px solid var(--ink); border-radius: 999px; padding: 1px 8px; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill">In Progress</span>
+      </div>
+      <h1>Fix Google login landing on a stale identity</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>In Progress</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/07082026-google-login-session-clobber</dd></div>
+        <div><dt>Size</dt><dd>Medium</dd></div>
+        <div><dt>Risk</dt><dd>Level 3</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>Signing in through Google as <code>dave@getalloro.com</code> lands the admin in the app as <code>info@getalloro.com</code>. Root cause is confirmed with a live browser snapshot: <code>cookie = dave</code> (correct), <code>localStorage = info</code> (stale). The app reads identity from <code>localStorage</code>, so it shows info.</p>
+      <p>The backend is not at fault — it authenticates dave correctly and mints dave's JWT (dave's <code>users</code> row carries the bound <code>google_sub</code>). The wrong identity is produced entirely on the client.</p>
+      <div class="flow">
+        <strong>The clobber, step by step:</strong>
+        <ol>
+          <li>A stale <strong>info</strong> token sits in <code>localStorage</code>. It is older than 3.5 days, so it is past the sliding-refresh half-life (<code>service.jwt-management.ts:22</code>).</li>
+          <li>Sign-in as dave: the backend callback sets <code>cookie = dave</code> and redirects to <code>/auth/google/finish</code>.</li>
+          <li>The finish page loads fresh. The app shell (AuthProvider, telemetry) renders with the still-present info token captured in memory and fires <strong>info-authenticated</strong> background requests.</li>
+          <li><code>authenticateToken</code> sees info's token past half-life and returns a re-issued info token in the <code>x-session-refresh</code> header (<code>middleware/auth.ts:36</code>).</li>
+          <li>The finish page copies <code>cookie &rarr; localStorage</code> (dave) and calls <code>window.location.replace("/admin")</code>.</li>
+          <li>The racing info responses resolve; the axios response interceptor <strong>blindly writes the header token back</strong> to <code>localStorage.auth_token</code> (<code>api/index.ts:428</code>) — overwriting dave. The cookie is never touched by the interceptor.</li>
+          <li><code>/admin</code> reads <code>localStorage</code> &rarr; <strong>info</strong>.</li>
+        </ol>
+      </div>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Two client changes plus one small shared helper and tests:</p>
+      <ul>
+        <li><strong>Identity-safe refresh (core fix).</strong> The response interceptor persists a re-issued token only when it belongs to the <em>same user</em> as the token currently in the target store. A sliding refresh may extend a session but must never change identity. A mismatched (or no-session) token is dropped.</li>
+        <li><strong>Clear-then-set on the SSO finish page.</strong> Clear any prior <code>localStorage</code> session and lingering pilot <code>sessionStorage</code> before writing the new session, so no stale identity remains after the handoff.</li>
+        <li><strong>One JWT decode path.</strong> Centralize <code>atob</code> payload decoding into <code>utils/jwt.ts</code> so the interceptor and <code>currentUser.ts</code> share it (today three sites hand-roll it).</li>
+      </ul>
+      <p><strong>Done when:</strong> with a stale info token in <code>localStorage</code> past half-life, logging in as dave lands as dave (<code>localStorage = dave</code>, <code>cookie = dave</code>); the exact failing snapshot no longer reproduces; the same-identity sliding refresh still updates the token; pilot-mode refresh still works.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>frontend/src/api/index.ts</code> — <code>storeRefreshedToken()</code> (the clobber site) + the axios response interceptor. The one layer that owns the JWT (§12.1).</li>
+        <li><code>frontend/src/pages/AuthGoogleFinish.tsx</code> — the OAuth finish route; copies the cookie into <code>localStorage</code>, does not clear the old session.</li>
+        <li><code>frontend/src/utils/currentUser.ts</code> — existing <code>getCurrentUserId()</code>; decodes the current session token's <code>userId</code> via <code>atob</code>. The decode analog to reuse.</li>
+        <li><code>frontend/src/hooks/useLocalStorage.ts</code> — <code>getPriorityItem()</code> (sessionStorage &rarr; localStorage) that identity reads flow through.</li>
+        <li><code>frontend/src/utils/embeddedPilotSession.ts</code> — embedded-pilot token store the interceptor also targets; must not regress.</li>
+      </ul>
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li><strong>§12.1 / §17.5 — JWT through one path.</strong> Keep all token read/decode/write inside <code>api/index.ts</code> and shared <code>utils/</code>; do not scatter token logic into components.</li>
+        <li><strong>§4.3 — DRY the decode.</strong> Extract the shared <code>atob</code> decode into <code>utils/jwt.ts</code>; have <code>currentUser.ts</code> delegate to it rather than adding a third copy.</li>
+        <li><strong>§17.2 — no <code>any</code>.</strong> Decode returns a typed <code>number | null</code>; narrow from <code>unknown</code>, never <code>any</code>.</li>
+        <li><strong>§16.2 — never swallow silently.</strong> A malformed token decodes to <code>null</code> (a typed, expected outcome), matching <code>currentUser.ts</code>; this is not a swallowed error.</li>
+        <li><strong>§20.1 — test mirrors the unit.</strong> Add <code>utils/jwt.test.ts</code> beside the util, following existing <code>utils/embeddedPilotSession.test.ts</code>.</li>
+      </ul>
+      <p><strong>Reference file:</strong> <code>frontend/src/api/index.ts</code> (the §12.1 client triad) for structure; <code>frontend/src/utils/currentUser.ts</code> for the decode shape.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Keep the sliding-refresh feature working for same-identity sessions (token still extends; no forced logout at half-life).</li>
+            <li>Preserve pilot and embedded-pilot refresh behavior — the identity check compares against the correct target store per mode.</li>
+            <li>Reuse the existing <code>atob</code> decode approach; return typed results (§17.2).</li>
+            <li>Read the cookie value <em>before</em> clearing the old session on the finish page (clearing first would also wipe the new token).</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>Do not change backend token issuance or the <code>x-session-refresh</code> emitter — the backend is correct.</li>
+            <li>Do not add a dependency (no <code>jwt-decode</code> library) — §4.4.</li>
+            <li>Do not refactor <code>AdminTopBar.tsx</code>'s decode or the other login pages — out of scope.</li>
+            <li>Do not move identity reads into components or add a second token store — §17.5.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Clearing the session on the "Sign in with Google" button click (belt-and-suspenders; T1 makes it unnecessary).</li>
+        <li>Cookie-scope hardening on dev (<code>.getalloro.com</code> vs host-only duplicates) — the interceptor fix removes the clobber regardless; revisit only if a duplicate cookie is later observed.</li>
+        <li>Reworking how <code>AuthGoogleFinish</code> mounts inside the authed shell.</li>
+        <li>Backend changes of any kind.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 3 — Structural. The core change is in <code>storeRefreshedToken</code>, which runs on <em>every</em> axios response (success and error) across the whole app.</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><strong>Every authenticated request passes through the changed code.</strong> A wrong identity comparison could either drop legitimate refreshes (users silently logged out after 3.5 days) or fail to block the clobber. <strong>Mitigation:</strong> the change is additive — a guard that only <em>drops</em> a write when identities differ or no session exists; same-identity path is unchanged. Cover with unit tests for same-identity (write), different-identity (drop), no-session (drop), and pilot mode.</li>
+        <li><strong>Pilot / embedded-pilot mode uses a different token store.</strong> Comparing against the wrong store could break pilot refresh. <strong>Mitigation:</strong> compare the incoming token against the token in the same store the write targets (embedded &rarr; embedded, pilot &rarr; sessionStorage, normal &rarr; localStorage), branching exactly as the existing write does.</li>
+        <li><strong>Malformed / unexpected token payload.</strong> <strong>Mitigation:</strong> decode is wrapped and returns <code>null</code>; a <code>null</code> incoming id is treated as "cannot confirm same identity" &rarr; drop the write (fail safe).</li>
+      </ul>
+      <p><strong>Blast radius:</strong> <code>frontend/src/api/index.ts</code> response interceptor — consumed by every <code>apiGet/apiPost/apiPatch/apiPut/apiDelete</code> call in the app. <code>utils/currentUser.ts</code> — consumers of <code>getCurrentUserId()</code> (author/uploader UI checks) must keep the same behavior after delegating to <code>utils/jwt.ts</code>. <code>AuthGoogleFinish.tsx</code> — admin SSO login only (P1).</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li>The deeper smell is that identity is driven through a <code>localStorage</code> slot that a background response can rewrite. A fuller design would make the freshly-authenticated session authoritative and not writable by an in-flight request from a prior identity. That is a larger refactor; the identity-safe guard is the correct, contained fix now and closes the vulnerability for every login flow. Recommend shipping this and noting the broader hardening as a future item.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+
+      <article class="task-card">
+        <h3>T1: Shared JWT decode util</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Create <code>frontend/src/utils/jwt.ts</code> exporting <code>decodeJwtUserId(token: string): number | null</code> — the wrapped <code>atob</code> payload decode currently inside <code>currentUser.ts</code> (handles <code>userId</code> / <code>id</code> / <code>user_id</code>, returns <code>null</code> on malformed). Refactor <code>currentUser.ts</code>'s <code>getCurrentUserId()</code> to read the current token and delegate to it. No behavior change for existing callers.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/utils/jwt.ts</code> (new), <code>frontend/src/utils/currentUser.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>cd frontend &amp;&amp; npx tsc -p tsconfig.app.json --noEmit</code></dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: Identity-safe <code>storeRefreshedToken</code></h3>
+        <dl>
+          <div><dt>Do</dt><dd>In <code>frontend/src/api/index.ts</code>, before persisting the <code>x-session-refresh</code> token, decode its <code>userId</code> and the <code>userId</code> of the token currently in the target store (embedded-pilot / pilot <code>sessionStorage "token"</code> / normal <code>localStorage "auth_token"</code>). Persist only when both are present and equal; otherwise return without writing. Keep the existing per-mode branch structure — add the guard, do not restructure.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/api/index.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>Unit test (T4) + <code>tsc</code>. Manual: re-issued token for a different user does not overwrite the current session.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: Clear-then-set on the SSO finish page</h3>
+        <dl>
+          <div><dt>Do</dt><dd>In <code>frontend/src/pages/AuthGoogleFinish.tsx</code>, after reading the cookie token and before <code>setAuthSession</code>, clear the prior session: <code>clearAuthSession()</code> plus removing any stale pilot <code>sessionStorage</code> (<code>token</code>, <code>pilot_mode</code>). Then set the new session as today. Order matters — read the cookie value first so the new token is not wiped.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/pages/AuthGoogleFinish.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: after a failed/aborted SSO attempt, the app no longer silently shows a previous identity.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: Tests</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add <code>frontend/src/utils/jwt.test.ts</code> for <code>decodeJwtUserId</code> (valid <code>userId</code>, base64url payload, malformed &rarr; <code>null</code>). Add coverage for the interceptor guard: same-identity refresh writes, different-identity refresh is dropped, empty target store is dropped, pilot-mode refresh targets sessionStorage. Follow <code>utils/embeddedPilotSession.test.ts</code> structure.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/utils/jwt.test.ts</code> (new), interceptor test (new, beside <code>api/</code> per §20.1)</dd></div>
+          <div><dt>Depends on</dt><dd>T1, T2</dd></div>
+          <div><dt>Verify</dt><dd><code>cd frontend &amp;&amp; npm run test</code></dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled> <code>cd frontend &amp;&amp; npx tsc -p tsconfig.app.json --noEmit</code> — zero errors</li>
+        <li><input type="checkbox" disabled> <code>cd frontend &amp;&amp; npm run test</code> — new tests pass, suite green</li>
+        <li><input type="checkbox" disabled> Repro of the failing snapshot: stale info token in <code>localStorage</code> (past half-life) + sign in as dave &rarr; ends with <code>localStorage = dave</code>, app shows dave</li>
+        <li><input type="checkbox" disabled> Same-identity sliding refresh still updates the stored token (no forced logout at half-life)</li>
+        <li><input type="checkbox" disabled> Pilot / embedded-pilot session refresh unaffected</li>
+        <li><input type="checkbox" disabled> <code>npm run check:conventions --strict</code> — no new backend violations (frontend advisory)</li>
+        <li><input type="checkbox" disabled> No regression for <code>getCurrentUserId()</code> consumers after the decode delegation</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-07-08</h3>
+        <p><strong>Change:</strong> Executed T1–T4 as specified, no deviations. T1 <code>frontend/src/utils/jwt.ts</code> (<code>decodeJwtUserId</code>) + <code>currentUser.ts</code> delegates to it. T2 <code>storeRefreshedToken</code> in <code>api/index.ts</code> now drops any re-issued token whose <code>userId</code> differs from the token in the target store (per-mode: embedded-pilot / pilot sessionStorage / normal localStorage), and is exported for test. T3 <code>AuthGoogleFinish.tsx</code> clears the prior session (localStorage + pilot sessionStorage) before setting the new one. T4 <code>utils/jwt.test.ts</code> (5) + <code>api/index.test.ts</code> (6).</p>
+        <p><strong>Reason:</strong> Execution of the approved spec via <code>-x</code>.</p>
+        <p><strong>Verification:</strong> <code>tsc -p tsconfig.app.json</code> = 0; full frontend vitest 64/64 (incl. 11 new); <code>check:conventions --strict</code> = 0 backend structural violations. One advisory FE grep (§17.5) flags <code>api/index.test.ts</code> — a false positive: the test lives in the <code>api/</code> client layer and must touch <code>auth_token</code>/<code>token</code> storage to verify the client.</p>
+        <p><strong>Updated Done criteria:</strong> Automated Done items met (tsc, vitest, backend gate, clobber-drop proven at storage level by A1, same-identity persist by A2, decode by A3). Remaining: deploy to dev + owner UI runs A4 (2nd-account sign-in over a stale session) and A5 (single-account regression) — both require real Google OAuth and cannot be automated.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

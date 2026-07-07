@@ -11,7 +11,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Loader2, ShieldAlert } from "lucide-react";
-import { setAuthSession, setSharedAuthCookie } from "../api";
+import { clearAuthSession, setAuthSession, setSharedAuthCookie } from "../api";
 
 function readCookie(name: string): string | null {
   const target = `${name}=`;
@@ -52,6 +52,14 @@ export default function AuthGoogleFinish() {
       setError("AUTH_NO_SESSION");
       return;
     }
+
+    // Clear any prior session before establishing the new one, so a stale
+    // identity can't linger in localStorage / pilot sessionStorage and shadow
+    // this login (plans/07082026-google-login-session-clobber). The cookie
+    // value was read above, so clearing here never wipes the token we set next.
+    clearAuthSession();
+    window.sessionStorage.removeItem("token");
+    window.sessionStorage.removeItem("pilot_mode");
 
     setAuthSession({ token });
     setSharedAuthCookie(token);
