@@ -584,6 +584,9 @@ export interface RankRead {
   position: number | null;
   totalCompetitors: number | null;
   available: boolean;
+  /** Ran a completed ranking but placed outside the local Maps top-20 (null
+   *  search_position). NOT "never ran": the card must not say "run a ranking". */
+  notInTop20: boolean;
 }
 
 /** Latest completed local-rank position + competitor count for the location. */
@@ -593,7 +596,7 @@ export async function readRank(organizationId: number, locationId: number): Prom
       organizationId,
       locationId
     );
-    if (!row) return { position: null, totalCompetitors: null, available: false };
+    if (!row) return { position: null, totalCompetitors: null, available: false, notInTop20: false };
     // Read the real SerpApi Maps position (`search_position`), NOT the
     // Practice-Health `rank_position` (which defaults to a fabricated #1 when
     // the practice isn't matched among competitors). Null = SerpApi miss →
@@ -605,14 +608,18 @@ export async function readRank(organizationId: number, locationId: number): Prom
     // "#15 of 5 locally"). We have no SerpApi Maps-universe total, so omit the
     // denominator; the card renders an honest "#N locally" with no mismatched "of M".
     const totalCompetitors = null;
+    // A completed ranking row with a null position = ran but outside the Maps
+    // top-20, distinct from "never ran", so the empty-state copy stays honest.
+    const notInTop20 = position === null;
     return {
       position,
       totalCompetitors,
       available: position !== null,
+      notInTop20,
     };
   } catch (err) {
     logger.warn({ err, organizationId, locationId }, "[patient-journey] rank read failed");
-    return { position: null, totalCompetitors: null, available: false };
+    return { position: null, totalCompetitors: null, available: false, notInTop20: false };
   }
 }
 
