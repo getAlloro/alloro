@@ -320,6 +320,10 @@ export async function readLeads(
     const row = stats.find((entry) => entry.month === monthKey);
     if (!row) {
       // The project has form data but none in this month — that's a real zero.
+      // If the project has never had a submission, it's connected-but-empty
+      // (`no_data`), NOT "not connected" — the caller sets `not_connected`
+      // upstream when there's no project at all. (Mirrors the impressions
+      // reader's not_connected / pending / no_data distinction.)
       return stats.length
         ? {
             value: 0,
@@ -327,7 +331,7 @@ export async function readLeads(
             asOf: isoDate(monthEnd),
             metadata: { leads: { verified: 0 } },
           }
-        : emptyRead();
+        : { ...emptyRead(), unavailableReason: "no_data" };
     }
     const verified = Number(row.verified) || 0;
     return {
@@ -387,7 +391,11 @@ export async function readRank(organizationId: number, locationId: number): Prom
       locationId
     );
     if (!row) return { position: null, totalCompetitors: null, available: false };
-    const position = row.rank_position ?? null;
+    // Read the real SerpApi Maps position (`search_position`), NOT the
+    // Practice-Health `rank_position` (which defaults to a fabricated #1 when
+    // the practice isn't matched among competitors). Null = SerpApi miss →
+    // stay unavailable ("estimate pending"), never a fabricated number.
+    const position = row.search_position ?? null;
     const totalCompetitors = row.total_competitors ?? null;
     return {
       position,

@@ -33,7 +33,12 @@ export function stageEmptyStateCopy(stage: PatientJourneyStage): string {
     case "pending":
       return "Google data is still pending";
     case "no_data":
-      return "No Google data for this month";
+      // A connected source with zero rows this month — real zero, not broken.
+      return stage.key === "leads"
+        ? "No leads yet this month"
+        : "No Google data for this month";
+    case "not_connected":
+      return "Not connected yet";
     default:
       return "Not connected yet";
   }

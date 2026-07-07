@@ -146,7 +146,10 @@ export async function assemblePatientJourney(
         : Promise.resolve(emptyRead),
       projectId
         ? readLeads(projectId, monthStart, monthEnd)
-        : Promise.resolve(emptyRead),
+        : Promise.resolve({
+            ...emptyRead,
+            unavailableReason: "not_connected" as const,
+          }),
       readPms(input.organizationId, input.locationId),
       readRank(input.organizationId, input.locationId),
       readReviews(input.locationId, monthStart, monthEnd),

@@ -135,22 +135,42 @@ export async function computeDashboardMetrics(
         prevEndStr,
         { refreshOAuth2Client }
       );
-      const ratings: number[] = [];
+      // Weight the prior-month org rating by each location's review count
+      // (mirror extractReviewSummary), so the rating_change_30d delta compares
+      // like-for-like against the current review-count-weighted rating.
+      const ratings: Array<{ rating: number; count: number }> = [];
       for (const loc of prevGbp?.locations ?? []) {
         const allTime = loc?.data?.reviews?.allTime;
+        const locCount =
+          allTime &&
+          typeof allTime.totalReviewCount === "number" &&
+          Number.isFinite(allTime.totalReviewCount)
+            ? allTime.totalReviewCount
+            : 0;
         if (
           allTime &&
           typeof allTime.averageRating === "number" &&
           allTime.averageRating > 0
         ) {
-          ratings.push(allTime.averageRating);
+          ratings.push({ rating: allTime.averageRating, count: locCount });
         }
       }
       if (ratings.length) {
+        const weightTotal = ratings.reduce((a, r) => a + r.count, 0);
         priorRating = {
-          averageRating: Number(
-            (ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(2)
-          ),
+          averageRating:
+            weightTotal > 0
+              ? Number(
+                  (
+                    ratings.reduce((a, r) => a + r.rating * r.count, 0) /
+                    weightTotal
+                  ).toFixed(2)
+                )
+              : Number(
+                  (
+                    ratings.reduce((a, r) => a + r.rating, 0) / ratings.length
+                  ).toFixed(2)
+                ),
         };
       }
     } catch (err: any) {

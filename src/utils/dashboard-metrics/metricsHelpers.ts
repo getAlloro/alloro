@@ -118,7 +118,10 @@ export function extractReviewSummary(gbpData: any): {
     };
   }
 
-  const ratings: number[] = [];
+  // Each location's rating paired with its own review count, so the org
+  // average can be weighted by volume (a 500-review 4.2 must outweigh a
+  // 5-review 5.0) rather than a plain per-location mean.
+  const ratings: Array<{ rating: number; count: number }> = [];
   let totalReviewCount: number | null = null;
   let reviewsThisMonth = 0;
   const reviewDetails: Array<{
@@ -131,17 +134,18 @@ export function extractReviewSummary(gbpData: any): {
 
   for (const loc of gbpData.locations) {
     const allTime = loc?.data?.reviews?.allTime;
+    const hasCount =
+      allTime &&
+      typeof allTime.totalReviewCount === "number" &&
+      Number.isFinite(allTime.totalReviewCount);
+    const locCount = hasCount ? allTime.totalReviewCount : 0;
     if (allTime && typeof allTime.averageRating === "number" && allTime.averageRating > 0) {
-      ratings.push(allTime.averageRating);
+      ratings.push({ rating: allTime.averageRating, count: locCount });
     }
     // Sum the all-time total review count across locations (multi-location
     // practices). Stays null until at least one location reports a count.
-    if (
-      allTime &&
-      typeof allTime.totalReviewCount === "number" &&
-      Number.isFinite(allTime.totalReviewCount)
-    ) {
-      totalReviewCount = (totalReviewCount ?? 0) + allTime.totalReviewCount;
+    if (hasCount) {
+      totalReviewCount = (totalReviewCount ?? 0) + locCount;
     }
 
     const win = loc?.data?.reviews?.window;
@@ -160,8 +164,22 @@ export function extractReviewSummary(gbpData: any): {
     }
   }
 
+  // Review-count-weighted org rating. When no location reports a count we
+  // can't weight, so fall back to a plain per-location mean rather than
+  // divide by zero (still honest — it's all the signal we have).
+  const weightTotal = ratings.reduce((a, r) => a + r.count, 0);
   const currentRating = ratings.length
-    ? Number((ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(2))
+    ? weightTotal > 0
+      ? Number(
+          (
+            ratings.reduce((a, r) => a + r.rating * r.count, 0) / weightTotal
+          ).toFixed(2)
+        )
+      : Number(
+          (
+            ratings.reduce((a, r) => a + r.rating, 0) / ratings.length
+          ).toFixed(2)
+        )
     : null;
 
   return { currentRating, totalReviewCount, reviewsThisMonth, reviewDetails };
