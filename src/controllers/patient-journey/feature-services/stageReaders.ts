@@ -599,7 +599,12 @@ export async function readRank(organizationId: number, locationId: number): Prom
     // the practice isn't matched among competitors). Null = SerpApi miss →
     // stay unavailable ("estimate pending"), never a fabricated number.
     const position = row.search_position ?? null;
-    const totalCompetitors = row.total_competitors ?? null;
+    // `total_competitors` is the Practice-Health CURATED competitor set; it does
+    // NOT pair with the SerpApi Maps `search_position` above (two different
+    // universes: "#15 in Maps" over "of 5 curated" renders the incoherent
+    // "#15 of 5 locally"). We have no SerpApi Maps-universe total, so omit the
+    // denominator; the card renders an honest "#N locally" with no mismatched "of M".
+    const totalCompetitors = null;
     return {
       position,
       totalCompetitors,
