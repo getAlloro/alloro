@@ -568,6 +568,7 @@ export class PracticeRankingModel extends BaseModel {
       .select(
         "rank_position",
         "search_position",
+        "search_status",
         "rank_score",
         "total_competitors",
         "ranking_factors"

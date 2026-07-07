@@ -608,9 +608,13 @@ export async function readRank(organizationId: number, locationId: number): Prom
     // "#15 of 5 locally"). We have no SerpApi Maps-universe total, so omit the
     // denominator; the card renders an honest "#N locally" with no mismatched "of M".
     const totalCompetitors = null;
-    // A completed ranking row with a null position = ran but outside the Maps
-    // top-20, distinct from "never ran", so the empty-state copy stays honest.
-    const notInTop20 = position === null;
+    // notInTop20 is TRUE only when SerpApi CONFIRMS the practice ranked below the
+    // local Maps top-20 (search_status "not_in_top_20"). A null position from a
+    // lookup failure (api_error / bias_unavailable) means "couldn't measure", NOT
+    // "outside top 20", so it falls through to available:false / "Rank not
+    // available yet" (matching the rest of the app + Fix-1's intent), never a
+    // fabricated negative claim. Requires search_status in the model select above.
+    const notInTop20 = row.search_status === "not_in_top_20";
     return {
       position,
       totalCompetitors,
