@@ -1,7 +1,7 @@
 {
   "plan": "plans/07082026-google-login-session-clobber",
   "generatedAt": "2026-07-08",
-  "status": "In Progress",
+  "status": "Passed",
   "items": [
     {
       "id": "A1",
@@ -59,9 +59,9 @@
         "4. Open the account menu, or run the console snapshot, to read the session identity"
       ],
       "expected": "The top bar and the localStorage token both resolve to account B, not A",
-      "status": "pending",
-      "evidence": "",
-      "notes": "Cannot be automated — Google OAuth account selection. Owner/human run on dev after deploy.",
+      "status": "pass",
+      "evidence": "Owner-verified on dev.getalloro.com 2026-07-08: signing in as dave landed and stuck as dave once tabs ran the new bundle.",
+      "notes": "During verification, pre-deploy tabs still running the OLD bundle re-clobbered shared localStorage with the info refresh; closing/reloading them resolved it. Expected deploy-transition behavior, not a code defect — the guard holds once all tabs are on the new code.",
       "waiver": ""
     },
     {
@@ -75,9 +75,9 @@
         "3. Land on /admin"
       ],
       "expected": "Signs in and lands on the admin app as that account, with no error screen",
-      "status": "pending",
-      "evidence": "",
-      "notes": "Human run on dev.",
+      "status": "pass",
+      "evidence": "Owner-verified on dev.getalloro.com 2026-07-08 (Incognito, clean session): Google sign-in landed on the admin app as the selected account, no error.",
+      "notes": "",
       "waiver": ""
     }
   ]

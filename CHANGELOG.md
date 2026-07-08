@@ -2,6 +2,29 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.156] - July 2026
+
+### Fix: Google admin sign-in landing on the wrong identity
+
+Signing in with Google as one `@getalloro.com` admin could drop you into the app as a *different* admin (sign in as `dave`, end up as `info`). The backend authenticated correctly and minted the right token — the bug was entirely client-side. Built on `plans/07082026-google-login-session-clobber`; verified on dev by the owner (acceptance A1–A5 pass) and unit-proven (frontend `vitest` 64/64). Live on dev; not on production until the `main` merge (Google admin login itself isn't on prod yet). Docs parity N/A — admin-only, no user-facing UI change.
+
+**Root cause:** the app keeps its session token in `localStorage`, and the sliding-refresh interceptor wrote any re-issued token (the `x-session-refresh` header) straight back to it. During the sign-in handoff, a still-in-flight request under the *previous* identity re-issued that identity's token and clobbered the freshly-set one — the cookie held the new user, `localStorage` held the old, and the app reads `localStorage`.
+
+**Key Changes:**
+- **Identity-safe session refresh.** `storeRefreshedToken` now persists a re-issued token only when it belongs to the same user already in the target store (embedded-pilot / pilot `sessionStorage` / normal `localStorage`); a mismatched or no-session refresh is dropped. A refresh may *extend* a session but never *change* who it is. This also closes the same latent race in the client email/password, verify-email, and password-reset flows.
+- **Clean login handoff.** The Google SSO finish page clears any prior session (localStorage + pilot `sessionStorage`) before writing the new one.
+- **One JWT decode path.** Payload decoding is centralized in `frontend/src/utils/jwt.ts` (`decodeJwtUserId`); `currentUser.ts` delegates to it.
+- **Tests.** `utils/jwt.test.ts` (5) and `api/index.test.ts` (6) cover the decode helper and the guard: same-identity writes, cross-identity dropped, no-session dropped, pilot mode.
+
+**Operational note:** deploying a fix to a shared-`localStorage` auth bug has a transition window — tabs still running the pre-deploy bundle can re-clobber shared storage until every tab reloads onto the new code. Seen during dev verification; resolves on reload / Incognito.
+
+**Commits:**
+- `frontend/src/api/index.ts` — identity-safe `storeRefreshedToken` (the core fix)
+- `frontend/src/pages/AuthGoogleFinish.tsx` — clear prior session before set
+- `frontend/src/utils/jwt.ts` (new) + `frontend/src/utils/currentUser.ts` — shared `decodeJwtUserId`
+- `frontend/src/utils/jwt.test.ts` + `frontend/src/api/index.test.ts` — tests
+- Dev commit: `9971611e`
+
 ## [0.0.155] - July 2026
 
 ### Admin Sign-In: Google SSO (replaces OTP)

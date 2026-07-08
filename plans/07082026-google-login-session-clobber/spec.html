@@ -58,11 +58,11 @@
     <header class="spec-hero">
       <div class="hero-topline">
         <p class="eyebrow">Alloro Plan Spec</p>
-        <span class="status-pill">In Progress</span>
+        <span class="status-pill">Completed</span>
       </div>
       <h1>Fix Google login landing on a stale identity</h1>
       <dl class="meta-grid">
-        <div class="status-card"><dt>Status</dt><dd>In Progress</dd></div>
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
         <div><dt>Plan Folder</dt><dd>plans/07082026-google-login-session-clobber</dd></div>
         <div><dt>Size</dt><dd>Medium</dd></div>
         <div><dt>Risk</dt><dd>Level 3</dd></div>
@@ -231,6 +231,12 @@
         <p><strong>Reason:</strong> Execution of the approved spec via <code>-x</code>.</p>
         <p><strong>Verification:</strong> <code>tsc -p tsconfig.app.json</code> = 0; full frontend vitest 64/64 (incl. 11 new); <code>check:conventions --strict</code> = 0 backend structural violations. One advisory FE grep (§17.5) flags <code>api/index.test.ts</code> — a false positive: the test lives in the <code>api/</code> client layer and must touch <code>auth_token</code>/<code>token</code> storage to verify the client.</p>
         <p><strong>Updated Done criteria:</strong> Automated Done items met (tsc, vitest, backend gate, clobber-drop proven at storage level by A1, same-identity persist by A2, decode by A3). Remaining: deploy to dev + owner UI runs A4 (2nd-account sign-in over a stale session) and A5 (single-account regression) — both require real Google OAuth and cannot be automated.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 2 - 2026-07-08</h3>
+        <p><strong>Change:</strong> Deployed to dev (dev/dave pushed, workflow green, health check passed). Verified the deployed minified bundle on the dev server contains the identity guard (chunk <code>index-CMzJy_dG.js</code>). Owner acceptance passed on dev: A4 and A5 now <code>pass</code>. First run appeared to still land as info; root cause was NOT a code defect — pre-deploy browser tabs still running the OLD bundle (unguarded interceptor) were re-writing the info refresh into the shared <code>localStorage</code>, clobbering the dave session set by the fixed tab. Closing/reloading those tabs resolved it (confirmed via Incognito and via closing tabs in the normal window).</p>
+        <p><strong>Reason:</strong> User QA: dev verification round.</p>
+        <p><strong>Updated Done criteria:</strong> All Done items met on dev. NEW operational note: deploying a fix to a shared-<code>localStorage</code> auth bug has a transition window — old tabs on the old bundle can clobber shared storage until every tab reloads onto the new code. Not fixable in code for already-open old tabs; self-heals on reload. Prod remains a separate promotion (main merge, owner's call), like the parent SSO project.</p>
       </article>
     </section>
   </main>
