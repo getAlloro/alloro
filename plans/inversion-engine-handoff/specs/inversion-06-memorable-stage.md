@@ -47,6 +47,7 @@ not chrome.
   This chapter emits ONE Memorable candidate into that shape. Until Ch2 locks the type, build the
   Memorable builder to return the fields below and let Ch2 rename/wrap them; the *inputs and trigger
   logic* are the load-bearing part and are fully specified here.
+- **⛔ STAGE STAMP (reviews=Choosable stake, Corey 2026-07-07, do NOT skip):** "Memorable" is this chapter's OWNERSHIP bucket (Ch6 owns the review WORK), NOT the owner-facing stage. When the emitted card is a REVIEW action, its authored **`stage = choosable`** (the leak it addresses), so Ch7's eyebrow reads "Choosable" and matches the verdict, never two stage words on one screen. Do NOT stamp `stage = memorable` on a review card. Mirrors Ch2 (the `stage` field def) and Ch7 FIX 3.
 
 ---
 
