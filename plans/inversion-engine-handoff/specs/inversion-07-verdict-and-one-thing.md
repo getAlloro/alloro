@@ -106,7 +106,7 @@ and one action banner as its recommendation layer. Everything below (`PatientJou
   (`substrate: sentiment-lattice.md:366-374`, "the first line tells me whether to relax or pay attention").
   Examples of the two shapes (attribution welded in, see FIX 4; attribute the CATCH, never the CAUSE):
   - Healthy: *"Your practice is healthy this month. Nothing slipped where we can see it."*
-  - Leaking: *"Alloro spotted one gap this month: your reviews stage started slipping. Here's the move."*
+  - Leaking: *"Alloro spotted one gap this month: your **Choosable** stage started slipping, patients are having a harder time choosing you. Here's the move."* (The verdict names the STAGE, **Choosable**, NOT the domain word "reviews", so the verdict and the eyebrow show the SAME stage word on one screen. Reviews=Choosable stake, 2026-07-07.)
   Then the existing `OneThingBanner` action follows as the "here's the move."
 - **This capability does NOT exist yet, it is new.** Build it, do not pretend it's there. But build
   it from signals ALREADY on the screen, so it needs zero new fetch:
@@ -187,8 +187,8 @@ and one action banner as its recommendation layer. Everything below (`PatientJou
   reason the capstone is the first surface the owner sees.
 - **What OUGHT to be there, two welds:**
   1. **Attribute the CATCH (both health states, always honest).** The verdict names Alloro as the
-     watcher that spotted the drift the owner couldn't read: *"Alloro spotted your reviews stage
-     slipping before it cost you a booking."* This is truthful for **every** domain, Alloro's SUMMARY
+     watcher that spotted the drift the owner couldn't read: *"Alloro spotted your **Choosable** stage
+     slipping, patients having a harder time choosing you, before it cost you a booking."* (Names the STAGE, **Choosable**, never the domain word "reviews", per the reviews=Choosable stake.) This is truthful for **every** domain, Alloro's SUMMARY
      agent DID select it from data the owner can't see. **Attribute the CATCH, never the CAUSE:** Alloro
      caught the drift; Alloro did not *make* the practice healthy. Never write "Alloro kept you healthy"
     , that is an unearned causal claim. The healthy line stays scoped to what Alloro can see (FIX 2),
@@ -196,7 +196,7 @@ and one action banner as its recommendation layer. Everything below (`PatientJou
   2. **Close the loop AFTER a done-for-you move (in-lane BUILT only).** When the previous one-thing was
      an in-lane BUILT action Alloro executed on approval (a GBP post, a review reply), the NEXT verdict
      cycle closes the loop with the real result: *"Alloro published the review reply you approved; your
-     reviews stage is back in the green."* Every number in that loop-back is a real logged outcome from
+     **Choosable** stage is back in the green."* (the verdict names the STAGE, **Choosable**, not "reviews".) Every number in that loop-back is a real logged outcome from
      the owned rail (`gbp-write.service.ts`, verified built), **never a projected or fabricated lift.**
      For UNBUILT/read-only domains (`ranking`, `pms-data-quality`, a review-VELOCITY ask) and the
      owner-move (`referral`), there is NO Alloro-did-it loop-back, only the catch attribution. Do not
@@ -342,3 +342,8 @@ capability a rail doesn't already have, and walk it as the customer before calli
   the one-thing card renders done-for-you for `gbp`/`review`-reply, done-with-you only for `referral`,
   and observation for the read-only / not-yet-built domains; the operator altitude is named as an
   operable surface, not "supporting evidence."
+
+### Rev 2, 2026-07-07 (coherence pass + re-verify + third adversarial pass)
+- **Change:** Three adversarial passes on the delivered handoff bundle drove these Ch7 corrections. (1) The two-selector split-brain resolved: Ch7 specs ONE selector reading every generator via Ch2's unified card TYPE (wiring is Dave's). (2) FIX 3 REVISED (supersedes Rev-1's "FIX 3 preserved unchanged"): the EYEBROW reads the card's authored `stage` field (`DOMAIN_TO_STAGE` = fallback, not primary); the VERDICT names the leaking stage from the STAT→stage map (stats have no `stage` field). (3) Reviews-stage staked = **Choosable** (Corey 2026-07-07): a reviews leak reads Choosable in BOTH the verdict and the eyebrow; "Memorable" is Ch6's ownership of the review WORK, never the owner-facing label. The FIX 2 + FIX 4 verdict EXAMPLE strings were reworded from "your reviews stage" to the Choosable framing so the verdict and eyebrow never show two stage words on one screen.
+- **Reason:** Coherence audit -> re-verify -> third adversarial pass. Each pass caught that the prior fix was only partly propagated (banner/maps updated but dependent text or example copy not); this Rev completes the propagation into every surface the owner sees.
+- **Updated Done criteria:** on a reviews leak, the verdict AND the eyebrow both read "Choosable" (never "reviews", never two stage words); the eyebrow reads the authored `stage` field with `DOMAIN_TO_STAGE` fallback; the verdict names the stage from the stat→stage map.
