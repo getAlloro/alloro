@@ -194,7 +194,7 @@ export async function runLlmStage(input: LlmStageInput): Promise<void> {
         gbp_account_id: gbpAccountId,
         rank_score: ownerVisibleScore,
         visible_local_search_score: ownerVisibleScore,
-        rank_position: clientRankResult?.rankPosition || 1,
+        rank_position: clientRankResult?.rankPosition ?? null,
         total_competitors: competitorDetails.length,
         factors: rankingFactors,
         gbp_data: {

@@ -256,6 +256,6 @@ export async function processLocationRanking(
     rankScore:
       scoringStage.clientRankResult?.competitiveScore ||
       scoringStage.clientRanking.totalScore,
-    rankPosition: scoringStage.clientRankResult?.rankPosition || 1,
+    rankPosition: scoringStage.clientRankResult?.rankPosition ?? null,
   };
 }

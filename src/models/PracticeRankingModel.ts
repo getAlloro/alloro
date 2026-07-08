@@ -567,6 +567,7 @@ export class PracticeRankingModel extends BaseModel {
       .orderBy("created_at", "desc")
       .select(
         "rank_position",
+        "search_position",
         "rank_score",
         "total_competitors",
         "ranking_factors"

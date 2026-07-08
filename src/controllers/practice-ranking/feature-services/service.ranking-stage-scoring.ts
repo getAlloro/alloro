@@ -390,7 +390,7 @@ export async function runScoringStage(
 
   await PracticeRankingModel.updateByIdRaw(rankingId, {
     rank_score: clientRankResult?.competitiveScore || clientRanking.totalScore,
-    rank_position: clientRankResult?.rankPosition || 1,
+    rank_position: clientRankResult?.rankPosition ?? null,
     total_competitors: competitorDetails.length + 1,
     ranking_factors: JSON.stringify(rankingFactors),
     raw_data: JSON.stringify(rawData),

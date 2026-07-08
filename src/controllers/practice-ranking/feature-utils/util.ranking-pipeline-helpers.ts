@@ -34,7 +34,8 @@ export interface LocationRankingResult {
   gbpLocationId: string;
   gbpLocationName: string;
   rankScore: number;
-  rankPosition: number;
+  /** Null when the practice wasn't matched among competitors (never a fabricated #1). */
+  rankPosition: number | null;
 }
 
 export interface SearchResultPayloadEntry {
