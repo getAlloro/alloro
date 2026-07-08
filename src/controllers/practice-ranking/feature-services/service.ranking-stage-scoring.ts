@@ -385,7 +385,7 @@ export async function runScoringStage(
     pipelineTimings,
     scoreCalculationTiming,
     "success",
-    `score=${clientRanking.totalScore};rank=${clientRankResult?.rankPosition || 1}`,
+    `score=${clientRanking.totalScore};rank=${clientRankResult?.rankPosition ?? "unmatched"}`,
   );
 
   await PracticeRankingModel.updateByIdRaw(rankingId, {

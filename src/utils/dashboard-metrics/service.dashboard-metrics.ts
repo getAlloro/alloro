@@ -30,6 +30,7 @@ import {
   buildReferralMetrics,
 } from "./sectionBuilders";
 import logger from "../../lib/logger";
+import { weightedAverageRating } from "./metricsHelpers";
 
 // Re-export schema + type for convenience so controllers / orchestrator can
 // import both `computeDashboardMetrics` and `DashboardMetricsSchema` from
@@ -135,9 +136,6 @@ export async function computeDashboardMetrics(
         prevEndStr,
         { refreshOAuth2Client }
       );
-      // Weight the prior-month org rating by each location's review count
-      // (mirror extractReviewSummary), so the rating_change_30d delta compares
-      // like-for-like against the current review-count-weighted rating.
       const ratings: Array<{ rating: number; count: number }> = [];
       for (const loc of prevGbp?.locations ?? []) {
         const allTime = loc?.data?.reviews?.allTime;
@@ -155,23 +153,9 @@ export async function computeDashboardMetrics(
           ratings.push({ rating: allTime.averageRating, count: locCount });
         }
       }
-      if (ratings.length) {
-        const weightTotal = ratings.reduce((a, r) => a + r.count, 0);
-        priorRating = {
-          averageRating:
-            weightTotal > 0
-              ? Number(
-                  (
-                    ratings.reduce((a, r) => a + r.rating * r.count, 0) /
-                    weightTotal
-                  ).toFixed(2)
-                )
-              : Number(
-                  (
-                    ratings.reduce((a, r) => a + r.rating, 0) / ratings.length
-                  ).toFixed(2)
-                ),
-        };
+      const avg = weightedAverageRating(ratings);
+      if (avg !== null) {
+        priorRating = { averageRating: avg };
       }
     } catch (err: any) {
       logger.warn(

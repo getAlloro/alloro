@@ -10,6 +10,22 @@
  * no DB access.
  */
 
+/**
+ * Review-count-weighted average rating. Falls back to plain mean when no
+ * location reports a count.
+ */
+export function weightedAverageRating(
+  ratings: Array<{ rating: number; count: number }>,
+): number | null {
+  if (!ratings.length) return null;
+  const weightTotal = ratings.reduce((a, r) => a + r.count, 0);
+  const avg =
+    weightTotal > 0
+      ? ratings.reduce((a, r) => a + r.rating * r.count, 0) / weightTotal
+      : ratings.reduce((a, r) => a + r.rating, 0) / ratings.length;
+  return Number(avg.toFixed(2));
+}
+
 export const MS_PER_HOUR = 1000 * 60 * 60;
 export const MS_PER_DAY = MS_PER_HOUR * 24;
 
@@ -164,23 +180,7 @@ export function extractReviewSummary(gbpData: any): {
     }
   }
 
-  // Review-count-weighted org rating. When no location reports a count we
-  // can't weight, so fall back to a plain per-location mean rather than
-  // divide by zero (still honest — it's all the signal we have).
-  const weightTotal = ratings.reduce((a, r) => a + r.count, 0);
-  const currentRating = ratings.length
-    ? weightTotal > 0
-      ? Number(
-          (
-            ratings.reduce((a, r) => a + r.rating * r.count, 0) / weightTotal
-          ).toFixed(2)
-        )
-      : Number(
-          (
-            ratings.reduce((a, r) => a + r.rating, 0) / ratings.length
-          ).toFixed(2)
-        )
-    : null;
+  const currentRating = weightedAverageRating(ratings);
 
   return { currentRating, totalReviewCount, reviewsThisMonth, reviewDetails };
 }
