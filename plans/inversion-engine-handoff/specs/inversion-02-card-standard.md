@@ -385,7 +385,7 @@ tagged `(substrate)` are alloro-brain local substrate (design intent), NOT in `o
   `isLocalSearchLeader`, `:120-123` its review branch.
 - `frontend/src/components/website/overview/WebsiteOverview.tsx:238, :437`, discouraging "turned N
   visitors into 0 leads"; honest "No leads yet" empty state to mirror.
-- `src/services/ozMoment.ts:206-241` (esp. :207, :214, :232-234, :241), the reusable Chancellor-grade
+- `src/services/ozMoment.ts:206-241` (esp. :207, :214, :231-234, :241), the reusable Chancellor-grade
   public-data discipline: name the competitor, cross-reference a hidden number, ban commodity findings,
   one move THIS WEEK.
 - Lattices: journey-lattice.md (substrate):32, :52-54, :159-182, :190-213, :243-256, :260-272;
