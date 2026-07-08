@@ -129,7 +129,7 @@ A card is **rejected**, do not ship it, if it does any of these
 6. Contradicts the owner's real standing (Clause E).
 7. Is **generic**, commodity findings the owner already knows: *"you have fewer reviews,"* *"your
    rating is lower than average,"* *"you should get more reviews"* (this exact list is already
-   codified in the Oz-moment prompt at `src/services/ozMoment.ts:232-234`, reuse it).
+   codified in the Oz-moment prompt at `src/services/ozMoment.ts:231-234`, reuse it).
 8. **Fabricates or infers** a number (Value #6, and the Stage-1 Facts-Only boundary,
    sentiment-lattice.md (substrate), never cite referral/dollar data on a zero-upload card).
 
@@ -198,7 +198,7 @@ surface is redesigned.
      cross-reference two signals so it feels caught, not obvious (ozMoment.ts:214).
   3. **End in one move phrased as verb + object + this week** (ozMoment.ts:241, *"What to do THIS
      WEEK"*).
-  4. **Ban the commodity findings verbatim**, reuse the exact reject list at ozMoment.ts:232-234
+  4. **Ban the commodity findings verbatim**, reuse the exact reject list at ozMoment.ts:231-234
      ("you have fewer reviews," "your rating is lower than average," "you should get more reviews").
   5. Keep it inside existing guardrails already in this prompt: no fabricated/estimated numbers, no
      website-performance advice, plain non-technical language (already at :128-140). No new numbers are
