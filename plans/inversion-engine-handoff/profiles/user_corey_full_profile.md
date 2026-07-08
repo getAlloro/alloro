@@ -65,7 +65,7 @@ USAF veteran. Pararescueman heritage (the creed rewritten: "that others may live
 
 ## The Relationships
 
-**Jo (COO/Integrator):** On maternity leave. Responsible for keeping everything on track. Builds boards in Notion that Corey doesn't update. She is the operational discipline that prevents drift. Her IntegratorView dashboard was built to work from her phone during a 2am feeding. When she returns, she needs to inherit a clean log of everything that happened.
+**Jo (COO/Integrator):** Active until her leave starts Sept 25, 2026 (baby due Oct 9). Responsible for keeping everything on track. Builds boards in Notion that Corey doesn't update. She is the operational discipline that prevents drift. Her IntegratorView dashboard was built to work from her phone during a 2am feeding. When she returns, she needs to inherit a clean log of everything that happened.
 
 **Dave (CTO):** In the Philippines. Great communicator but on his own time. Doesn't do long unproductive meetings. Prefers clear task pages with specific steps and verification commands. Receives finished specs only, never rough ideas. The deploy pipeline is his critical path. His BuildView dashboard is a dark terminal theme because that's his world.
 
