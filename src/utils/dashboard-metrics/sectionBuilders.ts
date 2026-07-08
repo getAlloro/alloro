@@ -179,9 +179,17 @@ export async function buildRankingMetrics(
     }
 
     const score = toFiniteNumber(row.rank_score);
+    // Owner-facing rank = the real SerpApi Maps position (`search_position`),
+    // mirroring the patient-journey reader (stageReaders.readRank). NOT the
+    // internal Practice-Health `rank_position` composite, which can diverge
+    // from the practice's actual Maps position (e.g. a location sitting 4th on
+    // Maps but 11th in the composite). Reading the same column on both surfaces
+    // keeps the dashboard and Patient Journey rank in agreement. Null when
+    // SerpApi didn't match → surfaces as "estimate pending", never a mismatched
+    // (or fabricated) number.
     const position =
-      row.rank_position !== null && row.rank_position !== undefined
-        ? Number(row.rank_position)
+      row.search_position !== null && row.search_position !== undefined
+        ? Number(row.search_position)
         : null;
     const totalCompetitors =
       row.total_competitors !== null && row.total_competitors !== undefined
