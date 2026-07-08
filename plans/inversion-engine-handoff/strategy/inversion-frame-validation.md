@@ -4,8 +4,8 @@ Validation of the inversion architecture (Ch2-7) against the strategic frame sta
 
 ## The load-bearing capability fact (verified, receipts)
 **The GBP write-path is BUILT + WIRED** (verified on `origin/dev/dave` 2026-07-07):
-- **GBP POST publish:** real `axios.post` to Google My Business v4 `localPosts` — `src/controllers/gbp/gbp-services/gbp-write.service.ts:121/131`; wired route -> service -> queue -> worker -> Google (`GbpLocalPostDeploymentService.ts:264`, `gbpAutomation.processor.ts:31`, `worker.ts:482`, `POST /api/gbp-automation/work-items/:id/deploy`).
-- **REVIEW REPLY:** real `axios.put` to the review `/reply` endpoint — `gbp-write.service.ts:71/81`; two live paths (queued deploy + direct published-reply route).
+- **GBP POST publish:** real `axios.post` to Google My Business v4 `localPosts` in `createGbpLocalPost` — `src/controllers/gbp/gbp-services/gbp-write.service.ts` (~:120-131; grep the function, exact lines drift as the branch moves); wired route -> service -> queue -> worker -> Google (`GbpLocalPostDeploymentService.ts`, `gbpAutomation.processor.ts`, `worker.ts`, `POST /api/gbp-automation/work-items/:id/deploy`).
+- **REVIEW REPLY:** real `axios.put` to the review `/reply` endpoint in `replyToGbpReview` — `gbp-write.service.ts` (~:70-81; grep the function, exact lines drift); two live paths (queued deploy + direct published-reply route).
 - **Honesty caveat:** publishing is gated behind a human APPROVE step (Alloro auto-drafts, a person approves, then it publishes). Truthful claim = **"Alloro drafts it and, on your approval, publishes/replies for you"** (NOT silent-autonomous). The approve-gate is "AI drafts, human stakes" + keeps the owner in command; it is a FEATURE, not a limitation.
 - **NOT built (stay read-only, never homework):** GBP photo-refresh, category write-back, review-generation, booking connectors, PMS live connectors. (Confirms `project_alloro_built_vs_unbuilt_capabilities`.)
 

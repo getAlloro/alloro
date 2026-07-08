@@ -12,11 +12,11 @@ metadata:
 
 ## Current (confirmed by Corey 2026-06-09)
 
-Jo = **Jordan Caballero** (jordan@getalloro.com). Same person — "Jo" is what she goes by; Slack/Fireflies show "Jordan Caballero." **Do not split her into two people.** She runs the **Weekly Reset** — Monday sprint planning with Dave — the live operating cadence, stable weekly since ~Apr 20 2026. She named the ~May-20 "tailor it back, not build more" call and authored the Jun-1 roadmap ("lock V1 by June 30, re-onboard clients, *adoption is the gap, not the product*"). The Integrator seat is actively filled and in rhythm; mat-leave (Oct 9) coverage already being planned via the Feature Review SOP + a QA bot. The dashboard-succession vision below is the April aspiration; the Weekly Reset is what actually runs today.
+Jo = **Jordan Caballero** (jordan@getalloro.com). Same person — "Jo" is what she goes by; Slack/Fireflies show "Jordan Caballero." **Do not split her into two people.** She runs the **Weekly Reset** — Monday sprint planning with Dave — the live operating cadence, stable weekly since ~Apr 20 2026. She named the ~May-20 "tailor it back, not build more" call and authored the Jun-1 roadmap ("lock V1 by June 30, re-onboard clients, *adoption is the gap, not the product*"). The Integrator seat is actively filled and in rhythm; mat-leave coverage (leave starts Sept 25, baby due Oct 9) already being planned via the Feature Review SOP + a QA bot. The dashboard-succession vision below is the April aspiration; the Weekly Reset is what actually runs today.
 
 ## Who She Is
 
-COO / Integrator. Alloro's operations layer. Due with a baby October 9, 2026, giving her roughly 6 months to build a system that runs without her daily presence. Owed $4,600 in deferred pay (Feb + March). She and Corey have worked together long enough that "C&J Align" calls run 3 hours because the alignment matters.
+COO / Integrator. Alloro's operations layer. Due with a baby October 9, 2026, and on leave from Sept 25, giving her roughly 6 months to build a system that runs without her daily presence by then. Owed $4,600 in deferred pay (Feb + March). She and Corey have worked together long enough that "C&J Align" calls run 3 hours because the alignment matters.
 
 ## How She Thinks
 
@@ -86,7 +86,7 @@ Dave's AI sent an unauthorized email to client Cuda promising icon changes that 
 
 ## The Succession Question
 
-By October 9, her Jo Agent must produce everything she produces: daily ops report, client health alerts, onboarding tracking, CS triggers, follow-up drafts. She reviews and corrects. The agent learns. By the time she's on leave, the agent IS her operational layer. She comes back and it's better than when she left.
+By her Sept 25 leave, her Jo Agent must produce everything she produces: daily ops report, client health alerts, onboarding tracking, CS triggers, follow-up drafts. She reviews and corrects. The agent learns. By the time she's on leave, the agent IS her operational layer. She comes back and it's better than when she left.
 
 ---
 

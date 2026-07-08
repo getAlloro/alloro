@@ -156,7 +156,7 @@ and one action banner as its recommendation layer. Everything below (`PatientJou
   this map to name its leaking stage.
 - **The fix (one tiny pure map, shared by FIX 2):** add a single source-of-truth constant
   `DOMAIN_TO_STAGE`:
-  - `ranking`, `gbp` → **Findable**
+  - `ranking`, `gbp` → **Findable** (this maps a gbp PRESENCE / profile-completeness signal to Findable; a gbp POST is a CONVERSION move per the lever-map and is NEVER emitted as a Findable/rank fix, so this fallback never implies posting improves rank)
   - `review` → **Choosable** (reviews win the comparison; `substrate: journey-lattice.md:102`)
   - `form-submission` → **Bookable**
   - `referral`, `pms-data-quality` → **Memorable**
