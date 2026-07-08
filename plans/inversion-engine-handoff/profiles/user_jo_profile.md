@@ -1,6 +1,6 @@
 ---
 name: jordan-jo-complete-working-profile
-description: "How Jo thinks, operates, communicates, and what she needs from the system. COO/Integrator going on maternity leave October 9."
+description: "How Jo thinks, operates, communicates, and what she needs from the system. COO/Integrator; leave starts Sept 25, 2026 (baby due Oct 9)."
 metadata: 
   node_type: memory
   type: user
