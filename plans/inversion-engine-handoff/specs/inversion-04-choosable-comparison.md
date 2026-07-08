@@ -416,3 +416,8 @@ rewrite the ranking recommendation LLM (Chapter 3). It depends on Chapter 1 (dat
   presence-only-never-quality scoping (FIX B/C), and every illustrative-number flag are unchanged.
 - **Updated Done criteria:** none (additive framing; no new build task, no change to FIX A/B/C/D acceptance
   criteria). The forward-hook's attributed loop-back is executed under Chapter 6, not here.
+
+### Rev 2 - 2026-07-07
+- **Change:** Coherence-pass correction to the attribution loop-back (the forward-hook above). The Rev-1 version credited Alloro's reply/post for a review-COUNT rise ({N}->{N+7}), a fabricated CAUSE attribution (a reply or a post cannot create reviews). The body is corrected to attribute ONLY what the rail causes (the reply/post Alloro made, a real logged action), and to report any review-count move as the OWNER's own context, never Alloro-caused. Adopts Ch7 FIX 4's "attribute the CATCH, never the CAUSE" as a cross-chapter invariant.
+- **Reason:** Coherence pass (2026-07-07): the Rev-1 fabricated attribution violated Value #6 and contradicted Ch7 FIX 4. The Rev-1 log above still described that (now-removed) version, this entry corrects the audit trail per the append-only convention.
+- **Updated Done criteria:** the loop-back attributes the reply/post ACTION (real, logged), never a review-count rise; no "Alloro made it rise" language anywhere.

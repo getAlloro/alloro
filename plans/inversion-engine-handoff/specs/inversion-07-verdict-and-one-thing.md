@@ -141,7 +141,9 @@ and one action banner as its recommendation layer. Everything below (`PatientJou
   practice reads the exhale line; a practice with a warn/critical stat reads the named-leak line; a
   data-desert practice reads the honest "connect more data" line.
 
-## FIX 3: Make the verdict + one-thing speak the four-stage vocabulary (domain → stage)
+## FIX 3: Make the verdict + one-thing speak the four-stage vocabulary (via the unified type's `stage` field)
+
+> ⚠️ **COHERENCE-PASS UPDATE (2026-07-07, supersedes the static map below AND the Rev-1 "FIX 3 preserved unchanged" note):** the unified candidate-card TYPE (Ch2) now carries an explicit **`stage` field, set by the AUTHORING chapter**. Ch7's eyebrow AND the FIX-2 verdict read THAT field, not a `domain → stage` derivation. `DOMAIN_TO_STAGE` below is retained ONLY as a fallback for a candidate that lacks a `stage` field. This fixes the mislabel: a Ch6 review-ACTION carries `stage = memorable` and reads "Memorable"; a Ch4 review choose-signal carries `stage = choosable` and reads "Choosable", the domain map can no longer collapse a Memorable review-action into "Choosable." Where the text below says "review → Choosable," that is now the FALLBACK-only default.
 - **Owner sees:** the one-thing is anchored in an internal `domain` taxonomy
   (review / gbp / ranking / form-submission / pms-data-quality / referral), not the customer-journey
   stages the whole lattice is built on (Findable / Choosable / Bookable / Memorable). The lattice law

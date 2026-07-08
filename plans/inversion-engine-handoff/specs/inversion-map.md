@@ -40,8 +40,8 @@ sandbox deploy (Corey's eyes) + real data (Dave), merged to dev/dave.
 
 **⚠️ Coherence pass (2026-07-07, AFTER the fix-pass above):** a system-wide audit found deeper gaps the per-chapter fix-pass missed. These, not the fix-pass residuals, are the real blockers before building past Ch2, and they are being resolved in the spec-resolution pass:
 - **The engine is TWO selectors, not one.** Ch7's single-card verdict governs only the SUMMARY / OneThingBanner surface; the ranking-LLM surface (Ch2/Ch3) and the Ch5/Ch6 candidates are NOT wired into it. So "feed as SUMMARY candidates" and "reconciled" above are design-INTENT, not yet delivered. Fix: define ONE candidate-card TYPE + ONE selector that reads every engine. **✅ RESOLVED (2026-07-07 spec-resolution, Corey-staked): Ch2 now defines the unified candidate-card TYPE (`TopActionSchema` + `stage` + `execution_state` + `generic`, additive); Ch7 now specs ONE selector reading every generator via it. Wiring is Dave's.**
-- **A fabricated cross-chapter attribution.** Ch4 attributes a review-COUNT rise to Alloro's reply/post (which cannot create reviews), contradicting Ch7's "attribute the CATCH, never the CAUSE." Fix: attribute only what the rail causes.
-- **A false premise.** Ch2 states SUMMARY "only runs when PMS is present"; the code runs it unconditionally. Fix: correct the premise; decide the canonical selector per data-state.
+- **✅ RESOLVED , a fabricated cross-chapter attribution.** Ch4 attributed a review-COUNT rise to Alloro's reply/post (which cannot create reviews), contradicting Ch7's "attribute the CATCH, never the CAUSE." FIXED (inversion-04 body + Rev 2): attributes only what the rail causes; the review-count move is reported as the owner's own context.
+- **✅ RESOLVED , a false premise.** Ch2 stated SUMMARY "only runs when PMS is present"; the code runs it unconditionally. FIXED (inversion-02: corrected inline with the `service.monthly-agent-processor.ts` receipt; the per-data-state selection is handled by the one unified type + one selector).
 
 ## The build loop (per chapter, the poka-yoke against orphaning)
 1. Spec the chapter here, misinterpretation-proof, dev/dave-anchored.
