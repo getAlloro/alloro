@@ -83,6 +83,11 @@ Surface that read-back for a yes (Dave, and it can go to Corey) BEFORE the build
 3. **Build the one card TYPE + the one selector that Ch2/Ch7 now spec** (the two-selector fix, the contract is set, the wiring is yours) before building the stage chapters on top of it.
 4. Then build the chapters. Ch2 (Card Standard) + Ch7 (Verdict) are cross-cutting; Ch3/Ch4 feed the selector; Ch5a (responder) is cheap + in-lane; **Ch5b (attribution rail) is a big build AND it is the owned-rail / moat piece (NS2), everything before it is NS2-capped read-only clarity, so deferring Ch5b is a deliberate NS1-first call, not an accident; revisit if a moat-first order is cheaper.** Each ships validated + lands.
 
+**PR chunking (dependency-safe, this operationalizes Dave's rule: each PR independently VALID on dev, dependent features in ONE PR, never merge one foot):** the 7 chapters are NOT 7 independent any-order PRs. The ONE hard dependency is Ch2 (the unified card TYPE, the shared shape every generator emits) <-> Ch7 (the one selector that reads it): together they are the FOUNDATION every stage chapter plugs into. So:
+- **Foundation PR:** Ch2 + Ch7 (bundle them for pure any-order; or Ch2 then Ch7 as two small PRs, each valid on dev, just an order, since Ch2 is additive-and-valid-alone and Ch7 needs Ch2 present).
+- **Then each stage chapter** (Ch3, Ch4, Ch5a, Ch5b, Ch6) is its OWN self-contained PR: each only ADDS a generator that emits the shared shape + is read by the selector, so those merge in ANY order.
+So it is "1 foundation PR + N independent chapter PRs," never 7 flat. (Slice 1 / Ch1 already merged, independent. Ch5a + Ch6 also carry OPEN decisions, see §4 / canon-to-stake, hold those until Corey clears them.)
+
 **Dave: if your read of the codebase says a different order or batching is faster and safe, take it.** The only non-negotiables are honesty (every number true, no unbuilt-as-built, in-lane) and incremental landing.
 
 ---
