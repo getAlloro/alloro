@@ -2,6 +2,25 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.157] - July 2026
+
+### Email Logs admin page — design-system polish
+
+The internal admin **Email Logs** viewer was hand-rolled plain Tailwind and looked out of place next to the rest of the admin. Rebuilt it on the shared admin design system so it matches its sibling log viewer (Application Logs). Presentation only — no API, hook, query, or backend change, and list/detail behavior is identical. Built on `plans/07082026-email-logs-ui-polish`; owner-verified in the admin tab (acceptance C1 + T1–T7 pass). Live on dev after this push; not on production until the `main` merge. Docs parity N/A — internal operator page, not in customer docs, and the change is cosmetic (same controls and labels).
+
+**Key Changes:**
+- **Heading** now uses `AdminPageHeader` — navy `Mail` icon tile with an animated entrance, identical treatment to Application Logs.
+- **Animated filters.** Category and Status use the shared `AnimatedSelect`; the date and search inputs carry the brand orange focus ring; a **Reset** control appears only when a filter is active.
+- **Table.** Framer Motion staggered row entrance, hover-highlight rows, skeleton-row loading, and design-system empty/error states (`EmptyState`).
+- **Detail modal.** Glass (blurred) backdrop with a spring in/out, an icon + badges header, and X / Escape / backdrop close. The sandboxed `iframe` email preview is preserved verbatim (untrusted stored HTML).
+- **Layout bug fixed.** The page double-padded (its own `p-6` on top of `AdminLayout`'s); switched to `space-y-6` like the sibling pages.
+- **Decomposition.** The 345-line file was split into a `pages/admin/EmailLogs/` feature folder (constants, badges, filters, table, modal) plus a 132-line container — mirroring the `PracticeRanking/` pattern; every file is under 200 lines.
+
+**Commits:**
+- `frontend/src/pages/admin/EmailLogs.tsx` — rewritten as the container: state/params/query unchanged, composes header + filters + table + animated pagination + `AnimatePresence` modal.
+- `frontend/src/pages/admin/EmailLogs/` — new `constants.ts`, `badges.tsx`, `EmailLogsFilters.tsx`, `EmailLogsTable.tsx`, `EmailLogDetailModal.tsx`.
+- `plans/07082026-email-logs-ui-polish/` — spec, acceptance `test.html` + `test-results.json` (Passed).
+
 ## [0.0.156] - July 2026
 
 ### Fix: Google admin sign-in landing on the wrong identity

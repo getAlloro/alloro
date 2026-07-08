@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Email Logs UI Polish Spec</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); margin-top: 14px; }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 840px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; letter-spacing: 0; }
+    h2 { font-size: 1.35rem; letter-spacing: 0; }
+    h3 { font-size: 1rem; letter-spacing: 0; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    .revision-entry { border: 1px solid var(--line); border-radius: 8px; padding: 16px; margin-top: 12px; }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-completed">Completed</span>
+      </div>
+      <h1>Email Logs UI Polish</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/07082026-email-logs-ui-polish</dd></div>
+        <div><dt>Size</dt><dd>Medium</dd></div>
+        <div><dt>Risk</dt><dd>Level 1</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>The admin <code>Email Logs</code> page is hand-rolled plain Tailwind — a bare
+      <code>&lt;h1&gt;</code>, unstyled <code>&lt;select&gt;</code>/<code>&lt;input&gt;</code> filters, a static table,
+      and a static modal. It ignores the shared admin design system that every sibling page
+      (its direct analog <code>AppLogs.tsx</code>) already uses, so it looks out of place and unfinished.
+      This is a pure presentation upgrade: match the sibling dashboard, animate the filters, and make
+      the detail modal feel like the rest of the app. No behavior, API, or data changes.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Rebuild <code>frontend/src/pages/admin/EmailLogs.tsx</code> on the existing design-system
+      primitives, decomposed into a feature folder (mirroring <code>pages/admin/PracticeRanking/</code>):</p>
+      <ul>
+        <li><strong>Heading</strong> → <code>AdminPageHeader</code> (navy <code>Mail</code> icon tile, animated entrance, description) — identical treatment to <code>AppLogs</code>.</li>
+        <li><strong>Filters</strong> → <code>AnimatedSelect</code> for Category &amp; Status; focus-animated date + search inputs inside a card with a staggered entrance; a <em>Reset</em> control when any filter is active.</li>
+        <li><strong>Table</strong> → white card shell, Framer Motion staggered row entrance, hover-highlight rows, skeleton-row loading state, <code>EmptyState</code> for empty/error.</li>
+        <li><strong>Modal</strong> → glass backdrop (<code>backdrop-blur</code>), spring in/out via <code>modalVariants</code>, icon + badges header, <code>X</code> close button, Escape-to-close. The sandboxed <code>iframe</code> preview is preserved verbatim (§17.4).</li>
+        <li><strong>Layout bug</strong> → drop the page's own <code>p-6</code> (the <code>AdminLayout</code> already pads content) and use <code>space-y-6</code> like <code>AppLogs</code>.</li>
+      </ul>
+      <p><strong>Done when:</strong> the page visually matches the admin design language, all filters + table + modal animate, <code>tsc</code> is clean, and list/detail behavior is byte-for-byte the same as before.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>frontend/src/pages/admin/EmailLogs.tsx</code> — the page being rebuilt (345 lines → decomposed).</li>
+        <li><code>frontend/src/pages/admin/AppLogs.tsx</code> — <strong>reference analog</strong>: sibling log viewer already on the design system.</li>
+        <li><code>frontend/src/pages/admin/PracticeRanking/</code> — <strong>structure analog</strong>: page file + feature subfolder of sub-components.</li>
+        <li><code>frontend/src/components/ui/DesignSystem/</code> — <code>AdminPageHeader</code>, <code>ActionButton</code>, <code>EmptyState</code>, <code>Badge</code>.</li>
+        <li><code>frontend/src/components/ui/AnimatedSelect.tsx</code> — animated dropdown reused for Category/Status.</li>
+        <li><code>frontend/src/lib/animations.ts</code> — <code>fadeInUp</code>, <code>staggerContainer</code>, <code>listItemVariants</code>, <code>backdropVariants</code>, <code>modalVariants</code>.</li>
+        <li><code>frontend/src/api/email-logs.ts</code>, <code>frontend/src/hooks/queries/useAdminEmailLogs.ts</code> — <strong>untouched</strong>; data flow stays through the existing triad.</li>
+      </ul>
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li>Design-system usage exactly as <code>AppLogs.tsx</code> (§12.1 triad; alloro-frontend skill).</li>
+        <li>Feature-folder decomposition exactly as <code>PracticeRanking/</code> (§12.3): page stays at <code>pages/admin/EmailLogs.tsx</code>, sub-components under <code>pages/admin/EmailLogs/</code>.</li>
+        <li>Light admin theme (white cards, <code>alloro-navy</code>/<code>alloro-orange</code> accents) — <strong>not</strong> the <code>.minds-theme</code> dark scope.</li>
+      </ul>
+      <p><strong>Cited Articles:</strong> §12.1 (triad), §12.3 (feature folders), §13.1 (file-size tiers — decompose the 345-line file), §13.2 (lean components), §14.2/§14.3 (data-fetching stays in hooks), §15.1 (server state = React Query), §16.1 (one error contract), §17.1 (no <code>console.*</code>), §17.2 (no <code>any</code>), §17.4 (keep the sandboxed iframe; no <code>dangerouslySetInnerHTML</code>).</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Reuse existing primitives (<code>AdminPageHeader</code>, <code>AnimatedSelect</code>, <code>EmptyState</code>, <code>ActionButton</code>, animation variants).</li>
+            <li>Preserve the <code>iframe sandbox=""</code> preview exactly (untrusted stored HTML, §17.4).</li>
+            <li>Keep every filter/param/pagination behavior and the query hooks identical.</li>
+            <li>Each new file under 200 lines, single responsibility; <code>aria-label</code> on icon-only buttons; visible focus rings.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>No new npm dependencies.</li>
+            <li>No changes to <code>api/email-logs.ts</code>, the hooks, or any backend route.</li>
+            <li>No <code>.minds-theme</code> dark styling; no <code>dark:</code> utilities.</li>
+            <li>No raw <code>fetch</code>/<code>axios</code>, no <code>any</code>, no <code>console.*</code>.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Backend/API/schema changes; new columns or filters; CSV export; open-tracking accuracy.</li>
+        <li>App-wide <code>prefers-reduced-motion</code> gating (see Assumptions — matches existing admin pages).</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 1 (Suggestion) — presentation-only, reusing proven primitives.</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li>File/folder name coexistence (<code>EmailLogs.tsx</code> + <code>EmailLogs/</code>). <strong>Mitigation:</strong> identical to the working <code>PracticeRanking.tsx</code> + <code>PracticeRanking/</code> pair; route import <code>./admin/EmailLogs</code> resolves to the file.</li>
+        <li>Losing the security sandbox during the modal rewrite. <strong>Mitigation:</strong> keep <code>sandbox=""</code> and the untrusted-HTML comment verbatim; called out in T5 Verify.</li>
+        <li><code>AnimatePresence</code> exit animation needs the modal mounted conditionally under the presence wrapper. <strong>Mitigation:</strong> wrap the conditional in the page, not inside the modal.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> <code>EmailLogs.tsx</code> is imported only by <code>pages/Admin.tsx</code> (one route). New sub-files are consumed only by the page. No shared primitive is modified, so no other page is affected.</p>
+      <h3>Assumptions (-i self-resolved)</h3>
+      <ul>
+        <li>Match the <strong>light admin theme</strong>, not the skill's dark default — the user asked to match the sibling dashboard, and dark navy on one admin page would clash with all siblings.</li>
+        <li><code>prefers-reduced-motion</code> is not individually gated — no existing admin page does, and matching the sibling is the explicit goal. Revisit app-wide if desired.</li>
+        <li>Added a <em>Reset filters</em> affordance (low-risk UX win); no other new behavior.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <article class="task-card">
+        <h3>T1: Extract constants + helpers</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Create <code>EmailLogs/constants.ts</code>: <code>CATEGORY_OPTIONS</code>, <code>STATUS_OPTIONS</code>, <code>STATUS_STYLE</code>, <code>PAGE_SIZE</code>, <code>formatDateTime()</code>, <code>recipientLabel()</code>. Pure, no JSX (keeps fast-refresh clean).</dd></div>
+          <div><dt>Files</dt><dd><code>pages/admin/EmailLogs/constants.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>tsc</code> clean; values match the current file.</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T2: Badge components</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Create <code>EmailLogs/badges.tsx</code>: <code>StatusBadge</code> (with the opened <code>*</code> tooltip) and <code>CategoryBadge</code>.</dd></div>
+          <div><dt>Files</dt><dd><code>pages/admin/EmailLogs/badges.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>Renders in table + modal identically to before.</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T3: Animated filter bar</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Create <code>EmailLogs/EmailLogsFilters.tsx</code>: card with <code>fadeInUp</code>; Category/Status via <code>AnimatedSelect</code>; From/To date + Search inputs with orange focus ring; <code>Reset</code> ghost <code>ActionButton</code> when active. Controlled via props.</dd></div>
+          <div><dt>Files</dt><dd><code>pages/admin/EmailLogs/EmailLogsFilters.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>Every filter drives the same param + resets to page 1.</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T4: Animated table + states</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Create <code>EmailLogs/EmailLogsTable.tsx</code>: white card, <code>motion.tbody</code>/<code>motion.tr</code> stagger, hover rows, skeleton-row loading, <code>EmptyState</code> for empty/error, row click → <code>onSelect(id)</code>.</dd></div>
+          <div><dt>Files</dt><dd><code>pages/admin/EmailLogs/EmailLogsTable.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1, T2</dd></div>
+          <div><dt>Verify</dt><dd>Rows, columns, and click-to-open behave as before.</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T5: Animated detail modal</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Create <code>EmailLogs/EmailLogDetailModal.tsx</code>: glass backdrop + <code>modalVariants</code>, icon/badges header, <code>X</code> close (<code>aria-label</code>), Escape-to-close, loading/error states, metadata grid, <strong>preserved</strong> sandboxed iframe.</dd></div>
+          <div><dt>Files</dt><dd><code>pages/admin/EmailLogs/EmailLogDetailModal.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1, T2</dd></div>
+          <div><dt>Verify</dt><dd><code>sandbox=""</code> present; body renders; Escape + backdrop + X all close.</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T6: Page container rewrite</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Rewrite <code>EmailLogs.tsx</code> to <code>space-y-6</code> (no <code>p-6</code>), keep all state/params/query, compose <code>AdminPageHeader</code> + Filters + Table + animated pagination (<code>ActionButton</code>) + <code>AnimatePresence</code>-wrapped modal.</dd></div>
+          <div><dt>Files</dt><dd><code>pages/admin/EmailLogs.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T3, T4, T5</dd></div>
+          <div><dt>Verify</dt><dd><code>tsc</code> clean; route renders; no double padding.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" checked disabled> <code>npx tsc -p tsconfig.app.json --noEmit</code> — zero new errors</li>
+        <li><input type="checkbox" checked disabled> <code>cd frontend &amp;&amp; npm run build</code> passes</li>
+        <li><input type="checkbox" checked disabled> Heading matches <code>AppLogs</code> (<code>AdminPageHeader</code> + Mail icon)</li>
+        <li><input type="checkbox" checked disabled> Category + Status filters animate (<code>AnimatedSelect</code>); date/search have orange focus rings; Reset works</li>
+        <li><input type="checkbox" checked disabled> Table rows stagger in, hover-highlight; skeleton loading; empty/error states</li>
+        <li><input type="checkbox" checked disabled> Modal animates in/out, Escape/backdrop/X close, <code>sandbox=""</code> preserved</li>
+        <li><input type="checkbox" checked disabled> No double padding; list + detail behavior unchanged</li>
+        <li><input type="checkbox" checked disabled> Each file &lt; 200 lines; no <code>any</code>, no <code>console.*</code>, no raw fetch</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-07-08</h3>
+        <p><strong>Change:</strong> Executed T1–T6 and finalized. One execution-time fix — <code>EmailLogsTable.tsx</code> referenced <code>React.ReactNode</code> without a <code>React</code> import (React 19 new JSX transform); switched to an explicit <code>ReactNode</code> import. All gates green: <code>tsc -p tsconfig.app.json</code> exit 0, ESLint exit 0, <code>vite build</code> exit 0. Owner verified the seven UI acceptance items (T1–T7) in their authenticated admin tab; <code>test-results.json</code> rolls up to Passed. Status → Completed.</p>
+        <p><strong>Reason:</strong> User QA: owner confirmed "all tests pass" and requested finalize + commit + push.</p>
+        <p><strong>Updated Done criteria:</strong> none — all original Done items met and checked.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

@@ -1,0 +1,130 @@
+{
+  "plan": "plans/07082026-email-logs-ui-polish",
+  "generatedAt": "2026-07-08",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "C1",
+      "title": "Type-check, lint, and production build all pass",
+      "surface": "cli",
+      "precondition": "Clean working tree in frontend/",
+      "steps": [
+        "1. cd frontend && npx tsc -p tsconfig.app.json --noEmit",
+        "2. npx eslint src/pages/admin/EmailLogs.tsx src/pages/admin/EmailLogs/",
+        "3. npm run build"
+      ],
+      "expected": "All three exit 0 with no errors from the new EmailLogs files",
+      "status": "pass",
+      "evidence": "tsc exit 0; eslint exit 0; vite build exit 0 (built in 8.06s). Chunk-size warning is pre-existing and app-wide.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T1",
+      "title": "Heading matches the sibling dashboard (AdminPageHeader + Mail icon)",
+      "surface": "ui",
+      "precondition": "Logged in as admin; navigate to /admin/email-logs",
+      "steps": [
+        "1. Open the Email Logs page",
+        "2. Compare the heading against /admin/app-logs"
+      ],
+      "expected": "Navy rounded icon tile with a Mail glyph, bold title, gray description, and a slide-up entrance — same treatment as Application Logs",
+      "status": "pass",
+      "evidence": "Owner-verified 2026-07-08 in own authenticated admin tab.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Category and Status filters are animated dropdowns",
+      "surface": "ui",
+      "precondition": "On /admin/email-logs",
+      "steps": [
+        "1. Click the Category filter",
+        "2. Observe the dropdown open with a chevron rotation and fade",
+        "3. Pick a value; repeat for Status"
+      ],
+      "expected": "AnimatedSelect opens/closes with motion; selecting a value filters the list and resets to page 1",
+      "status": "pass",
+      "evidence": "Owner-verified 2026-07-08 in own authenticated admin tab.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "Date and search inputs have brand focus ring; Reset clears filters",
+      "surface": "ui",
+      "precondition": "On /admin/email-logs",
+      "steps": [
+        "1. Focus the From, To, and Search inputs",
+        "2. Apply any filter, then click Reset"
+      ],
+      "expected": "Focused inputs show the orange focus ring; a Reset button appears only when a filter is active and clears all filters back to defaults",
+      "status": "pass",
+      "evidence": "Owner-verified 2026-07-08 in own authenticated admin tab.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T4",
+      "title": "Table rows animate in and highlight on hover",
+      "surface": "ui",
+      "precondition": "On /admin/email-logs with at least one logged email",
+      "steps": [
+        "1. Load the page and watch the rows",
+        "2. Hover a row"
+      ],
+      "expected": "Rows stagger in (fade + slide); hovering tints the row; header uses the parchment tint",
+      "status": "pass",
+      "evidence": "Owner-verified 2026-07-08 in own authenticated admin tab.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T5",
+      "title": "Loading skeleton and empty/error states render",
+      "surface": "ui",
+      "precondition": "On /admin/email-logs",
+      "steps": [
+        "1. Reload and observe the initial load",
+        "2. Apply a filter that matches nothing"
+      ],
+      "expected": "Initial load shows pulsing skeleton rows; a no-match filter shows the EmptyState with an Inbox icon and a Reset CTA",
+      "status": "pass",
+      "evidence": "Owner-verified 2026-07-08 in own authenticated admin tab.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T6",
+      "title": "Detail modal animates and the email body renders sandboxed",
+      "surface": "ui",
+      "precondition": "On /admin/email-logs with at least one logged email",
+      "steps": [
+        "1. Click a row",
+        "2. Read the metadata and the rendered email preview",
+        "3. Close via the X, the backdrop, and the Escape key"
+      ],
+      "expected": "Modal springs in over a blurred backdrop; metadata + badges show; the HTML body renders inside the sandboxed iframe; all three close methods work with an exit animation",
+      "status": "pass",
+      "evidence": "Owner-verified 2026-07-08 in own authenticated admin tab.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T7",
+      "title": "No double padding; list + detail behavior unchanged",
+      "surface": "ui",
+      "precondition": "On /admin/email-logs",
+      "steps": [
+        "1. Compare page gutters against other admin pages",
+        "2. Exercise pagination Prev/Next and confirm the same rows as before the change"
+      ],
+      "expected": "Single consistent page padding (no 48px gutter); pagination and filtering return identical results to the pre-polish page",
+      "status": "pass",
+      "evidence": "Owner-verified 2026-07-08 in own authenticated admin tab.",
+      "notes": "",
+      "waiver": ""
+    }
+  ]
+}
