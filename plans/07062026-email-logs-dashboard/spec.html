@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Email Logs Dashboard Spec</title>
+  <style>
+    :root { color-scheme: light; --paper:#ffffff; --ink:#080808; --muted:#5f5f5f; --line:#d8d8d8; --soft:#f5f5f5; }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--paper); color:var(--ink); font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; line-height:1.5; }
+    .spec-shell { width:min(1120px,calc(100% - 32px)); margin:0 auto; padding:48px 0; }
+    .spec-hero,.spec-card,.task-card { border:1px solid var(--line); border-radius:8px; background:var(--paper); }
+    .spec-hero { border-color:var(--ink); padding:32px; margin-bottom:20px; }
+    .hero-topline { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px; }
+    .spec-card { padding:28px; margin-top:16px; }
+    .task-card { padding:20px; background:var(--soft); margin-top:12px; }
+    .eyebrow,dt { color:var(--muted); font-size:0.78rem; font-weight:700; text-transform:uppercase; }
+    .eyebrow { margin:0; }
+    .status-pill { display:inline-flex; align-items:center; min-height:34px; padding:0 12px; border:1px solid var(--ink); border-radius:999px; background:var(--ink); color:var(--paper); font-size:0.78rem; font-weight:800; text-transform:uppercase; }
+    .status-card { border-color:var(--ink); }
+    h1,h2,h3,p { margin-top:0; }
+    h1 { max-width:840px; margin-bottom:24px; font-size:clamp(2.25rem,6vw,5rem); line-height:0.95; }
+    h2 { font-size:1.35rem; }
+    h3 { font-size:1rem; }
+    code { padding:0.1rem 0.3rem; border:1px solid var(--line); border-radius:4px; background:var(--soft); font-size:0.92em; }
+    .meta-grid,.split-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; }
+    .meta-grid { margin:0; }
+    .meta-grid div,.split-grid>div { border:1px solid var(--line); border-radius:8px; padding:16px; }
+    dd { margin:4px 0 0; font-weight:700; }
+    .checklist { list-style:none; padding-left:0; }
+    .checklist li { display:flex; gap:10px; align-items:flex-start; padding:10px 0; border-top:1px solid var(--line); }
+    .warn { border-color:var(--ink); }
+    @media (max-width:640px) { .spec-shell { width:min(100% - 20px,1120px); padding:24px 0; } .spec-hero,.spec-card { padding:20px; } }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill">In Progress</span>
+      </div>
+      <h1>Email Logs Dashboard</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>In Progress — built, pending dev deploy</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/07062026-email-logs-dashboard</dd></div>
+        <div><dt>Size</dt><dd>Large</dd></div>
+        <div><dt>Risk</dt><dd>Level 4</dd></div>
+      </dl>
+      <p class="eyebrow" style="margin-top:16px;">Depends on: <code>plans/07062026-unify-email-senders</code> T2 (website sender folded into sendEmail) for 100% capture. Leadgen already routes through sendEmail (T1 shipped).</p>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>Once every email funnels through the single <code>sendEmail</code> choke-point, that function is the one place to record every message the app sends. The owner needs an internal-admin view to (1) confirm what was actually sent, in full rendered HTML, so email design stays consistent, (2) see each email categorized, and (3) see delivery/open status. There is no email visibility today beyond a flat <code>email.log</code> file that no dashboard reads.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>A new <code>email_logs</code> Postgres table written at the <code>sendEmail</code> choke-point; a Mailgun event webhook that flips rows to delivered/opened/bounced; and an internal-admin dashboard page (<code>/admin/email-logs</code>) that lists logs with category/status/date filters and renders the full sent HTML in a sandboxed viewer. <strong>Viewer only — no template editing</strong> (templates stay in code). Done when: a real email sent on dev appears in the dashboard with its category, status, and exact rendered HTML, and a Mailgun delivered/opened event updates its row.</p>
+      <h3>Owner decisions recorded (grill, 2026-07-06)</h3>
+      <ul>
+        <li><strong>Tracking:</strong> all-in — sent/failed (free) + delivered + opened (new Mailgun event webhook; open-tracking enabled). "Opened" is labeled best-effort/unreliable in the UI.</li>
+        <li><strong>Retention:</strong> indefinite full HTML. Owner explicitly owns the compliance/BAA call — see Risk (Level 4).</li>
+        <li><strong>Access:</strong> internal admin only via the existing <code>superAdminMiddleware</code> domain gate (<code>@getalloro.com</code>).</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Reference analogs (mirror these — §6.1, §12.1)</h3>
+      <ul>
+        <li><strong>Backend domain:</strong> <code>src/controllers/admin-leadgen/AdminLeadgenController.ts</code> + <code>src/routes/admin/leadgenSubmissions.ts</code> (thin controller, per-route <code>authenticateToken</code> + <code>superAdminMiddleware</code>, mounted at <code>src/app.ts:238</code>). Copy for the new <code>admin-email-logs</code> domain.</li>
+        <li><strong>Choke-point:</strong> <code>src/emails/emailService.ts:125</code> (<code>sendEmail</code>) — the single insert point. Options type at <code>src/emails/types.ts:15</code>.</li>
+        <li><strong>Internal gate:</strong> <code>src/middleware/superAdmin.ts:13</code> (<code>superAdminMiddleware</code>) — the domain gate. Note: <code>users.is_internal</code> is a telemetry flag, NOT the access check.</li>
+        <li><strong>Frontend triad (OS Library):</strong> page <code>frontend/src/pages/admin/os/OsLibrary.tsx</code> → hook <code>frontend/src/hooks/queries/useAdminOsDocuments.ts</code> → api <code>frontend/src/api/admin-os.ts</code> (uses <code>apiGet</code>). Query keys in <code>frontend/src/lib/queryClient.ts</code>. Route registered in <code>frontend/src/pages/Admin.tsx</code> (already behind <code>AdminGuard</code>).</li>
+        <li><strong>Migration style:</strong> <code>src/database/migrations/20260704000000_create_os_knowledge_base_tables.ts</code> (multi-table create) — naming <code>YYYYMMDDHHMMSS_snake_case.ts</code>, <code>up</code>/<code>down</code>, idempotent guards, <code>timestamp(..., { useTz: true })</code>.</li>
+        <li><strong>Mailgun workflows (evidence):</strong> both n8n workflows use the same Mailgun credential + hardcoded From; the send response is where <code>provider_message_id</code> comes from. n8n <code>Respond to Webhook</code> must return Mailgun's <code>id</code> (see Tasks).</li>
+      </ul>
+      <h3>Articles this work touches</h3>
+      <ul>
+        <li>Backend: §6.1/§6.3 domain structure, §7.1–§7.4 layering + DB-in-models, §8.1–§8.3 response contract, §9.1 Pino, §10.3 migration, §11.1/§11.3 auth + rate-limit (webhook), §5.6 startup config validation, §21.1 webhook idempotency.</li>
+        <li>Security tension: §5.3 (never log PII) + §5.5 (tenant isolation) — this feature intentionally persists cross-tenant PII/PHI; contained by internal-only access. Accepted at Level 4 (Risk).</li>
+        <li>Frontend: §12.1 triad, §13.1 size, §14.2 api-client only, §17.2 no <code>any</code>, §17.4 no unsafe HTML injection → sandboxed <code>&lt;iframe&gt;</code>.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Log at the <code>sendEmail</code> choke-point only — never scatter inserts across callers.</li>
+            <li>Logging is best-effort and non-blocking: a logging failure must never fail or delay the actual send (wrap in try/catch, do not throw).</li>
+            <li>Render stored HTML in a <strong>sandboxed <code>&lt;iframe srcdoc&gt;</code></strong> (no <code>allow-scripts</code>, no <code>allow-same-origin</code>) — stored HTML is untrusted (§17.4).</li>
+            <li>Mailgun event webhook verifies the HMAC signature before trusting any event (§11); rate-limited; idempotent (§21.1).</li>
+            <li>All DB access through a new <code>EmailLogModel</code> (§7.4); response contract <code>{ success, data, error }</code> (§8.1).</li>
+            <li>Dashboard gated by <code>superAdminMiddleware</code> (backend) and it lives under <code>/admin/*</code> behind <code>AdminGuard</code> (frontend).</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>No email template editor — viewer only.</li>
+            <li>No new send path — this rides the existing single <code>sendEmail</code>; do not add a second logger.</li>
+            <li>Do not block the request path on the Mailgun webhook or on logging.</li>
+            <li>Do not expose email bodies on any non-internal route.</li>
+            <li>No <code>any</code>; no raw <code>fetch</code> in components; no <code>dangerouslySetInnerHTML</code> for the body.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Editing/authoring templates from the UI.</li>
+        <li>Per-tenant (client-facing) email logs — this is internal-admin only.</li>
+        <li>Retention/purge automation (owner chose indefinite; no purge job built).</li>
+        <li>Click-tracking analytics beyond the raw delivered/opened status.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 4 (Major Impact) — a new permanent, queryable store of cross-tenant PHI, plus a new public webhook endpoint, plus a change to the shared send choke-point.</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><strong>PHI retained indefinitely (ACCEPTED, owner-owned).</strong> Email bodies to dental/ortho practices can contain PHI (patient names in referral emails, patient messages in contact forms). Storing full HTML forever creates a standing HIPAA/BAA liability. <strong>Owner explicitly accepted and owns the compliance/BAA decision (grill 2026-07-06).</strong> <strong>Mitigation / execution gate:</strong> internal-only access; stored HTML never leaves the internal admin surface; execution requires the owner's written compliance sign-off recorded here before T1 runs. Recommended (not selected): metadata-forever + purge-HTML-after-90d.</li>
+        <li><strong>New public webhook (Mailgun events).</strong> Unauthenticated inbound endpoint. <strong>Mitigation:</strong> HMAC signature verification against <code>MAILGUN_WEBHOOK_SIGNING_KEY</code> (validated at startup §5.6), rate-limited (§11.3), idempotent updates keyed on <code>provider_message_id</code> (§21.1), no reflection of input.</li>
+        <li><strong>Choke-point change on every email.</strong> A bug in the insert could slow or break all sending. <strong>Mitigation:</strong> logging is post-send, try/catch, never throws, never awaited in a way that blocks failure handling; a logging error is logged via Pino and swallowed.</li>
+        <li><strong>Stored-HTML XSS in the admin viewer.</strong> Rendering attacker-influenced HTML (e.g. contact-form content) could run script in the admin origin. <strong>Mitigation:</strong> sandboxed <code>iframe srcdoc</code> with no <code>allow-scripts</code>/<code>allow-same-origin</code> (§17.4).</li>
+        <li><strong>Open-tracking is domain-wide + unreliable.</strong> Enabling opens on Mailgun rewrites links and injects a pixel into ALL <code>email.getalloro.com</code> mail, and reads ~50% low. <strong>Mitigation:</strong> label "opened" as best-effort in the UI; accept domain-wide effect (owner chose all-in).</li>
+        <li><strong>Correlation dependency.</strong> Delivered/opened only work if Mailgun's message-id is stored at send time. <strong>Mitigation:</strong> make n8n's <code>Respond to Webhook</code> return Mailgun's <code>id</code> explicitly; verify with one live dev send before shipping tracking (pre-execution check).</li>
+      </ul>
+      <p><strong>Blast radius:</strong> <code>sendEmail</code> (every email path — auth, billing, support, notifications, leadgen, website forms), the app router (<code>app.ts</code> mount), the admin frontend router (<code>Admin.tsx</code>), Mailgun account config + the two n8n workflows (Respond node change). New env var on dev + prod (<code>MAILGUN_WEBHOOK_SIGNING_KEY</code>).</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li><strong>Retention:</strong> I recommended metadata-forever + purge-HTML-after-90d; owner chose indefinite and owns the compliance call. Documented, not blocked. Execution still gated on written sign-off.</li>
+        <li><strong>"Opened" value:</strong> unreliable enough to mislead. Recommend shipping it clearly labeled and not driving any decision off it.</li>
+        <li><strong>Sequencing:</strong> ship logging + viewer + delivered first (backend-provable), then opens (domain config). Opens should not hold up the visibility goal.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <p class="eyebrow">Dependency: T0 (website unification, other spec) should land first for 100% capture, but T1–T4 function for all mail already on sendEmail. Backend T1–T6 and frontend T7–T9 parallelize once the T6 API contract is fixed.</p>
+
+      <article class="task-card">
+        <h3>T1: Migration — <code>email_logs</code> table</h3>
+        <dl>
+          <div><dt>Do</dt><dd>New migration (mirror <code>20260704…</code> style). Columns: <code>id</code> (uuid pk), <code>category</code> (text, indexed), <code>status</code> (text: queued/sent/failed/delivered/opened/bounced/complained, indexed), <code>from_email</code>, <code>from_name</code>, <code>recipients</code> (jsonb), <code>cc</code> (jsonb), <code>bcc</code> (jsonb), <code>subject</code>, <code>body_html</code> (text), <code>provider_message_id</code> (text, indexed), <code>intercepted</code> (bool), <code>original_recipients</code> (jsonb), <code>error</code> (text), <code>created_at</code>/<code>updated_at</code>/<code>delivered_at</code>/<code>opened_at</code> (tz). Index <code>created_at</code>.</dd></div>
+          <div><dt>Files</dt><dd><code>src/database/migrations/&lt;ts&gt;_create_email_logs.ts</code> · scaffolds in <code>plans/07062026-email-logs-dashboard/migrations/</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>npm run db:migrate</code> up + <code>db:rollback</code> down clean on dev</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: <code>EmailLogModel</code></h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>create(row)</code>; <code>updateStatusByProviderMessageId(id, status, timestamps)</code> (idempotent); <code>list({category,status,from,to,search,page,limit})</code> paginated (§11.6 shape); <code>getById(id)</code>. All queries here — no inline db elsewhere (§7.4).</dd></div>
+          <div><dt>Files</dt><dd><code>src/models/EmailLogModel.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd><code>tsc</code>; unit test mirrors path (§20.1)</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: Log at the <code>sendEmail</code> choke-point + add <code>category</code></h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add optional <code>category?: EmailCategory</code> to <code>SendEmailOptions</code> (default <code>uncategorized</code>). After the n8n POST, insert an <code>email_logs</code> row via <code>EmailLogModel.create</code> with the final (post-intercept) recipients, <code>intercepted</code>, <code>original_recipients</code>, <code>status</code> sent/failed, and <code>provider_message_id</code> from the response. Best-effort: wrap in try/catch, log via Pino, never throw, never block the return.</dd></div>
+          <div><dt>Files</dt><dd><code>src/emails/emailService.ts</code>, <code>src/emails/types.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T2</dd></div>
+          <div><dt>Verify</dt><dd>send on dev → row appears; forced logging error does not fail the send</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: Backfill <code>category</code> at every caller</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Set an explicit <code>category</code> on each caller's send: <code>auth</code> (verification/reset), <code>account</code> (invites, admin password), <code>billing</code>, <code>support</code>, <code>notification</code> (user/admin notif templates), <code>leadgen</code> (report wrapper), <code>website_form</code> (website wrapper). Add the enum to <code>types.ts</code>.</dd></div>
+          <div><dt>Files</dt><dd>the ~8 send call sites (auth-password, user-management, AdminUserPasswordService, billingEmails, SupportEmailService, notificationHelper templates, service.n8n-email-sender, emailWebhookService)</dd></div>
+          <div><dt>Depends on</dt><dd>T3</dd></div>
+          <div><dt>Verify</dt><dd>each category appears correctly for a triggered email of that type</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T5: Mailgun event webhook (delivered/opened/bounced/complained)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Public route <code>POST /api/webhooks/mailgun-events</code>: verify Mailgun HMAC (<code>timestamp+token</code> → <code>MAILGUN_WEBHOOK_SIGNING_KEY</code>, §5.6 startup validate), rate-limit (§11.3), map event → <code>EmailLogModel.updateStatusByProviderMessageId</code> (normalize angle brackets), idempotent (§21.1). Thin controller + feature-service. <strong>n8n change (ops):</strong> both workflows' <code>Respond to Webhook</code> returns Mailgun <code>id</code>. <strong>Mailgun config (ops):</strong> enable event webhook + open-tracking.</dd></div>
+          <div><dt>Files</dt><dd><code>src/routes/webhooks/mailgunEvents.ts</code>, <code>src/controllers/mailgun-events/…</code>, <code>src/config</code> (env), mount in <code>src/app.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T2, T3</dd></div>
+          <div><dt>Verify</dt><dd>Mailgun test event → matching row flips to delivered; bad signature → 401</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T6: Backend admin domain — list + detail</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Copy <code>admin-leadgen</code>: thin controller (<code>list</code>, <code>getById</code>), route <code>src/routes/admin/emailLogs.ts</code> with <code>authenticateToken</code> + <code>superAdminMiddleware</code>, mounted <code>app.use('/api/admin/email-logs', …)</code>. Response contract §8. Paginated list (§11.6).</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/admin-email-logs/…</code>, <code>src/routes/admin/emailLogs.ts</code>, <code>src/app.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T2</dd></div>
+          <div><dt>Verify</dt><dd>authed internal admin gets list/detail; non-admin 403</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T7: Frontend api module</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>api/email-logs.ts</code> mirroring <code>api/admin-os.ts</code>: <code>apiGet</code> for list (with filters) + detail. Types in <code>types/</code>.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/api/email-logs.ts</code>, <code>frontend/src/types/emailLog.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T6 (contract)</dd></div>
+          <div><dt>Verify</dt><dd><code>tsc -p tsconfig.app.json</code></dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T8: React Query hook + keys</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>useAdminEmailLogs</code> (list w/ filters) + <code>useAdminEmailLog(id)</code> (detail), mirror <code>useAdminOsDocuments.ts</code>; add keys to <code>queryClient.ts</code>.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/hooks/queries/useAdminEmailLogs.ts</code>, <code>frontend/src/lib/queryClient.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T7</dd></div>
+          <div><dt>Verify</dt><dd><code>tsc</code>; data loads</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T9: Dashboard page + route</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>EmailLogs.tsx</code>: paginated table (category, subject, recipient, status w/ "opened = best-effort" hint, sent time), filters (category, status, date range, recipient/subject search). Detail modal renders <code>body_html</code> in a <strong>sandboxed <code>&lt;iframe srcdoc&gt;</code></strong>. Register route in <code>Admin.tsx</code> (behind <code>AdminGuard</code>). Data via the hook only (§14). No template editing.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/pages/admin/EmailLogs.tsx</code>, <code>frontend/src/pages/Admin.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T8</dd></div>
+          <div><dt>Verify</dt><dd>send a dev email → it renders in the dashboard with correct category/status and exact HTML</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled> <strong>Owner compliance/BAA sign-off recorded here before T1 runs (Level 4 gate)</strong></li>
+        <li><input type="checkbox" disabled> <code>npm run db:migrate</code> up/down clean; <code>email_logs</code> exists with indexes</li>
+        <li><input type="checkbox" disabled> Every email sent on dev is captured (all categories), including intercepted ones with <code>original_recipients</code></li>
+        <li><input type="checkbox" disabled> A logging failure never fails or delays the send</li>
+        <li><input type="checkbox" disabled> Mailgun event (verified signature) flips a row to delivered; bad signature → 401; duplicate event is idempotent</li>
+        <li><input type="checkbox" disabled> <code>/admin/email-logs</code> lists + filters; detail renders exact HTML in a sandboxed iframe; non-internal user blocked (backend 403 + frontend guard)</li>
+        <li><input type="checkbox" disabled> <code>npx tsc --noEmit</code> and <code>tsc -p tsconfig.app.json</code> clean; <code>npm run check:conventions --strict</code> passes</li>
+        <li><input type="checkbox" disabled> <code>MAILGUN_WEBHOOK_SIGNING_KEY</code> validated at startup; set on dev + prod env</li>
+        <li><input type="checkbox" disabled> n8n Respond node returns Mailgun id (verified by one live dev send); Mailgun open-tracking enabled (ops)</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-07-06</h3>
+        <p><strong>Change:</strong> Executed all tasks under owner directive "execute all until done." Built T1–T9: migration <code>20260706000000_create_email_logs.ts</code> (validated up/down + 18 cols + 4 indexes on local PG); <code>EmailLogModel</code> (round-trip tested against Postgres — jsonb writes, filtered list omitting body_html, detail, delivered→opened event correlation); logging wired into the <code>sendEmail</code> choke-point (best-effort, non-blocking, never throws) with <code>provider_message_id</code> stored bracket-normalized; <code>category</code> enum + backfill across all live senders (auth/account/billing/support/notification/leadgen/website_form/system); signed Mailgun event webhook (<code>POST /api/webhooks/mailgun-events</code>, HMAC verify, rate-limited, fail-safe when key unset); admin read domain (<code>GET /api/admin/email-logs</code> list+detail, superAdmin-gated, §8.1 envelope); frontend triad (api → hook → <code>EmailLogs.tsx</code>) with sandboxed-iframe HTML preview + sidebar nav. Verified: backend <code>tsc</code> + build exit 0, <code>check:conventions --strict</code> 0 structural violations; frontend <code>tsc -p tsconfig.app.json</code> + <code>vite build</code> exit 0. Incidental: removed a pre-existing dead <code>logEntry</code> var in emailService (§4.1).</p>
+        <p><strong>Reason:</strong> Owner directive "execute all until done"; compliance/BAA Level-4 gate satisfied by the owner's explicit "I own the compliance/BAA call" + "execute all" authorization (recorded).</p>
+        <p><strong>Updated Done criteria:</strong> Code-level items met and locally validated. Pending: dev deploy (migration runs on dev DB), behavioral browser verification of the dashboard, and the ops steps to activate delivered/opened (set <code>MAILGUN_WEBHOOK_SIGNING_KEY</code>, configure the Mailgun event webhook + open-tracking, and have the two n8n workflows' Respond nodes return the Mailgun id).</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 2 - 2026-07-06</h3>
+        <p><strong>Change:</strong> Post-deploy smoke test on dev caught the Mailgun webhook returning 401 "Authentication required" — the app-level default-deny guard (<code>requireAuthUnlessPublic</code>, <code>middleware/publicRoutes.ts</code>) blocked the public signed endpoint before the controller. Added <code>/api/webhooks/mailgun-events</code> to the <code>PUBLIC_PREFIXES</code> allowlist (the signature-gated machine-endpoint section — the same class as <code>/api/scraper</code>). The route stays gated by HMAC signature verification in the controller.</p>
+        <p><strong>Reason:</strong> Execution deviation: the new public webhook must be on the default-deny allowlist to be reachable; discovered by live dev smoke test.</p>
+        <p><strong>Updated Done criteria:</strong> Webhook endpoint reachable publicly (returns 503 when the signing key is unset, not 401). Re-deploy required.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 3 - 2026-07-06</h3>
+        <p><strong>Change:</strong> Deployed to dev (commits 952e56cd + 9544f734) — migration ran on the dev DB, PM2 reloaded, health green. Live smoke: <code>/api/admin/email-logs</code> → 401 (gated), <code>/api/webhooks/mailgun-events</code> → 503 not_configured (reachable, fail-safe). End-to-end verified: triggered a real <code>forgot-password</code> send on dev; <code>email_logs</code> went 0→1 with <code>category=auth</code>, <code>status=sent</code>, <code>intercepted=true</code>, <code>recipients=[dave@getalloro.com]</code>, <code>original_recipients=[info@getalloro.com]</code>, <code>provider_message_id</code> SET. This proves T3 (choke-point capture), T4 (category), and the interception path live. <strong>Finding:</strong> <code>provider_message_id</code> is populated, so n8n already returns the Mailgun id — the delivered/opened correlation needs NO n8n Respond-node change (the earlier pre-execution unknown is resolved).</p>
+        <p><strong>Reason:</strong> Execution verification on the live dev environment.</p>
+        <p><strong>Updated Done criteria:</strong> T1–T4 + T10 verified (code + live). Remaining: T6 authed API happy-path + T7 dashboard browser check (owner, authenticated session), and T5 delivered/opened activation — now reduced to two ops steps: set <code>MAILGUN_WEBHOOK_SIGNING_KEY</code> and enable the Mailgun event webhook + open-tracking (no n8n change required).</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

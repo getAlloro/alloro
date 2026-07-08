@@ -1,7 +1,7 @@
 import type { PropsWithChildren } from "react";
 import { motion } from "framer-motion";
 import { AdminSidebar } from "./AdminSidebar";
-import { AdminTopBar, useIsPmRoute, useIsSupportRoute } from "./AdminTopBar";
+import { AdminTopBar, useIsPmRoute, useIsSupportRoute, useIsOsRoute } from "./AdminTopBar";
 import { LoadingIndicator } from "./LoadingIndicator";
 import { SidebarProvider, useSidebar } from "./SidebarContext";
 
@@ -11,7 +11,8 @@ function AdminLayoutInner({ children }: AdminLayoutProps) {
   const { collapsed } = useSidebar();
   const isPm = useIsPmRoute();
   const isSupport = useIsSupportRoute();
-  const isFullWidth = isPm || isSupport;
+  const isOs = useIsOsRoute();
+  const isFullWidth = isPm || isSupport || isOs;
 
   return (
     <div className="min-h-screen bg-gray-50 font-body text-gray-900">

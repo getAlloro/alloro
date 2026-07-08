@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import {
   AdminLayout,
@@ -8,6 +9,7 @@ import { AdminGuard } from "@/components/Admin/shell/AdminGuard";
 import AIDataInsightsList from "./admin/AIDataInsightsList";
 import AIDataInsightsDetail from "./admin/AIDataInsightsDetail";
 import AppLogs from "./admin/AppLogs";
+import EmailLogs from "./admin/EmailLogs";
 import { OrganizationManagement } from "./admin/OrganizationManagement";
 import AgentOutputsList from "./admin/AgentOutputsList";
 import { PracticeRanking } from "./admin/PracticeRanking";
@@ -31,6 +33,21 @@ import LeadgenSubmissions from "./admin/LeadgenSubmissions";
 import SupportDashboard from "./admin/SupportDashboard";
 import MissionControl from "./admin/MissionControl";
 import AdminApps from "./admin/AdminApps";
+import OsShell from "./admin/os/OsShell";
+import OsLibrary from "./admin/os/OsLibrary";
+import OsChat from "./admin/os/OsChat";
+import OsTrash from "./admin/os/OsTrash";
+import OsDocumentRead from "./admin/os/OsDocumentRead";
+
+// Lazy editor route (P3 T4 / master spec R6): TipTap + tiptap-markdown stay
+// out of the main admin chunk; verified as a separate chunk in the build.
+const OsDocumentEdit = lazy(() => import("./admin/os/OsDocumentEdit"));
+
+function OsEditRouteFallback() {
+  return (
+    <div className="mt-6 min-h-[50vh] rounded-xl border border-line-soft bg-alloro-surface motion-safe:animate-pulse" />
+  );
+}
 
 function WebDevEngine() {
   return (
@@ -81,6 +98,7 @@ function AdminWithLayout() {
         />
         <Route path="webdev-engine" element={<WebDevEngine />} />
         <Route path="app-logs" element={<AppLogs />} />
+        <Route path="email-logs" element={<EmailLogs />} />
         <Route
           path="organization-management"
           element={<OrganizationManagement />}
@@ -104,6 +122,20 @@ function AdminWithLayout() {
         <Route path="pm" element={<PmErrorBoundary><ProjectsDashboard /></PmErrorBoundary>} />
         <Route path="pm/:projectId" element={<PmErrorBoundary><ProjectBoard /></PmErrorBoundary>} />
         <Route path="support" element={<SupportDashboard />} />
+        <Route path="os" element={<OsShell />}>
+          <Route index element={<OsLibrary />} />
+          <Route path="chat" element={<OsChat />} />
+          <Route path="trash" element={<OsTrash />} />
+          <Route path="doc/:id" element={<OsDocumentRead />} />
+          <Route
+            path="doc/:id/edit"
+            element={
+              <Suspense fallback={<OsEditRouteFallback />}>
+                <OsDocumentEdit />
+              </Suspense>
+            }
+          />
+        </Route>
         <Route path="leadgen-submissions" element={<LeadgenSubmissions />} />
       </Routes>
     </AdminLayout>

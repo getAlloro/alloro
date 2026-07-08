@@ -98,6 +98,7 @@ export async function register(req: Request, res: Response) {
 
     // Send verification email
     const emailResult = await sendEmail({
+      category: "auth",
       subject: "Verify your Alloro account",
       body: `
         <div style="font-family: sans-serif; padding: 20px; max-width: 600px;">
@@ -319,6 +320,7 @@ export async function resendVerification(req: Request, res: Response) {
     // below logs the email only, without the code.
 
     const emailResult = await sendEmail({
+      category: "auth",
       subject: "Verify your Alloro account",
       body: `
         <div style="font-family: sans-serif; padding: 20px; max-width: 600px;">
@@ -381,6 +383,7 @@ export async function forgotPassword(req: Request, res: Response) {
     await UserModel.setPasswordResetCode(user.id, code, expiresAt);
 
     const emailResult = await sendEmail({
+      category: "auth",
       subject: "Reset your Alloro password",
       body: `
         <div style="font-family: sans-serif; padding: 20px; max-width: 600px;">

@@ -30,6 +30,7 @@ import {
   buildReferralMetrics,
 } from "./sectionBuilders";
 import logger from "../../lib/logger";
+import { weightedAverageRating } from "./metricsHelpers";
 
 // Re-export schema + type for convenience so controllers / orchestrator can
 // import both `computeDashboardMetrics` and `DashboardMetricsSchema` from
@@ -135,23 +136,26 @@ export async function computeDashboardMetrics(
         prevEndStr,
         { refreshOAuth2Client }
       );
-      const ratings: number[] = [];
+      const ratings: Array<{ rating: number; count: number }> = [];
       for (const loc of prevGbp?.locations ?? []) {
         const allTime = loc?.data?.reviews?.allTime;
+        const locCount =
+          allTime &&
+          typeof allTime.totalReviewCount === "number" &&
+          Number.isFinite(allTime.totalReviewCount)
+            ? allTime.totalReviewCount
+            : 0;
         if (
           allTime &&
           typeof allTime.averageRating === "number" &&
           allTime.averageRating > 0
         ) {
-          ratings.push(allTime.averageRating);
+          ratings.push({ rating: allTime.averageRating, count: locCount });
         }
       }
-      if (ratings.length) {
-        priorRating = {
-          averageRating: Number(
-            (ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(2)
-          ),
-        };
+      const avg = weightedAverageRating(ratings);
+      if (avg !== null) {
+        priorRating = { averageRating: avg };
       }
     } catch (err: any) {
       logger.warn(

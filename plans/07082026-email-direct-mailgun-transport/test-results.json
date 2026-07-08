@@ -1,0 +1,122 @@
+{
+  "plan": "plans/07082026-email-direct-mailgun-transport",
+  "generatedAt": "2026-07-08",
+  "status": "Not Run",
+  "items": [
+    {
+      "id": "T1",
+      "title": "tsc --noEmit passes with zero errors",
+      "surface": "cli",
+      "precondition": "Code changes from T1–T5 applied",
+      "steps": ["1. Run npx tsc --noEmit"],
+      "expected": "Exit code 0, no type errors",
+      "status": "pass",
+      "evidence": "tsc exited clean during execution verification",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Transport + resolution tests pass",
+      "surface": "cli",
+      "precondition": "Test files in src/__tests__/email-*",
+      "steps": ["1. Run npx vitest run src/__tests__/email-mailgun-transport.test.ts src/__tests__/email-resolve-transport.test.ts"],
+      "expected": "11 tests pass",
+      "status": "pass",
+      "evidence": "11 passed (2 files) during execution verification",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "check:conventions --strict has no new violations",
+      "surface": "cli",
+      "precondition": "All code changes applied",
+      "steps": ["1. Run npm run check:conventions -- --strict"],
+      "expected": "0 structural violations",
+      "status": "pass",
+      "evidence": "CLEAR structural violations — backend (size + console + db): 0",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T4",
+      "title": "Full test suite passes (no regressions)",
+      "surface": "cli",
+      "precondition": "All code changes applied",
+      "steps": ["1. Run npx vitest run"],
+      "expected": "All 338 tests pass",
+      "status": "pass",
+      "evidence": "338 passed (39 files)",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T5",
+      "title": "Dev real send delivers via Mailgun with provider_message_id",
+      "surface": "api",
+      "precondition": "Deployed to dev with MAILGUN_API_KEY + MAILGUN_DOMAIN + EMAIL_DEFAULT_TRANSPORT=mailgun set in dev.env; DNS-verified sending domain",
+      "steps": [
+        "1. Trigger an email send on dev (e.g. support reply, contact form, or admin notification)",
+        "2. Check email_logs table for the new row",
+        "3. Verify provider_message_id is a normalized Mailgun id (no angle brackets)",
+        "4. Verify the email was received"
+      ],
+      "expected": "email_logs row has status=sent, provider_message_id like 'xxxx@email.getalloro.com', email arrives in inbox",
+      "status": "fail",
+      "evidence": "",
+      "notes": "Requires Mailgun DNS-verified domain and dev deploy",
+      "waiver": "Owner-waived: will verify on dev after this push deploys. Env vars already staged on both servers."
+    },
+    {
+      "id": "T6",
+      "title": "Fallback: EMAIL_DEFAULT_TRANSPORT=n8n sends via n8n unchanged",
+      "surface": "api",
+      "precondition": "Set EMAIL_DEFAULT_TRANSPORT=n8n in env, ALLORO_EMAIL_SERVICE_WEBHOOK configured",
+      "steps": [
+        "1. Set EMAIL_DEFAULT_TRANSPORT=n8n in the env",
+        "2. Trigger an email send",
+        "3. Verify the email routes through n8n webhook"
+      ],
+      "expected": "Email sent via n8n path, no Mailgun calls",
+      "status": "fail",
+      "evidence": "",
+      "notes": "Can be verified by checking email.log for 'Sending email via n8n'",
+      "waiver": "Owner-waived: fallback path preserved in code and tested via unit tests (resolveTransport); live verification deferred to post-deploy."
+    },
+    {
+      "id": "T7",
+      "title": "No new migration; email_logs schema unchanged",
+      "surface": "cli",
+      "precondition": "All code changes applied",
+      "steps": [
+        "1. Check git diff for any new files in database/migrations/",
+        "2. Verify no schema changes to email_logs"
+      ],
+      "expected": "Zero new migration files; email_logs table untouched",
+      "status": "pass",
+      "evidence": "No files created in database/migrations/; EmailLogModel unchanged",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T8",
+      "title": "(Rev 2) Admin sends test email from modal, sees log row",
+      "surface": "ui",
+      "precondition": "Deployed to dev with Mailgun configured; logged in as super-admin",
+      "steps": [
+        "1. Navigate to Admin > Email Logs",
+        "2. Click 'Send Test' button in the header",
+        "3. Type a recipient email address in the modal",
+        "4. Click 'Send'",
+        "5. Confirm success state shows transport name",
+        "6. Close modal and verify a new row appears in the logs table with category=system"
+      ],
+      "expected": "Modal shows success with transport=mailgun, logs table has a new 'system' row with the test email subject, email arrives at recipient",
+      "status": "fail",
+      "evidence": "",
+      "notes": "Requires dev deploy with Mailgun configured",
+      "waiver": "Owner-waived: test-send modal built and compiles; live UI verification deferred to post-deploy."
+    }
+  ]
+}

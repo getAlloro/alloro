@@ -107,6 +107,7 @@ export async function inviteUserToOrganization(
   const assignedRole = role || "viewer";
 
   const emailResult = await sendEmail({
+    category: "account",
     subject: `You've been invited to join ${organizationName} on Alloro`,
     body: `
       <div style="font-family: sans-serif; padding: 20px; max-width: 600px;">
@@ -199,6 +200,7 @@ export async function resendInvitation(
       : `http://localhost:5174/signup?email=${encodedEmail}`;
 
   const emailResult = await sendEmail({
+    category: "account",
     subject: `You've been invited to join ${organizationName} on Alloro`,
     body: `
       <div style="font-family: sans-serif; padding: 20px; max-width: 600px;">

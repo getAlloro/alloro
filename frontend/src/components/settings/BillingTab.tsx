@@ -38,6 +38,7 @@ import {
   type BillingStatus,
   type BillingDetails,
 } from "../../api/billing";
+import { PlanLocationSummary } from "./PlanLocationSummary";
 import { showWarningToast } from "../../lib/toast";
 import { logger } from "../../lib/logger";
 
@@ -307,6 +308,9 @@ export const BillingTab: React.FC = () => {
 
           {/* White body with details */}
           <div className="bg-white px-4 sm:px-6 lg:px-8 pb-4 sm:pb-6 lg:pb-8 pt-4 sm:pt-6 relative space-y-6">
+            {/* Locations × price = total */}
+            <PlanLocationSummary summary={billing?.locationBilling} />
+
             {/* Payment method + coupon row */}
             {(details?.paymentMethod || details?.discount) && (
               <div className="flex flex-wrap items-center gap-4">

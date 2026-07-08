@@ -60,6 +60,7 @@ export async function sendSupportAcknowledgementEmail(
     recipients: [recipientEmail],
     from: SUPPORT_FROM_EMAIL,
     fromName: SUPPORT_FROM_NAME,
+    category: "support",
   });
 
   return result.success;
@@ -95,6 +96,7 @@ export async function sendWebsiteResolvedEmail(
     recipients: [recipientEmail],
     from: SUPPORT_FROM_EMAIL,
     fromName: SUPPORT_FROM_NAME,
+    category: "support",
   });
 
   return result.success;
@@ -128,6 +130,7 @@ export async function sendSupportAdminNotificationEmail(
     recipients,
     from: SUPPORT_FROM_EMAIL,
     fromName: SUPPORT_FROM_NAME,
+    category: "support",
   });
 
   return result.success;

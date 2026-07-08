@@ -31,3 +31,42 @@ export const checkoutSchema = z
   .passthrough();
 
 export type CheckoutBody = z.infer<typeof checkoutSchema>;
+
+/**
+ * POST /api/locations/purchase — the paid location-add flow.
+ * ENFORCED from day one (new endpoint, no legacy clients): a malformed body
+ * on a payment endpoint must be rejected, never soaked.
+ * `expectedNewMonthlyTotal` is the client-echoed quote total in cents, used
+ * for consent integrity (server rejects with QUOTE_STALE on mismatch).
+ */
+export const purchaseLocationSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(1, "Location name is required")
+    .max(255),
+  domain: z.string().trim().max(255).nullish(),
+  gbp: z.object({
+    accountId: z.string().trim().max(255).optional().default(""),
+    locationId: z.string().trim().min(1, "GBP profile is required").max(255),
+    displayName: z
+      .string()
+      .trim()
+      .min(1, "GBP display name is required")
+      .max(255),
+  }),
+  expectedNewMonthlyTotal: z.number().int().nonnegative().nullish(),
+});
+
+export type PurchaseLocationBody = z.infer<typeof purchaseLocationSchema>;
+
+/**
+ * POST /api/locations/:id/reopen — optional consent echo for the paid
+ * reopen-after-cancelled path (QUOTE_STALE on mismatch). Enforced: new
+ * endpoint, no legacy clients.
+ */
+export const reopenLocationSchema = z.object({
+  expectedNewMonthlyTotal: z.number().int().nonnegative().nullish(),
+});
+
+export type ReopenLocationBody = z.infer<typeof reopenLocationSchema>;

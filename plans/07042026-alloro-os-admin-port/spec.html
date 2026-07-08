@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Alloro OS → Admin Port — Master Spec</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 900px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 4.2rem); line-height: 0.95; letter-spacing: 0; }
+    h2 { font-size: 1.35rem; letter-spacing: 0; }
+    h3 { font-size: 1rem; letter-spacing: 0; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th, td { text-align: left; padding: 9px 10px; border-top: 1px solid var(--line); vertical-align: top; }
+    th { color: var(--muted); font-size: 0.72rem; text-transform: uppercase; border-top: none; }
+    .phase-status { display: inline-block; padding: 1px 9px; border: 1px solid var(--ink); border-radius: 999px; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; }
+    .decision { border-top: 1px solid var(--line); padding: 12px 0; }
+    .decision:first-of-type { border-top: none; padding-top: 0; }
+    .decision strong { display: inline-block; min-width: 44px; }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec · Master (multi-file plan)</p>
+        <span class="status-pill">Deployed to Dev</span>
+      </div>
+      <h1>Alloro OS → Admin Port</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Deployed to dev + tested (11/12 acceptance pass, T10 imports pending) — awaiting owner sign-off + prod merge</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/07042026-alloro-os-admin-port</dd></div>
+        <div><dt>Size</dt><dd>Large (7 phase files)</dd></div>
+        <div><dt>Risk</dt><dd>Level 2</dd></div>
+        <div><dt>Final Gate</dt><dd>test.html — one user check after all phases</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="execution-model">
+      <h2>Execution Model (read first)</h2>
+      <p>This plan is split into <strong>7 phase files</strong>, each a self-contained executable spec with its own tasks, automated checks, and status pill. Execute them in dependency order with <code>-x</code>, one phase per session if desired. Each phase is done only when its <strong>Phase Gate</strong> (automated commands) passes. The user checks the result <strong>once, at the end</strong>, via <code>test.html</code> / <code>test-results.json</code> in this folder.</p>
+      <ul>
+        <li><strong>Per-phase (autonomous):</strong> execute tasks → run the Phase Gate (tsc backend + frontend, <code>npm run check:conventions --strict</code>, targeted <code>vitest</code> incl. supertest smokes) → set that phase file's status pill to <code>Completed</code> → update the Phase Index table below.</li>
+        <li><strong>Deviations:</strong> recorded as Rev N entries in the affected phase file AND mirrored in this master's Revision Log.</li>
+        <li><strong>Final (user, once):</strong> when all 7 phases are Completed, run the acceptance items in <code>test-results.json</code> (open <code>test.html</code>), then finalize with <code>-d</code>.</li>
+        <li><strong>Commits:</strong> holistic per phase (author LagDave), on <code>dev/dave</code> per the branching workflow. Push deploys dev and runs the migration.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>Alloro OS (<code>~/Desktop/alloro-os</code>) is a working internal AI-indexed knowledge base — versioned documents, embeddings + semantic search, and a grounded RAG chat — but it lives as a separate app with its own auth, servers, docker stack, and deploy story. Folding it into the Alloro admin removes that entire second operational surface and puts internal knowledge where the team already works (admin tabs: Process · Projects · Support · <strong>OS</strong>).</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>A new top-level <strong>OS</strong> tab in the admin top bar (route <code>/admin/os</code>, full-width, super-admin gated) containing the ported OS features as sub-tabs: <strong>Library</strong> (documents, folders, categories, versions, drafts, locks, trash, imports, related docs, ⌘K search) and <strong>Chat</strong> (grounded RAG chat with citations, SSE streaming). All UI is <em>recreated</em> against the Alloro app light-mode design system (Spectral serif + Plus Jakarta Sans, warm paper <code>#FAF8F3</code>, terracotta <code>#D66853</code>) — no dark mode, no OS chrome. Done = all 7 phase gates green and the final acceptance checklist passes in one user session.</p>
+      <p><strong>Explicitly excluded:</strong> Tasks/My-Tasks (pmtool owns tasks — comments port <em>without</em> task fields), notifications + Socket.IO (no WS infra port), Google OAuth + OS users/profiles (admin JWT + <code>users</code> table instead), dark mode, mobile tab bar, OS docker/deploy stack, data migration (source DB verified empty 2026-07-04).</p>
+    </section>
+
+    <section class="spec-card" id="decisions">
+      <h2>Architecture Decisions (locked for all phases)</h2>
+      <div class="decision"><strong>D1</strong> — New top-level admin tab <code>OS</code> beside Process/Projects/Support in <code>AdminTopBar.tsx</code>; route prefix <code>/admin/os</code>; rendered full-width (no admin sidebar) like PM/Support via <code>isFullWidth</code> in <code>AdminLayout.tsx:14</code>.</div>
+      <div class="decision"><strong>D2</strong> — Sub-navigation inside the OS surface: <strong>Library</strong> (default, <code>/admin/os</code>) and <strong>Chat</strong> (<code>/admin/os/chat</code>), plus quiet Trash access (<code>/admin/os/trash</code>). Document routes: <code>/admin/os/doc/:id</code> and <code>/admin/os/doc/:id/edit</code>.</div>
+      <div class="decision"><strong>D3</strong> — Auth = existing <code>authenticateToken</code> + <code>superAdminMiddleware</code> on every <code>/api/admin/os/*</code> route (§11.1). No OAuth port, no OS <code>users</code>/<code>refresh_tokens</code> tables. People-pickers (owner, author) list internal admin users.</div>
+      <div class="decision"><strong>D4</strong> (Rev 2) — Data: 16 new tables in a <strong>dedicated Postgres schema <code>os</code></strong> (owner ask; mirrors the existing <code>minds</code> schema precedent) — <code>os.documents</code>, <code>os.document_chunks</code>, <code>os.chat_messages</code>, … (see <code>migrations/</code>). Table names are unprefixed inside the schema; models reference dot-qualified names exactly like <code>MindBrainChunkModel</code>'s <code>conn("minds.mind_brain_chunks")</code> — i.e. <code>db("os.documents")</code>. User FKs are <strong>integer → public.users(id)</strong> (Alloro users; OS used uuid users). Purely additive migration confined to the new schema; production-safe; down() drops only <code>os.*</code> tables then the empty schema. <code>knex_migrations</code> bookkeeping stays in <code>public</code>.</div>
+      <div class="decision"><strong>D5</strong> — pgvector: verified installed + active on dev AND prod (v0.8.0, PG 17.9, checked 2026-07-04). Chunks use <code>vector(1536)</code> + HNSW cosine, mirroring the existing <code>minds.mind_brain_chunks</code> migration (<code>20260227000002</code>).</div>
+      <div class="decision"><strong>D6</strong> — Embeddings: OpenAI <code>text-embedding-3-small</code> @ 1536 via the house axios pattern (analog: <code>src/controllers/minds/feature-services/service.minds-embedding.ts</code>). <em>Deliberate deviation from OS's 3-large — same dimension, cheaper, matches both existing Alloro embedding call sites.</em> Env-overridable (<code>OS_EMBEDDING_MODEL</code>). A deterministic fake provider (ported from OS) keeps tests hermetic.</div>
+      <div class="decision"><strong>D7</strong> — Chat + AI metadata LLM: Gemini <code>gemini-3.5-flash</code> via <code>@google/genai</code> — <strong>already a backend dependency (^1.43.0)</strong> and <code>GEMINI_API_KEY</code> already provisioned on dev + prod env. Faithful to the OS's deliberate Claude→Gemini move for first-token latency. Isolated behind one feature-service seam (<code>service.os-llm.ts</code>) so an Anthropic swap is a one-file change. Note: OS used @google/genai v2.x — adapt calls to the installed 1.43 API (or bump within the phase if trivially compatible).</div>
+      <div class="decision"><strong>D8</strong> — Chat transport: SSE over HTTP (fetch + reader), exactly like <code>src/controllers/minds/MindsChatController.ts:23-59</code>. No Socket.IO anywhere. Edit-locks work via HTTP heartbeat; stale locks reaped by a repeatable BullMQ job.</div>
+      <div class="decision"><strong>D9</strong> — Storage: existing S3 helper <code>src/utils/core/s3.ts</code> (bucket <code>AWS_S3_IMPORTS_BUCKET</code>) with an <code>os/</code> key namespace: <code>os/assets/{docId}/{assetId}</code>, <code>os/imports/{docId}/{filename}</code>. No MinIO, no new bucket.</div>
+      <div class="decision"><strong>D10</strong> — Background jobs: BullMQ processors registered in <code>src/workers/worker.ts</code> (runs under the existing <code>minds-worker</code> PM2 app), queue factory <code>getOsQueue(name)</code> in <code>src/workers/queues.ts</code> (prefix <code>{os}</code>). Jobs: <code>os-ingest</code>, <code>os-convert</code>, <code>os-purge</code>, repeatable <code>os-lock-reaper</code>. Idempotent, 3 attempts, backoff (§21).</div>
+      <div class="decision"><strong>D11</strong> — Backend domain: <code>src/controllers/admin-os/</code> (controllers + <code>feature-services/</code> + <code>feature-utils/</code>), models <code>src/models/Os*Model.ts</code>, routes <code>src/routes/admin/os.ts</code> mounted in <code>src/app.ts</code>. Reference analog: §6.1 <code>src/controllers/gbp-automation/</code>.</div>
+      <div class="decision"><strong>D12</strong> — Frontend: recreated components under <code>frontend/src/components/Admin/os/</code>, pages under <code>frontend/src/pages/admin/os/</code>, api modules <code>frontend/src/api/admin-os*.ts</code>, hooks <code>frontend/src/hooks/queries/useAdminOs*.ts</code>, keys in <code>lib/queryClient.ts</code>. Reference analog: §12.1 triad (<code>api/admin-mission-control.ts</code> + its hooks) and <code>MindChatTab.tsx</code> for streaming chat. OS source components are the <em>design/behavior reference only</em> — code is adapted, not copy-pasted wholesale.</div>
+      <div class="decision"><strong>D13</strong> — Design: Alloro app light mode only. Reuse existing tokens — <code>--color-alloro-bg #FAF8F3</code> (identical to OS warm paper), <code>--color-alloro-orange #D66853</code>, <code>--font-display</code> Spectral / <code>--font-sans</code> Plus Jakarta Sans / <code>--font-mono</code> JetBrains Mono (all already loaded in <code>frontend/index.html:11</code>). Spectral for document titles/reading body only; Jakarta for UI chrome; mono for meta/status. Hairline-divided rows over card grids; Lucide icons; status dots (indexed=green · indexing=amber pulse · failed=red · archived=muted).</div>
+      <div class="decision"><strong>D14</strong> — Fresh start: no content migration (local OS Postgres verified 0 rows in all 21 tables, 2026-07-04). Seeding happens organically through the Imports feature (P6).</div>
+    </section>
+
+    <section class="spec-card" id="phase-index">
+      <h2>Phase Index</h2>
+      <p>Execute top-to-bottom; parallel where Depends allows. Update the Status column (and each phase file's pill) as phases complete.</p>
+      <table>
+        <thead><tr><th>Phase</th><th>File</th><th>Scope</th><th>Depends</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>P1</td><td><code>p1-foundation.html</code></td><td>Migration (16 tables), env/config, queue factory + worker skeleton, backend domain skeleton + gated routes, OS tab + shell + sub-tabs</td><td>—</td><td><span class="phase-status">Completed</span></td></tr>
+          <tr><td>P2</td><td><code>p2-library-backend.html</code></td><td>Documents/versions/drafts/publish, folders, categories, trash+purge, locks, FTS search, activity — API complete</td><td>P1</td><td><span class="phase-status">Completed</span></td></tr>
+          <tr><td>P3</td><td><code>p3-library-frontend.html</code></td><td>Library views (list/grouped/folders, dnd), DocumentRead 3-pane, TipTap editor + autosave + versions/diff/restore, Trash UI</td><td>P2</td><td><span class="phase-status">Completed</span></td></tr>
+          <tr><td>P4</td><td><code>p4-indexing-search.html</code></td><td>Ingest worker (chunk→embed→AI metadata→link suggest→tsv→status), reindex, semantic+FTS search API, ⌘K palette, Related rail</td><td>P2 (API), P3 (UI)</td><td><span class="phase-status">Completed</span></td></tr>
+          <tr><td>P5</td><td><code>p5-chat.html</code></td><td>Chat backend (conversations, SSE stream, retrieval+citations, grounded refusal, auto-title) + Chat tab UI</td><td>P4</td><td><span class="phase-status">Completed</span></td></tr>
+          <tr><td>P6</td><td><code>p6-imports-assets.html</code></td><td>File imports (docx/xlsx/pdf/md → markdown, batch, warnings) + editor image assets via S3</td><td>P2, P3 (P4 for auto-index)</td><td><span class="phase-status">Completed</span></td></tr>
+          <tr><td>P7</td><td><code>p7-comments.html</code></td><td>Threaded comments on documents (no task fields) + read-rail UI</td><td>P3</td><td><span class="phase-status">Completed</span></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Shared Context</h2>
+      <h3>Source (read-only reference)</h3>
+      <ul>
+        <li><code>~/Desktop/alloro-os/backend/src/</code> — services/models to port: <code>services/documents/*</code>, <code>services/rag/{IngestService,RetrievalService,chunk}.ts</code>, <code>services/chat/ChatService.ts</code>, <code>services/conversion/*</code>, <code>controllers/chat/ChatController.ts</code> (SSE shape), <code>lib/{llm,embeddings}.ts</code>, <code>database/migrations/0001–0011</code> (schema source).</li>
+        <li><code>~/Desktop/alloro-os/frontend/src/</code> — UI/UX reference: <code>pages/{Library,DocumentRead,DocumentEdit,Chat,Trash}.tsx</code>, <code>components/{documents,chat,search}/*</code>, <code>hooks/*</code>. Behavior parity, not code parity.</li>
+        <li><code>~/Desktop/alloro-os/DESIGN.md</code> — component vocabulary (rows, dots, chips, skeletons) — already Alloro-family.</li>
+      </ul>
+      <h3>Target anchors (verified 2026-07-04)</h3>
+      <ul>
+        <li><code>frontend/src/components/Admin/shell/AdminTopBar.tsx</code> — tab bar + route hooks (<code>useIsPmRoute</code> :18, links :205/:223); add <code>useIsOsRoute</code> + OS tab.</li>
+        <li><code>frontend/src/components/Admin/shell/AdminLayout.tsx:14</code> — <code>isFullWidth</code> gets <code>|| isOs</code>.</li>
+        <li><code>frontend/src/pages/Admin.tsx:104-106</code> — route registration block (pm/support pattern).</li>
+        <li><code>src/routes/admin/*.ts</code> + <code>src/app.ts:50-54</code> — admin route mount seam.</li>
+        <li><code>src/controllers/minds/MindsChatController.ts:23-59</code> — SSE streaming analog.</li>
+        <li><code>src/database/migrations/20260227000002_create_mind_brain_chunks.ts</code> — pgvector + HNSW migration analog; <code>src/models/MindBrainChunkModel.ts</code> — parameterized vector query analog.</li>
+        <li><code>src/workers/{queues.ts,worker.ts,processors/}</code> — queue factory + worker registration analog.</li>
+        <li><code>src/__tests__/admin-reads.smoke.test.ts</code> — supertest smoke-test analog (phase gates build on this).</li>
+        <li><code>frontend/src/components/Admin/minds/MindChatTab.tsx</code> — streaming chat UI analog (already Spectral).</li>
+      </ul>
+      <h3>Constitution (cite in every phase)</h3>
+      <p>Backend: §6.1–§6.3, §7.1–§7.4, §8.1–§8.4, §9.1, §10.1–§10.5, §11.1–§11.2, §21.1–§21.4. Frontend: §12.1–§12.4, §13.1–§13.3, §14.1–§14.3, §15.1, §16.1–§16.3, §17.1–§17.5. Tests: §20.1–§20.4. Note §11.7/§5.5: <code>os.*</code> tables are internal-admin single-tenant (no organization column by design); every route is super-admin gated instead — state this in model docblocks.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>All new backend queries in <code>src/models/Os*Model.ts</code> (§7.4); vector/tsvector raw SQL parameterized (§10.2), inside models only.</li>
+            <li><code>{ success, data, error }</code> envelope + domain <code>OsError</code> + one <code>handleOsError</code> (§8.1–§8.3); SSE endpoint exempt from envelope but not from auth.</li>
+            <li>Frontend data flow through <code>api/admin-os*.ts</code> + React Query hooks + <code>QUERY_KEYS</code> (§12.1, §14.2, §15.1); errors via <code>react-hot-toast</code> (§16.3).</li>
+            <li>Fonts/colors only via existing tokens (D13); Spectral reserved for document titles/body.</li>
+            <li>Each phase ships vitest coverage for its new models/services (§20.1–§20.2) with fake AI providers (§20.4).</li>
+            <li>Migration runs on dev first via <code>dev/dave</code> push (AGENTS.md deployment path).</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>No Socket.IO / WebSocket infra; no new state library (§15.4).</li>
+            <li>No edits to client-dashboard pages, PM tool, or Support surfaces beyond the three shell anchor files (D1).</li>
+            <li>No <code>NODE_ENV</code>-gated behavior (repo rule: uniform runtime).</li>
+            <li>No new dependencies beyond the per-phase lists in P3/P6; nothing else without a Rev entry.</li>
+            <li>No task fields/UI on comments; no notifications tables.</li>
+            <li>No destructive migration statements outside the <code>os</code> schema; never drop the shared <code>vector</code> extension.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Tasks/My-Tasks (pmtool), notifications + presence, OS profile/settings pages, dark mode, mobile bottom-nav, Google OAuth, OS data migration, PDF vision-fallback transcription (P6 lists it as a deferred option), client-facing exposure of any OS feature.</li>
+        <li>Alloro Docs parity: N/A — internal super-admin tool, not client-dashboard UI (state again at <code>-d</code>).</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level: 2</strong> — all schema is additive and namespaced; UI edits touch three small shell files; the heavy lifting is new, isolated code. No Level 3+ items remain after recon (pgvector and all API keys verified present on both environments).</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li>R1 — <code>@google/genai</code> major-version drift (installed 1.43 vs OS code written on 2.x). <strong>Mitigation:</strong> D7 seam file; P5 gate includes a live one-shot generation test; bump the package only if the 1.43 API lacks streaming parity, recorded as a Rev.</li>
+        <li>R2 — Embedding/LLM spend on ingest (per-save re-embed). <strong>Mitigation:</strong> re-ingest only on publish (not autosave), chunk-level batching, tiny corpus (team KB), 3-small pricing; fake providers in tests.</li>
+        <li>R3 — HNSW index build cost on writes. <strong>Mitigation:</strong> corpus is small (hundreds of chunks); same pattern already live for minds brains.</li>
+        <li>R4 — P6 parser deps (<code>pdfjs-dist</code>, <code>turndown</code>, <code>jszip</code>) enlarge the backend. <strong>Mitigation:</strong> confined to P6 (skippable phase); <code>mammoth</code>/<code>xlsx</code>/<code>multer</code> already present; <code>@napi-rs/canvas</code> vision fallback explicitly deferred.</li>
+        <li>R5 — Worker deploy: new processors must land together with queue producers. <strong>Mitigation:</strong> producers no-op safely when queue is empty; PM2 <code>minds-worker</code> reload is part of the existing deploy workflow.</li>
+        <li>R6 — Admin bundle growth (TipTap extensions). <strong>Mitigation:</strong> lazy-load the editor route exactly like OS did (<code>React.lazy</code>).</li>
+      </ul>
+      <p><strong>Blast radius (all additive edits):</strong> <code>AdminTopBar.tsx</code>, <code>AdminLayout.tsx</code>, <code>frontend/src/pages/Admin.tsx</code>, <code>frontend/src/lib/queryClient.ts</code>, <code>src/app.ts</code>, <code>src/workers/queues.ts</code>, <code>src/workers/worker.ts</code>, both <code>package.json</code>s, one new migration. Everything else is net-new files.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li>Chat provider: house pattern is Anthropic (minds). Kept Gemini (D7) because the OS made that switch deliberately for streaming latency and the dep+key already exist — but if a single LLM vendor matters more than first-token speed, swap the seam file to <code>@anthropic-ai/sdk</code> streaming (model <code>claude-sonnet-4-6</code>) during P5; nothing else changes.</li>
+        <li>Two knowledge systems now exist in-repo (minds brains for client agents, OS for internal docs). They serve different audiences and share only the pgvector pattern — do <em>not</em> merge them; do keep the embedding call shape identical so a future shared <code>EmbeddingService</code> extraction is mechanical.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="env">
+      <h2>Environment &amp; Dependencies</h2>
+      <h3>Env additions (defaults in code via <code>src/config</code>; no server env edits required)</h3>
+      <ul>
+        <li><code>OS_EMBEDDING_MODEL</code> = <code>text-embedding-3-small</code> · <code>OS_EMBEDDING_DIM</code> = <code>1536</code> (must match migration; startup-validated §5.6)</li>
+        <li><code>OS_CHAT_MODEL</code> = <code>gemini-3.5-flash</code> · <code>OS_RETRIEVAL_K</code> = <code>10</code> · <code>OS_SIMILARITY_FLOOR</code> = <code>0.3</code> · <code>OS_LINK_SUGGEST_FLOOR</code> = <code>0.5</code></li>
+        <li><code>OS_IMPORT_MAX_FILE_MB</code> = <code>25</code> · <code>OS_IMPORT_BATCH_MAX_FILES</code> = <code>20</code> · <code>OS_LOCK_TTL_SECONDS</code> = <code>120</code></li>
+        <li>Reused, already on dev+prod (verified): <code>OPENAI_API_KEY</code>, <code>GEMINI_API_KEY</code>, <code>AWS_*</code> S3 creds, Redis.</li>
+      </ul>
+      <h3>New npm dependencies (complete list — nothing else)</h3>
+      <ul>
+        <li>Backend (P6 only): <code>pdfjs-dist</code>, <code>turndown</code>, <code>@joplin/turndown-plugin-gfm</code>, <code>jszip</code>.</li>
+        <li>Frontend (P3): <code>tiptap-markdown</code>, <code>@tiptap/extension-image</code>, <code>@tiptap/extension-table</code>, <code>@tiptap/extension-task-list</code> (markdown checklists in content — unrelated to the excluded Tasks feature), pinned to the installed @tiptap v3 line.</li>
+        <li>Already present (reuse, no install): <code>@google/genai</code>, <code>bullmq</code>, <code>mammoth</code>, <code>xlsx</code>, <code>multer</code>, <code>@aws-sdk/client-s3</code>, <code>@tiptap/react</code>, <code>@tiptap/starter-kit</code>, <code>@dnd-kit/core</code>, <code>framer-motion</code>, <code>lucide-react</code>, <code>react-markdown</code> + <code>remark-gfm</code>, <code>react-hot-toast</code>.</li>
+      </ul>
+      <h3>Migrations</h3>
+      <p>One additive migration — <code>src/database/migrations/20260704000000_create_os_knowledge_base_tables.ts</code> — authored from <code>migrations/knexmigration.js</code> in this folder (Rev 2: <code>CREATE SCHEMA IF NOT EXISTS os</code> + 16 tables inside it via <code>withSchema("os")</code>; DDL contract in <code>migrations/pgsql.sql</code>). Production risk: none flagged — additive only, confined to the new schema, no locks on existing tables, reversible down() (drops tables then the schema), no data rewrites, no dev-only assumptions.</p>
+      <h3>Server compatibility (Rev 1 — probed 2026-07-04 on both boxes)</h3>
+      <ul>
+        <li><strong>Compatible as-is:</strong> Node v22.18.0 (OS needs 20+) · PM2 runs <code>signals-backend</code> + <code>minds-worker</code> online on dev AND prod, and both deploy workflows reload the full <code>ecosystem.config.js</code> — OS processors ship automatically · Redis dev 7.0.15 (<code>noeviction</code>) / prod 7.1 (TLS, ElastiCache; BullMQ already proven against it) · disk 44G/26G free · outbound reach to OpenAI + Gemini endpoints confirmed from both · <code>OPENAI_API_KEY</code>/<code>GEMINI_API_KEY</code>/AWS S3 creds present on both.</li>
+        <li><strong>Explicitly NOT needed from the OS stack:</strong> WS service/port 8248 + <code>proxy_wstunnel</code> (Socket.IO dropped per D8), MinIO/ports 8246-8247 (S3, D9), separate API port 8252 (rides :3000), docker compose, Google OAuth redirect config.</li>
+        <li><strong>One required server action (P5 T6):</strong> Apache fronts :3000 on both boxes, and the catch-all <code>ProxyPass /</code> does <em>not</em> flush — minds chat only streams because of a dedicated <code>&lt;Location /api/minds/&gt;</code> block with <code>flushpackets=on</code> + SSE headers in <code>dev.getalloro.com-le-ssl.conf</code> / <code>app.getalloro.com-le-ssl.conf</code>. The OS chat SSE endpoint needs the same block mirrored for <code>/api/admin/os/chat/</code> on BOTH vhosts (5 lines + <code>apachectl graceful</code>), or streaming will buffer into one lump. <code>mod_deflate</code> is safe (<code>text/event-stream</code> not in its type list). Memory headroom note: both boxes are 3.8GB (≈2.6G avail dev / ≈1.9G avail prod) — fine for embeddings + ≤25MB conversions, flagged for awareness.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done (final gate — checked once, after all phases)</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled> P1–P7 phase files all show <code>Completed</code> and every Phase Gate passed (recorded in each file).</li>
+        <li><input type="checkbox" disabled> <code>npx tsc --noEmit</code> (backend) and <code>cd /Users/rustinedave/Desktop/alloro/frontend &amp;&amp; npx tsc -p tsconfig.app.json --noEmit</code> — zero errors, exit codes captured unmasked.</li>
+        <li><input type="checkbox" disabled> <code>npm run check:conventions --strict</code> passes; <code>npm test</code> green including all new <code>os-*</code> suites.</li>
+        <li><input type="checkbox" disabled> Migration applied on dev (deploy log or <code>knex_migrations</code> row) — schema <code>os</code> exists with 16 tables.</li>
+        <li><input type="checkbox" disabled> <code>test-results.json</code> rolls up <strong>Passed</strong> (all 12 acceptance items pass or carry written waivers) — the one-time user walkthrough via <code>test.html</code>.</li>
+        <li><input type="checkbox" disabled> No regressions: existing admin tabs (Process/Projects/Support), minds chat, and client dashboard untouched in behavior.</li>
+        <li><input type="checkbox" disabled> Docs parity statement at <code>-d</code>: internal-only tool → no alloro-docs update required.</li>
+        <li><input type="checkbox" disabled> (Rev 1) Apache SSE flush block for <code>/api/admin/os/chat/</code> present on dev AND prod vhosts (P5 T6).</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-07-04</h3>
+        <p><strong>Change:</strong> Server compatibility verification results added to the Environment card, and one required server action identified: mirror the existing minds <code>flushpackets=on</code> SSE block for <code>/api/admin/os/chat/</code> in both Apache vhosts (added as P5 T6). Confirmed droppable OS infra: Socket.IO/WS port, MinIO, separate API port, docker stack.</p>
+        <p><strong>Reason:</strong> Scope addition: user asked to verify alloro-dev/alloro-app server compatibility against the alloro-os stack before execution; probes ran 2026-07-04 (Node, PM2, Redis, disk/memory, egress, Apache proxy chain).</p>
+        <p><strong>Updated Done criteria:</strong> Added — Apache SSE flush block present on both vhosts before P5 sign-off.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 2 - 2026-07-04</h3>
+        <p><strong>Change:</strong> All 16 tables moved from <code>os_</code>-prefixed names in <code>public</code> to a dedicated Postgres schema <code>os</code> with unprefixed table names (<code>os.documents</code>, <code>os.document_chunks</code>, …). D4 rewritten; <code>migrations/pgsql.sql</code> + <code>knexmigration.js</code> reauthored (<code>CREATE SCHEMA IF NOT EXISTS os</code>, <code>withSchema("os")</code>, cross-schema FKs to <code>public.users</code>, down() drops tables then schema); P1/P4/P6 table references and acceptance item T3 updated. Model convention: dot-qualified table strings (<code>db("os.documents")</code>), the exact <code>minds</code>-schema pattern.</p>
+        <p><strong>Reason:</strong> Scope change (owner): "the db i want to use is a new schema called OS, with all the tables there." Also matches the house precedent — minds already lives in its own schema.</p>
+        <p><strong>Updated Done criteria:</strong> Migration check now reads "schema <code>os</code> exists with 16 tables" (was "16 <code>os_</code> tables present").</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 3 - 2026-07-05</h3>
+        <p><strong>Change:</strong> P5 (Chat) executed in the worktree and set to <code>Completed</code> in the Phase Index. Full detail in <code>p5-chat.html</code> Rev 2. Highlights: grounded RAG chat backend (3 chat models, <code>OsChatService</code>, SSE <code>AdminOsChatController</code> with minds-exact headers, 7 routes) + two-pane Chat tab UI (streaming client, hooks, 8 components) replacing the placeholder. R1 resolved: <code>@google/genai</code> 1.43 <code>generateContentStream</code> has streaming parity — no Anthropic fallback; live smoke first token 2136 ms. All phase gates green (backend+frontend tsc, conventions --strict exit 0, 286 backend + 47 frontend + 19 OS-itest tests, frontend build). Local test DB left migrated + clean.</p>
+        <p><strong>Reason:</strong> Execution deviation record (per the execution-model rule: deviations mirrored from the phase file into this master log). No scope change — P5 built as specced.</p>
+        <p><strong>Updated Done criteria:</strong> Master Done item "(Rev 1) Apache SSE flush block for <code>/api/admin/os/chat/</code> present on dev AND prod vhosts (P5 T6)" remains OPEN — deferred to deploy (dev) / main merge (prod); it is a shared-server config action, not doable from the worktree.</p>
+      </article>
+
+      <article class="revision-entry">
+        <h3>Rev 4 - 2026-07-05</h3>
+        <p><strong>Change:</strong> ALL 7 PHASES EXECUTED on worktree <code>dave/os-admin-port</code> (7 commits, LagDave). Full cross-phase gate green: backend <code>tsc</code> 0, <code>check:conventions --strict</code> 0, 313 hermetic tests (35 files), 26 integration tests (6 files) against a local pgvector replica of the dev schema, frontend <code>tsc</code> 0, 53 FE tests, FE build green. Chat streaming proven live against real Gemini (first token ~2.1s). Zero task fields/UI anywhere (pmtool scope respected). One security deviation logged + tracked: OS asset <code>&lt;img&gt;</code> auth uses a <code>?token=</code> session JWT (p6 Rev 2, follow-up task) — harden before prod.</p>
+        <p><strong>Reason:</strong> Scope completion: user requested autonomous execution of all phases on a worktree branched from dev/dave, reporting only when done.</p>
+        <p><strong>Updated Done criteria:</strong> Automated Done items met (both tsc, conventions strict, full suites, FE build, migration up/down/up on the pgvector replica). REMAINING before finalize (-d): (1) merge <code>dave/os-admin-port</code> → <code>dev/dave</code> so the migration runs on the shared dev DB via deploy; (2) add the Apache <code>flushpackets</code> Location block for <code>/api/admin/os/chat/</code> on the dev vhost (prod at main merge); (3) the one-time human/agent acceptance walkthrough (<code>test.html</code>, 12 items T1–T12); (4) resolve the asset-auth hardening follow-up. The migration was deliberately NOT applied to the shared dev DB from the worktree (a migration recorded on dev while its file lives only on this branch would fail every other dev deploy's missing-file check).</p>
+      </article>
+
+      <article class="revision-entry">
+        <h3>Rev 5 - 2026-07-05</h3>
+        <p><strong>Change:</strong> Merged <code>dave/os-admin-port</code> into <code>dev/dave</code> and deployed to dev. Migration applied on the shared dev DB (schema <code>os</code>, 16 tables, recorded in knex_migrations); health green; PM2 <code>minds-worker</code> runs the OS processors (os-lock-reaper firing every 60s). Added the Apache <code>flushpackets=on</code> <code>&lt;Location /api/admin/os/chat/&gt;</code> block to the dev vhost (backed up outside sites-enabled, configtest OK, graceful reload). Ran acceptance on dev — 11/12 pass, T10 (imports) pending by choice (writes to the real S3 bucket). SSE-through-Apache proven incremental via public-URL timing; chat/search/index/create/comments/trash all verified in the browser UI + API. A first deploy attempt failed at build (a regression test used <code>Array.at()</code> under the build lib) — fixed and redeployed.</p>
+        <p><strong>Reason:</strong> User request: merge + push to dev, update the dev server for streaming, and test locally + on dev.</p>
+        <p><strong>Updated Done criteria:</strong> Dev merge + migration + Apache block DONE. REMAINING: (1) owner runs T10 imports (one real file) to close acceptance; (2) prod: merge dev/dave -> main (adds the same Apache block to the prod vhost + runs the migration on prod); (3) asset-auth hardening (task_38bac217) before prod. Local pre-merge smoke caught + fixed a must-fix BullMQ colon-jobId bug (see p4 Rev 2) that would have broken indexing.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 6 - 2026-07-06</h3>
+        <p><strong>Change:</strong> Library default view flipped from <code>list</code> to <code>folders</code> — <code>frontend/src/pages/admin/os/OsLibrary.tsx</code>, the initial <code>useState&lt;OsLibraryView&gt;</code> now defaults to <code>"folders"</code>. One-line change; the view has no persisted preference (plain component state), and all three views (list/grouped/folders) already render, so the folders view is the first thing shown on load. List/Categories/Folders toggle unchanged.</p>
+        <p><strong>Reason:</strong> User QA: owner prefers the folder-organized view as the landing view for the Library.</p>
+        <p><strong>Updated Done criteria:</strong> none changed — cosmetic default-view preference. tsc (<code>tsconfig.app.json</code>) clean. Separately: the T10 import-the-real-corpus effort was dropped this session (owner will re-upload docs via the UI themselves); no content was imported to dev or prod.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 7 - 2026-07-06</h3>
+        <p><strong>Change:</strong> Prepped the <strong>prod</strong> Apache vhost for OS chat SSE streaming (the item Rev 5 left remaining for prod). Added a <code>&lt;Location /api/admin/os/chat/&gt;</code> block to <code>/etc/apache2/sites-available/app.getalloro.com-le-ssl.conf</code>, placed before the catch-all <code>ProxyPass "/"</code>, mirroring prod's proven <code>/api/minds/</code> block (<code>flushpackets=on</code> + <code>proxy-sendchunked</code> + <code>proxy-interim-response RFC</code> + <code>Connection ""</code> + <code>X-Accel-Buffering "no"</code>) rather than dev's simpler 3-line version. Backed up the vhost to <code>~/apache-backups/app-le-ssl.conf.bak-20260705-211720</code>, <code>apache2ctl configtest</code> = Syntax OK, graceful reload, Apache active. Verified read-only that prod has <strong>no <code>os</code> schema</strong> and the OS migration <code>20260704000000</code> has <strong>not</strong> run — so OS is still dev-only and this Apache block is inert (the proxied path returns 401 from prod's global auth guard until the OS code + migration land via a <code>dev/dave → main</code> merge).</p>
+        <p><strong>Reason:</strong> User request: prepare the prod server env (like dev) so streaming works the moment we merge.</p>
+        <p><strong>Updated Done criteria:</strong> Prod Apache SSE block DONE (inert until merge). REMAINING for the prod cutover: (1) merge <code>dev/dave → main</code> — the deploy runs <code>npm run db:migrate</code> (creates the additive <code>os</code> schema; pgvector already live on prod) + ships the OS code + restarts the worker; (2) asset-auth hardening (task_38bac217) before relying on OS in prod; (3) prod app.env already has OPENAI_API_KEY / GEMINI_API_KEY / AWS creds and needs no new required OS_* var (all default; OS_EMBEDDING_DIM defaults to the migration's 1536).</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

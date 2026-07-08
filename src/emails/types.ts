@@ -12,6 +12,22 @@ export interface EmailPayload {
   bcc?: string[];
 }
 
+/**
+ * Logical category for an outbound email, recorded on every email_logs row and
+ * used by the internal Email Logs dashboard. Set explicitly at each call site;
+ * defaults to "uncategorized" when omitted.
+ */
+export type EmailCategory =
+  | "auth"
+  | "account"
+  | "billing"
+  | "support"
+  | "notification"
+  | "leadgen"
+  | "website_form"
+  | "system"
+  | "uncategorized";
+
 export interface SendEmailOptions {
   /** Email subject line */
   subject: string;
@@ -35,6 +51,11 @@ export interface SendEmailOptions {
    * code on dev/local/CI. Do not set this on any other email path.
    */
   allowLiveSend?: boolean;
+  /**
+   * Logical category recorded on the email_logs row for the admin dashboard.
+   * Defaults to "uncategorized" when omitted.
+   */
+  category?: EmailCategory;
 }
 
 export interface EmailResult {
@@ -42,6 +63,24 @@ export interface EmailResult {
   messageId?: string;
   error?: string;
   timestamp: string;
+}
+
+export type EmailTransport = "n8n" | "mailgun";
+
+export interface TransportResult {
+  success: boolean;
+  messageId?: string;
+  error?: string;
+  status?: number;
+}
+
+export interface MailgunMessage {
+  from: string;
+  to: string[];
+  cc?: string[];
+  bcc?: string[];
+  subject: string;
+  html: string;
 }
 
 export interface AdminNotificationData {

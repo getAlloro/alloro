@@ -10,6 +10,22 @@
  * no DB access.
  */
 
+/**
+ * Review-count-weighted average rating. Falls back to plain mean when no
+ * location reports a count.
+ */
+export function weightedAverageRating(
+  ratings: Array<{ rating: number; count: number }>,
+): number | null {
+  if (!ratings.length) return null;
+  const weightTotal = ratings.reduce((a, r) => a + r.count, 0);
+  const avg =
+    weightTotal > 0
+      ? ratings.reduce((a, r) => a + r.rating * r.count, 0) / weightTotal
+      : ratings.reduce((a, r) => a + r.rating, 0) / ratings.length;
+  return Number(avg.toFixed(2));
+}
+
 export const MS_PER_HOUR = 1000 * 60 * 60;
 export const MS_PER_DAY = MS_PER_HOUR * 24;
 
@@ -118,7 +134,10 @@ export function extractReviewSummary(gbpData: any): {
     };
   }
 
-  const ratings: number[] = [];
+  // Each location's rating paired with its own review count, so the org
+  // average can be weighted by volume (a 500-review 4.2 must outweigh a
+  // 5-review 5.0) rather than a plain per-location mean.
+  const ratings: Array<{ rating: number; count: number }> = [];
   let totalReviewCount: number | null = null;
   let reviewsThisMonth = 0;
   const reviewDetails: Array<{
@@ -131,17 +150,18 @@ export function extractReviewSummary(gbpData: any): {
 
   for (const loc of gbpData.locations) {
     const allTime = loc?.data?.reviews?.allTime;
+    const hasCount =
+      allTime &&
+      typeof allTime.totalReviewCount === "number" &&
+      Number.isFinite(allTime.totalReviewCount);
+    const locCount = hasCount ? allTime.totalReviewCount : 0;
     if (allTime && typeof allTime.averageRating === "number" && allTime.averageRating > 0) {
-      ratings.push(allTime.averageRating);
+      ratings.push({ rating: allTime.averageRating, count: locCount });
     }
     // Sum the all-time total review count across locations (multi-location
     // practices). Stays null until at least one location reports a count.
-    if (
-      allTime &&
-      typeof allTime.totalReviewCount === "number" &&
-      Number.isFinite(allTime.totalReviewCount)
-    ) {
-      totalReviewCount = (totalReviewCount ?? 0) + allTime.totalReviewCount;
+    if (hasCount) {
+      totalReviewCount = (totalReviewCount ?? 0) + locCount;
     }
 
     const win = loc?.data?.reviews?.window;
@@ -160,9 +180,7 @@ export function extractReviewSummary(gbpData: any): {
     }
   }
 
-  const currentRating = ratings.length
-    ? Number((ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(2))
-    : null;
+  const currentRating = weightedAverageRating(ratings);
 
   return { currentRating, totalReviewCount, reviewsThisMonth, reviewDetails };
 }

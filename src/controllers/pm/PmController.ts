@@ -38,34 +38,17 @@ function displayNameForUser(user: PmUserRow, fallbackEmail: string): string {
   return fullName || user.name || fallbackEmail.split("@")[0];
 }
 
-// Users — returns admin emails from SUPER_ADMIN_EMAILS env var
+// Users — the internal Alloro roster (users.is_internal), DB-driven. Replaces
+// the SUPER_ADMIN_EMAILS env roster so new @getalloro admins appear automatically.
 export async function listUsers(_req: Request, res: Response): Promise<any> {
   try {
-    const emails = (process.env.SUPER_ADMIN_EMAILS || "")
-      .split(",")
-      .map((e) => e.trim().toLowerCase())
-      .filter((e) => e.length > 0);
+    const dbUsers: PmUserRow[] = await UserModel.listInternalUsers();
 
-    if (emails.length === 0) {
-      return res.json({ success: true, data: [] });
-    }
-
-    const dbUsers: PmUserRow[] = await UserModel.findManyByEmailsInsensitive(emails);
-
-    const userMap = new Map<string, PmUserRow>(
-      dbUsers.map((u) => [u.email.toLowerCase(), u])
-    );
-
-    const users = emails
-      .map((email) => {
-        const user = userMap.get(email);
-        return {
-          id: user ? Number(user.id) : null,
-          email,
-          display_name: user ? displayNameForUser(user, email) : email.split("@")[0],
-        };
-      })
-      .filter((u) => u.id !== null);
+    const users = dbUsers.map((user) => ({
+      id: Number(user.id),
+      email: user.email,
+      display_name: displayNameForUser(user, user.email),
+    }));
 
     return res.json({ success: true, data: users });
   } catch (error) {

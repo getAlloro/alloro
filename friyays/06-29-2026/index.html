@@ -102,6 +102,28 @@
             <tbody>
               <tr>
                 <td>Client dashboard</td>
+                <td>Support Help desk: status pill above title + staff name shown as "Alloro"</td>
+                <td>All client dashboard users on the Support / Help desk page</td>
+                <td>Deployed to dev, user-verified</td>
+                <td>Needs classification</td>
+                <td>
+                  On the ticket detail, the status pill ("Waiting on you") no
+                  longer wraps mid-phrase on long titles &mdash; it now sits on
+                  its own line above the title &mdash; and staff replies in the
+                  client thread render as "Alloro" instead of the individual team
+                  member's name (the admin panel still shows the real name).
+                  Branched off <code>main</code> &rarr; PR #143; cherry-picked to
+                  <code>dev/dave</code>, Changelog 0.0.154. Verified on dev via
+                  browser automation (pill on Artful WEB-0010; masking via an
+                  internal synthetic ticket). See
+                  <code>plans/07052026-support-help-desk-pill-and-author-mask/test-results.json</code>
+                  (4/4 passed). Docs parity applied in alloro-docs
+                  <code>SupportReplica</code>. Owner to confirm whether this joins
+                  a customer email.
+                </td>
+              </tr>
+              <tr>
+                <td>Client dashboard</td>
                 <td>Generic Revenue Hub wording</td>
                 <td>Generic local-service organizations and health clients</td>
                 <td>User-verified locally</td>
@@ -252,6 +274,84 @@
                   blind spot that hid the original bug. See
                   <code>plans/07022026-seo-generator-root-fixes</code> and
                   <code>plans/07022026-seo-audit-canonical-check</code> (both Passed).
+                </td>
+              </tr>
+              <tr>
+                <td>Client dashboard</td>
+                <td>Multi-location billing: paid location adds + cancellation lifecycle</td>
+                <td>Client dashboard admins on Settings &rarr; Properties and Billing</td>
+                <td>Deployed to dev, dev-verified (incl. real-browser UI pass); not yet on production</td>
+                <td>Needs classification</td>
+                <td>
+                  Adding a location now shows a billing summary (per-location price, new
+                  monthly total, prorated amount due today) and takes payment before the
+                  location is created &mdash; a declined card leaves nothing behind.
+                  Locations can be cancelled (end-of-period, all data kept forever) and
+                  reopened: free before the period ends, a paid re-add after. The Billing
+                  card shows &ldquo;N locations &times; $X/mo = $Z/mo&rdquo;. Also fixes the
+                  One Endo &ldquo;Add Location&rdquo; 500 (GBP-reuse guard), adds a
+                  <code>STRIPE_MODE</code> safety guard, and stops recurring agents
+                  (Proofline/Ranking) from running on cancelled locations. Changelog
+                  0.0.153. See
+                  <code>plans/07032026-multi-location-billing/test-results.json</code>
+                  (T1&ndash;T10 + B1&ndash;B10 Passed). First live-Stripe run is the main
+                  merge; non-agent recurring systems still process cancelled locations
+                  (owner-accepted, deferred to a follow-up gating plan). Owner to confirm
+                  whether the client-value story joins a customer email.
+                </td>
+              </tr>
+              <tr>
+                <td>Admin access</td>
+                <td>Google SSO admin sign-in (replaces email OTP)</td>
+                <td>Internal &mdash; Alloro admins signing into the admin panel</td>
+                <td>Deployed to dev, user-verified</td>
+                <td>No</td>
+                <td>
+                  Admin login now uses &ldquo;Sign in with Google&rdquo;
+                  restricted to verified <code>@getalloro.com</code> accounts,
+                  replacing the email-OTP flow. New <code>@getalloro.com</code>
+                  admins are auto-provisioned on first sign-in (zero
+                  registration) and marked <code>is_internal</code> so they stay
+                  out of client-facing pickers and product telemetry;
+                  <code>SUPER_ADMIN_EMAILS</code> was dropped in favor of the
+                  domain gate plus the DB internal roster. Built on
+                  <code>google-auth-library</code> with distinct
+                  <code>GOOGLE_LOGIN_*</code> env on dev and prod. Changelog
+                  0.0.155, commit <code>dc792a0a</code>. Verified end-to-end on
+                  dev via a real Google round-trip &mdash; see
+                  <code>plans/07052026-google-sso-admin-and-user-login/test-results.json</code>
+                  (T1&ndash;T9 Passed, run twice). Live on dev; production waits
+                  on the <code>main</code> merge (prod env already staged). Docs
+                  parity N/A &mdash; admin-only, alloro-docs is client-facing.
+                  Client &ldquo;Sign in with Google&rdquo; (P2) is deferred
+                  (needs a separate External OAuth project). Internal admin
+                  change; not customer-email material.
+                </td>
+              </tr>
+              <tr>
+                <td>Admin tooling</td>
+                <td>Alloro OS admin port: internal Library + grounded RAG chat</td>
+                <td>Internal &mdash; Alloro admins/operators in the admin panel OS tab</td>
+                <td>Deployed to dev; acceptance in progress (T10 file-imports pending), not yet finalized</td>
+                <td>No</td>
+                <td>
+                  A new admin &ldquo;OS&rdquo; tab that brings the internal
+                  knowledge base in-house: a document Library (list/grouped/folder
+                  views with drag-drop, a 3-pane reader, a TipTap markdown editor
+                  with autosave/locks/publish, versions/diff/restore, and trash),
+                  plus a grounded RAG chat (SSE streaming, server-built citations,
+                  grounded refusal, auto-title) over a pgvector index with hybrid
+                  search and a keyboard command palette. Ships a 16-table
+                  <code>os</code> schema migration, a RAG ingest pipeline
+                  (chunk/embed/AI-metadata/link-suggest), file imports
+                  (docx/xlsx/pdf/md &rarr; markdown) with S3 image assets, and
+                  threaded comments. Built as P1&ndash;P7 on <code>dev/dave</code>
+                  (<code>724d5671</code>&ndash;<code>037b1345</code>), pushed and
+                  deployed to dev. Acceptance 11/12 pass &mdash; see
+                  <code>plans/07042026-alloro-os-admin-port/test-results.json</code>
+                  (T10 file imports still pending). Not yet finalized (no
+                  changelog) and not on production. Internal admin tooling; not
+                  customer-email material. Needs owner verification.
                 </td>
               </tr>
             </tbody>

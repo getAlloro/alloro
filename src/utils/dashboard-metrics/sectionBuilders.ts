@@ -223,9 +223,14 @@ export async function buildRankingMetrics(
       if (highestFactor === null || f.score > highestFactor.score) highestFactor = f;
     }
 
-    // score_gap_to_top: if we can compute the top competitor's score for the same batch.
-    // Cheap proxy: 100 - score (assuming rank_score is 0-100). If score is null, leave null.
-    const scoreGapToTop = score !== null ? Number((100 - score).toFixed(2)) : null;
+    // score_gap_to_top = the real distance to the actual top competitor's
+    // score. This projection only carries THIS practice's own row (competitor
+    // scores aren't fetched here), so the only gap we can state truthfully is
+    // 0 when the practice IS the top (position 1). For everyone else we lack
+    // the top competitor's score, so we leave it null rather than fabricate a
+    // `100 - score` proxy (Value #6: never a fabricated number). Consumers
+    // already treat this field as nullable.
+    const scoreGapToTop = position === 1 ? 0 : null;
 
     return {
       position,

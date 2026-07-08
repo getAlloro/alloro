@@ -9,19 +9,41 @@
  */
 
 import Stripe from "stripe";
-import { getStripe, getDefaultPriceId, getWebhookSecret } from "../../config/stripe";
+import {
+  getStripe,
+  getDefaultPriceId,
+  getWebhookSecret,
+  getStripeMode,
+} from "../../config/stripe";
 import {
   OrganizationModel,
   IOrganization,
 } from "../../models/OrganizationModel";
 import { LocationModel } from "../../models/LocationModel";
 import { updateTier } from "../admin-organizations/feature-services/TierManagementService";
-import { OrganizationUserModel } from "../../models/OrganizationUserModel";
-import { sendEmail } from "../../emails/emailService";
 import { isStripeConfigured } from "../../config/stripe";
+import { sendQuantityUpdateEmail } from "./feature-utils/billingEmails";
 import logger from "../../lib/logger";
 
 // ─── Types ───
+
+export interface BillingLocationSummary {
+  /** ACTIVE locations in the org (matches the billed quantity) */
+  locationCount: number;
+  /** Quantity Stripe bills for (override for flat-rate orgs) */
+  effectiveQuantity: number | null;
+  /** Per-location price in cents (null without a reachable subscription) */
+  unitAmount: number | null;
+  currency: string | null;
+  interval: string | null;
+  /** Cents */
+  monthlyTotal: number | null;
+  isFlatRate: boolean;
+  /** Locations scheduled to cancel at period end (still usable until then) */
+  pendingCancellationCount: number;
+  /** ISO date of the soonest pending cancellation, if any */
+  nextEndingAt: string | null;
+}
 
 export interface BillingStatus {
   tier: string | null;
@@ -32,6 +54,7 @@ export interface BillingStatus {
   stripeCustomerId: string | null;
   currentPeriodEnd: string | null;
   cancelAtPeriodEnd: boolean;
+  locationBilling: BillingLocationSummary;
 }
 
 export interface BillingPaymentMethod {
@@ -216,6 +239,28 @@ export async function getSubscriptionStatus(
   const isAdminGranted =
     !hasStripe && org.subscription_status === "active";
 
+  // Location-billing summary ("N locations × $X/mo = $Z/mo" on the plan card).
+  // ACTIVE locations only — matches the Stripe quantity (cancelled never billed,
+  // pending_cancellation already decremented at cancel time).
+  const [locationCountRow, pendingLocations] = await Promise.all([
+    LocationModel.countActiveByOrganizationId(orgId),
+    LocationModel.findPendingCancellationsByOrganizationId(orgId),
+  ]);
+  const locationCount = Number(locationCountRow?.count) || 0;
+  const isFlatRate = org.billing_quantity_override != null;
+  const nextEnding = pendingLocations[0]?.cancel_effective_at ?? null;
+  const locationBilling: BillingLocationSummary = {
+    locationCount,
+    effectiveQuantity: isFlatRate ? org.billing_quantity_override : null,
+    unitAmount: null,
+    currency: null,
+    interval: null,
+    monthlyTotal: null,
+    isFlatRate,
+    pendingCancellationCount: pendingLocations.length,
+    nextEndingAt: nextEnding ? new Date(nextEnding).toISOString() : null,
+  };
+
   // If we have a Stripe subscription, fetch period end + cancel state from Stripe
   let currentPeriodEnd: string | null = null;
   let cancelAtPeriodEnd = false;
@@ -223,7 +268,8 @@ export async function getSubscriptionStatus(
     try {
       const stripe = getStripe();
       const sub = await stripe.subscriptions.retrieve(
-        org.stripe_subscription_id
+        org.stripe_subscription_id,
+        { expand: ["items.data.price"] }
       ) as any;
       // cancel_at is a timestamp when cancellation is scheduled (via portal)
       // cancel_at_period_end is a boolean (via API direct cancel)
@@ -235,6 +281,28 @@ export async function getSubscriptionStatus(
         currentPeriodEnd = new Date(sub.cancel_at * 1000).toISOString();
       } else if (sub.current_period_end) {
         currentPeriodEnd = new Date(sub.current_period_end * 1000).toISOString();
+      }
+
+      const item = sub.items?.data?.[0];
+      if (item) {
+        // Period end lives on the subscription item in current API versions
+        if (!currentPeriodEnd && item.current_period_end) {
+          currentPeriodEnd = new Date(
+            item.current_period_end * 1000
+          ).toISOString();
+        }
+        const quantity: number = item.quantity ?? 1;
+        const unitAmount: number | null = item.price?.unit_amount ?? null;
+        locationBilling.effectiveQuantity = isFlatRate
+          ? org.billing_quantity_override
+          : quantity;
+        locationBilling.unitAmount = unitAmount;
+        locationBilling.currency = item.price?.currency ?? null;
+        locationBilling.interval = item.price?.recurring?.interval ?? null;
+        locationBilling.monthlyTotal =
+          unitAmount != null
+            ? unitAmount * (locationBilling.effectiveQuantity ?? quantity)
+            : null;
       }
     } catch (err: any) {
       logger.error({ err: err?.message || err }, `[Billing] Failed to fetch subscription ${org.stripe_subscription_id}:`);
@@ -250,6 +318,7 @@ export async function getSubscriptionStatus(
     stripeCustomerId: org.stripe_customer_id,
     currentPeriodEnd,
     cancelAtPeriodEnd,
+    locationBilling,
   };
 }
 
@@ -374,6 +443,17 @@ export function constructWebhookEvent(
 export async function handleWebhookEvent(
   event: Stripe.Event
 ): Promise<void> {
+  // Billing-environment guard: drop events whose livemode disagrees with the
+  // mode this process is keyed for (e.g. a live event reaching a test-keyed
+  // dev server). Acknowledged upstream with 200 — logged, never processed.
+  const mode = getStripeMode();
+  if (mode && event.livemode !== (mode === "live")) {
+    logger.error(
+      `[Stripe Webhook] Ignoring ${event.type} (${event.id}): event livemode=${event.livemode} does not match configured STRIPE_MODE=${mode}`
+    );
+    return;
+  }
+
   switch (event.type) {
     case "checkout.session.completed":
       await handleCheckoutCompleted(
@@ -559,14 +639,24 @@ export async function syncSubscriptionQuantity(
     const org = await OrganizationModel.findById(organizationId);
     if (!org?.stripe_subscription_id) return;
 
-    // Use override if set (flat-rate clients), otherwise count locations
+    // Use override if set (flat-rate clients), otherwise count ACTIVE
+    // locations (status-aware: cancelled are never billed, pending were
+    // decremented at cancel time). The old Math.max(…, 1) floor is gone —
+    // a zero-active org is handled by the last-location cancel flow
+    // (subscription cancel_at_period_end), never by syncing quantity 0.
     let newQuantity: number;
     if (org.billing_quantity_override != null) {
       newQuantity = org.billing_quantity_override;
     } else {
       const result =
-        await LocationModel.countByOrganizationId(organizationId);
-      newQuantity = Math.max(Number(result?.count) || 0, 1);
+        await LocationModel.countActiveByOrganizationId(organizationId);
+      newQuantity = Number(result?.count) || 0;
+      if (newQuantity < 1) {
+        logger.warn(
+          `[Billing] Skipping quantity sync for org ${organizationId}: zero active locations (lifecycle owns the last-location case)`
+        );
+        return;
+      }
     }
 
     // Get subscription from Stripe
@@ -595,51 +685,25 @@ export async function syncSubscriptionQuantity(
       `[Billing] Subscription quantity updated for org ${organizationId}: ${oldQuantity} → ${newQuantity}`
     );
 
-    // Notify org admins via email
-    try {
-      const orgUsers = await OrganizationUserModel.listByOrgWithUsers(
-        organizationId
-      );
-      const adminEmails = orgUsers
-        .filter((u) => u.role === "admin")
-        .map((u) => u.email)
-        .filter(Boolean);
-
-      if (adminEmails.length === 0) return;
-
-      const unitPrice = item.price?.unit_amount
-        ? (item.price.unit_amount / 100).toFixed(0)
-        : "—";
-      const newTotal = item.price?.unit_amount
-        ? ((item.price.unit_amount / 100) * newQuantity).toLocaleString()
-        : "—";
-      const direction = newQuantity > oldQuantity ? "added" : "removed";
-
-      await sendEmail({
-        subject: `Your Alloro subscription has been updated`,
-        body: `
-          <div style="font-family: sans-serif; padding: 20px; max-width: 600px;">
-            <h2 style="color: #1a1a1a;">Subscription Updated</h2>
-            <p style="color: #4a5568; font-size: 16px;">
-              A location was ${direction} for <strong>${org.name}</strong>, and your subscription has been automatically adjusted.
-            </p>
-            <div style="background: #f7f7f7; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 20px 0;">
-              <p style="margin: 4px 0; color: #4a5568;">Previous: <strong>${oldQuantity}</strong> ${oldQuantity === 1 ? "location" : "locations"} × $${unitPrice}/mo</p>
-              <p style="margin: 4px 0; color: #4a5568;">Updated: <strong>${newQuantity}</strong> ${newQuantity === 1 ? "location" : "locations"} × $${unitPrice}/mo</p>
-              <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 12px 0;" />
-              <p style="margin: 4px 0; color: #1a1a1a; font-weight: bold;">New monthly total: $${newTotal}/mo</p>
-            </div>
-            <p style="color: #718096; font-size: 14px;">
-              Any price difference for the current billing period will be prorated on your next invoice.
-            </p>
-          </div>
-        `,
-        recipients: adminEmails,
-      });
-    } catch (emailErr) {
-      logger.warn({ detail: emailErr }, `[Billing] Failed to send quantity update email for org ${organizationId}:`);
-    }
+    // Notify org admins via email (shared with the paid-add flow)
+    await sendQuantityUpdateEmail(
+      org,
+      oldQuantity,
+      newQuantity,
+      item.price?.unit_amount ?? null
+    );
   } catch (error) {
+    // Foreign-mode / stale-clone Stripe ids (e.g. prod-cloned rows on a
+    // test-keyed dev server) are an expected no-op, not an incident
+    if (
+      error instanceof Stripe.errors.StripeInvalidRequestError &&
+      error.code === "resource_missing"
+    ) {
+      logger.warn(
+        `[Billing] Skipping quantity sync for org ${organizationId}: billing objects are unavailable with the configured Stripe key (foreign mode or stale clone)`
+      );
+      return;
+    }
     logger.error({ err: error }, `[Billing] Failed to sync subscription quantity for org ${organizationId}:`);
   }
 }

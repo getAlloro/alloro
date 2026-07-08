@@ -1,21 +1,23 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { apiGet } from "../../api";
-import { MapPin, Plus, Star, Trash2, RefreshCw, Pencil } from "lucide-react";
+import { MapPin, Plus, Star, Ban, RefreshCw, Pencil, RotateCcw } from "lucide-react";
 import { PropertySelectionModal, type PropertyItem } from "./PropertySelectionModal";
-import { ConfirmModal } from "./ConfirmModal";
 import { GoogleConnectButton } from "../GoogleConnectButton";
 import { getPriorityItem } from "../../hooks/useLocalStorage";
 import { useLocationContext } from "../../contexts/locationContext";
 import { useAuth } from "../../hooks/useAuth";
 import {
   getLocations,
-  deleteLocation,
-  createLocation,
   updateLocation,
   updateLocationGBP,
   type Location,
 } from "../../api/locations";
+import { AddLocationWizard } from "./AddLocationWizard";
+import {
+  CancelLocationDialog,
+  ReopenLocationDialog,
+} from "./LocationLifecycleDialogs";
 import { logger } from "../../lib/logger";
 
 type UserRole = "admin" | "manager" | "viewer";
@@ -34,15 +36,12 @@ export const PropertiesTab: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [gbpTargetLocationId, setGbpTargetLocationId] = useState<number | null>(null);
 
-  // Add location wizard
-  const [addModalOpen, setAddModalOpen] = useState(false);
-  const [newLocationName, setNewLocationName] = useState("");
-  const [addStep, setAddStep] = useState<"name" | "gbp">("name");
+  // Add location wizard (name → GBP → billing review → pay → created)
+  const [addWizardOpen, setAddWizardOpen] = useState(false);
 
-  // Delete confirmation
-  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-  const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
+  // Lifecycle dialogs (cancel = end-of-period; reopen = undo or paid re-add)
+  const [cancelTarget, setCancelTarget] = useState<Location | null>(null);
+  const [reopenTarget, setReopenTarget] = useState<Location | null>(null);
 
   // Inline name editing
   const [editingNameId, setEditingNameId] = useState<number | null>(null);
@@ -57,7 +56,8 @@ export const PropertiesTab: React.FC = () => {
     inFlightRef.current = true;
     try {
       setIsLoading(true);
-      const locs = await getLocations();
+      // Cancelled locations stay listed here (greyed) — data is never deleted
+      const locs = await getLocations({ includeCancelled: true });
       setLocations(locs);
     } catch (err) {
       logger.error("Failed to fetch locations:", err);
@@ -121,59 +121,7 @@ export const PropertiesTab: React.FC = () => {
 
   // ---- Add location wizard ----
   const openAddLocation = () => {
-    setNewLocationName("");
-    setAddStep("name");
-    setAddModalOpen(true);
-  };
-
-  const handleAddNameSubmit = async () => {
-    if (!newLocationName.trim()) return;
-    setAddStep("gbp");
-    setGbpTargetLocationId(null); // null = creating new
-    await fetchAvailableGBP();
-  };
-
-  const handleAddGBPSelected = async (item: { accountId?: string; locationId?: string; name: string }) => {
-    setIsSaving(true);
-    try {
-      await createLocation({
-        name: newLocationName.trim(),
-        gbp: {
-          accountId: item.accountId ?? "",
-          locationId: item.locationId ?? "",
-          displayName: item.name,
-        },
-      });
-      setAddModalOpen(false);
-      await loadData();
-      await refreshLocations();
-    } catch (err) {
-      logger.error("Failed to create location:", err);
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  // ---- Delete location ----
-  const initiateDelete = (locationId: number) => {
-    setDeleteTargetId(locationId);
-    setDeleteConfirmOpen(true);
-  };
-
-  const handleConfirmDelete = async () => {
-    if (!deleteTargetId) return;
-    setIsDeleting(true);
-    try {
-      await deleteLocation(deleteTargetId);
-      setDeleteConfirmOpen(false);
-      setDeleteTargetId(null);
-      await loadData();
-      await refreshLocations();
-    } catch (err) {
-      logger.error("Failed to delete location:", err);
-    } finally {
-      setIsDeleting(false);
-    }
+    setAddWizardOpen(true);
   };
 
   // ---- Set as primary ----
@@ -292,13 +240,21 @@ export const PropertiesTab: React.FC = () => {
         <div className="space-y-4">
           {locations.map((loc, index) => {
             const gbpProp = loc.googleProperties?.[0];
+            const isCancelled = loc.status === "cancelled";
+            const isPending = loc.status === "pending_cancellation";
             return (
               <motion.div
                 key={loc.id}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.05 }}
-                className="bg-white rounded-[28px] border border-slate-200 shadow-[0_2px_8px_rgba(0,0,0,0.04)] overflow-hidden"
+                className={`bg-white rounded-[28px] border shadow-[0_2px_8px_rgba(0,0,0,0.04)] overflow-hidden ${
+                  isCancelled
+                    ? "border-slate-200 opacity-60 grayscale"
+                    : isPending
+                      ? "border-amber-200"
+                      : "border-slate-200"
+                }`}
               >
                 <div className="p-5">
                   {/* Location Header Row */}
@@ -345,20 +301,40 @@ export const PropertiesTab: React.FC = () => {
                             Primary
                           </span>
                         )}
+                        {isPending && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-amber-50 text-amber-700 border border-amber-200">
+                            Ends{" "}
+                            {loc.cancel_effective_at
+                              ? new Date(
+                                  loc.cancel_effective_at
+                                ).toLocaleDateString("en-US", {
+                                  month: "short",
+                                  day: "numeric",
+                                })
+                              : "at period end"}
+                          </span>
+                        )}
+                        {isCancelled && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-slate-100 text-slate-500 border border-slate-200">
+                            Cancelled
+                          </span>
+                        )}
                       </div>
                     </div>
 
                     {/* Action Buttons */}
                     {canManageConnections && (
                       <div className="flex items-center gap-2 flex-shrink-0">
-                        <button
-                          onClick={() => handleChangeGBP(loc.id)}
-                          className="px-4 py-2 text-[10px] font-black uppercase tracking-widest text-alloro-orange bg-alloro-orange/10 rounded-xl hover:bg-alloro-orange/20 transition-colors"
-                        >
-                          <RefreshCw size={12} className="inline mr-1.5" />
-                          {gbpProp ? "Change GBP" : "Connect GBP"}
-                        </button>
-                        {!loc.is_primary && (
+                        {!isCancelled && (
+                          <button
+                            onClick={() => handleChangeGBP(loc.id)}
+                            className="px-4 py-2 text-[10px] font-black uppercase tracking-widest text-alloro-orange bg-alloro-orange/10 rounded-xl hover:bg-alloro-orange/20 transition-colors"
+                          >
+                            <RefreshCw size={12} className="inline mr-1.5" />
+                            {gbpProp ? "Change GBP" : "Connect GBP"}
+                          </button>
+                        )}
+                        {!isCancelled && !loc.is_primary && (
                           <button
                             onClick={() => handleSetPrimary(loc.id)}
                             className="px-4 py-2 text-[10px] font-black uppercase tracking-widest text-slate-500 bg-slate-100 rounded-xl hover:bg-slate-200 transition-colors"
@@ -366,13 +342,27 @@ export const PropertiesTab: React.FC = () => {
                             Set Primary
                           </button>
                         )}
-                        {locations.length > 1 && (
+                        {loc.status === "active" && (
                           <button
-                            onClick={() => initiateDelete(loc.id)}
+                            onClick={() => setCancelTarget(loc)}
                             className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors"
-                            title="Remove location"
+                            title="Cancel location (end of billing period; data retained)"
                           >
-                            <Trash2 size={16} />
+                            <Ban size={16} />
+                          </button>
+                        )}
+                        {(isPending || isCancelled) && (
+                          <button
+                            onClick={() => setReopenTarget(loc)}
+                            className="px-4 py-2 text-[10px] font-black uppercase tracking-widest text-white bg-alloro-orange rounded-xl hover:bg-alloro-orange/90 transition-colors"
+                            title={
+                              isPending
+                                ? "Reopen — cancels the scheduled removal (free)"
+                                : "Reopen — re-adds this location to billing"
+                            }
+                          >
+                            <RotateCcw size={12} className="inline mr-1.5" />
+                            Reopen
                           </button>
                         )}
                       </div>
@@ -417,92 +407,41 @@ export const PropertiesTab: React.FC = () => {
         multiSelect={false}
       />
 
-      {/* Add Location Modal — only shown during name step */}
-      <AnimatePresence>
-        {addModalOpen && addStep === "name" && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-alloro-navy/50 backdrop-blur-sm"
-              onClick={() => setAddModalOpen(false)}
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              transition={{ type: "spring", duration: 0.3 }}
-              className="relative bg-white rounded-[28px] shadow-2xl w-full max-w-md overflow-hidden"
-            >
-              <div className="p-8">
-                <h3 className="font-display text-lg font-medium text-alloro-navy tracking-tight mb-1">
-                  Add New Location
-                </h3>
-                <p className="text-slate-400 text-sm mb-6">
-                  Enter the name for your new location
-                </p>
-                <input
-                  value={newLocationName}
-                  onChange={(e) => setNewLocationName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") handleAddNameSubmit();
-                  }}
-                  placeholder="e.g. Downtown Office"
-                  autoFocus
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 text-alloro-navy font-semibold focus:outline-none focus:ring-2 focus:ring-alloro-orange/30 focus:border-alloro-orange"
-                />
-                <div className="flex justify-end gap-3 mt-6">
-                  <button
-                    onClick={() => setAddModalOpen(false)}
-                    className="px-5 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleAddNameSubmit}
-                    disabled={!newLocationName.trim()}
-                    className="px-5 py-2.5 text-sm font-bold text-white bg-alloro-orange rounded-xl hover:bg-alloro-orange/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    Next: Select GBP
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* Add Location - GBP Selection (shown in step 2) */}
-      <PropertySelectionModal
-        isOpen={addStep === "gbp" && addModalOpen}
-        onClose={() => {
-          setAddModalOpen(false);
-          setAddStep("name");
+      {/* Add Location wizard — name → GBP → billing review → pay → created */}
+      <AddLocationWizard
+        open={addWizardOpen}
+        onClose={() => setAddWizardOpen(false)}
+        onCompleted={async () => {
+          await loadData();
+          await refreshLocations();
         }}
-        title={`Select GBP for "${newLocationName}"`}
-        items={availableGBP}
-        onSelect={handleAddGBPSelected}
-        isLoading={loadingAvailable}
-        isSaving={isSaving}
-        type="gbp"
-        multiSelect={false}
       />
 
-      {/* Delete Confirmation */}
-      <ConfirmModal
-        isOpen={deleteConfirmOpen}
-        onClose={() => {
-          setDeleteConfirmOpen(false);
-          setDeleteTargetId(null);
-        }}
-        onConfirm={handleConfirmDelete}
-        title="Remove Location?"
-        message="This will remove the location and disconnect its GBP profile. Existing data (tasks, reports, etc.) will no longer be associated with this location."
-        confirmText="Remove"
-        isLoading={isDeleting}
-        type="danger"
-      />
+      {/* Cancel dialog — end-of-period semantics, last-location warning */}
+      {cancelTarget && (
+        <CancelLocationDialog
+          target={cancelTarget}
+          activeCount={locations.filter((l) => l.status === "active").length}
+          onClose={() => setCancelTarget(null)}
+          onCompleted={async () => {
+            await loadData();
+            await refreshLocations();
+          }}
+        />
+      )}
+
+      {/* Reopen dialog — free undo while pending, paid re-add when cancelled */}
+      {reopenTarget && (
+        <ReopenLocationDialog
+          target={reopenTarget}
+          activeCount={locations.filter((l) => l.status === "active").length}
+          onClose={() => setReopenTarget(null)}
+          onCompleted={async () => {
+            await loadData();
+            await refreshLocations();
+          }}
+        />
+      )}
     </div>
   );
 };

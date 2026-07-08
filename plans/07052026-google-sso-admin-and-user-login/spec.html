@@ -1,0 +1,415 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Google SSO — Admin + User Login Spec</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); margin-top: 14px; }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 900px; margin-bottom: 24px; font-size: clamp(2rem, 5vw, 3.6rem); line-height: 0.98; letter-spacing: 0; }
+    h2 { font-size: 1.35rem; letter-spacing: 0; }
+    h3 { font-size: 1rem; letter-spacing: 0; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.9em; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    ul { margin: 0; padding-left: 20px; }
+    li { margin: 4px 0; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    .flow { border: 1px solid var(--line); border-radius: 8px; background: var(--soft); padding: 16px; font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.82rem; white-space: pre-wrap; overflow-x: auto; }
+    .phase-tag { display: inline-block; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; border: 1px solid var(--ink); border-radius: 999px; padding: 1px 8px; margin-left: 6px; }
+    .risk-lvl { font-weight: 800; }
+    table.blast { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 0.9rem; }
+    table.blast th, table.blast td { border: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }
+    table.blast th { background: var(--soft); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0; }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-pending">Completed</span>
+      </div>
+      <h1>Google SSO — Admin-only login + optional user "Sign in with Google"</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed (P1) — finalized on dev, CHANGELOG 0.0.155, acceptance Passed. P2 deferred; prod = main merge (owner's call)</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/07052026-google-sso-admin-and-user-login</dd></div>
+        <div><dt>Size</dt><dd>Medium (P1 only — P2 deferred)</dd></div>
+        <div><dt>Risk</dt><dd>Level 3</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>Admin access today is email + OTP gated by a <code>SUPER_ADMIN_EMAILS</code> allowlist. The owner wants admin sign-in to be Google-only, restricted to verified <code>@getalloro.com</code> Google accounts, and to drop the OTP admin path entirely (no break-glass). Separately, regular users (dental practices) currently sign in with email + password only; the owner wants to add "Sign in with Google" as an option beneath the password form, and let invited users link their Google account from Settings so they can use SSO. Primary/owner accounts already use their Google address (it was required for GBP access from day one), so SSO should be seamless for them.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p><strong>Deliverable, two phases.</strong></p>
+      <ul>
+        <li><strong>P1 — Admin Google SSO (replaces OTP).</strong> The admin login screen becomes a single "Sign in with Google" button. The backend runs the OAuth authorization-code flow, verifies the Google ID token, asserts the email is a verified <code>@getalloro.com</code> account, finds-or-creates the user, and mints the <em>same</em> bearer JWT the app already issues. The admin OTP login endpoints and UI are retired. <code>superAdminMiddleware</code> gates admin routes on the <code>@getalloro.com</code> domain (with <code>SUPER_ADMIN_EMAILS</code> retained as an optional extra grant).</li>
+        <li><strong>P2 — User "Sign in with Google" + account linking. DEFERRED (Rev 2, owner 07-05) — not in this execution.</strong> The client-facing user login is parked for now. When resumed, the client sign-in page gains a "Sign in with Google" button below email/password; on first Google sign-in, if Google's <em>verified</em> email exactly matches an existing verified Alloro user, we auto-link and sign them in, otherwise we tell them to link Google in Settings first; Google sign-in never creates a brand-new account; a "Sign-in methods" card in Settings lets any logged-in user link/unlink Google. <strong>P2 requires an External consent screen</strong> (this project is Internal); resume by using the External project confirmed in Rev 1, or flipping a project to External.</li>
+      </ul>
+      <p><strong>Done when (this execution — P1 only):</strong> an <code>@getalloro.com</code> Google account can reach the admin dashboard with no OTP anywhere; a non-<code>@getalloro</code> account cannot reach admin (Google's Internal consent screen blocks non-Workspace accounts, and the code check backs it up); password login, signup, email-verify, and the JWT session model are unchanged. <em>(P2 client/user Google login is deferred — see Rev 2.)</em></p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Current auth reality (verified)</h3>
+      <ul>
+        <li><strong>Clients:</strong> email + password, bcrypt, email-verified by 6-digit code — <code>src/controllers/auth-password/AuthPasswordController.ts</code>, <code>frontend/src/pages/Signin.tsx</code>.</li>
+        <li><strong>Admins:</strong> OTP + super-admin allowlist — <code>frontend/src/components/Admin/shell/AdminLogin.tsx</code> → <code>/api/auth/otp/request</code> + <code>/verify</code> with <code>isAdminLogin:true</code>. OTP login is used <em>only</em> by this admin screen (no user OTP login exists).</li>
+        <li><strong>Session:</strong> one model — <code>generateToken(userId, email)</code> in <code>src/controllers/auth-otp/feature-services/service.jwt-management.ts</code> mints a bearer JWT used by both password and OTP login. Frontend stores it in <code>localStorage.auth_token</code> plus a deliberately non-httpOnly <code>auth_token</code> cookie (<code>buildAuthCookieOptions</code>, <code>httpOnly:false</code>) for cross-tab/app sync; <code>getCommonHeaders()</code> in <code>frontend/src/api/index.ts</code> reads it.</li>
+        <li><strong>Admin gate:</strong> <code>SUPER_ADMIN_EMAILS</code> env allowlist, checked by <code>src/middleware/superAdmin.ts</code> on every <code>/api/admin/*</code> route and by <code>isSuperAdmin()</code> in <code>service.super-admin.ts</code>. Frontend <code>AdminGuard.tsx</code> → <code>/admin/validate</code>.</li>
+        <li><strong>Users table:</strong> has <code>password_hash</code>, email-verification fields, profile columns, <code>is_internal</code> — but <strong>no Google identity column</strong>. <code>google_connections</code> is org-level GBP/GSC OAuth (business.manage), <em>not</em> user login identity — do not reuse it.</li>
+        <li><strong>Existing GBP OAuth</strong> already consumes <code>GOOGLE_CLIENT_ID/SECRET/REDIRECT_URI</code> (<code>controllers/auth/feature-utils/oauth-client-factory.ts</code>, <code>controllers/googleauth/utils/oauthConfig.ts</code>). The login client MUST use distinct env names.</li>
+        <li><code>/api/auth</code> is already a <strong>public prefix</strong> in <code>src/middleware/publicRoutes.ts:52</code> — Google start/callback are automatically public; link/unlink must add <code>authenticateToken</code> explicitly.</li>
+      </ul>
+
+      <h3>Reference implementation to port (alloro-os, already in production at chat.getalloro.com)</h3>
+      <ul>
+        <li><code>~/Desktop/alloro-os/backend/src/auth/domainGate.ts</code> — the <code>@getalloro.com</code> gate: verifies <code>email</code> + <code>email_verified</code>, treats Google's <code>hd</code> claim as UX-only, never the security check.</li>
+        <li><code>~/Desktop/alloro-os/backend/src/auth/googleClient.ts</code> — auth-code URL build, backend code→token exchange (secret never in browser), ID-token verify via JWKS, nonce check.</li>
+        <li><code>~/Desktop/alloro-os/backend/src/auth/oauthTx.ts</code> — signed state+nonce cookie (CSRF/replay protection).</li>
+        <li><code>~/Desktop/alloro-os/backend/src/controllers/auth/AuthController.ts</code>, <code>services/auth/AuthService.ts</code>, <code>models/UserModel.ts</code> (<code>google_sub</code> unique + <code>upsertByGoogleSub</code>) — overall shape; adapt to Alloro's JWT session instead of alloro-os's cookie/refresh model.</li>
+      </ul>
+
+      <h3>Patterns to follow (Code Constitution)</h3>
+      <ul>
+        <li><strong>Backend domain structure — §6.1 / §6.3:</strong> mirror <code>src/controllers/gbp-automation/</code>. New domain <code>src/controllers/auth-sso/</code> with thin controller, <code>feature-services/</code>, <code>feature-utils/</code> (typed error + <code>ok/fail</code> builders copied from <code>gbp-automation/feature-utils/controllerResponses.ts</code>).</li>
+        <li><strong>Layering — §7.1–§7.4:</strong> Routes → Controller → Services → Models. All DB access (find/link/unlink by <code>google_sub</code>) lives in <code>UserModel</code>; no inline <code>db()</code>.</li>
+        <li><strong>Response/error contract — §8.1–§8.4</strong> for the JSON endpoints (unlink, link-status). OAuth start/callback are browser redirects, not JSON — they redirect on success and to <code>/login?error=CODE</code> on failure (mirror alloro-os).</li>
+        <li><strong>Security — §5.1 (env only), §5.4 (server re-enforces), §5.6 (validate config at startup), §11.1 (auth on link/unlink), §11.3 (rate-limit OAuth start), §11.4 (CSRF via signed state+nonce).</strong></li>
+        <li><strong>Frontend triad — §12.1:</strong> new <code>frontend/src/api/auth-sso.ts</code> thin over <code>api/index.ts</code>; JWT only through <code>setAuthSession()</code> / <code>getCommonHeaders()</code> (§17.5). Settings card grouped in a feature folder (§12.3).</li>
+      </ul>
+      <p><strong>Reference analogs:</strong> backend <code>src/controllers/gbp-automation/</code> (§6.1); frontend <code>frontend/src/api/</code> triad (§12.1). Port-from: <code>~/Desktop/alloro-os/backend/src/auth/*</code>.</p>
+    </section>
+
+    <section class="spec-card" id="design">
+      <h2>Design — flows</h2>
+      <h3>Admin sign-in (P1)</h3>
+      <div class="flow">AdminLogin "Sign in with Google"
+  → GET /api/auth/google/start?flow=admin        (set signed state+nonce cookie, redirect to Google, hd=getalloro.com hint)
+  → Google consent (any account; hd pre-selects @getalloro)
+  → GET /api/auth/google/callback?code&state     (exchange code, verify id_token, check nonce)
+      → assert email_verified && email endsWith @getalloro.com   (else redirect /admin/login?error=AUTH_DOMAIN_FORBIDDEN)
+      → UserModel.findByGoogleSub | findByEmail → find-or-create user; upsert google_sub + avatar_url
+      → token = generateToken(user.id, user.email)               (SAME JWT as today)
+      → set auth_token cookie (buildAuthCookieOptions, httpOnly:false)
+      → redirect /auth/google/finish?flow=admin
+  → Frontend finish route: read auth_token cookie → setAuthSession() → redirect /admin</div>
+      <h3>User sign-in (P2)</h3>
+      <div class="flow">Signin "Sign in with Google"
+  → GET /api/auth/google/start?flow=login → Google → callback
+      → assert email_verified (any domain)
+      → user = findByGoogleSub(sub)
+          found            → sign in
+          not found, email_verified && email == existing VERIFIED user.email → auto-link google_sub → sign in
+          otherwise        → redirect /signin?error=GOOGLE_NOT_LINKED   (never create an account)
+      → token = generateToken → auth_token cookie → /auth/google/finish?flow=login → /dashboard</div>
+      <h3>Link from Settings (P2)</h3>
+      <div class="flow">Settings › Sign-in methods › "Link Google account"
+  → GET /api/auth/google/link/start   (authenticateToken; stash req.user.userId in signed tx)
+  → Google → callback (flow=link): attach sub to the tx userId
+      → guard: sub not already bound to a different user (unique index) → error GOOGLE_ALREADY_LINKED
+  → redirect /settings?googleLinked=1 ;  "Unlink" → POST /api/auth/google/unlink (authenticateToken)</div>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Reuse the existing bearer-JWT session (<code>generateToken</code>) — no second session model.</li>
+            <li>Verify Google identity server-side: <code>email_verified === true</code>, ID-token signature + nonce; <code>hd</code> is a hint only (§5.4).</li>
+            <li>Admin gate enforced server-side on every <code>/api/admin/*</code> route via <code>superAdminMiddleware</code> (§11.1, §5.4).</li>
+            <li>Distinct env names <code>GOOGLE_LOGIN_CLIENT_ID/SECRET/REDIRECT_URI</code> (§5.1) validated at startup (§5.6).</li>
+            <li>Auto-link only when <code>email_verified</code> AND exact match to an existing <em>verified</em> user; never create an account from Google alone.</li>
+            <li>All <code>google_sub</code> reads/writes go through <code>UserModel</code> (§7.4).</li>
+            <li>Rate-limit <code>/api/auth/google/start</code> (§11.3); CSRF via signed state+nonce (§11.4).</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>Do not reuse the GBP OAuth env vars / client (<code>GOOGLE_CLIENT_ID</code> stays owned by <code>controllers/auth/</code> + <code>googleauth/</code>).</li>
+            <li>Do not reuse <code>google_connections</code> for login identity.</li>
+            <li>Do not delete shared helpers still used by password auth — <code>generateToken</code> (jwt-management) and <code>generateSixDigitCode</code> (otp-generation).</li>
+            <li>Do not remove <code>/api/auth/otp/validate</code> (website-builder depends on it).</li>
+            <li>Do not put OAuth token/JWT in a redirect URL — keep it in the <code>auth_token</code> cookie, finish-route copies to localStorage.</li>
+            <li>Do not change password login, signup, or email verification.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out of scope</h3>
+      <ul>
+        <li>Migrating the whole app to httpOnly cookie sessions or a refresh-token table (alloro-os's model). Explicitly not ported.</li>
+        <li>Google login for the OS admin tab / sibling apps beyond what already exists.</li>
+        <li>Removing password auth. It stays as the default user method.</li>
+        <li>SCIM / Workspace directory sync, group-based admin roles.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><span class="risk-lvl">Level:</span> 3 (auth surface change + broad admin grant).</p>
+      <h3>Risks identified</h3>
+      <ul>
+        <li><strong>(L3) Domain-only admin grant — owner-chosen.</strong> Every verified <code>@getalloro.com</code> Google account becomes full super-admin over all client data (sales, support, contractors with a Workspace seat). <strong>Mitigation:</strong> <code>superAdminMiddleware</code> still enforces the gate server-side; <code>SUPER_ADMIN_EMAILS</code> retained as an optional <em>extra</em> grant so the owner can tighten to a list later with no code change; offboarding a Workspace account removes admin immediately. See Pushback.</li>
+        <li><strong>(RESOLVED 2026-07-05, see Rev 1 &amp; Rev 2) Consent screen type.</strong> Admin (this execution) uses the <em>Internal</em> "Alloro" Google project: only <code>@getalloro.com</code> Workspace accounts can authenticate — ideal for an admin-only door, with no user cap, no "unverified app" screen, and no verification review. The code domain check remains as defense-in-depth. The <em>External</em> + In-production project confirmed in Rev 1 (100-user cap irrelevant to non-sensitive login scopes) is the path for the deferred P2 client login.</li>
+        <li><strong>(L2) OAuth env collision.</strong> Reusing <code>GOOGLE_CLIENT_ID</code> would clobber GBP OAuth. <strong>Mitigation:</strong> distinct <code>GOOGLE_LOGIN_*</code> names; grep-verify at execution.</li>
+        <li><strong>(L2) Account takeover via auto-link.</strong> Linking by unverified or mismatched email could hijack an account. <strong>Mitigation:</strong> require <code>email_verified===true</code> + exact match to an existing verified user; never link a <code>sub</code> already bound to another user (partial-unique index).</li>
+        <li><strong>(L2) Retiring OTP endpoints blast radius.</strong> <code>requestOtp</code>/<code>verifyOtp</code> call <code>onboardUser</code> and <code>linkAccountCreation</code>. <strong>Mitigation:</strong> at execution, grep every consumer of <code>service.user-onboarding</code> and the OTP routes; retire only <code>/request</code>+<code>/verify</code> and the admin OTP UI; keep <code>/validate</code>, <code>jwt-management</code>, <code>otp-generation</code>.</li>
+        <li><strong>(L2) Login broken if config missing.</strong> <strong>Mitigation:</strong> validate <code>GOOGLE_LOGIN_*</code> at startup (§5.6) with a clear message; a clean error on the callback (redirect to login with <code>?error=config</code>), never a 500 stack.</li>
+        <li><strong>(L1) Non-httpOnly cookie bridge.</strong> Accepted deviation from §11.5 — it follows the app-wide existing pattern (<code>buildAuthCookieOptions</code>), so it introduces no new exposure and avoids a divergent second pattern (§4.3 / consistency).</li>
+      </ul>
+      <p><strong>Blast radius — consumers of changed units:</strong></p>
+      <table class="blast">
+        <tr><th>Changed unit</th><th>Consumers affected</th></tr>
+        <tr><td><code>middleware/superAdmin.ts</code> (gate: allowlist → domain)</td><td>Every <code>/api/admin/*</code> router (organizations, settings, schedules, websites, media, leadgen, os, support, agent-outputs, mission-control, imports, pms-pipeline, ai-seo-audit) + <code>/api/admin/auth</code> validate/pilot. Behavior change is intended and uniform.</td></tr>
+        <tr><td><code>service.super-admin.ts</code> <code>isSuperAdmin()</code></td><td><code>AuthOtpController</code> (being retired), any admin-detection callers — re-point to domain check.</td></tr>
+        <tr><td><code>users</code> table (+<code>google_sub</code>, +<code>avatar_url</code>)</td><td>Additive nullable columns; no existing reader breaks.</td></tr>
+        <tr><td>OTP <code>/request</code> + <code>/verify</code> retired</td><td>Only <code>AdminLogin.tsx</code> (replaced). Confirm no other consumer at execution.</td></tr>
+        <tr><td>Profile DTO (+<code>googleLinked</code>)</td><td><code>profile/profile-utils/response.util.ts</code> consumers — additive field.</td></tr>
+      </table>
+      <h3>Pushback</h3>
+      <ul>
+        <li><strong>Domain-only admin (L3).</strong> Recommended alternative: gate admin on <code>@getalloro.com</code> <em>AND</em> <code>SUPER_ADMIN_EMAILS</code> — Google proves identity, the allowlist still decides who is an admin (tightest, least privilege). Owner chose domain-only for simplicity; honored. Safety rails kept (server-side enforcement + retained optional allowlist) so tightening later needs no code change.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <p><strong>Phase 1 — Admin Google SSO (replaces OTP). P2 depends on P1's OAuth plumbing.</strong></p>
+
+      <article class="task-card">
+        <h3>T1: Migration — <code>google_sub</code> + <code>avatar_url</code> on <code>users</code> <span class="phase-tag">P1</span></h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add nullable <code>google_sub</code> (partial-unique where not null) and nullable <code>avatar_url</code>. Idempotent <code>hasColumn</code> guards; reversible <code>down()</code> drops both. Production-safe: additive nullable columns, no backfill, no lock risk.</dd></div>
+          <div><dt>Files</dt><dd><code>src/database/migrations/{ts}_add_google_sub_to_users.ts</code> (fill from <code>migrations/knexmigration.js</code> scaffold)</dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>npm run db:migrate</code> then <code>db:rollback</code> clean on dev DB; column present.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: <code>UserModel</code> — Google identity queries <span class="phase-tag">P1</span></h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add <code>findByGoogleSub(sub)</code> and a find-or-create-by-Google helper for the admin flow (match by <code>google_sub</code> or verified <code>@getalloro</code> email; store <code>google_sub</code> + <code>avatar_url</code>). All Knex in the model (§7.4). <em>Defer <code>linkGoogleSub</code>/<code>unlinkGoogleSub</code> to P2 (only the Settings link/unlink needs them).</em></dd></div>
+          <div><dt>Files</dt><dd><code>src/models/UserModel.ts</code>, <code>src/models/__tests__/UserModel.google.test.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>Model tests: find hit/miss, link, conflict, unlink (§20.1–§20.2).</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: <code>auth-sso</code> backend domain — OAuth services <span class="phase-tag">P1</span></h3>
+        <dl>
+          <div><dt>Do</dt><dd>New <code>src/controllers/auth-sso/</code> mirroring <code>gbp-automation/</code>: <code>feature-services/service.google-oauth.ts</code> (port <code>googleClient.ts</code> — build URL, exchange code, verify id_token+nonce), <code>service.google-identity.ts</code> (port <code>domainGate.ts</code> + <code>assertAlloroAdminDomain</code>), <code>service.sso-session.ts</code> (find-or-create/link → <code>generateToken</code>), <code>feature-utils/util.oauth-tx.ts</code> (port <code>oauthTx.ts</code> signed state+nonce), <code>feature-utils/controllerResponses.ts</code> + <code>AuthSsoError.ts</code> (copy from gbp-automation). Add dep <code>google-auth-library</code> (§4.4, same as alloro-os).</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/auth-sso/**</code>, <code>package.json</code>, tests under <code>src/__tests__/</code></dd></div>
+          <div><dt>Depends on</dt><dd>T2</dd></div>
+          <div><dt>Verify</dt><dd>Unit tests: domain gate accept/reject, nonce mismatch, unverified email, non-getalloro reject (§20.2).</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: Config — <code>GOOGLE_LOGIN_*</code> + startup validation <span class="phase-tag">P1</span></h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add <code>GOOGLE_LOGIN_CLIENT_ID/SECRET/REDIRECT_URI</code> and <code>ADMIN_ALLOWED_DOMAIN</code> (default <code>getalloro.com</code>) to config; validate presence at startup with a clear fail-fast message (§5.6). Distinct from GBP <code>GOOGLE_*</code>.</dd></div>
+          <div><dt>Files</dt><dd><code>src/config/*</code> (match existing config pattern), <code>.env.example</code> if present</dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Boot with vars unset → clear startup error; set → boots.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T5: Routes + controller — <code>/api/auth/google/*</code> <span class="phase-tag">P1</span></h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>src/routes/auth-sso.ts</code>: <code>GET /start</code> (rate-limited, <code>flow=admin|login|link</code>), <code>GET /callback</code>, <code>GET /link/start</code> (+<code>authenticateToken</code>), <code>POST /unlink</code> (+<code>authenticateToken</code>). Thin controller <code>AuthSsoController.ts</code> (§7.2–§7.3). Mount <code>app.use("/api/auth/google", authSsoRoutes)</code>. <code>/api/auth</code> is already a public prefix, so start/callback need no allowlist change; link/unlink carry explicit auth.</dd></div>
+          <div><dt>Files</dt><dd><code>src/routes/auth-sso.ts</code>, <code>src/controllers/auth-sso/AuthSsoController.ts</code>, <code>src/app.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T3, T4</dd></div>
+          <div><dt>Verify</dt><dd>Supertest smoke: start redirects to accounts.google.com with state cookie; callback with bad state → login redirect w/ error (§20.2).</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T6: Admin gate → domain <span class="phase-tag">P1</span></h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>middleware/superAdmin.ts</code> and <code>service.super-admin.ts</code>: admin if <code>email</code> ends with <code>ADMIN_ALLOWED_DOMAIN</code> OR is in <code>SUPER_ADMIN_EMAILS</code> (retained extra grant). Same message/shape; server-side authoritative (§5.4).</dd></div>
+          <div><dt>Files</dt><dd><code>src/middleware/superAdmin.ts</code>, <code>src/controllers/auth-otp/feature-services/service.super-admin.ts</code>, tests</dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Test: <code>@getalloro</code> passes, allowlist passes, other-domain 403.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T7: Retire admin OTP login <span class="phase-tag">P1</span></h3>
+        <dl>
+          <div><dt>Do</dt><dd>Remove <code>requestOtp</code>/<code>verifyOtp</code> controller fns + the <code>/request</code>,<code>/verify</code> routes and their validation wiring; keep <code>/validate</code>, <code>jwt-management</code>, <code>otp-generation</code> (password auth depends on <code>generateSixDigitCode</code>). First grep all consumers of <code>service.user-onboarding</code> / OTP routes; if <code>onboardUser</code> has no other caller, colocate or retain as used by the new SSO find-or-create. Record findings as a Revision Log entry.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/auth-otp/AuthOtpController.ts</code>, <code>src/routes/auth-otp.ts</code>, <code>src/app.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T5</dd></div>
+          <div><dt>Verify</dt><dd><code>tsc</code> clean; existing password + <code>/validate</code> tests pass; OTP login endpoints gone.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T8: Frontend — admin login + finish route <span class="phase-tag">P1</span></h3>
+        <dl>
+          <div><dt>Do</dt><dd>Replace OTP forms in <code>AdminLogin.tsx</code> with a single "Sign in with Google" button (→ <code>/api/auth/google/start?flow=admin</code>), keep the branded shell. New <code>frontend/src/api/auth-sso.ts</code> (URL builders + <code>unlink</code>). New <code>frontend/src/pages/AuthGoogleFinish.tsx</code> at <code>/auth/google/finish</code>: read <code>auth_token</code> cookie → <code>setAuthSession()</code> → redirect (<code>admin</code>→/admin, else /dashboard); handle <code>?error=</code>. Register the route.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/components/Admin/shell/AdminLogin.tsx</code>, <code>frontend/src/api/auth-sso.ts</code>, <code>frontend/src/pages/AuthGoogleFinish.tsx</code>, router config</dd></div>
+          <div><dt>Depends on</dt><dd>T5</dd></div>
+          <div><dt>Verify</dt><dd><code>tsc -p tsconfig.app.json</code> 0; admin login shows Google button; finish route stores token.</dd></div>
+        </dl>
+      </article>
+
+      <p><strong>Phase 2 — User "Sign in with Google" + linking. DEFERRED (Rev 2) — NOT in this execution.</strong> Requires the External consent-screen project (Rev 1). T9–T11 below are the parked plan for when P2 resumes.</p>
+
+      <article class="task-card">
+        <h3>T9: User login flow + auto-link <span class="phase-tag">P2</span></h3>
+        <dl>
+          <div><dt>Do</dt><dd>In <code>service.sso-session.ts</code> add the <code>flow=login</code> path: <code>findByGoogleSub</code> → sign in; else if <code>email_verified</code> && exact match to an existing verified user → auto-link → sign in; else redirect <code>/signin?error=GOOGLE_NOT_LINKED</code>. Never create an account.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/auth-sso/feature-services/service.sso-session.ts</code>, tests</dd></div>
+          <div><dt>Depends on</dt><dd>T5</dd></div>
+          <div><dt>Verify</dt><dd>Tests: linked→ok, match→auto-link, no-match→GOOGLE_NOT_LINKED, unverified→reject, never-create.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T10: Link/unlink + profile flag <span class="phase-tag">P2</span></h3>
+        <dl>
+          <div><dt>Do</dt><dd>Implement <code>flow=link</code> in the callback (attach <code>sub</code> to the tx <code>userId</code>; guard <code>sub</code> not already bound → <code>GOOGLE_ALREADY_LINKED</code>) and <code>POST /unlink</code>. Add <code>googleLinked: boolean</code> to the profile/me DTO.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/auth-sso/*</code>, <code>src/controllers/profile/profile-utils/response.util.ts</code>, <code>profile.service.ts</code>, tests</dd></div>
+          <div><dt>Depends on</dt><dd>T9</dd></div>
+          <div><dt>Verify</dt><dd>Tests: link success, already-linked conflict, unlink, DTO carries flag.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T11: Frontend — client sign-in button + Settings card <span class="phase-tag">P2</span></h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add "Sign in with Google" + an "or" divider below the password form in <code>Signin.tsx</code> (→ <code>flow=login</code>). New "Sign-in methods" card in Settings (anchor <code>frontend/src/components/settings/ProfileTab.tsx</code>) showing linked status from <code>googleLinked</code>, "Link Google account" (→ <code>flow=link</code>) and "Unlink" (→ <code>POST /unlink</code>), via <code>api/auth-sso.ts</code> and a <code>use</code>-hook (§14.3). Surface errors via <code>lib/toast</code> (§16.3).</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/pages/Signin.tsx</code>, <code>frontend/src/components/settings/SignInMethodsCard.tsx</code> (new), <code>frontend/src/components/settings/ProfileTab.tsx</code>, <code>frontend/src/api/auth-sso.ts</code>, <code>frontend/src/hooks/queries/*</code></dd></div>
+          <div><dt>Depends on</dt><dd>T10</dd></div>
+          <div><dt>Verify</dt><dd><code>tsc -p tsconfig.app.json</code> 0; sign-in shows Google option; Settings links/unlinks.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T12: Docs parity + owner prerequisites <span class="phase-tag">P1+P2</span></h3>
+        <dl>
+          <div><dt>Do</dt><dd>Owner (not code): in the <em>Internal</em> "Alloro" Google project, create a Web OAuth client and register <strong>three</strong> Authorized redirect URIs — local <code>http://localhost:5174/api/auth/google/callback</code>, dev <code>https://dev.getalloro.com/api/auth/google/callback</code>, prod <code>https://app.getalloro.com/api/auth/google/callback</code>. Set <code>GOOGLE_LOGIN_CLIENT_ID/SECRET/REDIRECT_URI</code> per environment: local <code>.env</code>, dev <code>/etc/alloro/dev.env</code>, prod <code>/etc/alloro/app.env</code> (each <code>REDIRECT_URI</code> = its matching registered URI, verbatim). Docs: update <code>~/Desktop/alloro-docs</code> for the new admin Google login (at <code>-d</code>).</dd></div>
+          <div><dt>Design note</dt><dd>The callback finishes with a <strong>relative</strong> redirect (<code>/auth/google/finish</code>, <code>/admin/login?error=</code>) so it resolves same-origin in all three environments (Vite proxy local, Apache on dev/prod) — no <code>FRONTEND_ORIGIN</code> env needed. Local backend :3000, Vite :5174 proxies <code>/api</code> → :3000 (<code>frontend/vite.config.ts</code>). Optional fallback URI <code>http://localhost:3000/api/auth/google/callback</code> if the proxy mishandles the top-level callback nav.</dd></div>
+          <div><dt>Files</dt><dd>server env + local <code>.env</code> (owner), <code>~/Desktop/alloro-docs/*</code></dd></div>
+          <div><dt>Depends on</dt><dd>T8 (dev)</dd></div>
+          <div><dt>Verify</dt><dd>Local + dev callback round-trips; docs updated before finalize.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled> <code>npx tsc --noEmit</code> (backend) + <code>tsc -p tsconfig.app.json</code> (frontend) — zero errors</li>
+        <li><input type="checkbox" disabled> <code>npm run check:conventions --strict</code> — zero backend violations; new <code>auth-sso</code> mirrors <code>gbp-automation</code></li>
+        <li><input type="checkbox" disabled> <code>npm run test</code> — model + service + route tests for SSO pass (§20.1–20.2)</li>
+        <li><input type="checkbox" disabled> Migration up + rollback clean on dev DB; <code>google_sub</code> partial-unique present</li>
+        <li><input type="checkbox" disabled> Manual: <code>@getalloro.com</code> Google account reaches <code>/admin</code>; no OTP path anywhere</li>
+        <li><input type="checkbox" disabled> Manual: non-<code>@getalloro</code> Google account rejected from admin with a clear message</li>
+        <li><input type="checkbox" disabled> <em>(P2 — deferred)</em> Client whose Google email matches signs in with Google</li>
+        <li><input type="checkbox" disabled> <em>(P2 — deferred)</em> Invited user links Google in Settings, then signs in with Google</li>
+        <li><input type="checkbox" disabled> Password login, signup, email-verify, and <code>/api/auth/otp/validate</code> unchanged</li>
+        <li><input type="checkbox" disabled> No regression across <code>/api/admin/*</code> under the new domain gate</li>
+        <li><input type="checkbox" disabled> <code>test.html</code> / <code>test-results.json</code> generated and rolled up to Passed (Layer 2, §20.5)</li>
+        <li><input type="checkbox" disabled> <code>alloro-docs</code> — N/A: admin-only change; alloro-docs is client-facing only (owner, Rev 8)</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-07-05</h3>
+        <p><strong>Change:</strong> P2 consent-screen prerequisite confirmed satisfied. Owner's Google Cloud Console screenshot shows User type = External and Publishing status = In production for the OAuth project. Noted that the visible "2 users / 100 user cap" applies only to sensitive/restricted scopes and does not affect login (non-sensitive <code>openid email profile</code>), so no user cap or "unverified app" screen for sign-in. Risk item downgraded from open prerequisite to RESOLVED. Separately flagged (out of scope): if this same project serves the GBP <code>business.manage</code> connection and that scope is unverified, the 100-user cap would limit GBP connections lifetime — a GBP-onboarding concern to review independently.</p>
+        <p><strong>Reason:</strong> User QA: owner provided console screenshot confirming consent-screen configuration.</p>
+        <p><strong>Updated Done criteria:</strong> none (P2 no longer gated on this confirmation; owner still creates the Web OAuth client + sets <code>GOOGLE_LOGIN_*</code> per T12).</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 2 - 2026-07-05</h3>
+        <p><strong>Change:</strong> Scope reduced to <strong>P1 (admin Google SSO) only; P2 (client/user "Sign in with Google" + Settings linking) deferred.</strong> Admin login will use the owner's <em>Internal</em> "Alloro" Google project (console screenshot: Google Auth Platform › Audience › User type = Internal), which restricts authentication to <code>@getalloro.com</code> Workspace accounts at Google's own layer — ideal for an admin-only door and stronger than External for this use (no user cap, no unverified-app screen, no verification review). The code domain check stays as defense-in-depth. Tasks T9–T11 marked deferred; T2 trimmed to the admin-only model methods (link/unlink deferred with P2); Done checklist P2 items marked deferred; size Large→Medium. To resume P2 later, use the External + In-production project confirmed in Rev 1 (or flip a project to External) and set its <code>GOOGLE_LOGIN_*</code> for the client flow.</p>
+        <p><strong>Reason:</strong> Scope change (owner 07-05): "hold the client-level off, cross that out; for now just use admin through the Alloro internal account."</p>
+        <p><strong>Updated Done criteria:</strong> P2 acceptance items (client email-match sign-in, invited-user Settings link) become deferred/not-required for this execution; docs item narrowed to the admin Google login only. P1 admin criteria unchanged. Owner still creates the OAuth Web client in the Internal project and sets <code>GOOGLE_LOGIN_*</code> on dev/prod (T12).</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 3 - 2026-07-05</h3>
+        <p><strong>Change:</strong> P1 executed (-x). Built T1–T8 + acceptance artifact. New backend domain <code>src/controllers/auth-sso/</code> (google-oauth / google-identity / sso-session services, oauth-tx util, AuthSsoError), <code>config/googleLogin.ts</code>, migration <code>20260705000000_add_google_sub_to_users</code>, <code>UserModel</code> google methods, <code>routes/auth-sso.ts</code> mounted at <code>/api/auth/google</code>, <code>superAdmin</code> middleware + <code>service.super-admin</code> now domain-OR-allowlist, admin OTP login retired (routes/controller fns removed; orphaned <code>service.otp-verification</code> + <code>service.user-onboarding</code> deleted; <code>createAndSendOtp</code> removed, <code>generateSixDigitCode</code> kept), frontend <code>AdminLogin</code> → Google button, <code>AuthGoogleFinish</code> page + route, <code>api/auth-sso.ts</code>. Verified: backend tsc 0, frontend tsc 0, 16 auth tests pass, <code>check:conventions --strict</code> 0 backend violations, migration up/down/up reversible, OAuth-URL runtime smoke green. Env <code>GOOGLE_LOGIN_*</code> written to dev <code>/etc/alloro/dev.env</code> and prod <code>/etc/alloro/app.env</code>.</p>
+        <p><strong>Reason:</strong> Execution deviation: (1) <code>google-auth-library</code> pinned to <strong>^10</strong> not alloro-os's ^9 — alloro's <code>googleapis</code> requires ^10; a ^9 install broke existing GBP type-checks, so ^10 is the correct match. (2) <code>auth-sso/feature-utils/controllerResponses.ts</code> NOT created — P1 has only redirect endpoints (start/callback), no JSON responses; the ok/fail/handleAuthSsoError builders land with P2's unlink endpoint (avoids dead code, §4.1). (3) Admin login service asserts <code>@getalloro</code> strictly (Internal consent screen already blocks others), so the retained non-getalloro allowlist entry <code>laggy80@gmail.com</code> can no longer sign in as admin via Google — that account must use its <code>@getalloro</code> Workspace identity now that OTP is gone.</p>
+        <p><strong>Updated Done criteria:</strong> Local gates met (tsc x2, tests, conventions, migration). Remaining for -d: owner creates the OAuth Web client in the Internal project + dev-deploy verification of acceptance items T2–T5 (Google round-trip), plus alloro-docs update for the new admin login.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 4 - 2026-07-05</h3>
+        <p><strong>Change:</strong> Fixed a route collision found in the owner's first live sign-in (both dev + local returned <code>{"error":"Failed to process oauth callback","message":"unauthorized_client"}</code>). Root cause: the GBP router <code>routes/auth.ts:17</code> registers a vestigial <code>/google/callback</code> for its own <code>handleOAuthCallback</code>, and it was mounted (<code>/api/auth</code>) BEFORE the SSO router (<code>/api/auth/google</code>), so it intercepted the login callback and tried to exchange the code with the GBP client → Google 401 <code>unauthorized_client</code>. Fix: mount <code>authSsoRoutes</code> before <code>authRoutes</code> in <code>app.ts</code> so the login callback wins; GBP's live redirect <code>/api/auth/callback</code> and its <code>/google/scopes|reconnect|validate</code> still fall through. Added a supertest routing regression (bad state → 302 to <code>/auth/google/finish</code>, proving auth-sso handles it, not the GBP JSON). Verified LIVE on dev: <code>/api/auth/google/callback?state=bogus</code> → 302 → <code>/auth/google/finish?flow=admin&amp;error=AUTH_STATE_MISSING</code>.</p>
+        <p><strong>Reason:</strong> User QA: owner's first live Google sign-in on dev + local hit the GBP controller and failed with unauthorized_client (screenshots).</p>
+        <p><strong>Updated Done criteria:</strong> Callback routing correct (regression test added). Owner re-runs the real Google sign-in (T3) — should now complete to /admin.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 5 - 2026-07-06</h3>
+        <p><strong>Change:</strong> Identity-correctness review + fix. (1) Confirmed all user attribution keys off <code>userId</code> (OS comment <code>author_id</code>, project <code>created_by</code>, logs) and name display everywhere uses <code>COALESCE(name → first_name+last_name → email)</code> — Google sets <code>name</code>, so names render. (2) BUG fixed: new Google-SSO admins were created <code>is_internal=false</code> (migration 20260701010000's @getalloro backfill was one-time) → they'd be hidden from OS owner/author pickers (which filter <code>is_internal=true</code>) and counted in client telemetry. Fix: <code>createFromGoogle</code> sets <code>is_internal=true</code> (admin flow only creates @getalloro staff); <code>loginAdminFromGoogle</code> self-heals an older @getalloro row that missed the seed; <code>attachGoogleIdentity</code> stays generic (P2 client auto-link reuses it). (3) Confirmed + documented as intended: <strong>any @getalloro.com Google account gets immediate admin with zero registration</strong> — <code>loginAdminFromGoogle</code> find-or-CREATEs the user on first sign-in (no invite/allowlist/registration), then <code>superAdminMiddleware</code> grants on the domain. Verified: backend tsc 0, 18 auth tests pass (incl. fresh-create + is_internal heal), <code>check:conventions --strict</code> 0. Deployed to dev (commit 358f2f9f).</p>
+        <p><strong>Reason:</strong> User QA: owner asked whether users are identified properly (comments/projects/logs) and whether any @getalloro account can access admin later without registration.</p>
+        <p><strong>Updated Done criteria:</strong> Google-SSO admins are <code>is_internal=true</code> (out of client telemetry, in OS pickers); zero-registration @getalloro admin access confirmed by test. Known non-blocking notes: first_name/last_name are not split from the Google name (all display paths fall back to name, so cosmetic only); the PM people-picker roster is still sourced from SUPER_ADMIN_EMAILS, so a @getalloro admin not on that list won't appear there (PM is out of P1 scope). <em>(The roster note is resolved in Rev 6.)</em></p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 6 - 2026-07-06</h3>
+        <p><strong>Change:</strong> Removed all runtime dependence on <code>SUPER_ADMIN_EMAILS</code> and broadened the admin roster to the DB. (1) Auth gate: <code>service.super-admin.isSuperAdmin</code> is now purely domain-based (@getalloro), dropping the env allowlist branch — the same identity the login already gates (assertAdminDomain), so <code>superAdminMiddleware</code> + <code>validateToken</code> are unchanged. (2) Rosters: the PM people-picker (<code>PmController.listUsers</code>) and the GSC admin-owned-connection lookup (<code>service.gsc-integration</code>) now source from the DB — <code>UserModel.listInternalUsers()</code> (new; <code>users.is_internal</code>) and an @getalloro domain check — so new @getalloro admins appear automatically without editing an env var. (3) Confirmed: NO separate admin table exists (<code>OsAdminUserModel</code> is a projection of <code>users</code>; no admins/admin_users migration) — admins are <code>users</code> rows identified by <code>id</code>, so nothing to add and no name to reflect into a separate table (<code>users.name</code> already holds it). (4) Auto-registration of any @getalloro Google account on first sign-in is unchanged (createFromGoogle). Test harness: the super-admin identity moved to <code>superadmin@getalloro.com</code> (one line) so the domain gate lets it through. Verified: backend tsc 0, <code>check:conventions --strict</code> 0, full hermetic suite 327/327 pass. The <code>SUPER_ADMIN_EMAILS</code> env var is now unused (safe to leave or remove from servers).</p>
+        <p><strong>Reason:</strong> Scope addition (owner 07-06 -c): remove dependence on SUPER_ADMIN_EMAILS, broaden the roster, identify users by id (no admin table), and keep new-@getalloro-account auto-registration.</p>
+        <p><strong>Updated Done criteria:</strong> No runtime <code>SUPER_ADMIN_EMAILS</code> reads remain; admin roster is DB-driven (is_internal); admin authz is domain-only; confirmed no admin table needed. Design note: the authz gate stayed domain-based (not a per-request is_internal DB lookup) for minimal blast radius and consistency with the login gate — if per-user revocable admin is wanted later, switch <code>isSuperAdmin</code>/<code>superAdminMiddleware</code> to <code>findInternalFlagById(userId)</code>.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 7 - 2026-07-06</h3>
+        <p><strong>Change:</strong> Live browser acceptance on dev (owner's Chrome session). Logged out of <code>/admin</code> → the login card shows "Sign in with your Alloro account", "requires a @getalloro.com Google account", and a single Google button, no OTP (T2 pass). Clicked it → Google chooser (client 901385743946, hd=getalloro.com, dev redirect_uri, signed-JWT state) restricted to "accounts from getalloro.com" (T4 evidence) → selected info@getalloro.com → callback → <code>/auth/google/finish</code> → landed on the Admin Hub / Mission Control with authenticated admin data, no OTP, no console errors (T3 pass). Confirms the route-collision fix + domain admin gate end-to-end. <code>test-results.json</code> now rolls up to <strong>Passed</strong> (T1–T9); T2/T3/T4 flipped to pass with browser evidence.</p>
+        <p><strong>Reason:</strong> User QA: owner asked to run the real Google sign-in on dev with their logged-in session.</p>
+        <p><strong>Updated Done criteria:</strong> Acceptance artifact Passed. Remaining for <code>-d</code>: alloro-docs update for the new admin login, then the main merge for prod (prod env already staged).</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 8 - 2026-07-06</h3>
+        <p><strong>Change:</strong> alloro-docs parity waived for this feature. The admin Google SSO login is admin-only (super-admin gated) and alloro-docs is client-facing only, so there is no client-facing surface to document. The Done checklist docs item is marked N/A. Only remaining pre-prod item: the <code>main</code> merge (prod env already staged).</p>
+        <p><strong>Reason:</strong> Owner (07-06): "no need to sync with docs as we only want docs to be client-facing."</p>
+        <p><strong>Updated Done criteria:</strong> Docs parity N/A (admin-only). Ready to finalize (<code>-d</code>) on dev; prod deploy is the owner's call.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

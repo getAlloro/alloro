@@ -254,7 +254,7 @@ export function buildUserNotificationEmail(
  */
 export async function sendUserNotification(data: UserNotificationData) {
   const email = buildUserNotificationEmail(data);
-  return sendEmail(email);
+  return sendEmail({ ...email, category: "notification" });
 }
 
 export default sendUserNotification;

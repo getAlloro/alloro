@@ -1,7 +1,7 @@
 import * as dotenv from "dotenv";
 dotenv.config();
 
-import { Worker } from "bullmq";
+import { Job, Worker } from "bullmq";
 import IORedis from "ioredis";
 import { processScrapeCompare } from "./processors/scrapeCompare.processor";
 import { processCompilePublish } from "./processors/compilePublish.processor";
@@ -16,6 +16,7 @@ import { processExtractPracticeFacts } from "./processors/extractPracticeFacts.p
 import { processReviewSync } from "./processors/reviewSync.processor";
 import { processApifyReviewFetch } from "./processors/reviewApifyFetch.processor";
 import { processSchedulerTick } from "./processors/scheduler.processor";
+import { processLocationCancellationFinalizerTick } from "./processors/locationCancellationFinalizer.processor";
 import { processScheduleExec } from "./processors/scheduleExec.processor";
 import { processWebsiteBackup } from "./processors/websiteBackup.processor";
 import { processWebsiteRestore } from "./processors/websiteRestore.processor";
@@ -32,7 +33,11 @@ import { processCrmPush } from "./processors/crmPush.processor";
 import { processCrmMappingValidation } from "./processors/crmMappingValidation.processor";
 import { processDataHarvest } from "./processors/dataHarvest.processor";
 import { processGbpAutomationJob } from "./processors/gbpAutomation.processor";
-import { getMindsQueue, getCrmQueue, getHarvestQueue, getGbpAutomationQueue } from "./queues";
+import { processOsIngest } from "./processors/osIngest.processor";
+import { processOsConvert } from "./processors/osConvert.processor";
+import { processOsPurge } from "./processors/osPurge.processor";
+import { processOsLockReaper } from "./processors/osLockReaper.processor";
+import { getMindsQueue, getCrmQueue, getHarvestQueue, getGbpAutomationQueue, getOsQueue } from "./queues";
 import { closeWbQueues } from "./wb-queues";
 import logger from "../lib/logger";
 
@@ -251,6 +256,21 @@ const schedulerWorker = new Worker(
     connection: makeConnection(),
     concurrency: 1,
     prefix: '{minds}',
+  }
+);
+
+// Location cancellation finalizer (hourly — flips due pending_cancellation → cancelled)
+const locationCancellationFinalizerWorker = new Worker(
+  "minds-location-cancellation",
+  async (job) => {
+    await processLocationCancellationFinalizerTick(job);
+  },
+  {
+    connection: makeConnection(),
+    concurrency: 1,
+    prefix: '{minds}',
+    removeOnComplete: { count: 24 },
+    removeOnFail: { count: 24 },
   }
 );
 
@@ -474,8 +494,32 @@ const gbpAutomationWorker = new Worker(
   }
 );
 
+// OS knowledge base workers (plans/07042026-alloro-os-admin-port, D10).
+// ingest/convert/purge are P1 logging stubs (real logic lands P4/P6/P2);
+// lock-reaper is REAL (deletes expired os.document_locks; repeatable 60s below).
+const osWorkerDefs: Array<{
+  queue: string;
+  concurrency: number;
+  handler: (job: Job) => Promise<void>;
+}> = [
+  { queue: "os-ingest", concurrency: 2, handler: processOsIngest },
+  { queue: "os-convert", concurrency: 2, handler: processOsConvert },
+  { queue: "os-purge", concurrency: 2, handler: processOsPurge },
+  { queue: "os-lock-reaper", concurrency: 1, handler: processOsLockReaper },
+];
+const osWorkers = osWorkerDefs.map(
+  ({ queue, concurrency, handler }) =>
+    new Worker(queue, async (job) => { await handler(job); }, {
+      connection: makeConnection(),
+      concurrency,
+      prefix: '{os}',
+      removeOnComplete: { count: 50 },
+      removeOnFail: { count: 25 },
+    })
+);
+
 // Event handlers
-for (const worker of [scrapeCompareWorker, compilePublishWorker, discoveryWorker, skillTriggerWorker, worksDigestWorker, seoBulkGenerateWorker, extractPracticeFactsWorker, reviewSyncWorker, schedulerWorker, scheduleExecWorker, wbBackupWorker, wbRestoreWorker, wbIdentityWarmupWorker, wbAiSeoAuditWorker, wbLayoutsWorker, wbProjectScrapeWorker, wbPageGenerateWorker, wbPostImportWorker, auditLeadgenWorker, crmHubspotPushWorker, crmMappingValidationWorker, dataHarvestWorker, gbpAutomationWorker]) {
+for (const worker of [scrapeCompareWorker, compilePublishWorker, discoveryWorker, skillTriggerWorker, worksDigestWorker, seoBulkGenerateWorker, extractPracticeFactsWorker, reviewSyncWorker, schedulerWorker, scheduleExecWorker, wbBackupWorker, wbRestoreWorker, wbIdentityWarmupWorker, wbAiSeoAuditWorker, wbLayoutsWorker, wbProjectScrapeWorker, wbPageGenerateWorker, wbPostImportWorker, auditLeadgenWorker, crmHubspotPushWorker, crmMappingValidationWorker, dataHarvestWorker, gbpAutomationWorker, ...osWorkers]) {
   worker.on("completed", (job) => {
     logger.info(`[MINDS-WORKER] Job ${job?.id} completed on queue ${worker.name}`);
   });
@@ -501,6 +545,7 @@ async function shutdown(): Promise<void> {
   await extractPracticeFactsWorker.close();
   await reviewSyncWorker.close();
   await schedulerWorker.close();
+  await locationCancellationFinalizerWorker.close();
   await scheduleExecWorker.close();
   await wbBackupWorker.close();
   await wbRestoreWorker.close();
@@ -515,6 +560,9 @@ async function shutdown(): Promise<void> {
   await crmMappingValidationWorker.close();
   await closeWbQueues();
   await gbpAutomationWorker.close();
+  for (const osWorker of osWorkers) {
+    await osWorker.close();
+  }
   await Promise.all(connections.map((c) => c.quit()));
   logger.info("[MINDS-WORKER] Workers shut down");
   process.exit(0);
@@ -583,6 +631,29 @@ async function setupGbpLocalPostSyncSchedule(): Promise<void> {
     logger.info("[MINDS-WORKER] Daily GBP local post sync scheduled (4:45 AM UTC)");
   } catch (err: any) {
     logger.error({ err: err }, "[MINDS-WORKER] Failed to set up GBP local post sync schedule:");
+  }
+}
+
+// Set up location cancellation finalizer (hourly, on the hour)
+async function setupLocationCancellationFinalizer(): Promise<void> {
+  try {
+    const queue = getMindsQueue("location-cancellation");
+    await queue.add(
+      "location-cancellation-finalizer",
+      {},
+      {
+        repeat: {
+          pattern: "0 * * * *", // hourly
+          tz: "UTC",
+        },
+        jobId: "location-cancellation-finalizer",
+        attempts: 3,
+        backoff: { type: "exponential", delay: 60000 },
+      }
+    );
+    logger.info("[MINDS-WORKER] Location cancellation finalizer scheduled (hourly)");
+  } catch (err: any) {
+    logger.error({ err: err }, "[MINDS-WORKER] Failed to set up location cancellation finalizer:");
   }
 }
 
@@ -670,14 +741,39 @@ async function setupGbpLocalPostGenerationSchedule(): Promise<void> {
   }
 }
 
+// Set up OS lock reaper tick (every 60 seconds — reaps expired os.document_locks)
+async function setupOsLockReaperSchedule(): Promise<void> {
+  try {
+    const queue = getOsQueue("lock-reaper");
+    await queue.add(
+      "os-lock-reaper-tick",
+      {},
+      {
+        repeat: {
+          pattern: "* * * * *", // Every minute
+          tz: "UTC",
+        },
+        jobId: "os-lock-reaper-tick",
+        attempts: 3,
+        backoff: { type: "exponential", delay: 30000 },
+      }
+    );
+    logger.info("[MINDS-WORKER] OS lock reaper scheduled (every 60s)");
+  } catch (err: any) {
+    logger.error({ err: err }, "[MINDS-WORKER] Failed to set up OS lock reaper schedule:");
+  }
+}
+
 setupDiscoverySchedule();
 setupSkillTriggerSchedule();
 setupWorksDigestSchedule();
 setupReviewSyncSchedule();
 setupSchedulerTick();
+setupLocationCancellationFinalizer();
 setupCrmMappingValidationSchedule();
 setupDataHarvestSchedule();
 setupGbpLocalPostGenerationSchedule();
 setupGbpLocalPostSyncSchedule();
+setupOsLockReaperSchedule();
 
 logger.info("[MINDS-WORKER] All workers running. Waiting for jobs...");

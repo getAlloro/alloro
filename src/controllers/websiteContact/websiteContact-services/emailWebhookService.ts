@@ -1,10 +1,15 @@
 /**
- * Email webhook service for website contact form.
- * Sends email payloads to the n8n webhook for dispatch.
+ * Website-form email sender.
+ *
+ * Thin adapter over the central emails/emailService.sendEmail — the single
+ * webhook choke-point for all outbound mail. It preserves the throw-based
+ * contract (WebhookError) that the website controllers rely on for their
+ * HTTP 502 mapping. Interception, payload validation, transport, and logging
+ * are all owned by sendEmail; this file only adapts the payload shape and the
+ * error contract (sendEmail returns { success } and never throws).
  */
 
-import { interceptEmailPayload } from "../../../emails/emailInterceptor";
-import logger from "../../../lib/logger";
+import { sendEmail } from "../../../emails";
 
 export interface EmailWebhookPayload {
   cc: string[];
@@ -17,34 +22,19 @@ export interface EmailWebhookPayload {
 }
 
 export async function sendEmailWebhook(payload: EmailWebhookPayload): Promise<void> {
-  const webhookUrl = process.env.ALLORO_CUSTOM_WEBSITE_EMAIL_WEBHOOK || "";
-
-  if (!webhookUrl) {
-    logger.error("[Website Contact] ALLORO_CUSTOM_WEBSITE_EMAIL_WEBHOOK not configured");
-    throw new Error("Email service not configured");
-  }
-
-  // Non-production senders get every email rerouted to the intercept
-  // recipient (fail closed) — see emails/emailInterceptor.ts.
-  const {
-    payload: outboundPayload,
-    intercepted,
-    originalRecipients,
-  } = await interceptEmailPayload(payload);
-
-  if (intercepted) {
-    logger.info({ detail: originalRecipients }, "[Website Contact] Email intercepted (non-production sender). Original recipients:");
-  }
-
-  const webhookRes = await fetch(webhookUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(outboundPayload),
+  const result = await sendEmail({
+    subject: payload.subject,
+    body: payload.body,
+    recipients: payload.recipients,
+    cc: payload.cc,
+    bcc: payload.bcc,
+    from: payload.from,
+    fromName: payload.fromName,
+    category: "website_form",
   });
 
-  if (!webhookRes.ok) {
-    logger.error({ details: [webhookRes.status, await webhookRes.text()] }, "[Website Contact] Webhook failed:");
-    throw new WebhookError("Failed to send email");
+  if (!result.success) {
+    throw new WebhookError(result.error ?? "Failed to send email");
   }
 }
 

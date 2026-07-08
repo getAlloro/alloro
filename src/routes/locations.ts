@@ -3,6 +3,7 @@ import { Request, Response } from "express";
 import { LocationModel } from "../models/LocationModel";
 import { GooglePropertyModel } from "../models/GooglePropertyModel";
 import { authenticateToken } from "../middleware/auth";
+import { superAdminMiddleware } from "../middleware/superAdmin";
 import {
   rbacMiddleware,
   locationScopeMiddleware,
@@ -10,13 +11,25 @@ import {
   LocationScopedRequest,
   RBACRequest,
 } from "../middleware/rbac";
+import { validate } from "../middleware/validate";
+import { purchaseLocationSchema } from "../validation/billing.schemas";
+import { purchaseLocationHandler } from "../controllers/billing/BillingController";
 import {
   createLocation,
-  removeLocation,
   updateLocation,
   setLocationGBP,
   disconnectLocationGBP,
 } from "../controllers/locations/LocationService";
+import {
+  cancelLocation,
+  reopenLocation,
+} from "../controllers/locations/feature-services/LocationLifecycleService";
+import { LocationError } from "../controllers/locations/feature-utils/LocationError";
+import {
+  ok,
+  handleBillingLocationError,
+} from "../controllers/billing/feature-utils/controllerResponses";
+import { reopenLocationSchema } from "../validation/billing.schemas";
 import {
   refreshLocationBusinessData,
   updateLocationBusinessData,
@@ -58,8 +71,13 @@ router.get(
         });
       }
 
-      const allLocations =
-        await LocationModel.findByOrganizationId(organizationId);
+      // Cancelled locations are hidden by default (sidebar switcher, feature
+      // pages); PropertiesTab opts back in with ?include_cancelled=true to
+      // show them greyed out. Data is never deleted — only filtered.
+      const includeCancelled = req.query.include_cancelled === "true";
+      const allLocations = includeCancelled
+        ? await LocationModel.findByOrganizationId(organizationId)
+        : await LocationModel.findNonCancelledByOrganizationId(organizationId);
 
       // Filter to accessible locations for non-admin users
       const accessibleIds = scopedReq.accessibleLocationIds;
@@ -210,13 +228,32 @@ router.patch(
 // =====================================================================
 
 /**
+ * POST /api/locations/purchase
+ * The paid location-add flow (clients): quote recompute → prorated charge on
+ * the card on file → create only after the charge succeeds.
+ * Body: { name, domain?, gbp: { accountId, locationId, displayName },
+ *         expectedNewMonthlyTotal? } — validated in ENFORCE mode (payment endpoint).
+ */
+router.post(
+  "/purchase",
+  authenticateToken,
+  rbacMiddleware,
+  requireRole("admin"),
+  validate(purchaseLocationSchema, { mode: "enforce" }),
+  purchaseLocationHandler
+);
+
+/**
  * POST /api/locations
- * Create a new location with a required GBP profile.
+ * Create a new location with a required GBP profile — PLATFORM ADMINS ONLY.
+ * Org admins must use POST /api/locations/purchase (the payment-consent flow);
+ * this silent-create path is restricted so it cannot be used to bypass billing.
  * Body: { name: string, domain?: string, gbp: { accountId, locationId, displayName } }
  */
 router.post(
   "/",
   authenticateToken,
+  superAdminMiddleware,
   rbacMiddleware,
   requireRole("admin"),
   async (req: Request, res: Response) => {
@@ -245,6 +282,14 @@ router.post(
       });
     } catch (error: any) {
       logger.error({ err: error }, "[LOCATIONS] Error creating location:");
+      if (error instanceof LocationError) {
+        const status = error.code === "GBP_ALREADY_LINKED" ? 409 : 400;
+        return res.status(status).json({
+          success: false,
+          error: error.message,
+          code: error.code,
+        });
+      }
       return res.status(500).json({
         success: false,
         error: error.message || "Failed to create location",
@@ -313,11 +358,14 @@ router.put(
 );
 
 /**
- * DELETE /api/locations/:id
- * Remove a location (cannot remove the last one).
+ * POST /api/locations/:id/cancel
+ * Schedule a location's cancellation (effective at the billing period end;
+ * immediate for orgs without a reachable subscription). Data is never
+ * deleted — the location can be reopened. Cancelling the LAST active
+ * location schedules the whole subscription to end at period end.
  */
-router.delete(
-  "/:id",
+router.post(
+  "/:id/cancel",
   authenticateToken,
   rbacMiddleware,
   requireRole("admin"),
@@ -325,28 +373,52 @@ router.delete(
     try {
       const { organizationId } = req as RBACRequest;
       if (!organizationId) {
-        return res.status(400).json({ success: false, error: "Organization not found" });
+        return res.status(400).json({ success: false, data: null, error: { code: "ORG_REQUIRED", message: "Organization not found", details: null } });
       }
-
       const locationId = parseInt(req.params.id, 10);
       if (isNaN(locationId)) {
-        return res.status(400).json({ success: false, error: "Invalid location ID" });
+        return res.status(400).json({ success: false, data: null, error: { code: "INVALID_LOCATION_ID", message: "Invalid location ID", details: null } });
       }
 
-      await removeLocation(locationId, organizationId);
+      const result = await cancelLocation(organizationId, locationId);
+      return ok(res, result);
+    } catch (error) {
+      logger.error({ err: error }, "[LOCATIONS] Error cancelling location:");
+      return handleBillingLocationError(res, error);
+    }
+  }
+);
 
-      return res.json({ success: true, message: "Location removed" });
-    } catch (error: any) {
-      logger.error({ err: error }, "[LOCATIONS] Error removing location:");
-      const status = error.message.includes("not found")
-        ? 404
-        : error.message.includes("Cannot remove")
-        ? 400
-        : 500;
-      return res.status(status).json({
-        success: false,
-        error: error.message || "Failed to remove location",
+/**
+ * POST /api/locations/:id/reopen
+ * Reopen a pending or cancelled location. Pending → free undo within the
+ * already-paid period. Cancelled → paid re-add (prorated charge, same
+ * consent flow as adding a location).
+ */
+router.post(
+  "/:id/reopen",
+  authenticateToken,
+  rbacMiddleware,
+  requireRole("admin"),
+  validate(reopenLocationSchema, { mode: "enforce" }),
+  async (req: Request, res: Response) => {
+    try {
+      const { organizationId } = req as RBACRequest;
+      if (!organizationId) {
+        return res.status(400).json({ success: false, data: null, error: { code: "ORG_REQUIRED", message: "Organization not found", details: null } });
+      }
+      const locationId = parseInt(req.params.id, 10);
+      if (isNaN(locationId)) {
+        return res.status(400).json({ success: false, data: null, error: { code: "INVALID_LOCATION_ID", message: "Invalid location ID", details: null } });
+      }
+
+      const result = await reopenLocation(organizationId, locationId, {
+        expectedNewMonthlyTotal: req.body?.expectedNewMonthlyTotal,
       });
+      return ok(res, result);
+    } catch (error) {
+      logger.error({ err: error }, "[LOCATIONS] Error reopening location:");
+      return handleBillingLocationError(res, error);
     }
   }
 );

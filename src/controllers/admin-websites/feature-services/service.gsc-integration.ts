@@ -9,6 +9,8 @@ import {
 import { GscDataModel } from "../../../models/website-builder/GscDataModel";
 import { IntegrationHarvestLogModel } from "../../../models/website-builder/IntegrationHarvestLogModel";
 import { getHarvestQueue } from "../../../workers/queues";
+import { ADMIN_ALLOWED_DOMAIN } from "../../../config/googleLogin";
+import { UserModel } from "../../../models/UserModel";
 
 const GSC_SCOPE_FRAGMENT = "webmasters.readonly";
 const INITIAL_HARVEST_TIMEOUT_MS = 3000;
@@ -191,15 +193,13 @@ function summarizeConnection(
   };
 }
 
-function getSuperAdminEmails(): string[] {
-  return (process.env.SUPER_ADMIN_EMAILS || "")
-    .split(",")
-    .map((email) => email.trim().toLowerCase())
-    .filter(Boolean);
-}
-
+// An admin-owned connection is one made with an Alloro-staff Google account —
+// i.e. an @getalloro.com address. Domain-based (no SUPER_ADMIN_EMAILS), matching
+// the admin identity model (plans/07052026-google-sso-admin-and-user-login).
 function isSuperAdminConnection(connection: IGoogleConnection): boolean {
-  return getSuperAdminEmails().includes(connection.email.toLowerCase());
+  return connection.email
+    .toLowerCase()
+    .endsWith(`@${ADMIN_ALLOWED_DOMAIN}`);
 }
 
 function sanitizeIntegrationForOrganization(
@@ -369,15 +369,23 @@ export async function listConnections(
   }
 
   if (actor.mode === "admin") {
-    const superAdminConnections = await GoogleConnectionModel.findByEmailsWithScope(
-      getSuperAdminEmails(),
-      GSC_SCOPE_FRAGMENT,
+    // Admin-owned connections = those made by internal Alloro staff. Sourced
+    // from users.is_internal (DB), not SUPER_ADMIN_EMAILS.
+    const internalEmails = (await UserModel.listInternalUsers()).map((u) =>
+      u.email.toLowerCase(),
     );
-    summaries.push(
-      ...superAdminConnections.map((connection) =>
-        summarizeConnection(connection, "admin"),
-      ),
-    );
+    if (internalEmails.length > 0) {
+      const superAdminConnections =
+        await GoogleConnectionModel.findByEmailsWithScope(
+          internalEmails,
+          GSC_SCOPE_FRAGMENT,
+        );
+      summaries.push(
+        ...superAdminConnections.map((connection) =>
+          summarizeConnection(connection, "admin"),
+        ),
+      );
+    }
   }
 
   const unique = new Map<number, GscConnectionSummary>();

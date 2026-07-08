@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>P1 — Foundation · Alloro OS → Admin Port</title>
+  <style>
+    :root { color-scheme: light; --paper:#ffffff; --ink:#080808; --muted:#5f5f5f; --line:#d8d8d8; --soft:#f5f5f5; }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--paper); color:var(--ink); font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; line-height:1.5; }
+    .spec-shell { width:min(1120px,calc(100% - 32px)); margin:0 auto; padding:48px 0; }
+    .spec-hero, .spec-card, .task-card { border:1px solid var(--line); border-radius:8px; background:var(--paper); }
+    .spec-hero { border-color:var(--ink); padding:32px; margin-bottom:20px; }
+    .hero-topline { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px; }
+    .spec-card { padding:28px; margin-top:16px; }
+    .task-card { padding:20px; background:var(--soft); margin-top:14px; }
+    .eyebrow, dt { color:var(--muted); font-size:0.78rem; font-weight:700; text-transform:uppercase; }
+    .eyebrow { margin:0; }
+    .status-pill { display:inline-flex; align-items:center; min-height:34px; padding:0 12px; border:1px solid var(--ink); border-radius:999px; background:var(--ink); color:var(--paper); font-size:0.78rem; font-weight:800; text-transform:uppercase; }
+    .status-card { border-color:var(--ink); }
+    h1,h2,h3,p { margin-top:0; }
+    h1 { max-width:840px; margin-bottom:24px; font-size:clamp(2rem,5vw,3.6rem); line-height:0.95; }
+    h2 { font-size:1.35rem; } h3 { font-size:1rem; }
+    code { padding:0.1rem 0.3rem; border:1px solid var(--line); border-radius:4px; background:var(--soft); font-size:0.92em; }
+    pre { background:var(--soft); border:1px solid var(--line); border-radius:8px; padding:14px; overflow-x:auto; font-size:0.85rem; }
+    .meta-grid, .split-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; }
+    .meta-grid { margin:0; }
+    .meta-grid div, .split-grid > div { border:1px solid var(--line); border-radius:8px; padding:16px; }
+    dd { margin:4px 0 0; font-weight:700; }
+    .task-card dl { display:grid; gap:8px; margin:0; }
+    .task-card dd { font-weight:500; }
+    .checklist { list-style:none; padding-left:0; }
+    .checklist li { display:flex; gap:10px; align-items:flex-start; padding:10px 0; border-top:1px solid var(--line); }
+    @media (max-width:640px) { .spec-shell { width:min(100% - 20px,1120px); padding:24px 0; } .spec-hero,.spec-card { padding:20px; } }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec · Phase 1 of 7 · plans/07042026-alloro-os-admin-port</p>
+        <span class="status-pill">Completed</span>
+      </div>
+      <h1>P1 — Foundation: Schema, Domain Skeleton, OS Tab</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
+        <div><dt>Depends on</dt><dd>None (first phase)</dd></div>
+        <div><dt>Size</dt><dd>Medium (~20 new files, 6 edits)</dd></div>
+        <div><dt>Unlocks</dt><dd>P2 (and everything after)</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>Every later phase needs the same substrate: the dedicated <code>os</code> Postgres schema, config, the gated <code>/api/admin/os</code> domain, the BullMQ queue seam, and a visible OS tab shell. Landing it once keeps P2–P7 purely additive.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>After P1: the migration is applied (schema <code>os</code> with 16 tables on dev, Rev 2), <code>/api/admin/os/ping</code> and <code>/api/admin/os/users</code> respond only to super-admins, the worker registers OS queues (stub processors + live lock-reaper), and the admin shows an <strong>OS</strong> tab rendering a warm-paper shell with Library/Chat sub-tabs and honest empty states. Master spec decisions D1–D14 all apply; this file only adds phase detail.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Files to create</h3>
+      <ul>
+        <li><code>src/database/migrations/20260704000000_create_os_knowledge_base_tables.ts</code> — authored from <code>migrations/knexmigration.js</code> (TS adaptation, same DDL).</li>
+        <li><code>src/config/osKnowledgeBase.ts</code> — named constants + env parsing (<code>OS_EMBEDDING_MODEL</code>, <code>OS_EMBEDDING_DIM</code>, <code>OS_CHAT_MODEL</code>, floors, K, import caps, lock TTL) with startup validation (§5.6): throw at boot if <code>OS_EMBEDDING_DIM ≠ 1536</code> while the migration column is <code>vector(1536)</code>.</li>
+        <li><code>src/controllers/admin-os/AdminOsController.ts</code> — thin (§7.3): <code>ping</code>, <code>listUsers</code> (people-picker source: internal users via model).</li>
+        <li><code>src/controllers/admin-os/feature-utils/OsError.ts</code> + <code>osResponses.ts</code> — typed error + <code>ok()/fail()/handleOsError()</code> copied in shape from <code>gbp-automation/feature-utils/controllerResponses.ts</code> (§8.2–§8.3).</li>
+        <li><code>src/models/OsFolderModel.ts</code>, <code>src/models/OsDocumentModel.ts</code> — minimal (create/list/byId) this phase; P2 completes them. Docblock states the §11.7 posture: internal-admin single-tenant tables, isolation enforced by super-admin gating.</li>
+        <li><code>src/models/OsAdminUserModel.ts</code> — internal users listing (<code>is_internal = true</code>) for pickers.</li>
+        <li><code>src/routes/admin/os.ts</code> — router with <code>router.use(authenticateToken, superAdminMiddleware)</code> at the top (§11.1, analog <code>src/routes/admin/auth.ts</code>).</li>
+        <li><code>src/workers/queues.ts</code> — add <code>getOsQueue(name)</code> factory (prefix <code>{os}</code>), mirroring <code>getMindsQueue</code>.</li>
+        <li><code>src/workers/processors/osIngest.processor.ts</code>, <code>osConvert.processor.ts</code>, <code>osPurge.processor.ts</code> — P1 stubs: log via Pino and complete (§21.4); real logic lands P4/P6/P2. <code>osLockReaper.processor.ts</code> — REAL: delete expired <code>os.document_locks</code> rows (repeatable job, every 60s).</li>
+        <li><code>frontend/src/pages/admin/os/OsShell.tsx</code> — full-width warm-paper surface (<code>bg-alloro-bg</code>), OS sub-tab bar (Library · Chat, terracotta active state), Trash link, <code>&lt;Outlet/&gt;</code>.</li>
+        <li><code>frontend/src/pages/admin/os/OsLibrary.tsx</code>, <code>OsChat.tsx</code>, <code>OsTrash.tsx</code> — placeholder pages with designed empty states (Lucide icon + one line + primary action), replaced in P3/P5.</li>
+        <li><code>frontend/src/api/admin-os.ts</code> — first module: <code>adminOsPing()</code>, <code>adminOsListUsers()</code> through <code>api/index.ts</code> (§12.1, §14.2).</li>
+        <li><code>frontend/src/hooks/queries/useAdminOsUsers.ts</code> + <code>QUERY_KEYS.adminOsUsers</code> in <code>frontend/src/lib/queryClient.ts</code>.</li>
+        <li><code>src/__tests__/os-foundation.test.ts</code> — models + config; <code>src/__tests__/os-routes.smoke.test.ts</code> — supertest (analog <code>admin-reads.smoke.test.ts</code>): 401 unauthenticated, 403 authenticated non-super-admin, 200 super-admin ping.</li>
+      </ul>
+      <h3>Files to edit (the only shared-surface edits in the whole plan)</h3>
+      <ul>
+        <li><code>frontend/src/components/Admin/shell/AdminTopBar.tsx</code> — add <code>useIsOsRoute()</code> beside :18-26; add the OS tab Link (icon <code>BookOpen</code>, label "OS") after Support (:223 block); include <code>isOs</code> in the Process-default ternary.</li>
+        <li><code>frontend/src/components/Admin/shell/AdminLayout.tsx:14</code> — <code>isFullWidth = isPm || isSupport || isOs</code>.</li>
+        <li><code>frontend/src/pages/Admin.tsx</code> — register <code>os</code>, <code>os/chat</code>, <code>os/trash</code>, <code>os/doc/:id</code>, <code>os/doc/:id/edit</code> under the :104-106 block pattern (doc routes point at placeholders until P3).</li>
+        <li><code>src/app.ts</code> — import + mount <code>routes/admin/os.ts</code> at <code>/api/admin/os</code> (seam :50-54).</li>
+        <li><code>src/workers/worker.ts</code> — register the four OS processors + schedule the repeatable reaper.</li>
+      </ul>
+      <h3>Constitution</h3>
+      <p>§6.1–§6.3 (domain shape), §7.1–§7.4, §8.1–§8.3, §9.1, §10.3 (migration), §11.1–§11.2, §21.1/§21.4 (reaper), §12.1–§12.2, §14.2, §20.1. Reference analogs: <code>src/controllers/gbp-automation/</code>; <code>src/routes/admin/auth.ts</code>; <code>20260227000002_create_mind_brain_chunks.ts</code>.</p>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk (phase-local)</h2>
+      <ul>
+        <li>Migration runs against the dev DB (local <code>.env</code> points there). Additive-only, confined to the new <code>os</code> schema; down() verified by gate step 2. <strong>Mitigation:</strong> never touch objects outside the <code>os</code> schema; extension create is idempotent.</li>
+        <li>Tab edits touch shared admin chrome. <strong>Mitigation:</strong> smallest possible diff; Process/PM/Support behavior asserted unchanged in the gate.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <article class="task-card"><h3>T1: Migration — schema <code>os</code> + 16 tables (Rev 1)</h3><dl>
+        <div><dt>Do</dt><dd>Author the TS migration from <code>migrations/knexmigration.js</code> verbatim (extension safeguard, <code>CREATE SCHEMA IF NOT EXISTS os</code>, tables via <code>withSchema("os")</code>, checks, GIN + HNSW indexes, cross-schema FKs to <code>public.users</code>). Run <code>npm run db:migrate</code>; verify with <code>\dt os.*</code> (16 tables) and <code>\d os.document_chunks</code> (vector(1536) + hnsw index). Models will use dot-qualified strings — <code>db("os.documents")</code> — per the minds pattern.</dd></div>
+        <div><dt>Files</dt><dd><code>src/database/migrations/20260704000000_create_os_knowledge_base_tables.ts</code></dd></div>
+        <div><dt>Depends on</dt><dd>none</dd></div>
+        <div><dt>Verify</dt><dd><code>npm run db:rollback &amp;&amp; npm run db:migrate</code> (proves down+up), then table check query</dd></div>
+      </dl></article>
+      <article class="task-card"><h3>T2: Config + constants</h3><dl>
+        <div><dt>Do</dt><dd>Create <code>src/config/osKnowledgeBase.ts</code> with all OS_* values (defaults per master spec Env card), parsed once, startup-validated (§5.6, §4.2). No magic numbers anywhere else in the domain.</dd></div>
+        <div><dt>Files</dt><dd><code>src/config/osKnowledgeBase.ts</code></dd></div>
+        <div><dt>Depends on</dt><dd>none</dd></div>
+        <div><dt>Verify</dt><dd>unit test: defaults resolve; dim-mismatch throws</dd></div>
+      </dl></article>
+      <article class="task-card"><h3>T3: Queues + worker registration</h3><dl>
+        <div><dt>Do</dt><dd>Add <code>getOsQueue()</code> to <code>queues.ts</code>; create 4 processors (3 logging stubs + real lock-reaper deleting rows where <code>expires_at &lt; now()</code>); register in <code>worker.ts</code> with concurrency 2 (reaper 1, repeatable 60s). Jobs idempotent by <code>jobId = os-ingest:{documentId}</code> convention (§21.1).</dd></div>
+        <div><dt>Files</dt><dd><code>src/workers/queues.ts</code>, <code>src/workers/worker.ts</code>, <code>src/workers/processors/os*.processor.ts</code> ×4</dd></div>
+        <div><dt>Depends on</dt><dd>T1</dd></div>
+        <div><dt>Verify</dt><dd>vitest: reaper deletes an expired seeded lock, keeps a live one</dd></div>
+      </dl></article>
+      <article class="task-card"><h3>T4: Backend domain skeleton + gated routes</h3><dl>
+        <div><dt>Do</dt><dd>Controller (<code>ping</code>, <code>listUsers</code>), feature-utils (OsError, osResponses), minimal models, router with auth+super-admin middleware first, mount in <code>app.ts</code>. Envelope shape §8.1 exactly.</dd></div>
+        <div><dt>Files</dt><dd><code>src/controllers/admin-os/*</code>, <code>src/models/{OsFolderModel,OsDocumentModel,OsAdminUserModel}.ts</code>, <code>src/routes/admin/os.ts</code>, <code>src/app.ts</code></dd></div>
+        <div><dt>Depends on</dt><dd>T1, T2</dd></div>
+        <div><dt>Verify</dt><dd>supertest smoke: 401 / 403 / 200 matrix</dd></div>
+      </dl></article>
+      <article class="task-card"><h3>T5: OS tab + shell + sub-tabs (frontend)</h3><dl>
+        <div><dt>Do</dt><dd>Edit the 3 shell anchors (D1); build <code>OsShell</code> on <code>bg-alloro-bg</code> with Jakarta sub-tab bar (active = terracotta underline, mirroring the top-bar motif), Spectral page title, placeholder pages with designed empty states. API module + users hook + QUERY_KEYS entry.</dd></div>
+        <div><dt>Files</dt><dd><code>AdminTopBar.tsx</code>, <code>AdminLayout.tsx</code>, <code>pages/Admin.tsx</code>, <code>pages/admin/os/*</code> ×4, <code>api/admin-os.ts</code>, <code>hooks/queries/useAdminOsUsers.ts</code>, <code>lib/queryClient.ts</code></dd></div>
+        <div><dt>Depends on</dt><dd>T4</dd></div>
+        <div><dt>Verify</dt><dd>FE tsc + build; manual render deferred to final acceptance T1/T12</dd></div>
+      </dl></article>
+      <article class="task-card"><h3>T6: Phase tests</h3><dl>
+        <div><dt>Do</dt><dd>Write <code>os-foundation.test.ts</code> + <code>os-routes.smoke.test.ts</code> (§20.1–§20.2: contract shape, error paths, gating).</dd></div>
+        <div><dt>Files</dt><dd><code>src/__tests__/os-foundation.test.ts</code>, <code>src/__tests__/os-routes.smoke.test.ts</code></dd></div>
+        <div><dt>Depends on</dt><dd>T1–T5</dd></div>
+        <div><dt>Verify</dt><dd><code>npx vitest run src/__tests__/os-</code>* green</dd></div>
+      </dl></article>
+    </section>
+
+    <section class="spec-card" id="gate">
+      <h2>Phase Gate (all must pass before this file flips to Completed)</h2>
+      <pre>npx tsc --noEmit
+cd /Users/rustinedave/Desktop/alloro/frontend && npx tsc -p tsconfig.app.json --noEmit; echo "FE_TSC_EXIT:$?"
+cd /Users/rustinedave/Desktop/alloro && npm run check:conventions --strict
+npx vitest run src/__tests__/os-foundation.test.ts src/__tests__/os-routes.smoke.test.ts
+npm run db:rollback && npm run db:migrate   # down()/up() both prove out (dev DB)
+cd /Users/rustinedave/Desktop/alloro/frontend && npm run build</pre>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled> Schema <code>os</code> with 16 tables exists on dev; rollback → re-migrate proven (down() drops tables then schema).</li>
+        <li><input type="checkbox" disabled> <code>/api/admin/os/ping</code>: 401 / 403 / 200 matrix verified by tests.</li>
+        <li><input type="checkbox" disabled> Worker boots with 4 OS processors; reaper test green.</li>
+        <li><input type="checkbox" disabled> OS tab renders shell + sub-tabs; Process/Projects/Support unaffected (FE build green).</li>
+        <li><input type="checkbox" disabled> Phase Gate commands all green; status pill + master Phase Index updated.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-07-04</h3>
+        <p><strong>Change:</strong> T1 and all table references updated from <code>os_</code>-prefixed public tables to the dedicated <code>os</code> schema (<code>os.documents</code>, …), per master spec Rev 2.</p>
+        <p><strong>Reason:</strong> Scope change (owner): OS tables live in a new schema named <code>os</code>.</p>
+        <p><strong>Updated Done criteria:</strong> "Schema <code>os</code> with 16 tables exists on dev" replaces the os_ wording.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 2 - 2026-07-05</h3>
+        <p><strong>Change:</strong> P1 executed on worktree <code>dave/os-admin-port</code>; all gates green (BE/FE tsc 0, conventions --strict exit 0, 14/14 phase tests, 3/3 migration itest, FE build, full suite 203 tests). Five execution deviations: (1) worker.ts OS registration uses a compact defs-array — the verbose form broke the §2.4 800-line ceiling (now 779); (2) migration docblock reworded to avoid a §7.4 grep false-positive; (3) new <code>vitest.integration.config.ts</code> pins NODE_ENV=development (no "test" DB profile exists in database/config.ts); (4) the migration itest loads ts-node/register to require .ts migrations inside the vitest fork; (5) reaper removeOnComplete/Fail uses the sibling 50/25 counts. Added the integration-test tier <code>npm run test:integration:os</code> running against a local pgvector replica of the dev schema (127.0.0.1:8250/alloro_admin_os_test).</p>
+        <p><strong>Reason:</strong> Execution deviation: §2.4 ceiling + detector false-positive + missing test DB profile surfaced during the gate; the integration tier exists because the house vitest suite is deliberately hermetic (mocked knex) and cannot prove migration/vector SQL.</p>
+        <p><strong>Updated Done criteria:</strong> Migration proof (up/down/up + 16 tables + HNSW) runs against the local pgvector replica; applying to the SHARED dev DB is deliberately deferred to the dev/dave merge + deploy — a migration recorded on dev while its file lives only on this worktree branch would make every other dev deploy fail knex's missing-file check.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

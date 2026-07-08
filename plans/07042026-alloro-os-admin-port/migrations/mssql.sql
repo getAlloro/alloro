@@ -1,0 +1,54 @@
+-- ============================================================================
+-- Alloro OS → Admin Port — Microsoft SQL Server script (reference scaffold)
+-- Plan: plans/07042026-alloro-os-admin-port
+--
+-- NOTE: Alloro runs on PostgreSQL 17 + pgvector. This MSSQL translation exists
+-- to satisfy the migrations-folder convention and is NOT executed anywhere.
+-- Three Postgres features have no native MSSQL equivalent:
+--   * VECTOR(1536)  → closest analog: VARBINARY(MAX) + external vector index
+--   * TSVECTOR/GIN  → closest analog: MSSQL Full-Text Search catalogs
+--   * gen_random_uuid() → NEWID()
+--
+-- Rev 2 (2026-07-04): tables live in a dedicated schema `os` (MSSQL analog:
+-- CREATE SCHEMA [os]), table names unprefixed inside it — os.documents,
+-- os.folders, etc. The os_ names below read as schema-qualified os.* names.
+--
+-- Schema description (16 tables in schema os, user FKs → dbo.users.id INT):
+--   os_folders(id, name, parent_id self-FK, created_by, created_at, updated_at)
+--   os_documents(id, folder_id, title, slug UNIQUE, current_version_id,
+--     status CHECK processing|indexed|archived|processing_failed,
+--     search_tsv [FTS], owner_id, created_by, created_at, updated_at, archived_at)
+--   os_document_versions(id, document_id CASCADE, version_no,
+--     UNIQUE(document_id,version_no), title, content_md, toc_json, ai_change_summary,
+--     human_note, author_id, created_at)
+--   os_document_drafts(document_id PK CASCADE, content_md, base_version,
+--     updated_by, updated_at)
+--   os_document_ai_index(document_id PK CASCADE, summary, category, tags JSON,
+--     generated_for, generated_at, meta_locked BIT)
+--   os_document_chunks(id, document_id CASCADE, version_no, chunk_index,
+--     heading_path, content, token_count, embedding VECTOR(1536)+HNSW [PG only])
+--   os_document_links(id, source_document_id, target_document_id,
+--     UNIQUE(source,target), origin CHECK, status CHECK, created_by, created_at)
+--   os_document_locks(document_id PK CASCADE, locked_by, acquired_at,
+--     heartbeat_at, expires_at)
+--   os_chat_conversations(id, user_id CASCADE, title, created_at)
+--   os_chat_messages(id, conversation_id CASCADE, role CHECK user|assistant,
+--     content, citations JSON, created_at)
+--   os_chat_context_documents(conversation_id, document_id, origin,
+--     PK(conversation_id, document_id))
+--   os_document_categories(id, name, normalized_name UNIQUE, created_by,
+--     created_at, updated_at)
+--   os_assets(id, document_id CASCADE, s3_key, mime, size_bytes, uploaded_by,
+--     created_at)
+--   os_document_imports(id, document_id CASCADE, original_filename, source_mime,
+--     source_s3_key, size_bytes, converter CHECK, status CHECK, warnings JSON,
+--     imported_by, created_at, converted_at)
+--   os_comments(id, document_id CASCADE, parent_comment_id self-FK, author_id,
+--     body_md, version_tag, created_at, updated_at, deleted_at)
+--   os_activity(id, actor_id, action, target_type, target_id, metadata JSON,
+--     created_at)
+--
+-- Authoritative DDL: see pgsql.sql / knexmigration.js in this folder.
+-- ============================================================================
+
+-- TODO: fill during execution (only if an MSSQL target ever materializes).

@@ -5,9 +5,25 @@
  * All calls go through the standard apiGet/apiPost helpers with JWT auth.
  */
 
-import { apiGet, apiPost } from "./index";
+import { apiGet, apiPost, unwrap } from "./index";
 
 // ─── Types ───
+
+export interface LocationBillingSummary {
+  locationCount: number;
+  effectiveQuantity: number | null;
+  /** Per-location price in cents */
+  unitAmount: number | null;
+  currency: string | null;
+  interval: string | null;
+  /** Cents */
+  monthlyTotal: number | null;
+  isFlatRate: boolean;
+  /** Locations scheduled to cancel at period end (still usable until then) */
+  pendingCancellationCount?: number;
+  /** ISO date of the soonest pending cancellation */
+  nextEndingAt?: string | null;
+}
 
 export interface BillingStatus {
   success: boolean;
@@ -19,6 +35,31 @@ export interface BillingStatus {
   stripeCustomerId: string | null;
   currentPeriodEnd: string | null;
   cancelAtPeriodEnd: boolean;
+  locationBilling?: LocationBillingSummary;
+}
+
+export type LocationBillingMode =
+  | "quantity"
+  | "flat_rate"
+  | "no_subscription"
+  | "unavailable";
+
+export interface AddLocationQuote {
+  mode: LocationBillingMode;
+  currency: string | null;
+  interval: string | null;
+  /** Per-location price in cents */
+  unitAmount: number | null;
+  currentQuantity: number | null;
+  newQuantity: number | null;
+  /** Cents */
+  currentMonthlyTotal: number | null;
+  /** Cents */
+  newMonthlyTotal: number | null;
+  /** Cents charged immediately on confirm */
+  proratedChargeNow: number | null;
+  /** ISO date the current billing period ends */
+  periodEnd: string | null;
 }
 
 export interface BillingPaymentMethod {
@@ -107,4 +148,14 @@ export async function createPortalSession(): Promise<PortalResponse> {
  */
 export async function getBillingDetails(): Promise<BillingDetails> {
   return apiGet({ path: "/billing/details" });
+}
+
+/**
+ * Quote for adding one location: per-location price, current → new monthly
+ * total, prorated charge today. Throws ApiError (with code) on failure.
+ */
+export async function getLocationAddQuote(): Promise<AddLocationQuote> {
+  return unwrap<AddLocationQuote>(
+    await apiGet({ path: "/billing/location-add-quote" })
+  );
 }

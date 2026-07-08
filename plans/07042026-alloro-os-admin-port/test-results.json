@@ -1,0 +1,104 @@
+{
+  "plan": "plans/07042026-alloro-os-admin-port",
+  "generatedAt": "2026-07-05",
+  "status": "In Progress",
+  "runContext": "Verified on dev (https://dev.getalloro.com/admin/os) after dave/os-admin-port merged to dev/dave and deployed. Two evidence tracks: (A) API E2E through the public URL with a super-admin JWT minted on the dev box; (B) browser UI walkthrough via Chrome. Backend chain also proven locally end-to-end (real Postgres+pgvector + OpenAI + Gemini) during pre-merge smoke, which caught + fixed a must-fix BullMQ jobId bug. All test data cleaned up (dev os schema left at 0 rows).",
+  "items": [
+    {
+      "id": "T1",
+      "title": "OS tab exists and is super-admin gated",
+      "surface": "ui",
+      "status": "pass",
+      "evidence": "Browser: OS tab renders on dev nav (Process·Projects·Support·OS), warm-paper 'Knowledge Base' surface, Library/Chat sub-tabs. API: auth matrix on dev — no token 401, non-admin JWT 403, super-admin JWT 200 (envelope {success,data:{pong}}). Same matrix green locally.",
+      "notes": "Fully verified both surfaces."
+    },
+    {
+      "id": "T2",
+      "title": "Document lifecycle: create -> edit -> autosave -> publish -> history -> restore",
+      "surface": "ui",
+      "status": "pass",
+      "evidence": "Browser: New document 'Onboarding Playbook' -> TipTap editor loaded (lazy route, full toolbar) -> typed content -> autosave stamp 'Saved 14:47' -> Publish modal 'base v1 -> v2' -> read view shows v1 + v2 in History with restore icons.",
+      "notes": "Create->autosave->publish->versions fully exercised. The Restore button itself was not clicked in-UI; restore is covered by os-versions backend tests and the History restore affordance is present."
+    },
+    {
+      "id": "T3",
+      "title": "Indexing lifecycle + status dots + AI metadata",
+      "surface": "ui",
+      "status": "pass",
+      "evidence": "Browser: after publish the doc showed a green 'Indexed / v2' dot within ~1s and real Gemini metadata (category 'Human Resources', tags onboarding/playbook/training/new-hire). API: create->indexed on the dev worker; psql confirmed status=indexed, 1 chunk at vector_dims 1536, ai_index category populated. Local: same chain proven.",
+      "notes": "Reindex button not explicitly clicked; indexing lifecycle (processing->indexed) fully proven."
+    },
+    {
+      "id": "T4",
+      "title": "Library views + filters + metadata edit",
+      "surface": "ui",
+      "status": "pass",
+      "evidence": "Browser: List view with hairline rows; view toggle List/Categories/Folders present; filter row (category/tag/owner/status/sort); read-header shows editable category pill (Human Resources), tag chips, owner picker (Alloro Team).",
+      "notes": "List view + metadata surface verified. Grouped/Folders views and drag-move were not exercised (single test doc; dnd needs >=2 docs/folders); covered by the osLibraryDnd.utils unit test. meta_locked survival covered by p2 integration test."
+    },
+    {
+      "id": "T5",
+      "title": "Search: command-K palette with lexical + semantic results",
+      "surface": "ui",
+      "status": "pass",
+      "evidence": "Browser: command-K opened the palette; query 'buddy assignment' returned a DOCUMENTS (lexical) hit with terracotta-highlighted snippet AND a PASSAGES (semantic) hit, with keyboard-nav hints. API: hybrid search returned lexical=1 semantic=1. Palette listener scoped to OS routes (unmount test).",
+      "notes": "Both search modes verified in the UI and via API."
+    },
+    {
+      "id": "T6",
+      "title": "Related documents: suggestions + accept/reject + manual add",
+      "surface": "ui",
+      "status": "pass",
+      "evidence": "Browser: Related rail renders in the read view with 'No related documents yet' + 'Add link' (correct for a single-doc corpus).",
+      "notes": "Rail renders. Suggestion/accept/reject lifecycle needs >=2 topically-similar indexed docs to surface; not exercised in this pass. Covered by os-links backend tests (endpoint matrix + lifecycle) and the p4 integration test (suggestion->accept->backlink)."
+    },
+    {
+      "id": "T7",
+      "title": "Chat: grounded streaming answer with clickable citations",
+      "surface": "ui",
+      "status": "pass",
+      "evidence": "Browser: asked 'What are the three onboarding steps?' -> correct grounded answer listing all three, with a 'Onboarding Playbook' citation chip under SOURCES, auto-titled conversation, 2 messages persisted. API (dev, through Apache): SSE events arrived at distinct timestamps spread over ~1.7s (682.377->683.134->683.978->684.032->684.045) -- proves the Apache flush block streams incrementally, not one lump. Grounded refusal proven locally (out-of-scope question -> honest no-answer, 0 citations).",
+      "notes": "Fully verified incl. the Apache streaming path and grounded refusal."
+    },
+    {
+      "id": "T8",
+      "title": "Chat context attach (at-mention)",
+      "surface": "ui",
+      "status": "pass",
+      "evidence": "Browser: the chat input shows the attach (paperclip) affordance for @-context.",
+      "notes": "Affordance present. The attach->scope->remove flow was not click-exercised in this pass; context attach/detach is covered by os-chat backend + p5 integration tests."
+    },
+    {
+      "id": "T9",
+      "title": "Trash: archive -> restore -> delete forever; edit locks",
+      "surface": "ui",
+      "status": "pass",
+      "evidence": "Browser: delete -> 'Move to trash?' confirm -> Trash shows '1 ITEM' (muted) with Restore + Delete-forever -> 'Delete forever?' destructive confirm -> purged. psql confirmed chunks=0 after purge (cascade worked).",
+      "notes": "Archive->trash->delete-forever + cascade purge fully verified. Restore button present (not clicked). Edit-locks were not UI-exercised (needs two concurrent editor tabs); covered by os-locks backend + p2 integration tests (acquire/conflict/heartbeat/expire)."
+    },
+    {
+      "id": "T10",
+      "title": "Imports: batch docx/xlsx/pdf/md -> converted + indexed docs",
+      "surface": "ui",
+      "status": "pending",
+      "evidence": "Import button + modal present in the Library toolbar. NOT exercised end-to-end.",
+      "notes": "Deliberately not run: a real file import writes objects to the shared S3 imports bucket (os/imports, os/assets) and needs sample files, which I chose not to leave as test residue on the real bucket. Covered by automated tests: os-conversion (7, docx/xlsx/pdf/md fixtures incl. low-text-pdf warning), os-imports (8, batch caps/state-machine/mime rejection), and p6-imports integration (converted markdown + asset rows, mocked S3). Recommend the owner run one real import through the UI to close this item."
+    },
+    {
+      "id": "T11",
+      "title": "Comments: threaded, editable, tombstoned -- and no task UI anywhere",
+      "surface": "ui",
+      "status": "pass",
+      "evidence": "Browser: posted a comment in the read rail -> 'Comments 1', authored 'Alloro Team / v2' (version tag), composer reset. Scanned the entire OS surface -- zero task/assignee/due-date/resolve controls anywhere (also proven by a negative-assertion FE test + a full-tree grep).",
+      "notes": "Comment post verified in UI. Edit/tombstone-delete not click-exercised; covered by os-comments backend tests (threading, tombstone, author-only 403, version_tag)."
+    },
+    {
+      "id": "T12",
+      "title": "Design parity with Alloro app light mode + no admin regressions",
+      "surface": "ui",
+      "status": "pass",
+      "evidence": "Browser: every OS screen reads as Alloro light mode -- warm paper #FAF8F3, Spectral document titles/reading body, Plus Jakarta chrome, JetBrains-mono meta/status, terracotta #D66853 only on active tab/primary actions, hairline-divided rows (no card-grid slop), Lucide icons, designed empty/loading states. Process/Projects/Support tabs render unchanged in the nav.",
+      "notes": "Design parity confirmed visually across Library, Reader, Editor, Chat, Search, Trash. Existing admin tabs present/unchanged in nav (not click-regression-tested, but the port only touched 3 shell anchor files additively)."
+    }
+  ]
+}

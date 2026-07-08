@@ -272,6 +272,53 @@ export const QUERY_KEYS = {
     ["admin", "ai-seo-audit", "run", runId ?? null] as const,
   adminAiSeoAuditableOrgs: ["admin", "ai-seo-audit", "auditable-orgs"] as const,
 
+  // Admin — OS knowledge base
+  adminOsUsers: ["admin", "os", "users"] as const,
+  adminOsDocuments: (params?: Record<string, unknown>) =>
+    ["admin", "os", "documents", params] as const,
+  adminOsDocumentsAll: ["admin", "os", "documents"] as const,
+  // Detail key prefixes draft/versions/diff/lock so invalidating a document
+  // also refreshes its dependents (granular per-facet keys below).
+  adminOsDocument: (id: string | null) =>
+    ["admin", "os", "document", id] as const,
+  adminOsDraft: (id: string | null) =>
+    ["admin", "os", "document", id, "draft"] as const,
+  adminOsVersions: (id: string | null) =>
+    ["admin", "os", "document", id, "versions"] as const,
+  adminOsVersionDiff: (id: string | null, from: string, to: string) =>
+    ["admin", "os", "document", id, "diff", from, to] as const,
+  adminOsLock: (id: string | null) =>
+    ["admin", "os", "document", id, "lock"] as const,
+  // Related-document links (P4) — under the document prefix so a document
+  // invalidation refreshes its Related rail too.
+  adminOsLinks: (id: string | null) =>
+    ["admin", "os", "document", id, "links"] as const,
+  // Threaded comments (P7) — under the document prefix so a document
+  // invalidation refreshes its Comments rail too.
+  adminOsComments: (id: string | null) =>
+    ["admin", "os", "document", id, "comments"] as const,
+
+  // Admin — Email Logs (plans/07062026-email-logs-dashboard)
+  adminEmailLogs: (params?: Record<string, unknown>) =>
+    ["admin", "email-logs", params] as const,
+  adminEmailLog: (id: string | null) =>
+    ["admin", "email-log", id] as const,
+  // Import provenance poll (P6) — under the document prefix so a document
+  // invalidation refreshes its import status too.
+  adminOsDocumentImport: (id: string | null) =>
+    ["admin", "os", "document", id, "import"] as const,
+  adminOsFolders: ["admin", "os", "folders"] as const,
+  adminOsCategories: ["admin", "os", "categories"] as const,
+  adminOsTrash: (params?: Record<string, unknown>) =>
+    ["admin", "os", "trash", params] as const,
+  adminOsTrashAll: ["admin", "os", "trash"] as const,
+  adminOsSearch: (q: string, params?: Record<string, unknown>) =>
+    ["admin", "os", "search", q, params] as const,
+  // Chat (P5) — the conversation list and one conversation's thread+context.
+  adminOsConversations: ["admin", "os", "conversations"] as const,
+  adminOsConversation: (id: string | null) =>
+    ["admin", "os", "conversation", id] as const,
+
   // Client — notifications
   notifications: (orgId: number | null, locationId: number | null) =>
     ["notifications", orgId, locationId] as const,

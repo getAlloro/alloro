@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>P6 — Imports &amp; Assets · Alloro OS → Admin Port</title>
+  <style>
+    :root { color-scheme: light; --paper:#ffffff; --ink:#080808; --muted:#5f5f5f; --line:#d8d8d8; --soft:#f5f5f5; }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--paper); color:var(--ink); font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; line-height:1.5; }
+    .spec-shell { width:min(1120px,calc(100% - 32px)); margin:0 auto; padding:48px 0; }
+    .spec-hero, .spec-card, .task-card { border:1px solid var(--line); border-radius:8px; background:var(--paper); }
+    .spec-hero { border-color:var(--ink); padding:32px; margin-bottom:20px; }
+    .hero-topline { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px; }
+    .spec-card { padding:28px; margin-top:16px; }
+    .task-card { padding:20px; background:var(--soft); margin-top:14px; }
+    .eyebrow, dt { color:var(--muted); font-size:0.78rem; font-weight:700; text-transform:uppercase; }
+    .eyebrow { margin:0; }
+    .status-pill { display:inline-flex; align-items:center; min-height:34px; padding:0 12px; border:1px solid var(--ink); border-radius:999px; background:var(--ink); color:var(--paper); font-size:0.78rem; font-weight:800; text-transform:uppercase; }
+    .status-card { border-color:var(--ink); }
+    h1,h2,h3,p { margin-top:0; }
+    h1 { max-width:840px; margin-bottom:24px; font-size:clamp(2rem,5vw,3.6rem); line-height:0.95; }
+    h2 { font-size:1.35rem; } h3 { font-size:1rem; }
+    code { padding:0.1rem 0.3rem; border:1px solid var(--line); border-radius:4px; background:var(--soft); font-size:0.92em; }
+    pre { background:var(--soft); border:1px solid var(--line); border-radius:8px; padding:14px; overflow-x:auto; font-size:0.85rem; }
+    .meta-grid, .split-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; }
+    .meta-grid { margin:0; }
+    .meta-grid div, .split-grid > div { border:1px solid var(--line); border-radius:8px; padding:16px; }
+    dd { margin:4px 0 0; font-weight:700; }
+    .task-card dl { display:grid; gap:8px; margin:0; }
+    .task-card dd { font-weight:500; }
+    .checklist { list-style:none; padding-left:0; }
+    .checklist li { display:flex; gap:10px; align-items:flex-start; padding:10px 0; border-top:1px solid var(--line); }
+    @media (max-width:640px) { .spec-shell { width:min(100% - 20px,1120px); padding:24px 0; } .spec-hero,.spec-card { padding:20px; } }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec · Phase 6 of 7 · plans/07042026-alloro-os-admin-port</p>
+        <span class="status-pill">Completed</span>
+      </div>
+      <h1>P6 — File Imports (docx · xlsx · pdf · md) &amp; Editor Assets</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
+        <div><dt>Depends on</dt><dd>P2, P3 (P4 for auto-index)</dd></div>
+        <div><dt>Size</dt><dd>Medium (~13 new files)</dd></div>
+        <div><dt>Unlocks</dt><dd>Content seeding (D14 fresh start fills via imports)</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>The KB starts empty (D14). Imports are how the team seeds it — drag in the existing Notion exports, Word docs, and spreadsheets and get indexed markdown documents back. Editor image upload makes documents self-contained.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Batch upload (≤<code>OS_IMPORT_BATCH_MAX_FILES</code> files, ≤<code>OS_IMPORT_MAX_FILE_MB</code> each; multer memory → S3 <code>os/imports/</code>) creating documents in <code>processing</code> with an <code>os.document_imports</code> row each, then the <code>os-convert</code> job converts to markdown v1 — docx via mammoth→HTML→turndown(gfm), xlsx via sheet→markdown tables, pdf via pdfjs text extraction (low-text pages append a warning; <em>vision transcription deferred</em>), md passthrough — extracting embedded images to S3 <code>os/assets/</code> + <code>os.assets</code> rows with rewritten markdown refs, recording warnings, setting <code>converted</code>/<code>failed</code>, then enqueueing ingest (P4). Grouped import can assign a category to the whole batch (OS grouped-import feature). Editor: paste/drop image upload → asset endpoint → markdown image insert. Asset delivery via redirect to a presigned S3 URL.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Port sources</h3>
+      <ul>
+        <li><code>alloro-os/backend/src/services/conversion/*</code> (ConversionService, parsers/{docxParser,xlsxParser,pdfParser}, feature-utils/{htmlToMarkdown,imageRefs}) — minus <code>pdfRender.ts</code>/canvas (deferred).</li>
+        <li><code>alloro-os/backend/src/services/documents/ImportService.ts</code>, <code>lib/upload.ts</code>, <code>services/assets/AssetService.ts</code>.</li>
+        <li><code>alloro-os/frontend/src/hooks/{useImportFiles,useFileDropzone,useImageUpload}.ts</code>, <code>utils/importFiles.ts</code>, import UI in <code>LibraryToolbar</code>.</li>
+      </ul>
+      <h3>Files to create</h3>
+      <ul>
+        <li>Backend: <code>feature-services/{OsImportService,OsAssetService,OsConversionService}.ts</code> + <code>feature-services/conversion/{docx,xlsx,pdf}Converter.ts</code> + <code>feature-utils/osHtmlToMarkdown.ts</code>; models <code>OsDocumentImportModel.ts</code>, <code>OsAssetModel.ts</code>; controller <code>AdminOsImportsController.ts</code> + <code>AdminOsAssetsController.ts</code>; multer route additions (file-type + size validation at boundary §11.2, sanitize filenames §5.2).</li>
+        <li>Worker: <code>osConvert.processor.ts</code> stub → real (calls OsConversionService; §21.3).</li>
+        <li>Frontend: <code>components/Admin/os/import/{OsImportModal,OsImportRow,OsDropzone}.tsx</code>; enable the Library toolbar Import button (P3 placeholder); editor image upload wiring in <code>OsEditor</code>; hooks <code>useAdminOsImports.ts</code> (+ per-file status poll), <code>useOsImageUpload.ts</code>.</li>
+        <li>Tests: <code>src/__tests__/os-conversion.test.ts</code> with small fixtures under <code>src/__tests__/fixtures/os/</code> (tiny .docx/.xlsx/.pdf/.md), <code>os-imports.test.ts</code> (state machine pending→converted/failed, warnings array, batch caps).</li>
+      </ul>
+      <h3>New dependencies (backend — the complete P6 list)</h3>
+      <ul><li><code>pdfjs-dist</code>, <code>turndown</code>, <code>@joplin/turndown-plugin-gfm</code>, <code>jszip</code>. Already present: <code>mammoth</code>, <code>xlsx</code>, <code>multer</code>, <code>@aws-sdk/client-s3</code> (+ presigner check: add <code>@aws-sdk/s3-request-presigner</code> ONLY if not already installed — verify first). Deferred (NOT added): <code>@napi-rs/canvas</code>.</li></ul>
+      <h3>Constitution</h3>
+      <p>§4.4 (dep list is closed), §5.2 (filename/path sanitize, mime allowlist), §11.2, §21.1–§21.4 (convert idempotent by import id), §10.5 (import row + doc creation transactional), §20.4 (fixtures synthetic). Analog: S3 usage in <code>src/utils/core/s3.ts</code>.</p>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk (phase-local)</h2>
+      <ul>
+        <li>Malformed uploads (zip bombs, wrong extension). <strong>Mitigation:</strong> mime + extension allowlist, size caps, converter try/catch → <code>failed</code> + warning, never crash the worker (§3.1).</li>
+        <li><code>pdfjs-dist</code> in Node needs the legacy build — pin the import path; text-only extraction keeps it dependency-light (canvas deferred with a visible warning instead).</li>
+        <li>S3 key collisions. <strong>Mitigation:</strong> keys include document id + uuid asset id (D9 namespace).</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <article class="task-card"><h3>T1: Upload + import rows + S3 archive</h3><dl>
+        <div><dt>Do</dt><dd>Batch endpoint (multer memory), validation, S3 archive to <code>os/imports/{docId}/{filename}</code>, transactional doc+import-row creation, convert-job enqueue, optional batch category.</dd></div>
+        <div><dt>Files</dt><dd><code>OsImportService.ts</code>, <code>OsDocumentImportModel.ts</code>, controller/routes</dd></div>
+        <div><dt>Depends on</dt><dd>P2</dd></div>
+        <div><dt>Verify</dt><dd>caps enforced (413-mapped OsError), state machine test</dd></div>
+      </dl></article>
+      <article class="task-card"><h3>T2: Converters</h3><dl>
+        <div><dt>Do</dt><dd>docx/xlsx/pdf/md converters per What; image extraction → OsAssetService → markdown ref rewrite; warnings accumulated on the import row.</dd></div>
+        <div><dt>Files</dt><dd><code>OsConversionService.ts</code>, 3 converters, <code>osHtmlToMarkdown.ts</code>, <code>OsAssetService.ts</code>, <code>OsAssetModel.ts</code></dd></div>
+        <div><dt>Depends on</dt><dd>T1</dd></div>
+        <div><dt>Verify</dt><dd>fixture tests: each format yields expected markdown skeleton; low-text pdf yields warning</dd></div>
+      </dl></article>
+      <article class="task-card"><h3>T3: Convert processor + ingest handoff</h3><dl>
+        <div><dt>Do</dt><dd>Real <code>osConvert</code> processor: idempotent by import id, 3 attempts, on success sets v1 content + enqueues <code>os-ingest</code>; on exhaustion doc → <code>processing_failed</code> + import → <code>failed</code>.</dd></div>
+        <div><dt>Files</dt><dd><code>src/workers/processors/osConvert.processor.ts</code></dd></div>
+        <div><dt>Depends on</dt><dd>T2</dd></div>
+        <div><dt>Verify</dt><dd>processor test with fake S3 (dependency-injected getter) + failure path</dd></div>
+      </dl></article>
+      <article class="task-card"><h3>T4: Import UI + editor images</h3><dl>
+        <div><dt>Do</dt><dd>Import modal (dropzone, batch list with per-file mono status + warnings disclosure, category select), toolbar button enabled, per-file poll until converted/failed; editor paste/drop → upload → insert image node.</dd></div>
+        <div><dt>Files</dt><dd>3 import components, <code>OsEditor</code> wiring, 2 hooks, api additions</dd></div>
+        <div><dt>Depends on</dt><dd>T1–T3, P3</dd></div>
+        <div><dt>Verify</dt><dd>FE gate; upload handler unit test</dd></div>
+      </dl></article>
+      <article class="task-card"><h3>T5: Asset delivery</h3><dl>
+        <div><dt>Do</dt><dd><code>GET /assets/:id</code> → 302 presigned URL (short expiry); reader/editor render through it.</dd></div>
+        <div><dt>Files</dt><dd><code>AdminOsAssetsController.ts</code>, route</dd></div>
+        <div><dt>Depends on</dt><dd>T2</dd></div>
+        <div><dt>Verify</dt><dd>supertest: 302 with signed target; 404 unknown asset</dd></div>
+      </dl></article>
+    </section>
+
+    <section class="spec-card" id="gate">
+      <h2>Phase Gate</h2>
+      <pre>npx tsc --noEmit
+npm run check:conventions --strict
+npx vitest run src/__tests__/os-conversion.test.ts src/__tests__/os-imports.test.ts
+npm test
+cd /Users/rustinedave/Desktop/alloro/frontend && npx tsc -p tsconfig.app.json --noEmit; echo "FE_TSC_EXIT:$?"
+cd /Users/rustinedave/Desktop/alloro/frontend && npm run build</pre>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled> Batch import of all four formats produces converted, indexed documents with provenance rows + visible warnings.</li>
+        <li><input type="checkbox" disabled> Editor image paste/drop works; assets served via presigned redirect.</li>
+        <li><input type="checkbox" disabled> Only the four listed deps added (presigner conditional, canvas deferred); gates green; pill + master index updated.</li>
+      </ul>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-07-05</h3>
+        <p><strong>Change:</strong> P6 executed on worktree; all gates green (BE tsc 0, conventions --strict 0, phase vitest 15, full backend 301, integration 23, FE tsc 0, FE tests 47, FE build). Deps added: pdfjs-dist@5.6.205 (ESM-only 5.x — loaded via a <code>new Function("s","return import(s)")</code> shim so tsc's CJS downleveling can't rewrite the dynamic import to a broken require(); path <code>pdfjs-dist/legacy/build/pdf.mjs</code>; the conversion test injects the real library against a fixture and passes, proving the runtime path), turndown@7.2.4, @joplin/turndown-plugin-gfm@1.0.67, jszip@3.10.1, @types/turndown (dev); @aws-sdk/s3-request-presigner already present. Deviations: os.assets has no updated_at (added OsAssetModel.setS3Key; integration test caught this); os-foundation config-shape test updated for two new config keys.</p>
+        <p><strong>Reason:</strong> Execution deviation: pdfjs 5.x ESM packaging, real table schema, and config additions surfaced during the gate.</p>
+        <p><strong>Updated Done criteria:</strong> none new — but see the SECURITY DEVIATION below (asset auth), which adds a hardening follow-up before production.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 2 - 2026-07-05 (SECURITY DEVIATION — asset auth)</h3>
+        <p><strong>Change:</strong> Asset delivery <code>GET /api/admin/os/assets/:id</code> is mounted before the global header-only auth gate with a custom <code>authenticateOsAsset</code> that accepts the super-admin session JWT via EITHER the Authorization header OR a <code>?token=</code> query param — because a markdown-embedded <code>&lt;img&gt;</code> cannot send an Authorization header. It 302-redirects to a short-lived presigned S3 URL (the token is NOT forwarded to S3).</p>
+        <p><strong>Reason:</strong> Execution deviation: the spec (T5) said "302 presigned URL" but did not specify how an <code>&lt;img&gt;</code> authenticates under Alloro's header-JWT (non-cookie) auth model; the agent chose the query-token path.</p>
+        <p><strong>Updated Done criteria:</strong> RISK (§5.3): the value placed in the URL is the FULL 7-day super-admin session JWT, which can land in the app server's access logs and the admin's browser history. Scope is limited (internal super-admin-only tool; one read-only route; token not sent to S3; same-origin so no third-party referrer leak) so severity is MODERATE, not severe. HARDENING FOLLOW-UP before production: replace the full session JWT with a short-lived (~5 min) asset-scoped token (<code>aud: os-asset</code>) minted for image URLs, or render images via an authenticated blob fetch (custom react-markdown img renderer). Tracked as a follow-up task; do not ship to prod without deciding.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

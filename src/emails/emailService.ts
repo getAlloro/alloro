@@ -1,21 +1,22 @@
-/**
- * Email Service
- *
- * Central email service that sends emails via n8n webhook.
- * All email operations are logged to src/logs/email.log
- */
-
-import axios from "axios";
 import fs from "fs";
 import path from "path";
 import dotenv from "dotenv";
-import type { EmailPayload, EmailResult, SendEmailOptions } from "./types";
+import type {
+  EmailCategory,
+  EmailPayload,
+  EmailResult,
+  EmailTransport,
+  MailgunMessage,
+  SendEmailOptions,
+} from "./types";
 import { interceptEmailPayload } from "./emailInterceptor";
+import { EmailLogModel } from "../models/EmailLogModel";
+import { sendViaMailgun } from "./transport/mailgunTransport";
+import { sendViaN8n } from "./transport/n8nTransport";
 import logger from "../lib/logger";
 
 dotenv.config();
 
-// Configuration
 const WEBHOOK_URL = process.env.ALLORO_EMAIL_SERVICE_WEBHOOK || "";
 const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "")
   .split(",")
@@ -23,6 +24,19 @@ const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "")
   .filter(Boolean);
 const DEFAULT_FROM_EMAIL = "info@getalloro.com";
 const DEFAULT_FROM_NAME = "Alloro";
+
+export function resolveTransport(): EmailTransport {
+  const explicit = process.env.EMAIL_DEFAULT_TRANSPORT;
+  if (explicit === "mailgun" || explicit === "n8n") return explicit;
+  if (process.env.MAILGUN_API_KEY && process.env.MAILGUN_DOMAIN)
+    return "mailgun";
+  return "n8n";
+}
+
+function normalizeMessageId(id?: string | null): string | null {
+  if (!id) return null;
+  return id.replace(/[<>]/g, "").trim() || null;
+}
 
 // Log file path
 const LOG_DIR = path.join(__dirname, "..", "logs");
@@ -48,13 +62,6 @@ function logEmail(
   ensureLogDir();
 
   const timestamp = new Date().toISOString();
-  const logEntry = {
-    timestamp,
-    level,
-    message,
-    ...data,
-  };
-
   const logLine = `[${timestamp}] [${level}] ${message} ${
     data ? JSON.stringify(data) : ""
   }\n`;
@@ -120,25 +127,55 @@ function validatePayload(payload: SendEmailOptions): string[] {
 }
 
 /**
- * Send email via n8n webhook
+ * Best-effort write of one email_logs row. Never throws — a logging failure
+ * must never fail or delay the actual send (plan Risk mitigation). Called
+ * from both the success and failure branches of sendEmail.
  */
+async function recordEmailLog(params: {
+  category: EmailCategory;
+  payload: EmailPayload & { from: string; fromName: string };
+  intercepted: boolean;
+  originalRecipients: string[];
+  status: "sent" | "failed";
+  providerMessageId: string | null;
+  error: string | null;
+}): Promise<void> {
+  try {
+    await EmailLogModel.createLog({
+      category: params.category,
+      status: params.status,
+      from_email: params.payload.from,
+      from_name: params.payload.fromName,
+      recipients: params.payload.recipients,
+      cc: params.payload.cc ?? [],
+      bcc: params.payload.bcc ?? [],
+      subject: params.payload.subject,
+      body_html: params.payload.body,
+      provider_message_id: params.providerMessageId,
+      intercepted: params.intercepted,
+      original_recipients: params.intercepted ? params.originalRecipients : null,
+      error: params.error,
+    });
+  } catch (err) {
+    logEmail("WARN", "Failed to write email_logs row (send unaffected)", {
+      error: err instanceof Error ? err.message : String(err),
+      subject: params.payload.subject,
+    });
+  }
+}
+
 export async function sendEmail(
   options: SendEmailOptions
 ): Promise<EmailResult> {
   const timestamp = new Date().toISOString();
+  const transport = resolveTransport();
 
-  // Check webhook configuration
-  if (!WEBHOOK_URL) {
+  if (transport === "n8n" && !WEBHOOK_URL) {
     const error = "ALLORO_EMAIL_SERVICE_WEBHOOK not configured";
     logEmail("ERROR", error, { recipients: options.recipients });
-    return {
-      success: false,
-      error,
-      timestamp,
-    };
+    return { success: false, error, timestamp };
   }
 
-  // Validate payload
   const validationErrors = validatePayload(options);
   if (validationErrors.length > 0) {
     const error = `Validation failed: ${validationErrors.join(", ")}`;
@@ -147,14 +184,9 @@ export async function sendEmail(
       recipients: options.recipients,
       validationErrors,
     });
-    return {
-      success: false,
-      error,
-      timestamp,
-    };
+    return { success: false, error, timestamp };
   }
 
-  // Prepare webhook payload
   const builtPayload: EmailPayload & { from: string; fromName: string } = {
     subject: options.subject,
     body: options.body,
@@ -165,10 +197,6 @@ export async function sendEmail(
     fromName: options.fromName || DEFAULT_FROM_NAME,
   };
 
-  // Non-production senders get every email rerouted to the intercept
-  // recipient (fail closed) — see emailInterceptor.ts. OTP login codes
-  // opt out via allowLiveSend so the code always reaches the requester,
-  // even on dev/local/CI (user-ratified — see plan 06122026).
   const { payload, intercepted, originalRecipients } = options.allowLiveSend
     ? {
         payload: builtPayload,
@@ -184,54 +212,83 @@ export async function sendEmail(
     });
   }
 
-  logEmail("INFO", "Sending email via webhook", {
+  logEmail("INFO", `Sending email via ${transport}`, {
     subject: payload.subject,
     recipientCount: payload.recipients.length,
     hasCC: (payload.cc?.length || 0) > 0,
     hasBCC: (payload.bcc?.length || 0) > 0,
   });
 
-  try {
-    const response = await axios.post(WEBHOOK_URL, payload, {
-      timeout: 30000,
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
+  const result =
+    transport === "mailgun"
+      ? await sendViaMailgun(toMailgunMessage(payload))
+      : await sendViaN8n(WEBHOOK_URL, {
+          subject: payload.subject,
+          body: payload.body,
+          recipients: payload.recipients,
+          cc: payload.cc ?? [],
+          bcc: payload.bcc ?? [],
+          from: payload.from,
+          fromName: payload.fromName,
+        });
 
-    const messageId =
-      response.data?.messageId || response.data?.id || `msg_${Date.now()}`;
+  if (result.success) {
+    const messageId = result.messageId || `msg_${Date.now()}`;
 
-    logEmail("INFO", "Email sent successfully", {
+    logEmail("INFO", `Email sent successfully via ${transport}`, {
       messageId,
       subject: payload.subject,
       recipients: payload.recipients,
-      status: response.status,
+      status: result.status,
     });
 
-    return {
-      success: true,
-      messageId,
-      timestamp,
-    };
-  } catch (error: any) {
-    const errorMessage =
-      error.response?.data?.message || error.message || "Unknown error";
-
-    logEmail("ERROR", "Failed to send email", {
-      error: errorMessage,
-      subject: payload.subject,
-      recipients: payload.recipients,
-      status: error.response?.status,
-      responseData: error.response?.data,
+    await recordEmailLog({
+      category: options.category ?? "uncategorized",
+      payload,
+      intercepted,
+      originalRecipients,
+      status: "sent",
+      providerMessageId: normalizeMessageId(result.messageId),
+      error: null,
     });
 
-    return {
-      success: false,
-      error: errorMessage,
-      timestamp,
-    };
+    return { success: true, messageId, timestamp };
   }
+
+  logEmail("ERROR", `Failed to send email via ${transport}`, {
+    error: result.error,
+    subject: payload.subject,
+    recipients: payload.recipients,
+    status: result.status,
+  });
+
+  await recordEmailLog({
+    category: options.category ?? "uncategorized",
+    payload,
+    intercepted,
+    originalRecipients,
+    status: "failed",
+    providerMessageId: null,
+    error: result.error ?? "Unknown transport error",
+  });
+
+  return { success: false, error: result.error, timestamp };
+}
+
+function toMailgunMessage(
+  payload: EmailPayload & { from: string; fromName: string }
+): MailgunMessage {
+  const from = payload.fromName
+    ? `${payload.fromName} <${payload.from}>`
+    : payload.from;
+  return {
+    from,
+    to: payload.recipients,
+    cc: payload.cc,
+    bcc: payload.bcc,
+    subject: payload.subject,
+    html: payload.body,
+  };
 }
 
 /**
@@ -258,6 +315,7 @@ export async function sendToAdmins(
     recipients: adminEmails,
     cc: options?.cc,
     bcc: options?.bcc,
+    category: "notification",
   });
 }
 

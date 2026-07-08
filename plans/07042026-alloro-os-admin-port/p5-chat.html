@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>P5 — Chat · Alloro OS → Admin Port</title>
+  <style>
+    :root { color-scheme: light; --paper:#ffffff; --ink:#080808; --muted:#5f5f5f; --line:#d8d8d8; --soft:#f5f5f5; }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--paper); color:var(--ink); font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; line-height:1.5; }
+    .spec-shell { width:min(1120px,calc(100% - 32px)); margin:0 auto; padding:48px 0; }
+    .spec-hero, .spec-card, .task-card { border:1px solid var(--line); border-radius:8px; background:var(--paper); }
+    .spec-hero { border-color:var(--ink); padding:32px; margin-bottom:20px; }
+    .hero-topline { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px; }
+    .spec-card { padding:28px; margin-top:16px; }
+    .task-card { padding:20px; background:var(--soft); margin-top:14px; }
+    .eyebrow, dt { color:var(--muted); font-size:0.78rem; font-weight:700; text-transform:uppercase; }
+    .eyebrow { margin:0; }
+    .status-pill { display:inline-flex; align-items:center; min-height:34px; padding:0 12px; border:1px solid var(--ink); border-radius:999px; background:var(--ink); color:var(--paper); font-size:0.78rem; font-weight:800; text-transform:uppercase; }
+    .status-card { border-color:var(--ink); }
+    h1,h2,h3,p { margin-top:0; }
+    h1 { max-width:840px; margin-bottom:24px; font-size:clamp(2rem,5vw,3.6rem); line-height:0.95; }
+    h2 { font-size:1.35rem; } h3 { font-size:1rem; }
+    code { padding:0.1rem 0.3rem; border:1px solid var(--line); border-radius:4px; background:var(--soft); font-size:0.92em; }
+    pre { background:var(--soft); border:1px solid var(--line); border-radius:8px; padding:14px; overflow-x:auto; font-size:0.85rem; }
+    .meta-grid, .split-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; }
+    .meta-grid { margin:0; }
+    .meta-grid div, .split-grid > div { border:1px solid var(--line); border-radius:8px; padding:16px; }
+    dd { margin:4px 0 0; font-weight:700; }
+    .task-card dl { display:grid; gap:8px; margin:0; }
+    .task-card dd { font-weight:500; }
+    .checklist { list-style:none; padding-left:0; }
+    .checklist li { display:flex; gap:10px; align-items:flex-start; padding:10px 0; border-top:1px solid var(--line); }
+    @media (max-width:640px) { .spec-shell { width:min(100% - 20px,1120px); padding:24px 0; } .spec-hero,.spec-card { padding:20px; } }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec · Phase 5 of 7 · plans/07042026-alloro-os-admin-port</p>
+        <span class="status-pill">Completed</span>
+      </div>
+      <h1>P5 — Grounded RAG Chat with Citations (SSE)</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed (worktree — T6 Apache block deferred to deploy)</dd></div>
+        <div><dt>Depends on</dt><dd>P4 Completed (retrieval)</dd></div>
+        <div><dt>Size</dt><dd>Medium (~15 new files)</dd></div>
+        <div><dt>Unlocks</dt><dd>Final acceptance chat items</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>Chat is the second pillar the user named ("chat as another tab within that tab"): ask a question, get an answer grounded in the team's own documents, with citations you can click — or an honest refusal when the KB has nothing.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Backend: conversation CRUD (list with last-activity preview, delete cascades), context-document attach/detach (manual @-attach + AI-retrieved), and the streaming message endpoint — persist user message → async auto-title on first message → build history → embed query + retrieve (P4 service, respecting attached context) → SSE progress events (<code>Searching the knowledge base…</code> / <code>Composing a grounded answer…</code>) → Gemini token stream → <code>done</code> event with message id + citations → persist assistant message with citations jsonb. Grounded-refusal system prompt: answer only from retrieved context; cite only chunks actually used; say so plainly when nothing relevant exists. Frontend: the Chat sub-tab — conversation sidebar, message thread (user right-aligned Jakarta, assistant Spectral), thinking indicator until first token, stream-following scroll with jump-to-latest pill, citation chips (bordered pills: doc title · heading) that navigate to <code>/admin/os/doc/:id</code>, input with @-mention document picker and context chips.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Port sources</h3>
+      <ul>
+        <li><code>alloro-os/backend/src/controllers/chat/ChatController.ts</code> — SSE event vocabulary (<code>status</code>/<code>delta</code>/<code>done</code>/<code>error</code> incl. <code>model_busy</code>) and header handling after flush.</li>
+        <li><code>alloro-os/backend/src/services/chat/ChatService.ts</code> — history build, citation construction (document_id, version_no, chunk_index, heading_path), auto-title, CHAT_SYSTEM persona (adapt to installed @google/genai API).</li>
+        <li><code>alloro-os/frontend/src/api/chat.ts</code> (streamMessage reader) and <code>components/chat/*</code> + <code>hooks/useStreamScroll.ts</code> — UX contract.</li>
+      </ul>
+      <h3>Target analogs</h3>
+      <ul>
+        <li><code>src/controllers/minds/MindsChatController.ts:23-59</code> — SSE headers (<code>text/event-stream</code>, <code>X-Accel-Buffering: no</code>, flushHeaders) — copy exactly.</li>
+        <li><code>frontend/src/components/Admin/minds/MindChatTab.tsx</code> + <code>frontend/src/api/minds/chat.ts</code> — fetch-reader streaming consumption with Authorization header. The OS port's streaming call lives in <code>api/admin-os-chat.ts</code> using the same sanctioned raw-fetch-for-SSE pattern (auth header via the client's shared header helper — §14.2 exception mirrors minds, §17.5 single JWT path).</li>
+      </ul>
+      <h3>Files to create</h3>
+      <ul>
+        <li>Models: <code>src/models/{OsChatConversationModel,OsChatMessageModel,OsChatContextDocumentModel}.ts</code>.</li>
+        <li>Services: <code>feature-services/OsChatService.ts</code> (+ extend <code>service.os-llm.ts</code> with <code>streamChat()</code> yielding tokens + busy classification; fake stream for tests).</li>
+        <li>Controller/routes: <code>AdminOsChatController.ts</code>; routes <code>GET/POST/DELETE /chat/conversations</code>, <code>GET /chat/conversations/:id</code>, <code>POST /chat/conversations/:id/messages</code> (SSE), <code>POST/DELETE /chat/conversations/:id/context/:documentId</code>. Auth middleware unchanged (§11.1) — SSE endpoint included.</li>
+        <li>Frontend: <code>api/admin-os-chat.ts</code> (CRUD + <code>streamOsChatMessage()</code> reader with onStatus/onDelta/onDone/onError + AbortSignal); hooks <code>useAdminOsConversations.ts</code>, <code>useAdminOsConversation.ts</code>, <code>useOsChatStream.ts</code>; components <code>components/Admin/os/chat/{OsConversationSidebar,OsMessageThread,OsChatMessage,OsCitationChip,OsThinkingIndicator,OsChatInput,OsContextChips}.tsx</code>; page <code>pages/admin/os/OsChat.tsx</code> (replaces placeholder).</li>
+        <li>Tests: <code>src/__tests__/os-chat.test.ts</code> (service with fakes: citations only from retrieved chunks; refusal path when zero hits ≥ floor; history order), <code>os-chat-sse.test.ts</code> (supertest: event sequence status→delta→done; error event when stream throws mid-flight; 401/403 gating).</li>
+      </ul>
+      <h3>Constitution</h3>
+      <p>§7.1–§7.4, §8.3 (typed errors — SSE errors map to in-stream <code>error</code> events after headers are sent, envelope before), §9.1–§9.3, §11.1, §14.2/§17.5 (single sanctioned streaming path), §16.1–§16.2 (stream errors surfaced in-thread, never swallowed), §20.2/§20.4.</p>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk (phase-local)</h2>
+      <ul>
+        <li>R1 (master): installed <code>@google/genai</code> 1.43 vs OS code on 2.x — verify streaming API shape first; if 1.43 lacks parity, bump the package (Rev entry) or fall back to the Anthropic seam (master Pushback). <strong>Gate includes a live one-shot smoke.</strong></li>
+        <li>Half-written assistant messages on disconnect. <strong>Mitigation (ported):</strong> persist assistant message only on completed stream; client AbortSignal on unmount; user message already persisted so retry is natural.</li>
+        <li>Citation hallucination. <strong>Mitigation (ported):</strong> citations built server-side from the retrieval result set only — never parsed from model output.</li>
+        <li>(Rev 1) Apache buffering kills streaming: the catch-all <code>ProxyPass /</code> on dev/prod does not flush — minds chat needed a dedicated <code>flushpackets=on</code> Location block to stream. <strong>Mitigation:</strong> T6 mirrors that block for <code>/api/admin/os/chat/</code> on both vhosts before UI sign-off; localhost testing bypasses Apache, so this only shows up through the public URL — test through <code>dev.getalloro.com</code>.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <article class="task-card"><h3>T1: Chat models + service</h3><dl>
+        <div><dt>Do</dt><dd>Three models; <code>OsChatService</code> with history build, retrieval integration (attached context docs boost/scope per OS behavior), citation assembly, auto-title (async, non-blocking), grounded persona adapted for Gemini.</dd></div>
+        <div><dt>Files</dt><dd>3 models + <code>OsChatService.ts</code> + <code>service.os-llm.ts</code> extension</dd></div>
+        <div><dt>Depends on</dt><dd>P4</dd></div>
+        <div><dt>Verify</dt><dd>unit tests with fake LLM/retrieval: citations ⊆ retrieved; refusal on empty retrieval</dd></div>
+      </dl></article>
+      <article class="task-card"><h3>T2: SSE endpoint + conversation routes</h3><dl>
+        <div><dt>Do</dt><dd>Controller with minds-exact SSE headers; event vocabulary ported (<code>status</code>, <code>delta</code>, <code>done{message_id,citations}</code>, <code>error{code}</code>); conversation + context CRUD with envelopes; zod validation on message length.</dd></div>
+        <div><dt>Files</dt><dd><code>AdminOsChatController.ts</code>, routes, <code>src/validation/os.ts</code> additions</dd></div>
+        <div><dt>Depends on</dt><dd>T1</dd></div>
+        <div><dt>Verify</dt><dd>supertest SSE sequence + gating tests</dd></div>
+      </dl></article>
+      <article class="task-card"><h3>T3: Streaming client + hooks</h3><dl>
+        <div><dt>Do</dt><dd><code>streamOsChatMessage()</code> reader (buffered line parse, JSON events, abort support); <code>useOsChatStream</code> managing streaming state/optimistic user message/invalidation on done.</dd></div>
+        <div><dt>Files</dt><dd><code>api/admin-os-chat.ts</code>, 3 hooks, QUERY_KEYS entries</dd></div>
+        <div><dt>Depends on</dt><dd>T2</dd></div>
+        <div><dt>Verify</dt><dd>FE tsc; reader unit test with synthetic stream chunks (split-mid-event case)</dd></div>
+      </dl></article>
+      <article class="task-card"><h3>T4: Chat UI</h3><dl>
+        <div><dt>Do</dt><dd>Two-pane Chat tab on warm paper: sidebar (conversations, relative mono time, delete w/ confirm, New chat) · thread (entrance animation on user message, thinking indicator with rotating verb until first token, streaming text with subtle cursor, citation chips footer, refusal rendered plainly) · input (Enter sends, Shift+Enter newline, @-picker attaching context docs shown as removable chips). Empty state for zero conversations. Reduced-motion alternatives.</dd></div>
+        <div><dt>Files</dt><dd><code>pages/admin/os/OsChat.tsx</code> + 7 chat components</dd></div>
+        <div><dt>Depends on</dt><dd>T3</dd></div>
+        <div><dt>Verify</dt><dd>FE gate; citation chip navigates to reader (handler unit test)</dd></div>
+      </dl></article>
+      <article class="task-card"><h3>T5: Live provider smoke</h3><dl>
+        <div><dt>Do</dt><dd>One-shot script check against real Gemini with <code>GEMINI_API_KEY</code> from local env (no CI): stream 20 tokens, assert first token &lt; 5s. Confirms R1 before UI sign-off. Record output in this file's Rev log.</dd></div>
+        <div><dt>Files</dt><dd>scratch script (not committed)</dd></div>
+        <div><dt>Depends on</dt><dd>T2</dd></div>
+        <div><dt>Verify</dt><dd>manual run output captured</dd></div>
+      </dl></article>
+      <article class="task-card"><h3>T6: Apache SSE flush block on dev + prod (Rev 1)</h3><dl>
+        <div><dt>Do</dt><dd>Mirror the existing minds block in both vhosts — <code>dev.getalloro.com-le-ssl.conf</code> (ssh alloro-dev) and <code>app.getalloro.com-le-ssl.conf</code> (ssh alloro-app): <code>&lt;Location /api/admin/os/chat/&gt;</code> with <code>ProxyPass http://127.0.0.1:3000/api/admin/os/chat/ flushpackets=on</code>, <code>ProxyPassReverse</code>, <code>SetEnv proxy-sendchunked 1</code>, <code>SetEnv proxy-interim-response RFC</code>, <code>RequestHeader set Connection ""</code>, <code>Header set X-Accel-Buffering "no"</code>. Then <code>sudo apachectl -t &amp;&amp; sudo apachectl graceful</code>. Server config edit (like env files) — not part of the repo deploy; do dev when P5 deploys, prod at the main merge.</dd></div>
+        <div><dt>Files</dt><dd>server-managed Apache vhosts (no repo files)</dd></div>
+        <div><dt>Depends on</dt><dd>T2 deployed to dev</dd></div>
+        <div><dt>Verify</dt><dd><code>curl -sN --no-buffer</code> the stream endpoint through <code>https://dev.getalloro.com</code> with an admin JWT — deltas must arrive incrementally (multiple read chunks), not as one final lump</dd></div>
+      </dl></article>
+    </section>
+
+    <section class="spec-card" id="gate">
+      <h2>Phase Gate</h2>
+      <pre>npx tsc --noEmit
+npm run check:conventions --strict
+npx vitest run src/__tests__/os-chat.test.ts src/__tests__/os-chat-sse.test.ts
+npm test
+cd /Users/rustinedave/Desktop/alloro/frontend && npx tsc -p tsconfig.app.json --noEmit; echo "FE_TSC_EXIT:$?"
+cd /Users/rustinedave/Desktop/alloro/frontend && npm run build
+# live smoke (T5) — run once, paste result into Rev log:
+# node scratch/os-gemini-smoke.mjs
+# after dev deploy (T6): incremental-arrival curl through https://dev.getalloro.com (see T6 Verify)</pre>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled> SSE endpoint streams status→delta→done with server-built citations; errors arrive as in-stream events; auth matrix holds.</li>
+        <li><input type="checkbox" disabled> Refusal path proven (empty retrieval → honest no-answer, zero citations).</li>
+        <li><input type="checkbox" disabled> Chat tab UX complete incl. thinking indicator, stream-follow scroll, @-context, citation navigation.</li>
+        <li><input type="checkbox" disabled> Live Gemini smoke recorded; gates green; pill + master index updated.</li>
+        <li><input type="checkbox" disabled> (Rev 1) Apache flush block live on the dev vhost and streaming verified through the public URL; prod block added at main merge.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-07-04</h3>
+        <p><strong>Change:</strong> Added T6 (mirror the minds <code>flushpackets=on</code> SSE Location block for <code>/api/admin/os/chat/</code> on both Apache vhosts) plus the matching risk, gate step, and Done item.</p>
+        <p><strong>Reason:</strong> Scope addition: server-compatibility probe (2026-07-04) showed Apache's catch-all <code>ProxyPass /</code> does not flush — minds chat streams only because of its dedicated Location block, so OS chat needs the same or SSE buffers into one lump.</p>
+        <p><strong>Updated Done criteria:</strong> Added — dev vhost flush block verified via incremental-arrival curl; prod at main merge.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 2 - 2026-07-05</h3>
+        <p><strong>Change:</strong> Executed T1–T5 in the worktree. Backend: 3 chat models (<code>OsChatConversationModel</code> with the enriched list-aggregate, <code>OsChatMessageModel</code> with jsonb citations, <code>OsChatContextDocumentModel</code>); extended <code>service.os-llm.ts</code> with <code>streamChat()</code> + a strict grounded-refusal <code>OS_CHAT_SYSTEM_PROMPT</code> + a deterministic fake; <code>OsChatService</code> (per-user ownership, history build, context assembly, citations from the retrieval set ONLY, fire-and-forget auto-title); <code>AdminOsChatController</code> (minds-exact SSE headers + <code>X-Accel-Buffering: no</code> + flushHeaders; vocabulary status→delta→done{message_id,citations}/error; envelope before headers, in-stream error after) + 7 routes. Frontend: <code>api/admin-os-chat.ts</code> (CRUD + <code>streamOsChatMessage</code> buffered-line SSE reader via the sanctioned <code>adminFetch</code> auth helper); hooks <code>useAdminOsConversations</code>/<code>useAdminOsConversation</code>/<code>useOsChatStream</code> (optimistic turn + cache-writing stream) + <code>useOsStreamScroll</code>/<code>useOsDocTitles</code>; two-pane Chat page + 8 components (sidebar, thread, message, citation chip, thinking indicator, input, context chips, attach dialog) replacing the placeholder. Tests: <code>os-chat.test.ts</code> + <code>os-chat-sse.test.ts</code> (hermetic) and <code>p5-chat.itest.ts</code> (live DB, fakes).</p>
+        <p><strong>Reason:</strong> Execution (-x) of P5 tasks T1–T5.</p>
+        <p><strong>Streaming API (R1 resolved):</strong> <code>@google/genai</code> 1.43 <code>client.models.generateContentStream(params) => Promise&lt;AsyncGenerator&lt;GenerateContentResponse&gt;&gt;</code>, each chunk exposing a <code>text</code> getter (verified in <code>genai.d.ts</code>). Full streaming parity — <strong>NO fallback to the Anthropic seam.</strong> T5 live smoke (real <code>gemini-3.5-flash</code>, key from worktree .env): first token <strong>2136 ms</strong> (&lt; 5 s), ≥2 tokens, real grounded text — PASS.</p>
+        <p><strong>Gates (all green):</strong> backend <code>tsc</code> clean · <code>check:conventions --strict</code> exit 0 (0 backend structural violations) · chat vitest 19/19 · full backend suite 286/286 · OS itests 19/19 (incl. new p5) · frontend <code>tsc -p tsconfig.app.json</code> clean · frontend vitest 47/47 · frontend build ✓. FE advisory: 0 console / 0 raw-fetch-outside-client / 0 <code>any</code>. Local test DB left migrated + clean (itest afterAll).</p>
+        <p><strong>T6 deferred:</strong> the Apache <code>flushpackets=on</code> Location block for <code>/api/admin/os/chat/</code> is a server-config action on the shared dev/prod vhosts — NOT performed from the worktree (no ssh). Still required at deploy: dev on P5 deploy, prod at the main merge. Localhost/tests bypass Apache, so streaming only buffers through the public URL without it.</p>
+        <p><strong>Updated Done criteria:</strong> Items 1–4 met in the worktree (SSE stream + server-built citations + auth matrix + refusal path proven by tests; live Gemini smoke recorded; gates green; pills updated). Item 5 (Apache flush block live + public-URL verification) remains open — deferred to deploy/merge per T6.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

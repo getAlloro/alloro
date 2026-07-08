@@ -95,9 +95,12 @@ export async function setupRankingBatches(connectionIdFilter?: number): Promise<
   for (const account of accounts) {
     const { organization_id, org_name, domain } = account;
 
-    const locations = await LocationModel.findByOrganizationId(organization_id);
+    // Cancelled locations are unpaid — recurring agents skip them. Paid
+    // pending_cancellation locations keep running until their period ends.
+    const locations =
+      await LocationModel.findNonCancelledByOrganizationId(organization_id);
     if (locations.length === 0) {
-      log(`[SETUP] WARNING: No locations for org "${org_name}" (ID: ${organization_id}), skipping`);
+      log(`[SETUP] WARNING: No active locations for org "${org_name}" (ID: ${organization_id}), skipping`);
       continue;
     }
 

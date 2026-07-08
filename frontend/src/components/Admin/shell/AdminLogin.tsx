@@ -1,80 +1,55 @@
 import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { apiPost, setAuthSession, setSharedAuthCookie } from "../../../api";
-import { showSuccessToast, showErrorToast } from "../../../lib/toast";
-import {
-  Mail,
-  Lock,
-  ArrowRight,
-  Loader2,
-  CheckCircle,
-  Shield,
-} from "lucide-react";
+import { motion } from "framer-motion";
+import { Shield } from "lucide-react";
+import { startAdminGoogleLogin } from "../../../api/auth-sso";
+
+/**
+ * Admin sign-in — Google SSO only (plans/07052026-google-sso-admin-and-user-login).
+ * The OTP email/code flow was retired; admin access requires a verified
+ * @getalloro.com Google account. Any error from the OAuth round-trip arrives
+ * here as `?error=<code>` (the finish page redirects failures back to /admin).
+ */
+
+const ERROR_COPY: Record<string, string> = {
+  AUTH_DOMAIN_FORBIDDEN: "That Google account isn't a @getalloro.com account.",
+  AUTH_EMAIL_UNVERIFIED: "Use your @getalloro.com Google account to sign in.",
+  AUTH_NOT_CONFIGURED: "Google sign-in isn't configured yet.",
+  AUTH_FAILED: "Sign-in failed. Please try again.",
+};
+
+function GoogleGlyph() {
+  return (
+    <svg className="h-5 w-5" viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        fill="#4285F4"
+        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.76h3.56c2.08-1.92 3.28-4.74 3.28-8.09Z"
+      />
+      <path
+        fill="#34A853"
+        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.56-2.76c-.98.66-2.24 1.06-3.72 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23Z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M5.84 14.11a6.6 6.6 0 0 1 0-4.22V7.05H2.18a11 11 0 0 0 0 9.9l3.66-2.84Z"
+      />
+      <path
+        fill="#EA4335"
+        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.05l3.66 2.84C6.71 7.29 9.14 5.38 12 5.38Z"
+      />
+    </svg>
+  );
+}
 
 export function AdminLogin() {
-  const [step, setStep] = useState<"email" | "otp">("email");
-  const [email, setEmail] = useState("");
-  const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
+  const error =
+    typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search).get("error")
+      : null;
 
-  const handleSendOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email) return;
-
+  const handleGoogleSignIn = () => {
     setLoading(true);
-    try {
-      const res = await apiPost({
-        path: "/auth/otp/request",
-        passedData: { email, isAdminLogin: true },
-      });
-
-      if (res.success) {
-        showSuccessToast("OTP Sent", "Check your email for the code");
-        setStep("otp");
-      } else {
-        showErrorToast("Error", res.error || "Failed to send OTP");
-      }
-    } catch {
-      showErrorToast("Error", "An error occurred");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleVerifyOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!otp) return;
-
-    setLoading(true);
-    try {
-      const res = await apiPost({
-        path: "/auth/otp/verify",
-        passedData: { email, code: otp, isAdminLogin: true },
-      });
-
-      if (res.success && res.token) {
-        setAuthSession({ token: res.token, organizationId: res.user?.organizationId });
-        setSharedAuthCookie(res.token);
-
-        // Broadcast login event to other tabs
-        try {
-          const channel = new BroadcastChannel("auth_channel");
-          channel.postMessage({ type: "login", token: res.token });
-          channel.close();
-        } catch {
-          // BroadcastChannel not supported
-        }
-
-        showSuccessToast("Login Successful", "Redirecting to dashboard...");
-        window.location.reload();
-      } else {
-        showErrorToast("Verification Failed", res.error || "Invalid OTP");
-      }
-    } catch {
-      showErrorToast("Error", "Verification failed");
-    } finally {
-      setLoading(false);
-    }
+    startAdminGoogleLogin();
   };
 
   return (
@@ -95,7 +70,7 @@ export function AdminLogin() {
           <motion.img
             src="/logo.png"
             alt="Alloro Logo"
-            className="mx-auto h-16 w-16 rounded-2xl shadow-lg mb-4"
+            className="mx-auto mb-4 h-16 w-16 rounded-2xl shadow-lg"
             whileHover={{ scale: 1.05 }}
           />
           <h1 className="text-2xl font-bold text-gray-900">
@@ -113,150 +88,35 @@ export function AdminLogin() {
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.2 }}
         >
-          <AnimatePresence mode="wait">
-            {step === "email" ? (
-              <motion.form
-                key="email-form"
-                onSubmit={handleSendOtp}
-                className="space-y-5"
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 20 }}
-                transition={{ duration: 0.3 }}
-              >
-                <div className="text-center mb-6">
-                  <motion.div
-                    className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-alloro-orange/20 to-alloro-orange/10"
-                    animate={loading ? { scale: [1, 1.05, 1] } : {}}
-                    transition={loading ? { duration: 1, repeat: Infinity } : {}}
-                  >
-                    <Lock className="h-7 w-7 text-alloro-orange" />
-                  </motion.div>
-                  <h2 className="text-lg font-semibold text-gray-900">
-                    Enter your email
-                  </h2>
-                  <p className="text-sm text-gray-500 mt-1">
-                    We'll send you a verification code
-                  </p>
-                </div>
+          <div className="mb-6 text-center">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-alloro-orange/20 to-alloro-orange/10">
+              <Shield className="h-7 w-7 text-alloro-orange" />
+            </div>
+            <h2 className="text-lg font-semibold text-gray-900">
+              Sign in with your Alloro account
+            </h2>
+            <p className="mt-1 text-sm text-gray-500">
+              Admin access requires a <b>@getalloro.com</b> Google account.
+            </p>
+          </div>
 
-                <div>
-                  <label
-                    htmlFor="email"
-                    className="mb-2 block text-sm font-medium text-gray-700"
-                  >
-                    Email Address
-                  </label>
-                  <div className="relative">
-                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4">
-                      <Mail className="h-5 w-5 text-gray-400" />
-                    </div>
-                    <input
-                      type="email"
-                      id="email"
-                      className="block w-full rounded-xl border border-gray-200 bg-white py-3 pl-11 pr-4 text-gray-900 placeholder-gray-400 transition-all focus:border-alloro-orange focus:ring-2 focus:ring-alloro-orange/20 focus:outline-none"
-                      placeholder="you@example.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      required
-                      autoFocus
-                    />
-                  </div>
-                </div>
+          {error && (
+            <div className="mb-5 rounded-xl border border-red-200 bg-red-50 p-3 text-center text-sm text-red-700">
+              {ERROR_COPY[error] || "Sign-in failed. Please try again."}
+            </div>
+          )}
 
-                <motion.button
-                  type="submit"
-                  disabled={loading}
-                  className="flex w-full items-center justify-center rounded-xl bg-alloro-orange px-5 py-3 text-base font-semibold text-white shadow-lg shadow-alloro-orange/30 transition-all hover:bg-alloro-orange/90 hover:shadow-xl hover:shadow-alloro-orange/40 focus:outline-none focus:ring-4 focus:ring-alloro-orange/20 disabled:opacity-50"
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                >
-                  {loading ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                  ) : (
-                    <>
-                      Continue
-                      <ArrowRight className="ml-2 h-5 w-5" />
-                    </>
-                  )}
-                </motion.button>
-              </motion.form>
-            ) : (
-              <motion.form
-                key="otp-form"
-                onSubmit={handleVerifyOtp}
-                className="space-y-5"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                transition={{ duration: 0.3 }}
-              >
-                <div className="text-center mb-6">
-                  <motion.div
-                    className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-green-100 to-green-50"
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    transition={{ type: "spring", stiffness: 300 }}
-                  >
-                    <CheckCircle className="h-7 w-7 text-green-500" />
-                  </motion.div>
-                  <h2 className="text-lg font-semibold text-gray-900">
-                    Check your email
-                  </h2>
-                  <p className="text-sm text-gray-500 mt-1">
-                    We sent a code to{" "}
-                    <span className="font-medium text-gray-700">{email}</span>
-                  </p>
-                </div>
-
-                <div>
-                  <label
-                    htmlFor="otp"
-                    className="mb-2 block text-sm font-medium text-gray-700"
-                  >
-                    Verification Code
-                  </label>
-                  <input
-                    type="text"
-                    id="otp"
-                    className="block w-full rounded-xl border border-gray-200 bg-white py-4 text-center text-2xl font-bold tracking-[0.5em] text-gray-900 placeholder-gray-300 transition-all focus:border-alloro-orange focus:ring-2 focus:ring-alloro-orange/20 focus:outline-none"
-                    placeholder="------"
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
-                    maxLength={6}
-                    required
-                    autoFocus
-                  />
-                </div>
-
-                <motion.button
-                  type="submit"
-                  disabled={loading || otp.length < 6}
-                  className="flex w-full items-center justify-center rounded-xl bg-alloro-orange px-5 py-3 text-base font-semibold text-white shadow-lg shadow-alloro-orange/30 transition-all hover:bg-alloro-orange/90 hover:shadow-xl hover:shadow-alloro-orange/40 focus:outline-none focus:ring-4 focus:ring-alloro-orange/20 disabled:opacity-50"
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                >
-                  {loading ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                  ) : (
-                    <>
-                      <Shield className="mr-2 h-5 w-5" />
-                      Verify & Sign In
-                    </>
-                  )}
-                </motion.button>
-
-                <motion.button
-                  type="button"
-                  onClick={() => setStep("email")}
-                  className="w-full text-center text-sm font-medium text-gray-500 hover:text-alloro-orange transition-colors"
-                  whileHover={{ x: -4 }}
-                >
-                  ← Use a different email
-                </motion.button>
-              </motion.form>
-            )}
-          </AnimatePresence>
+          <motion.button
+            type="button"
+            onClick={handleGoogleSignIn}
+            disabled={loading}
+            className="flex w-full items-center justify-center gap-3 rounded-xl border border-gray-200 bg-white px-5 py-3 text-base font-semibold text-gray-700 shadow-sm transition-all hover:bg-gray-50 focus:outline-none focus:ring-4 focus:ring-alloro-orange/20 disabled:opacity-50"
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+          >
+            <GoogleGlyph />
+            {loading ? "Redirecting…" : "Sign in with Google"}
+          </motion.button>
         </motion.div>
 
         {/* Footer */}
@@ -266,8 +126,8 @@ export function AdminLogin() {
           animate={{ opacity: 1 }}
           transition={{ delay: 0.4 }}
         >
-          <p className="text-xs text-gray-400 flex items-center justify-center gap-1.5">
-            <Shield className="w-3.5 h-3.5" />
+          <p className="flex items-center justify-center gap-1.5 text-xs text-gray-400">
+            <Shield className="h-3.5 w-3.5" />
             Protected by Alloro Security
           </p>
         </motion.div>

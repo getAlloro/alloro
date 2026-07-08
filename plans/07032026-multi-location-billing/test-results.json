@@ -1,0 +1,322 @@
+{
+  "plan": "plans/07032026-multi-location-billing (Phase A paid adds + Phase B cancellation)",
+  "generatedAt": "2026-07-03",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "T1",
+      "title": "Paid add: quote → purchase charges prorated delta → location created",
+      "surface": "api",
+      "precondition": "Dev server on Stripe TEST keys; org 41 seeded with an active test-mode subscription (qty 1) and default test card",
+      "steps": [
+        "1. GET /api/billing/location-add-quote as org 41 admin — expect mode=quantity, unitAmount=200000, newQuantity=2, newMonthlyTotal=400000, proratedChargeNow > 0",
+        "2. POST /api/locations/purchase with { name, gbp(unused test GBP), expectedNewMonthlyTotal=400000 }",
+        "3. Verify response 201 with billing.chargedNow > 0 and location id",
+        "4. Verify Stripe: subscription quantity = 2, latest invoice billing_reason=subscription_update and paid",
+        "5. Verify DB: locations row exists with google_properties link"
+      ],
+      "expected": "Charge succeeds first, location exists after; amounts match the quote",
+      "status": "pass",
+      "evidence": "2026-07-03 dev run (clean sub sub_1TorEL…): quote mode=quantity unit=200000 newTotal=400000 prorated=199974; purchase 201, location id 35, chargedNow=199999; Stripe qty=2, invoice billing_reason=subscription_update status=paid amount_paid=199999. Earlier run also 201/paid (199975).",
+      "notes": "Quote vs receipt drifts by seconds-of-proration (¢-level) — receipt amount returned in the response is authoritative.",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Declined card: no charge completes, NO location is created",
+      "surface": "api",
+      "precondition": "Org 41 test subscription's default payment method swapped to a declining test card (pm_card_chargeCustomerFail)",
+      "steps": [
+        "1. POST /api/locations/purchase with a fresh unused GBP",
+        "2. Expect 402 with error.code=PAYMENT_FAILED",
+        "3. Verify DB: no new locations row; Stripe quantity unchanged; proration invoice voided"
+      ],
+      "expected": "Transaction rolled back — nothing committed, nothing charged",
+      "status": "pass",
+      "evidence": "2026-07-03 dev run (clean sub): 402 PAYMENT_FAILED 'Your card was declined.', quantity stayed 2, latest invoice status=void, location absent. NOTE: first attempt exposed a REAL bug — Stripe does not pay update-proration invoices synchronously, so the original error_if_incomplete design let a declined card through; fixed by explicit finalize+pay with void+revert compensation (commit on branch), then re-proven.",
+      "notes": "pm_card_visa_chargeDeclined declines at ATTACH; pm_card_chargeCustomerFail is the attach-ok/charge-fail card. Credit-polluted subs net proration to $0 which auto-pays — correct behavior (credits applied).",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "GBP reuse blocked with friendly 409 (One Endo silent-500 fixed)",
+      "surface": "api",
+      "precondition": "Org 41 has a location whose GBP external_id is known",
+      "steps": [
+        "1. POST /api/locations/purchase using the already-linked GBP external_id",
+        "2. Expect 409 with error.code=GBP_ALREADY_LINKED (not a 500)"
+      ],
+      "expected": "Typed 409; no charge attempted, no row created",
+      "status": "pass",
+      "evidence": "2026-07-03 dev run: duplicate e2e-gbp-south → http=409 code=GBP_ALREADY_LINKED.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T4",
+      "title": "Available-GBP picker excludes already-linked profiles",
+      "surface": "api",
+      "precondition": "Org admin with a REAL Google connection (endpoint fetches live GBP accounts)",
+      "steps": [
+        "1. GET /api/settings/properties/available/gbp",
+        "2. Verify the linked external_id(s) are absent from the response"
+      ],
+      "expected": "Linked profiles filtered server-side (fixes both add + change pickers)",
+      "status": "pass",
+      "evidence": "2026-07-04 dev: org 39 (real Google connection — the original One Endo silent-500 org, 5 linked GBPs): GET available/gbp returned success with 0 properties — all 5 linked external_ids filtered out. Wizard GBP step renders the graceful 'No properties found' empty state (evidence/wizard-gbp-step-org41.png).",
+      "notes": "The Google account's properties are exactly the 5 linked ones, so the filtered list is empty — the pre-fix UI showed all 5 and selecting any crashed with the unique-index 500.",
+      "waiver": ""
+    },
+    {
+      "id": "T5",
+      "title": "Billing card shows 'N locations × $X/mo = $Z/mo'",
+      "surface": "ui",
+      "precondition": "Org 41 with active test subscription (2 locations after T1)",
+      "steps": [
+        "1. GET /api/billing/status — verify locationBilling { locationCount, unitAmount, monthlyTotal }",
+        "2. Open Settings → Billing as org 41 admin (user visual pass)",
+        "3. Verify plan card shows the locations × price = total line"
+      ],
+      "expected": "API payload correct; card renders '2 locations × $2,000/mo' with '$4,000/mo'",
+      "status": "pass",
+      "evidence": "2026-07-03 dev run: locationBilling={locationCount:2, effectiveQuantity:2, unitAmount:200000, currency:usd, interval:month, monthlyTotal:400000, isFlatRate:false}.",
+      "notes": "Visual half verified 2026-07-04 via the agent's Playwright UI pass at the owner's request (evidence/billing-tab-org41.png): '2 locations × $2,000/mo' + '$4,000/mo' + amber pending subtitle rendering live on dev.",
+      "waiver": ""
+    },
+    {
+      "id": "T6",
+      "title": "Legacy silent-create endpoint rejects org admins (payment bypass closed)",
+      "surface": "api",
+      "precondition": "Org 41 org-admin JWT (not in SUPER_ADMIN_EMAILS)",
+      "steps": [
+        "1. POST /api/locations with a valid body as the org admin",
+        "2. Expect 403 (Super Admin privileges required)"
+      ],
+      "expected": "Org admins cannot silently add locations any more",
+      "status": "pass",
+      "evidence": "2026-07-03 dev run: http=403 body='Access denied. Super Admin privileges required.'",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T7",
+      "title": "Legacy remove still syncs quantity down",
+      "surface": "api",
+      "precondition": "Org 41 with 2 locations and quantity 2 (after T1)",
+      "steps": [
+        "1. DELETE /api/locations/:id for the added location as org admin",
+        "2. Verify Stripe subscription quantity decrements (auto-prorated credit is existing behavior)"
+      ],
+      "expected": "Quantity sync fires on remove as before",
+      "status": "pass",
+      "evidence": "2026-07-03 dev runs: DELETE 200 → qty 3→2 (first run) and 2→1 (cleanup run) within ~4s of the fire-and-forget sync.",
+      "notes": "Client remove is replaced by cancellation in Phase B.",
+      "waiver": ""
+    },
+    {
+      "id": "T8",
+      "title": "STRIPE_MODE guard: mismatch fails boot; webhook livemode mismatch ignored",
+      "surface": "cli",
+      "precondition": "Local checkout of the branch with test keys",
+      "steps": [
+        "1. Locally: STRIPE_MODE=live with sk_test key → process must exit with the mismatch error",
+        "2. On dev (STRIPE_MODE=test set in dev.env): app boots, health green",
+        "3. stripe trigger checkout.session.completed (test) → delivered + processed (livemode matches)"
+      ],
+      "expected": "Boot-time fail-fast on mismatch; matching events processed normally",
+      "status": "pass",
+      "evidence": "2026-07-03: local boot with STRIPE_MODE=live + sk_test → 'REFUSED: [Stripe] STRIPE_MODE=live but STRIPE_SECRET_KEY is a test-mode key…'; dev.env has STRIPE_MODE=test (line 136), deploy boots + health healthy; synthetic trigger delivered, passed livemode guard, processed ('missing organization_id' = business logic reached).",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T9",
+      "title": "Foreign-mode Stripe ids are inert on dev (prod-cloned org)",
+      "surface": "api",
+      "precondition": "A dev org still carrying live-mode stripe ids (org 5, prod clone)",
+      "steps": [
+        "1. GET /api/billing/location-add-quote as that org's admin — expect mode=unavailable (200, not 500)",
+        "2. Check PM2 logs: warn-level 'unavailable/foreign mode' lines, no error stack"
+      ],
+      "expected": "Clean warn no-ops; no Stripe mutations attempted",
+      "status": "pass",
+      "evidence": "2026-07-03 dev run: org 5 admin quote → http=200 mode=unavailable; PM2 logs show level-40 '[LocationBilling] Billing objects for org 5 are unavailable with the configured Stripe key (foreign mode or stale clone)'.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T10",
+      "title": "Reset script: refuses under live keys, resets test org repeatably",
+      "surface": "cli",
+      "precondition": "Worktree checkout with .env on test keys",
+      "steps": [
+        "1. Run with STRIPE_SECRET_KEY temporarily set to an sk_live_ placeholder → exits code 2 with refusal",
+        "2. Run npm run billing:reset-test-org -- <orgId> → org's stripe columns nulled, status active"
+      ],
+      "expected": "Interlock enforced; reset works and is repeatable",
+      "status": "pass",
+      "evidence": "2026-07-03: live-key run → exit 2 with refusal text; test-key run against org 45 → columns nulled/reported per-field, admin-granted state confirmed.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "B1",
+      "title": "Cancel (not last): pending status + quantity decrement with no proration",
+      "surface": "api",
+      "precondition": "Phase B deployed to dev; org 41 with 2 active locations, test subscription qty 2",
+      "steps": [
+        "1. POST /api/locations/:id/cancel for the non-primary location",
+        "2. Verify response: status pending_cancellation, cancel_effective_at = period end, billing.action=quantity_decremented",
+        "3. Verify Stripe: quantity = 1, NO new invoice (proration none)",
+        "4. Verify the location still appears in GET /api/locations (usable until effective date)"
+      ],
+      "expected": "Current paid period untouched; next invoice lower; location stays usable",
+      "status": "pass",
+      "evidence": "2026-07-03 dev: cancel loc 35 → 200, status=pending_cancellation, action=quantity_decremented, effectiveAt=2026-08-02T20:29:04Z; Stripe qty 2→1; NO new invoice (proration none); still listed in default GET /locations. UI: amber 'ENDS AUG 3' badge + Reopen button (evidence/properties-tab-org41.png); cancel dialog shows period-end date, free-reopen copy, and the correct lowered total (evidence/cancel-dialog-org41.png).",
+      "notes": "Phase B merged to dev/dave early by owner directive (2026-07-03) — verify-in-dev-before-main-merge supersedes the original ordering constraint.",
+      "waiver": ""
+    },
+    {
+      "id": "B2",
+      "title": "Reopen while pending: free restore",
+      "surface": "api",
+      "precondition": "B1 state (one pending location)",
+      "steps": [
+        "1. POST /api/locations/:id/reopen",
+        "2. Verify status active, cancel_effective_at cleared; Stripe quantity back to 2 with no new invoice"
+      ],
+      "expected": "No charge; subscription state fully restored",
+      "status": "pass",
+      "evidence": "2026-07-03 dev: reopen → 200, active, action=quantity_restored, chargedNow=null; qty back to 2; no new invoice. Guards: double-cancel → 400 LOCATION_NOT_ACTIVE; reopen-active → 400 LOCATION_NOT_REOPENABLE.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "B3",
+      "title": "Last-location cancel schedules the whole subscription to end (with explicit UI warning)",
+      "surface": "ui",
+      "precondition": "Org with exactly 1 active location",
+      "steps": [
+        "1. Cancel the only active location from Settings → Properties",
+        "2. Verify the dialog shows the 'only active location — ends your subscription' warning",
+        "3. Verify Stripe: cancel_at_period_end=true; billing.action=subscription_ending",
+        "4. Reopen before period end → cancel_at_period_end cleared"
+      ],
+      "expected": "Subscription-level cancellation, reversible until period end",
+      "status": "pass",
+      "evidence": "2026-07-03 dev: cancel of the last active location → 200, action=subscription_ending, Stripe cancel_at_period_end=true (quantity untouched); reopen → action=subscription_resumed, flag cleared, quantity correct.",
+      "notes": "The dialog's red last-location warning is the isLast branch of the visually-verified cancel dialog (normal branch captured; org had 2 active at capture time).",
+      "waiver": ""
+    },
+    {
+      "id": "B4",
+      "title": "Reopen after cancelled: paid re-add via the Phase A prorated charge",
+      "surface": "api",
+      "precondition": "A cancelled location on an org with an active subscription",
+      "steps": [
+        "1. POST /api/locations/:id/reopen",
+        "2. Verify 200 with billing.action=charged and chargedNow > 0; Stripe quantity incremented; proration invoice paid",
+        "3. Declined-card variant → 402 PAYMENT_FAILED, status stays cancelled"
+      ],
+      "expected": "Same consent + synchronous-pay semantics as adding a location",
+      "status": "pass",
+      "evidence": "2026-07-03 dev: reopen cancelled loc → 200, action=charged, chargedNow honest from the receipt ($0 in-session due to paid-slot netting — invoice ledger verified: Stripe credits unused time on the already-billed quantity). Declined re-test on genuinely UNBILLED quantity: 402 PAYMENT_FAILED, the $1,985.17 proration invoice VOIDED, status stayed cancelled, quantity unchanged. UI: reopen dialog shows the quote (new total + due today) before confirming (evidence/reopen-dialog-org41.png).",
+      "notes": "Paid-slot reuse within a period is correct Stripe accounting — a swapped location transfers its paid slot at $0.",
+      "waiver": ""
+    },
+    {
+      "id": "B5",
+      "title": "Finalizer flips due pending cancellations",
+      "surface": "cli",
+      "precondition": "A pending_cancellation row with a backdated cancel_effective_at on dev",
+      "steps": [
+        "1. Wait for the hourly minds-location-cancellation tick (or trigger the queue job manually)",
+        "2. Verify the row flips to cancelled with cancelled_at set; worker log line present"
+      ],
+      "expected": "Idempotent flip; no Stripe calls at finalize time",
+      "status": "pass",
+      "evidence": "2026-07-03 dev: backdated 3 pending rows, enqueued a manual job on minds-location-cancellation → all 3 flipped to cancelled with cancelled_at; minds-worker logged '[LOCATION-FINALIZER] Finalized 3 due location cancellation(s)'. Hourly repeatable job registered at worker boot.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "B6",
+      "title": "Cancelled locations: greyed in Properties, absent from the sidebar switcher",
+      "surface": "ui",
+      "precondition": "Org with one cancelled location",
+      "steps": [
+        "1. GET /api/locations → cancelled row absent; ?include_cancelled=true → present with status fields",
+        "2. Settings → Properties shows the row greyed with a Cancelled badge and only a Reopen action",
+        "3. Sidebar switcher does not list it; if it was the selected location, the app falls back to primary/first"
+      ],
+      "expected": "Visibility filtered, data retained, reopen path visible",
+      "status": "pass",
+      "evidence": "2026-07-03/04 dev: default GET /locations excluded cancelled rows; ?include_cancelled=true returned all with status fields. UI: sidebar switcher dropdown lists only the 3 non-cancelled locations (cancelled 'Swap Office' absent; pending 'Edge Office' selectable); Properties shows the cancelled card greyed with a CANCELLED badge and only a Reopen action (evidence/properties-tab-org41.png).",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "B7",
+      "title": "No client-reachable delete path; data never removed",
+      "surface": "api",
+      "precondition": "Phase B deployed",
+      "steps": [
+        "1. DELETE /api/locations/:id → 404 (route removed)",
+        "2. Verify Properties tab has no delete control",
+        "3. Verify a cancelled location's rows (google_properties, downstream tables) are untouched"
+      ],
+      "expected": "Cancellation is the only client lifecycle exit; retention absolute",
+      "status": "pass",
+      "evidence": "2026-07-03 dev: DELETE /api/locations/:id → 404 (route removed); no delete control anywhere in the Properties UI; cancelled rows keep their data (the greyed card still shows its GBP link and ids).",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "B8",
+      "title": "Billing card shows the pending subtitle ('1 location ending <date>')",
+      "surface": "ui",
+      "precondition": "Org with one pending_cancellation location",
+      "steps": [
+        "1. GET /api/billing/status → locationBilling.pendingCancellationCount=1 with nextEndingAt",
+        "2. Billing tab plan card shows the amber 'ending <date>' line under the totals"
+      ],
+      "expected": "Go-forward total plus the pending note",
+      "status": "pass",
+      "evidence": "2026-07-03/04 dev: locationBilling={locationCount:2, unitAmount:200000, monthlyTotal:400000, pendingCancellationCount:1, nextEndingAt:2026-08-02T20:29:04Z}; Billing card renders '2 locations × $2,000/mo' + '$4,000/mo' with the amber '1 location ending August 3, 2026 — still active until then.' subtitle (evidence/billing-tab-org41.png).",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "B9",
+      "title": "Location-swap edge: purchasing clears a scheduled subscription end",
+      "surface": "api",
+      "precondition": "All locations cancelled (subscription cancel_at_period_end=true), then a purchase",
+      "steps": [
+        "1. Cancel all active locations (last one schedules the subscription end)",
+        "2. POST /api/locations/purchase for a new location",
+        "3. Verify Stripe cancel_at_period_end flips to false and the location is created"
+      ],
+      "expected": "The purchase supersedes the scheduled end — the paid location never dies with the old subscription",
+      "status": "pass",
+      "evidence": "2026-07-03 dev: pre-add cancel_at_period_end=true → purchase 201 → cancel_at_period_end=false. Bug found by edge-case analysis in this round, fixed in commit 137e7f92 (+unit test), redeployed, then proven live. Standard swap (one pending + one add) also verified: charge fires with the correct target quantity.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "B10",
+      "title": "Recurring agents skip cancelled locations; archived orgs already guarded",
+      "surface": "api",
+      "precondition": "Org with a cancelled location; proofline/ranking schedules enabled",
+      "steps": [
+        "1. Verify both agent executors enumerate via the status-aware finder (cancelled excluded, pending included)",
+        "2. Verify both agent feeder queries filter archived orgs (whereNull o.archived_at)",
+        "3. Next scheduled proofline/ranking run on dev processes org 41's non-cancelled locations only"
+      ],
+      "expected": "No agent compute or writes for cancelled locations; archived clients never enter the account list",
+      "status": "pass",
+      "evidence": "2026-07-04: proofline + ranking executors switched to findNonCancelledByOrganizationId. LIVE SCHEDULED RUN PROOF (2026-07-05 dev, minds-worker log): '[CLIENT] Found 3 location(s) for org 41' — 3 of 4 enumerated, cancelled Swap Office skipped; full run completed across 8 accounts. Archived-org guards verified pre-existing in both agent feeder queries (whereNull o.archived_at) and the monthly-agents runner's explicit check. Gates green (tsc/conventions/189 tests).",
+      "notes": "Non-agent recurring systems (review sync, GBP local posts, harvest, PMS) still process cancelled locations — explicitly deferred to the workflow-gating follow-up plan. Bonus finding: dev proofline had been dead since 2026-04-28 (stale 'running' schedule_runs row 48 blocked every tick) — cleared during this verification, dev proofline now runs again.",
+      "waiver": ""
+    }
+  ]
+}

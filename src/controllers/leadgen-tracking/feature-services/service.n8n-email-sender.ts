@@ -1,27 +1,22 @@
 /**
- * Backend-side n8n email sender for the FAB email-notify queue.
+ * Backend-side leadgen "email me when ready" report sender.
  *
- * Mirrors the body shape that the leadgen tool's client-side
- * `utils/emailService.ts:sendAuditReportEmail` posts. Single source of
- * truth for the HTML template still lives in the leadgen tool client; we
- * intentionally re-render the template inline here so the worker doesn't
- * have a runtime dep on the leadgen-tool repo.
+ * Owns the leadgen report HTML template and the `{ ok, error? }` contract the
+ * FAB email-notify queue depends on. Transport + environment interception are
+ * delegated to the central `emails/emailService.sendEmail` — the single
+ * webhook choke-point for internal mail. This is the consolidation the old
+ * header flagged as long-term work: leadgen no longer posts to n8n itself.
  *
- * If you change the template in the client, mirror the change here too.
- * Long-term: consolidate sending behind the backend exclusively (flagged
- * in the spec's Pushback section).
- *
- * Env: `N8N_EMAIL_URL` must point at the same webhook the client uses.
- * Falls back to the public production URL if unset.
+ * The report HTML is intentionally re-rendered inline here so the worker has
+ * no runtime dependency on the leadgen-tool repo. If you change the template
+ * in the leadgen tool client, mirror the change here too.
  */
 
-import axios from "axios";
-import { interceptEmailPayload } from "../../../emails/emailInterceptor";
-import logger from "../../../lib/logger";
+import { sendEmail } from "../../../emails";
 
-const N8N_EMAIL_URL =
-  process.env.N8N_EMAIL_URL ||
-  "https://n8n.getalloro.com/webhook/alloro-email-service";
+const REPORT_SUBJECT = "📊 Your Alloro Practice Analysis Report";
+// Self-BCC so the Alloro team keeps a copy of every report that goes out.
+const REPORT_SELF_BCC = ["info@getalloro.com"];
 
 interface SendAuditReportEmailOpts {
   recipientEmail: string;
@@ -101,8 +96,10 @@ function generateEmailHTML(
 }
 
 /**
- * POSTs to the n8n email webhook with the same body shape as the client's
- * `sendAuditReportEmail`. Returns `{ ok, error? }` — never throws.
+ * Renders the leadgen report email and hands it to the central `sendEmail`,
+ * which owns payload validation, non-production interception, transport, and
+ * logging. Returns `{ ok, error? }` — never throws, so an email hiccup can't
+ * kill the audit worker.
  */
 export async function sendAuditReportEmail(
   opts: SendAuditReportEmailOpts
@@ -114,41 +111,17 @@ export async function sendAuditReportEmail(
       opts.businessName
     );
 
-    const builtPayload = {
-      cc: [] as string[],
-      bcc: ["info@getalloro.com"],
+    const result = await sendEmail({
+      subject: REPORT_SUBJECT,
       body,
-      from: "info@getalloro.com",
-      subject: "📊 Your Alloro Practice Analysis Report",
-      fromName: "Alloro",
       recipients: [opts.recipientEmail],
-    };
-
-    // Non-production senders get every email rerouted to the intercept
-    // recipient (fail closed) — see emails/emailInterceptor.ts.
-    const {
-      payload,
-      intercepted,
-      originalRecipients,
-    } = await interceptEmailPayload(builtPayload);
-
-    if (intercepted) {
-      logger.info({ detail: originalRecipients }, "[Leadgen Email] Email intercepted (non-production sender). Original recipients:");
-    }
-
-    const response = await axios.post(N8N_EMAIL_URL, payload, {
-      headers: { "Content-Type": "application/json" },
-      timeout: 15_000,
-      validateStatus: () => true,
+      bcc: REPORT_SELF_BCC,
+      category: "leadgen",
     });
 
-    if (response.status >= 200 && response.status < 300) {
-      return { ok: true };
-    }
-    return {
-      ok: false,
-      error: `n8n responded with HTTP ${response.status}`,
-    };
+    return result.success
+      ? { ok: true }
+      : { ok: false, error: result.error ?? "Email send failed" };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     return { ok: false, error: msg };

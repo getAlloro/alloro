@@ -56,6 +56,7 @@ const PUBLIC_PREFIXES: readonly string[] = [
   "/api/internal", // n8n workers — internal-key (validated in router)
   "/api/leadgen", // leadgen tracking — X-Leadgen-Key (validated in router)
   "/api/audit", // leadgen tool audit tracking (retry path is key-gated)
+  "/api/webhooks/mailgun-events", // Mailgun event webhook — HMAC signature-verified in controller
 
   // ── Public site surfaces (rendered *.sites.getalloro.com) ──
   "/api/websites", // public contact / form-submission / newsletter confirm

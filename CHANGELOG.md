@@ -2,6 +2,158 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.158] - July 2026
+
+### Direct Mailgun email transport + admin test-send
+
+Every outbound app email was routed through an n8n webhook — the app had no direct control over delivery, and tracking depended on n8n echoing back Mailgun's message-id. This adds a direct Mailgun HTTP transport so the app sends email itself, with n8n retained as an env-flippable fallback. Also adds a "Send Test" button on the admin Email Logs page so transport health can be verified from the dashboard. Built on `plans/07082026-email-direct-mailgun-transport`; code-level gates pass (tsc 0, vitest 338/338, conventions 0); live send verification waived pending deploy. Mailgun env vars staged on both dev and prod servers.
+
+**Key Changes:**
+- **Transport abstraction.** `sendEmail` now resolves a transport (`mailgun` | `n8n`) via `resolveTransport()` and dispatches to it. Mailgun is the default when `MAILGUN_API_KEY` + `MAILGUN_DOMAIN` are set; `EMAIL_DEFAULT_TRANSPORT=n8n` forces the old path.
+- **Direct Mailgun send.** `src/emails/transport/mailgunTransport.ts` — axios POST to the Mailgun HTTP API (basic auth, form-encoded), ported from the stranded email-manager worktree. Never throws; returns a typed `TransportResult`.
+- **n8n extracted.** The existing n8n webhook POST moved into `src/emails/transport/n8nTransport.ts` — behaviour-preserving.
+- **Clean tracking.** Mailgun's `<id@domain>` message-id is normalized (angle brackets stripped) and stored as `provider_message_id` on the `email_logs` row, so the shipped mailgun-events webhook correlates delivery/open events without depending on n8n.
+- **Admin test-send.** `POST /api/admin/email-logs/test-send` (super-admin gated, `allowLiveSend: true`) + `SendTestEmailModal` on the Email Logs page — type a recipient, send, see the result in the logs table.
+- **No migration.** Reuses the existing `email_logs` table; no schema change.
+
+**Commits:**
+- `src/emails/types.ts` — added `EmailTransport`, `TransportResult`, `MailgunMessage`.
+- `src/emails/transport/mailgunTransport.ts` (new), `src/emails/transport/n8nTransport.ts` (new).
+- `src/emails/emailService.ts` — rewired with `resolveTransport()` dispatch + `normalizeMessageId`.
+- `src/controllers/admin-email-logs/AdminEmailLogsController.ts` — added `sendTestEmail` handler.
+- `src/routes/admin/emailLogs.ts` — added `POST /test-send` route.
+- `frontend/src/api/email-logs.ts` — added `adminSendTestEmail`.
+- `frontend/src/pages/admin/EmailLogs/SendTestEmailModal.tsx` (new).
+- `frontend/src/pages/admin/EmailLogs.tsx` — "Send Test" button + modal mount.
+- `src/__tests__/email-mailgun-transport.test.ts`, `src/__tests__/email-resolve-transport.test.ts` (new, 11 tests).
+
+## [0.0.157] - July 2026
+
+### Email Logs admin page — design-system polish
+
+The internal admin **Email Logs** viewer was hand-rolled plain Tailwind and looked out of place next to the rest of the admin. Rebuilt it on the shared admin design system so it matches its sibling log viewer (Application Logs). Presentation only — no API, hook, query, or backend change, and list/detail behavior is identical. Built on `plans/07082026-email-logs-ui-polish`; owner-verified in the admin tab (acceptance C1 + T1–T7 pass). Live on dev after this push; not on production until the `main` merge. Docs parity N/A — internal operator page, not in customer docs, and the change is cosmetic (same controls and labels).
+
+**Key Changes:**
+- **Heading** now uses `AdminPageHeader` — navy `Mail` icon tile with an animated entrance, identical treatment to Application Logs.
+- **Animated filters.** Category and Status use the shared `AnimatedSelect`; the date and search inputs carry the brand orange focus ring; a **Reset** control appears only when a filter is active.
+- **Table.** Framer Motion staggered row entrance, hover-highlight rows, skeleton-row loading, and design-system empty/error states (`EmptyState`).
+- **Detail modal.** Glass (blurred) backdrop with a spring in/out, an icon + badges header, and X / Escape / backdrop close. The sandboxed `iframe` email preview is preserved verbatim (untrusted stored HTML).
+- **Layout bug fixed.** The page double-padded (its own `p-6` on top of `AdminLayout`'s); switched to `space-y-6` like the sibling pages.
+- **Decomposition.** The 345-line file was split into a `pages/admin/EmailLogs/` feature folder (constants, badges, filters, table, modal) plus a 132-line container — mirroring the `PracticeRanking/` pattern; every file is under 200 lines.
+
+**Commits:**
+- `frontend/src/pages/admin/EmailLogs.tsx` — rewritten as the container: state/params/query unchanged, composes header + filters + table + animated pagination + `AnimatePresence` modal.
+- `frontend/src/pages/admin/EmailLogs/` — new `constants.ts`, `badges.tsx`, `EmailLogsFilters.tsx`, `EmailLogsTable.tsx`, `EmailLogDetailModal.tsx`.
+- `plans/07082026-email-logs-ui-polish/` — spec, acceptance `test.html` + `test-results.json` (Passed).
+
+## [0.0.156] - July 2026
+
+### Fix: Google admin sign-in landing on the wrong identity
+
+Signing in with Google as one `@getalloro.com` admin could drop you into the app as a *different* admin (sign in as `dave`, end up as `info`). The backend authenticated correctly and minted the right token — the bug was entirely client-side. Built on `plans/07082026-google-login-session-clobber`; verified on dev by the owner (acceptance A1–A5 pass) and unit-proven (frontend `vitest` 64/64). Live on dev; not on production until the `main` merge (Google admin login itself isn't on prod yet). Docs parity N/A — admin-only, no user-facing UI change.
+
+**Root cause:** the app keeps its session token in `localStorage`, and the sliding-refresh interceptor wrote any re-issued token (the `x-session-refresh` header) straight back to it. During the sign-in handoff, a still-in-flight request under the *previous* identity re-issued that identity's token and clobbered the freshly-set one — the cookie held the new user, `localStorage` held the old, and the app reads `localStorage`.
+
+**Key Changes:**
+- **Identity-safe session refresh.** `storeRefreshedToken` now persists a re-issued token only when it belongs to the same user already in the target store (embedded-pilot / pilot `sessionStorage` / normal `localStorage`); a mismatched or no-session refresh is dropped. A refresh may *extend* a session but never *change* who it is. This also closes the same latent race in the client email/password, verify-email, and password-reset flows.
+- **Clean login handoff.** The Google SSO finish page clears any prior session (localStorage + pilot `sessionStorage`) before writing the new one.
+- **One JWT decode path.** Payload decoding is centralized in `frontend/src/utils/jwt.ts` (`decodeJwtUserId`); `currentUser.ts` delegates to it.
+- **Tests.** `utils/jwt.test.ts` (5) and `api/index.test.ts` (6) cover the decode helper and the guard: same-identity writes, cross-identity dropped, no-session dropped, pilot mode.
+
+**Operational note:** deploying a fix to a shared-`localStorage` auth bug has a transition window — tabs still running the pre-deploy bundle can re-clobber shared storage until every tab reloads onto the new code. Seen during dev verification; resolves on reload / Incognito.
+
+**Commits:**
+- `frontend/src/api/index.ts` — identity-safe `storeRefreshedToken` (the core fix)
+- `frontend/src/pages/AuthGoogleFinish.tsx` — clear prior session before set
+- `frontend/src/utils/jwt.ts` (new) + `frontend/src/utils/currentUser.ts` — shared `decodeJwtUserId`
+- `frontend/src/utils/jwt.test.ts` + `frontend/src/api/index.test.ts` — tests
+- Dev commit: `9971611e`
+
+## [0.0.155] - July 2026
+
+### Admin Sign-In: Google SSO (replaces OTP)
+
+Admin access now uses Google sign-in restricted to verified `@getalloro.com` accounts, replacing the email-OTP admin login. Built on `plans/07052026-google-sso-admin-and-user-login` (P1) and verified end-to-end on dev via browser automation — acceptance T1–T9 pass, run twice through a real Google round-trip. Live on dev; not on production until the `main` merge (prod env already staged). Client login (email + password) is unchanged; the optional client "Sign in with Google" is deferred (P2). Docs parity is N/A — this is admin-only and `alloro-docs` is client-facing only.
+
+**Key Changes:**
+- **Admin login is a single "Sign in with Google" button.** The OTP admin login endpoints (`/api/auth/otp/request`, `/verify`) and the OTP admin UI are retired; `/api/auth/otp/validate` stays (website-builder). No break-glass — Google is the only admin door.
+- **New `auth-sso` backend domain** runs the OAuth authorization-code flow (backend code exchange so the client secret never reaches the browser, ID-token signature + nonce verify, CSRF state as a signed-JWT cookie), gates the `@getalloro.com` domain, then mints the **same** bearer JWT the app already issues — one session model, not two. The callback finishes with a relative redirect through `/auth/google/finish`, which copies the token into the existing session storage.
+- **Zero-registration admin.** Any `@getalloro.com` Google account gets immediate admin on first sign-in (auto-provisioned, `is_internal=true`) — no invite, allowlist entry, or registration. The Internal consent screen double-gates it to Workspace accounts.
+- **`SUPER_ADMIN_EMAILS` dependence removed.** Admin authorization is now purely `@getalloro.com` domain-based, and the admin roster (PM people-picker, GSC admin-owned connections) is DB-driven from `users.is_internal`, so new admins appear automatically without editing an env var. No separate admin table — admins are `users` rows identified by id.
+- **Migration:** `users.google_sub` (partial-unique) + `avatar_url`; additive, reversible, applied on dev.
+- Added `google-auth-library@^10` (matches the existing `googleapis` version). Distinct `GOOGLE_LOGIN_*` env vars, validated fail-closed at first use, set on dev + prod.
+
+**Commits:**
+- `src/controllers/auth-sso/**` — OAuth flow, domain gate, find-or-create session mint (new domain, mirrors `gbp-automation/`)
+- `src/config/googleLogin.ts` — `GOOGLE_LOGIN_*` config (distinct from GBP OAuth), fails closed
+- `src/database/migrations/20260705000000_add_google_sub_to_users.ts` — `google_sub` + `avatar_url`
+- `src/models/UserModel.ts` — `findByGoogleSub` / `createFromGoogle` / `attachGoogleIdentity` / `markInternal` / `listInternalUsers`
+- `src/middleware/superAdmin.ts` + `src/controllers/auth-otp/feature-services/service.super-admin.ts` — domain-only admin gate
+- `src/routes/auth-sso.ts` + `src/app.ts` — `/api/auth/google` mounted before the GBP `/api/auth` router (route-collision fix)
+- `src/controllers/auth-otp/AuthOtpController.ts` + `src/routes/auth-otp.ts` — OTP admin login retired
+- `src/controllers/pm/PmController.ts` + `src/controllers/admin-websites/feature-services/service.gsc-integration.ts` — DB-driven admin roster
+- `frontend/src/components/Admin/shell/AdminLogin.tsx` + `pages/AuthGoogleFinish.tsx` + `api/auth-sso.ts` + `App.tsx` — Google button + finish-route bridge
+- Dev commits: `b4bdda53`, `0cf726a4`, `358f2f9f`, `50017acc`
+
+## [0.0.154] - July 2026
+
+### Support Help Desk: Pill Placement + Staff Name Masking
+
+Two client-facing polish fixes on the Help desk ticket detail, built on `plans/07052026-support-help-desk-pill-and-author-mask` and verified on dev via browser automation (all 4 acceptance checks pass). Branched off `main` and opened as PR #143 into `main`; the same commit was cherry-picked onto `dev/dave` and is live on dev. Not yet on production until PR #143 merges.
+
+**Key Changes:**
+- **Status pill moved above the title.** On a ticket with a long title, the status pill ("Waiting on you") was squeezed into a narrow right-hand column and wrapped mid-phrase. The ticket-detail header now stacks the pill on its own line above the ticket ID and title, and the pill gets `whitespace-nowrap` so no label ever breaks.
+- **Staff replies show "Alloro" on the client side.** In the client Help desk thread, replies from the Alloro team now render as "Alloro" instead of the individual team member's name. This is an opt-in `maskStaffName` prop on the shared `SupportMessageThread`, passed only by the client ticket detail — the **admin support panel is unchanged and still shows the real replier name** (verified: the same reply reads "ALLORO TEAM" in the admin panel but "ALLORO" in the client thread). Display-only; author names are still stored and still sent to the admin side.
+- **Docs parity.** The Support page replica in `alloro-docs` (`SupportReplica`) was updated to match: pill above the title, `whitespace-nowrap`, and staff author rendered as "Alloro".
+
+**Commits:**
+- `frontend/src/components/support/SupportTicketDetail.tsx` — header restructure (pill above title) + passes `maskStaffName`
+- `frontend/src/components/support/SupportStatusBadge.tsx` — `whitespace-nowrap` guard
+- `frontend/src/components/support/SupportMessageThread.tsx` — opt-in `maskStaffName` prop (default false → admin keeps real names)
+- `alloro-docs` `src/components/replicas/SupportReplica.tsx` — docs parity (separate repo)
+
+## [0.0.153] - July 2026
+
+### Multi-Location Billing: Paid Location Adds + Cancellation Lifecycle
+
+Adding a location now walks the client through the new charge and takes payment before the location goes live, and locations can be cancelled and reopened without ever losing data. Built across two phases on `plans/07032026-multi-location-billing` and fully verified in dev test-mode — acceptance T1–T10 + B1–B10 all pass, including an agent-driven UI pass in a real browser. Not yet on production; the first live-mode run will be the main merge.
+
+**Key Changes:**
+- **Paid add-location flow (Phase A).** The Settings → Properties add-location wizard is now: name → pick Google Business Profile (required; already-linked profiles are filtered out) → billing summary (per-location price, current → new monthly total, prorated charge due today) → confirm → the prorated delta is charged on the card on file → **only then is the location created**. A declined card leaves nothing behind: the proration invoice is voided and the subscription quantity reverted. A new `LocationBillingService` owns the quote and the charge, which explicitly finalizes and pays the proration invoice synchronously — Stripe does not auto-charge subscription-update invoices at request time, so "create after paid" requires it.
+- **GBP reuse guard (fixes the One Endo "Add Location" crash).** A Google Business Profile can no longer back two locations in the same organization — the picker hides already-linked profiles and the server rejects a duplicate with a clear "already linked" message instead of the previous opaque 500.
+- **Billing card location summary.** The plan card now shows "N locations × $X/mo = $Z/mo", plus an amber "N location(s) ending <date>" note when a cancellation is scheduled.
+- **Cancellation lifecycle (Phase B).** Locations gain a status: active → pending_cancellation → cancelled. Cancelling stops the *next* invoice from including the location (the already-paid current period is untouched); the location stays fully usable until the period ends and can be reopened for free before then. After that it is marked cancelled — greyed out in Settings → Properties, removed from the sidebar switcher, with **all of its data retained forever** and reopenable (a paid re-add). Cancelling the last active location schedules the whole subscription to end at period close. The client hard-delete path is removed entirely — nothing is ever deleted.
+- **Billing-environment safety.** A new `STRIPE_MODE` guard refuses startup if the declared mode disagrees with the configured key, drops webhook events whose livemode mismatches, and treats production-cloned Stripe ids as inert no-ops — so a test-keyed dev server can never mutate a live subscription. A test-mode-only reset script supports repeatable dev billing tests.
+- **Recurring agents skip cancelled locations.** The Proofline and Practice Ranking agents no longer run for cancelled locations (pending-cancellation locations keep running until their period ends); archived organizations were already excluded everywhere.
+
+**Commits:**
+- `src/controllers/billing/feature-services/LocationBillingService.ts` + `feature-utils/` — quote + create-after-paid purchase, typed errors, shared billing emails
+- `src/controllers/locations/feature-services/LocationLifecycleService.ts` — cancel / reopen / finalize with the full Stripe branch matrix (quantity decrement, last-location subscription end, free vs paid reopen)
+- `src/workers/processors/locationCancellationFinalizer.processor.ts` — hourly period-boundary finalizer (idempotent)
+- `src/config/stripe.ts` — `STRIPE_MODE` guard + `getStripeMode()`; `src/routes/locations.ts` + `billing.ts` — quote / purchase / cancel / reopen endpoints, legacy silent-create locked to super-admin
+- `src/models/LocationModel.ts` + migration `20260703000000_add_location_cancellation_lifecycle` — status / cancel_effective_at / cancelled_at columns + (organization_id, status) index
+- `frontend/src/components/settings/` — `AddLocationWizard`, `PlanLocationSummary`, `LocationLifecycleDialogs`, `PropertiesTab` lifecycle UI; `frontend/src/api/{locations,billing}.ts` — quote / purchase / cancel / reopen client functions
+- `src/controllers/agents/feature-services/service.{proofline,ranking}-executor.ts` — skip cancelled locations
+- `scripts/billing-reset-test-org.ts` — test-mode-only billing reset
+
+**Deferred / accepted (owner sign-off, July 2026):** the non-agent recurring systems (review sync, GBP local posts, data harvest, PMS jobs) still process cancelled locations — deferred to a follow-up workflow-gating plan; the 3DS/SCA live-card path is treated as a payment-failure fallback (untested live); the cancelled-primary edge and concurrent-mutation races are accepted. The first execution in live Stripe mode is the production merge.
+
+## [0.0.152] - July 2026
+
+### SEO Generator: Lessons Packaged Into the Prompts + a Source-of-Truth Doc
+
+Captured everything the 2026-07-02 SEO overhaul (0.0.147–0.0.151) taught, encoded where the generator lives so it can't reintroduce the defects. Documentation + prompt content only — no runtime code or data changes.
+
+**Key Changes:**
+- **Prompts strengthened to close the gaps the live audit found.** Base prompt now names the fields the system sets deterministically and the model must NOT produce (`canonical_url`, `aggregateRating`, `og_image`), with the core lesson stated plainly: any field that must be *true* rather than believable is code-decided. `critical` gained a homepage-title rule (never the bare brand name — the exact miss on Artful's homepage). `significant` now bans emitting `aggregateRating` (real one injected from synced reviews) and hand-authoring `FAQPage` (built from sourced `faq_candidates`), and restates valid business `@type`s only. `moderate` marks `og_image_recommendation` as advisory, with the real image system-resolved.
+- **New `SeoGeneration.LESSONS.md`** next to the prompts — the complete reference: every rule, the failure that motivated it, and which layer (prompt / code / renderer) guarantees it, plus a quick enforcement-index table. Not wired into `loadPrompt`, so it ships as documentation with zero prompt-token cost.
+
+**Verification:** `npx tsc --noEmit` clean; SEO generation + enrichment suites 29/29 pass (real `loadPrompt` reads the edited `.md` files). Grep-confirmed the lessons doc is not referenced by `loadPrompt` (inert). Acceptance artifact Passed (`plans/07022026-seo-generator-lessons-packaging/test-results.json`). Committed to `dev/dave` (`47be559d`), dev deploy succeeded; production carries the change on the owner's next `dev/dave → main` merge. No dashboard UI change, so no Alloro Docs update required.
+
+**Commits:**
+- `47be559d` — prompt strengthening (`SeoGeneration.md`, `.critical.md`, `.significant.md`, `.moderate.md`) + new `SeoGeneration.LESSONS.md`
+- (this changelog + plan artifacts under `plans/07022026-seo-generator-lessons-packaging/`)
+
 ## [0.0.151] - July 2026
 
 ### SEO Root-Cause Batch: Legacy Redirects, Generator Fixes, Honest Audit Scoring, Renderer Hardening
