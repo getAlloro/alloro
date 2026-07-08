@@ -8,7 +8,7 @@ Written to be executed from the repo. CODE file:lines are anchored to `origin/de
 ## Why this exists (read first: the owner, not the code)
 The Memorable stage is where the business compounds. A happy patient who reviews, returns, and refers
 feeds every earlier stage: more demand, more findability, more credibility, warmer bookings (journey-lattice.md,
-"This stage compounds," ~line 151; substrate, alloro-brain, local). So the owner's Memorable read has to
+"This stage compounds," ~line 151; substrate, alloro-brain, local). So the owner's read of this stage has to
 do more than *state facts*: it has to catch the one thing slipping that they can't see, and hand them one move this week.
 
 Right now it doesn't. On the live Admin Hub the Memorable surface **describes** (rating, review count,

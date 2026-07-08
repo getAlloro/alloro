@@ -222,7 +222,7 @@ and one action banner as its recommendation layer. Everything below (`PatientJou
     fake one-tap.
   - **Owner-relationship domain, `referral`:** the genuinely-owner move (calling the GP, tending the
     referral relationship) has NO rail Alloro can run for them. This is the ONE **done-WITH-you**
-    handoff: *"Dental Care at Chancellor dropped from 26 to 21 referrals, call them this week."* It is
+    handoff: *"Call Dental Care at Chancellor Crossing, your single largest referral source, dropped from 26 referrals to 21 this period. Call them this week."* It is
     the EXCEPTION to the card shape, not the default.
   - **Read-only / can't-execute domains, `ranking`, `pms-data-quality`, and a review-VELOCITY ask:**
     no write-rail exists; these stay observation only (the verdict's tone + the catch attribution),
