@@ -1,12 +1,13 @@
 import { useMemo, useState } from "react";
 import { AnimatePresence } from "framer-motion";
-import { ChevronLeft, ChevronRight, Mail } from "lucide-react";
+import { ChevronLeft, ChevronRight, Mail, Send } from "lucide-react";
 import { useAdminEmailLogs } from "../../hooks/queries/useAdminEmailLogs";
 import type { EmailLogListParams } from "../../api/email-logs";
 import { AdminPageHeader, ActionButton } from "../../components/ui/DesignSystem";
 import EmailLogsFilters from "./EmailLogs/EmailLogsFilters";
 import EmailLogsTable from "./EmailLogs/EmailLogsTable";
 import EmailLogDetailModal from "./EmailLogs/EmailLogDetailModal";
+import SendTestEmailModal from "./EmailLogs/SendTestEmailModal";
 import { PAGE_SIZE } from "./EmailLogs/constants";
 
 /**
@@ -23,6 +24,7 @@ export default function EmailLogs() {
   const [to, setTo] = useState("");
   const [page, setPage] = useState(1);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [showTestSend, setShowTestSend] = useState(false);
 
   const params = useMemo<EmailLogListParams>(
     () => ({
@@ -37,7 +39,7 @@ export default function EmailLogs() {
     [category, status, search, from, to, page]
   );
 
-  const { data, isLoading, isError } = useAdminEmailLogs(params);
+  const { data, isLoading, isError, refetch } = useAdminEmailLogs(params);
   const logs = data?.logs ?? [];
   const pagination = data?.pagination;
 
@@ -59,17 +61,25 @@ export default function EmailLogs() {
 
   return (
     <div className="space-y-6">
-      <AdminPageHeader
-        icon={<Mail className="h-6 w-6" />}
-        title="Email Logs"
-        description={
-          <>
-            Every email sent by the app, captured at the send choke-point.
-            Read-only.{" "}
-            <span className="text-gray-400">“opened” is best-effort (*).</span>
-          </>
-        }
-      />
+      <div className="flex items-start justify-between gap-4">
+        <AdminPageHeader
+          icon={<Mail className="h-6 w-6" />}
+          title="Email Logs"
+          description={
+            <>
+              Every email sent by the app, captured at the send choke-point.
+              Read-only.{" "}
+              <span className="text-gray-400">"opened" is best-effort (*).</span>
+            </>
+          }
+        />
+        <ActionButton
+          label="Send Test"
+          icon={<Send className="h-4 w-4" />}
+          onClick={() => setShowTestSend(true)}
+          size="sm"
+        />
+      </div>
 
       <EmailLogsFilters
         category={category}
@@ -124,6 +134,12 @@ export default function EmailLogs() {
           <EmailLogDetailModal
             id={selectedId}
             onClose={() => setSelectedId(null)}
+          />
+        )}
+        {showTestSend && (
+          <SendTestEmailModal
+            onClose={() => setShowTestSend(false)}
+            onSent={() => refetch()}
           />
         )}
       </AnimatePresence>

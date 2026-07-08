@@ -1,4 +1,4 @@
-import { apiGet, unwrap } from "./index";
+import { apiGet, apiPost, unwrap } from "./index";
 
 /**
  * Admin Email Logs — API module (plans/07062026-email-logs-dashboard).
@@ -98,4 +98,20 @@ export async function adminListEmailLogs(
 export async function adminGetEmailLog(id: string): Promise<{ log: EmailLog }> {
   const res = await apiGet({ path: `/admin/email-logs/${id}` });
   return unwrap<{ log: EmailLog }>(res);
+}
+
+export interface TestSendResult {
+  messageId: string;
+  transport: string;
+  recipient: string;
+}
+
+export async function adminSendTestEmail(
+  recipient: string
+): Promise<TestSendResult> {
+  const res = await apiPost({
+    path: "/admin/email-logs/test-send",
+    passedData: { recipient },
+  });
+  return unwrap<TestSendResult>(res);
 }

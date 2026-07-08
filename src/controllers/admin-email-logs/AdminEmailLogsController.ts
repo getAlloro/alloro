@@ -15,6 +15,7 @@
 
 import { Request, Response } from "express";
 import { EmailLogModel } from "../../models/EmailLogModel";
+import { sendEmail, resolveTransport } from "../../emails/emailService";
 import { ok, fail } from "./feature-utils/controllerResponses";
 import logger from "../../lib/logger";
 
@@ -63,6 +64,62 @@ export async function listEmailLogs(
     logger.error({ err: error }, "[AdminEmailLogs] listEmailLogs error:");
     return fail(res, 500, "EMAIL_LOGS_LIST_FAILED", "Failed to list email logs.");
   }
+}
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export async function sendTestEmail(
+  req: Request,
+  res: Response
+): Promise<Response> {
+  try {
+    const { recipient } = req.body as { recipient?: string };
+
+    if (!recipient || typeof recipient !== "string" || !EMAIL_REGEX.test(recipient.trim())) {
+      return fail(res, 400, "INVALID_RECIPIENT", "A valid email address is required.");
+    }
+
+    const transport = resolveTransport();
+    const result = await sendEmail({
+      subject: `[Alloro Test] Email transport verification (${transport})`,
+      body: buildTestEmailHtml(transport, recipient.trim()),
+      recipients: [recipient.trim()],
+      from: "info@getalloro.com",
+      fromName: "Alloro",
+      category: "system",
+      allowLiveSend: true,
+    });
+
+    if (!result.success) {
+      return fail(res, 502, "TEST_EMAIL_FAILED", result.error ?? "Transport returned an error.");
+    }
+
+    return ok(res, {
+      messageId: result.messageId,
+      transport,
+      recipient: recipient.trim(),
+    });
+  } catch (error) {
+    logger.error({ err: error }, "[AdminEmailLogs] sendTestEmail error:");
+    return fail(res, 500, "TEST_EMAIL_ERROR", "Failed to send test email.");
+  }
+}
+
+function buildTestEmailHtml(transport: string, recipient: string): string {
+  const ts = new Date().toISOString();
+  return `
+    <div style="font-family:Inter,system-ui,sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;">
+      <h2 style="margin:0 0 16px;font-size:20px;color:#080808;">Alloro Test Email</h2>
+      <p style="margin:0 0 12px;color:#333;line-height:1.6;">
+        This is a test email sent from the Alloro admin dashboard to verify the email transport is working.
+      </p>
+      <table style="width:100%;border-collapse:collapse;margin:16px 0;">
+        <tr><td style="padding:8px 12px;border:1px solid #d8d8d8;font-weight:600;color:#5f5f5f;width:120px;">Transport</td><td style="padding:8px 12px;border:1px solid #d8d8d8;">${transport}</td></tr>
+        <tr><td style="padding:8px 12px;border:1px solid #d8d8d8;font-weight:600;color:#5f5f5f;">Recipient</td><td style="padding:8px 12px;border:1px solid #d8d8d8;">${recipient}</td></tr>
+        <tr><td style="padding:8px 12px;border:1px solid #d8d8d8;font-weight:600;color:#5f5f5f;">Sent at</td><td style="padding:8px 12px;border:1px solid #d8d8d8;">${ts}</td></tr>
+      </table>
+      <p style="margin:16px 0 0;font-size:13px;color:#999;">If you received this, the transport is working.</p>
+    </div>`;
 }
 
 export async function getEmailLogDetail(

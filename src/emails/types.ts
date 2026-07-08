@@ -65,6 +65,24 @@ export interface EmailResult {
   timestamp: string;
 }
 
+export type EmailTransport = "n8n" | "mailgun";
+
+export interface TransportResult {
+  success: boolean;
+  messageId?: string;
+  error?: string;
+  status?: number;
+}
+
+export interface MailgunMessage {
+  from: string;
+  to: string[];
+  cc?: string[];
+  bcc?: string[];
+  subject: string;
+  html: string;
+}
+
 export interface AdminNotificationData {
   newActionItems?: number;
   practiceRankingsCompleted?: Array<{

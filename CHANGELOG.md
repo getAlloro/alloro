@@ -2,6 +2,31 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.158] - July 2026
+
+### Direct Mailgun email transport + admin test-send
+
+Every outbound app email was routed through an n8n webhook — the app had no direct control over delivery, and tracking depended on n8n echoing back Mailgun's message-id. This adds a direct Mailgun HTTP transport so the app sends email itself, with n8n retained as an env-flippable fallback. Also adds a "Send Test" button on the admin Email Logs page so transport health can be verified from the dashboard. Built on `plans/07082026-email-direct-mailgun-transport`; code-level gates pass (tsc 0, vitest 338/338, conventions 0); live send verification waived pending deploy. Mailgun env vars staged on both dev and prod servers.
+
+**Key Changes:**
+- **Transport abstraction.** `sendEmail` now resolves a transport (`mailgun` | `n8n`) via `resolveTransport()` and dispatches to it. Mailgun is the default when `MAILGUN_API_KEY` + `MAILGUN_DOMAIN` are set; `EMAIL_DEFAULT_TRANSPORT=n8n` forces the old path.
+- **Direct Mailgun send.** `src/emails/transport/mailgunTransport.ts` — axios POST to the Mailgun HTTP API (basic auth, form-encoded), ported from the stranded email-manager worktree. Never throws; returns a typed `TransportResult`.
+- **n8n extracted.** The existing n8n webhook POST moved into `src/emails/transport/n8nTransport.ts` — behaviour-preserving.
+- **Clean tracking.** Mailgun's `<id@domain>` message-id is normalized (angle brackets stripped) and stored as `provider_message_id` on the `email_logs` row, so the shipped mailgun-events webhook correlates delivery/open events without depending on n8n.
+- **Admin test-send.** `POST /api/admin/email-logs/test-send` (super-admin gated, `allowLiveSend: true`) + `SendTestEmailModal` on the Email Logs page — type a recipient, send, see the result in the logs table.
+- **No migration.** Reuses the existing `email_logs` table; no schema change.
+
+**Commits:**
+- `src/emails/types.ts` — added `EmailTransport`, `TransportResult`, `MailgunMessage`.
+- `src/emails/transport/mailgunTransport.ts` (new), `src/emails/transport/n8nTransport.ts` (new).
+- `src/emails/emailService.ts` — rewired with `resolveTransport()` dispatch + `normalizeMessageId`.
+- `src/controllers/admin-email-logs/AdminEmailLogsController.ts` — added `sendTestEmail` handler.
+- `src/routes/admin/emailLogs.ts` — added `POST /test-send` route.
+- `frontend/src/api/email-logs.ts` — added `adminSendTestEmail`.
+- `frontend/src/pages/admin/EmailLogs/SendTestEmailModal.tsx` (new).
+- `frontend/src/pages/admin/EmailLogs.tsx` — "Send Test" button + modal mount.
+- `src/__tests__/email-mailgun-transport.test.ts`, `src/__tests__/email-resolve-transport.test.ts` (new, 11 tests).
+
 ## [0.0.157] - July 2026
 
 ### Email Logs admin page — design-system polish
