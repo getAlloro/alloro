@@ -112,8 +112,7 @@ and one action banner as its recommendation layer. Everything below (`PatientJou
   it from signals ALREADY on the screen, so it needs zero new fetch:
   - The four stat tones already computed for `StatCardRow`, `referralStatus`, `localRankStatus`,
     `reviewTone`, `formSubsTone` (`frontend/src/components/dashboard/focus/statusRules.ts`), each
-    returning `positive | warn | critical | neutral`. These four map to stages (same mapping the
-    `DOMAIN_TO_STAGE` constant in FIX 3 uses, so the verdict and the eyebrow never disagree):
+    returning `positive | warn | critical | neutral`. These four map to stages (the stat→stage map; the eyebrow reads the card's authored `stage` field, and per the FIX 3 resolution banner both resolve reviews→Choosable, so the verdict and eyebrow agree on one screen):
     Local rank → **Findable**, Reviews → **Choosable**, Form Submissions → **Bookable**,
     Referrals → **Memorable**. (The review signal feeds the verdict only as TONE; Ch7 authors no
     review action, see the reviews-ownership note under FIX 3.)
@@ -143,7 +142,10 @@ and one action banner as its recommendation layer. Everything below (`PatientJou
 
 ## FIX 3: Make the verdict + one-thing speak the four-stage vocabulary (via the unified type's `stage` field)
 
-> ⚠️ **COHERENCE-PASS UPDATE (2026-07-07, supersedes the static map below AND the Rev-1 "FIX 3 preserved unchanged" note):** the unified candidate-card TYPE (Ch2) now carries an explicit **`stage` field, set by the AUTHORING chapter**. Ch7's eyebrow AND the FIX-2 verdict read THAT field, not a `domain → stage` derivation. `DOMAIN_TO_STAGE` below is retained ONLY as a fallback for a candidate that lacks a `stage` field. This fixes the mislabel: a Ch6 review-ACTION carries `stage = memorable` and reads "Memorable"; a Ch4 review choose-signal carries `stage = choosable` and reads "Choosable", the domain map can no longer collapse a Memorable review-action into "Choosable." Where the text below says "review → Choosable," that is now the FALLBACK-only default.
+> ⚠️ **COHERENCE-PASS RESOLUTION (2026-07-07, corrects an earlier half-fix, read before building FIX 2/FIX 3):** Two surfaces name a stage and they MUST agree on one screen:
+> - The **VERDICT** (FIX 2) names the leaking stage from the four dashboard STAT tones. Stats have no authored `stage` field, so the verdict uses the fixed **stat→stage map** below.
+> - The **EYEBROW** (FIX 3) names the stage of the one-thing ACTION. It reads the unified card TYPE's authored **`stage` field** (Ch2); `DOMAIN_TO_STAGE` is the FALLBACK when a card lacks one. (The verdict does NOT read the `stage` field, it has only stats, an earlier note wrongly said it did.)
+> **Reviews reconciliation (the call that keeps the two from disagreeing):** reviews are dual-stage, a choose-SIGNAL (Choosable) and Memorable-stage WORK (Ch6 owns the doing). On the owner's ONE screen a reviews leak reads **Choosable in BOTH** surfaces ("patients can't choose you"); "Memorable" is the internal OWNERSHIP bucket (who does the work), NOT the owner-facing label. So a review action carries authored `stage = choosable` (the leak it addresses) and the verdict's stat-map (reviews→Choosable) agrees. **⛔ Corey/Dave decision to confirm before building: reviews read CHOOSABLE to the owner (recommended, one coherent screen), or flip to Memorable and accept the verdict and eyebrow showing two different stage words for the same reviews problem.**
 - **Owner sees:** the one-thing is anchored in an internal `domain` taxonomy
   (review / gbp / ranking / form-submission / pms-data-quality / referral), not the customer-journey
   stages the whole lattice is built on (Findable / Choosable / Bookable / Memorable). The lattice law
@@ -160,7 +162,7 @@ and one action banner as its recommendation layer. Everything below (`PatientJou
   - `referral`, `pms-data-quality` → **Memorable**
   Use it in two places: (1) the verdict (FIX 2) names the leaking stage via this map; (2)
   `OneThingBanner`'s eyebrow reads "This month · {Stage} · 1 thing that matters" so the single move is
-  visibly stage-anchored. No LLM change, no new data, a presentation-layer map.
+  visibly stage-anchored (per the resolution banner: {Stage} comes from the card's authored `stage` field, with this map as the FALLBACK, not the map as primary). No LLM change, no new data, a presentation-layer map.
 - **Reviews single-ownership (so the map is not soft):** `review → Choosable` labels the *stage the
   review action addresses*, not the chapter that authors it. Ch7 **owns no review action** and generates
   no review card. The review ASK / velocity / reply top-action is owned end-to-end by **Ch6 (Memorable)**;
@@ -175,8 +177,7 @@ and one action banner as its recommendation layer. Everything below (`PatientJou
   Chapters 3–6 produce) and using it as the scorer's tie-break or floor. That is a scoring-architecture
   change with its own spec, flag it, don't sneak it in here. This chapter enforces the *vocabulary*
   and the *single-card* discipline; the deterministic re-basing is a follow-on.
-- **Done when:** the verdict names a journey **stage** (not a domain) as the leak, and the one-thing
-  banner's eyebrow shows the stage it belongs to, both driven by the one `DOMAIN_TO_STAGE` constant.
+- **Done when:** the verdict names a journey **stage** (not a domain) as the leak (from the stat→stage map), and the one-thing eyebrow shows the ACTION's stage (from the card's authored `stage` field, `DOMAIN_TO_STAGE` as fallback), and on a reviews leak BOTH read **Choosable** (per the resolution banner), never two different stage words on one screen.
 
 ## FIX 4: Weld Alloro's attribution into the verdict + one-thing (the catch-22 break)
 - **Owner sees today:** the verdict and the action read like weather, *"reviews are slipping, here's
