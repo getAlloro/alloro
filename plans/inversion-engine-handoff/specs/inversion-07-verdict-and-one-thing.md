@@ -200,7 +200,7 @@ and one action banner as its recommendation layer. Everything below (`PatientJou
      the owned rail (`gbp-write.service.ts`, verified built), **never a projected or fabricated lift.**
      For UNBUILT/read-only domains (`ranking`, `pms-data-quality`, a review-VELOCITY ask) and the
      owner-move (`referral`), there is NO Alloro-did-it loop-back, only the catch attribution. Do not
-     fabricate an execution Alloro never ran (`project_alloro_built_vs_unbuilt_capabilities`).
+     fabricate an execution Alloro never ran (`guardrails/built-vs-unbuilt-capabilities.md`).
 - **Done when:** every leak verdict attributes the catch to Alloro without claiming Alloro caused the
   health; and after any approved in-lane built move, the following cycle's verdict/one-thing carries a
   real logged loop-back result, with no loop-back ever shown for a domain Alloro cannot execute.
@@ -233,7 +233,7 @@ and one action banner as its recommendation layer. Everything below (`PatientJou
   `review` reply), done-with-you handoff for `referral`, plain observation for the read-only set and for
   the not-yet-built `form-submission` responder. The honesty floor holds: GBP photo-refresh, category
   write-back, review-GENERATION, and booking/PMS connectors are NOT built and are never framed as
-  done-for-you (`project_alloro_built_vs_unbuilt_capabilities`).
+  done-for-you (`guardrails/built-vs-unbuilt-capabilities.md`).
 - **Done when:** an owner whose one-thing is a GBP post or a review REPLY sees a one-tap "Alloro will do
   this, approve" card (not a to-do); an owner whose one-thing is a referral move sees the single
   done-with-you handoff; and a ranking / PMS / review-velocity / not-yet-built-responder one-thing is
