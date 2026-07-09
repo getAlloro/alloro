@@ -391,6 +391,19 @@ export const TopActionSchema = z.object({
       .optional(),
   }),
   due_at: z.string().optional(),
+
+  // --- Ch2 (Card Standard) unified-type extension ---
+  // ADDITIVE + optional so existing SUMMARY output still validates (no breaking reshape).
+  // Set by the generating chapter; the selector/eyebrow fall back to DOMAIN_TO_STAGE when absent.
+  // `stage`: the journey stage this card ADDRESSES (the leak it fixes), NOT derived from `domain`.
+  // Reviews = choosable (Corey-staked 2026-07-07): the owner-facing stage in BOTH the verdict and
+  // the eyebrow; "memorable" is Ch6's internal ownership bucket, never the owner-facing label.
+  stage: z.enum(["findable", "choosable", "bookable", "memorable"]).optional(),
+  // `execution_state`: makes the FLIP machine-readable. built = Alloro drafts + does it on approval
+  // + attributes; read-only = honest observation (unbuilt rail); handoff = owner action (minimize).
+  execution_state: z.enum(["built", "read-only", "handoff"]).optional(),
+  // `generic`: Ch2 quality flag. A generic card (true) fails the Card Standard bar and is never selected.
+  generic: z.boolean().optional(),
 });
 
 export const DomainSummarySchema = z.object({

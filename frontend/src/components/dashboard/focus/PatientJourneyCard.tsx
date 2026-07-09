@@ -14,10 +14,13 @@ import type {
 /**
  * PatientJourneyCard — compact Practice Hub summary of the six-stage funnel.
  *
- * Renders the biggest-leak headline one-liner plus two key stage numbers
- * (the first available website-traffic stage and leads), then links into the
- * full /patientJourneyInsights screen. Shares ONE network request with that
- * screen via usePatientJourney (same queryKey → React Query dedupes).
+ * Renders a neutral heading plus two key stage numbers (the first available
+ * website-traffic stage and leads), then links into the full
+ * /patientJourneyInsights screen. Shares ONE network request with that screen
+ * via usePatientJourney (same queryKey → React Query dedupes).
+ * (Ch2/Ch7 FIX 1: no longer renders the biggest-leak headline sentence, which
+ * competed with the one-thing banner; the leak is shown on the detail screen as
+ * the amber stage treatment.)
  *
  * Honest states: a null stage value paired with `available: false` is shown
  * as "—" with a "not connected yet" sub-line — never a misleading zero. When
@@ -160,7 +163,15 @@ export function PatientJourneyCard() {
     );
   }
 
-  const headlineText = data.headline.text?.trim();
+  // Ch2/Ch7 FIX 1: the home card drops the biggest-leak headline sentence
+  // (data.headline.text) — a SECOND recommendation competing with OneThingBanner's
+  // one-thing, and a problem stated with no action. The card renders as supporting
+  // evidence only: stage tiles + link.
+  // Verified (adversary pass 2026-07-08): this <h3> was the ONLY reader of
+  // data.headline.text, so the leak SENTENCE is now rendered nowhere. The leak is
+  // still surfaced on the /patientJourneyInsights detail screen as the amber stage-card
+  // treatment (not as the sentence). The backend headline text is still computed in
+  // funnelMath.ts (unchanged, nothing deleted) — it is simply no longer shown here.
   const leadStage = findStage(data.stages, "leads");
   const trafficStage = pickHeadlineStage(data);
   const sameStage = trafficStage && leadStage && trafficStage.key === leadStage.key;
@@ -170,7 +181,7 @@ export function PatientJourneyCard() {
       <Eyebrow label={labels.journey} />
 
       <h3 className="mt-3 font-display text-lg leading-snug text-alloro-navy">
-        {headlineText || `Track your ${labels.journey.toLowerCase()}.`}
+        Track your {labels.journey.toLowerCase()}.
       </h3>
 
       <div className="mt-4 flex items-end gap-5 border-t border-line-soft pt-4">

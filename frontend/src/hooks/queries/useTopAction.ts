@@ -58,6 +58,11 @@ export interface TopAction {
     secondary?: TopActionCtaButton;
   };
   due_at?: string;
+  // Ch2 unified-type extension (mirrors the backend Zod schema); optional, backward-compatible.
+  // `stage` = the journey stage this card addresses; the eyebrow reads it, DOMAIN_TO_STAGE as fallback.
+  stage?: "findable" | "choosable" | "bookable" | "memorable";
+  execution_state?: "built" | "read-only" | "handoff";
+  generic?: boolean;
 }
 
 /**
