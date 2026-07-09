@@ -107,11 +107,17 @@ export function getOverviewRecommendedAction(result: RankingResult): string {
     result.llmAnalysis?.top_recommendations?.map((rec) =>
       `${rec.title} ${rec.description ?? ""}`.toLowerCase(),
     ) ?? [];
-  const isLocalSearchLeader =
-    (result.searchStatus ?? "ok") === "ok" && result.searchPosition === 1;
+  const measuredRank =
+    (result.searchStatus ?? "ok") === "ok" && result.searchPosition != null;
+  const isLocalSearchLeader = measuredRank && result.searchPosition === 1;
+  const isTopSet =
+    measuredRank &&
+    (result.searchPosition === 2 || result.searchPosition === 3);
   const postingOutcome = isLocalSearchLeader
     ? "protect the lead"
-    : "improve the position";
+    : isTopSet
+      ? "widen your top-three lead"
+      : "improve the position";
 
   if (recommendations.some((rec) => rec.includes("post"))) {
     return `Start posting to Google Business Profile weekly to ${postingOutcome}`;
@@ -136,11 +142,16 @@ export function getStructuredOverviewInsight(
 ): string {
   const hasMeasuredRank =
     (result.searchStatus ?? "ok") === "ok" && result.searchPosition;
+  const inTopSet =
+    hasMeasuredRank &&
+    (result.searchPosition === 2 || result.searchPosition === 3);
   const rankingStatement = hasMeasuredRank
     ? result.searchPosition === 1
       ? `${getPracticeDisplayName(result)} holds a dominant #1 Local Search Ranking`
-      : `${getPracticeDisplayName(result)} is currently #${result.searchPosition} in Local Search`
-    : `${getPracticeDisplayName(result)} has a tracked Local Search Ranking`;
+      : inTopSet
+        ? `${getPracticeDisplayName(result)} is in the top three in Local Search`
+        : `${getPracticeDisplayName(result)} is currently #${result.searchPosition} in Local Search`
+    : `${getPracticeDisplayName(result)} has a Local Search position pending this month`;
   const roundedScore = Math.round(score);
 
   return `${rankingStatement} with a ${roundedScore} Alloro Health Score. Recommended Action: ${getOverviewRecommendedAction(result)}.`;
