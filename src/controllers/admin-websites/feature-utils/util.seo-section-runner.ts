@@ -44,6 +44,21 @@ export interface SeoSectionResult {
   insight: string;
 }
 
+/**
+ * A single real Google Search Console top query for this site (structurally a
+ * GscDimensionRow from service.gsc-performance — declared locally so the util
+ * layer stays decoupled from the service layer). An EMPTY list means "no
+ * measured demand"; the prefix omits the REAL SEARCH DEMAND block entirely and
+ * the geo_layer prompt falls back to inferring the target query from content.
+ */
+export interface GscTopQuery {
+  key: string;
+  clicks: number;
+  impressions: number;
+  ctr: number;
+  position: number;
+}
+
 const MODEL = "claude-sonnet-5";
 const MAX_TOKENS = 4096;
 const SEO_EFFORT = "medium" as const;
@@ -96,7 +111,8 @@ function buildSystemPromptParts(
   section: SeoSection,
   businessData: Record<string, unknown>,
   creatorContext: string,
-  practiceFactsBlock: string
+  practiceFactsBlock: string,
+  gscTopQueries: GscTopQuery[] = []
 ): { cachedPrefix: string; sectionPrompt: string } {
   const base = loadPrompt("websiteAgents/SeoGeneration");
   const sectionInstructions = loadPrompt(SEO_SECTION_FILE_MAP[section]);
@@ -108,9 +124,26 @@ ${practiceFactsBlock}
 BUSINESS DATA:
 ${JSON.stringify(businessData, null, 2)}
 
-${creatorContext ? `SEO GENERATION CRITERIA (from CroSEO mind):\n${creatorContext}\n` : ""}`;
+${creatorContext ? `SEO GENERATION CRITERIA (from CroSEO mind):\n${creatorContext}\n` : ""}${buildGscDemandBlock(gscTopQueries)}`;
 
   return { cachedPrefix, sectionPrompt: sectionInstructions };
+}
+
+/**
+ * Render the REAL SEARCH DEMAND block from this site's actual GSC top queries,
+ * highest-first. When the list is EMPTY the block is omitted entirely — never
+ * a "no data" line — so the model degrades cleanly to inferring the target
+ * query from page content (see SeoGeneration.geo-layer.md). Every number here
+ * is a measured GSC figure; nothing is fabricated.
+ */
+function buildGscDemandBlock(gscTopQueries: GscTopQuery[]): string {
+  if (gscTopQueries.length === 0) return "";
+
+  const lines = gscTopQueries.map(
+    (q) =>
+      `- "${q.key}": ${q.clicks} clicks, ${q.impressions} impressions, avg position ${q.position.toFixed(1)}`
+  );
+  return `\nREAL SEARCH DEMAND (Google Search Console, this site's actual top queries, highest first). For GEO target-query selection only; do NOT copy these queries into meta titles, descriptions, or schema output:\n${lines.join("\n")}\n`;
 }
 
 function buildUserPrompt(section: SeoSection, data: SeoSectionRunData & { entityType: "page" | "post" }): string {
@@ -202,9 +235,10 @@ async function runGenerateOnly(
   data: SeoSectionRunData,
   projectId?: string,
   entityId?: string,
-  practiceFactsBlock: string = DEFAULT_PRACTICE_FACTS_BLOCK
+  practiceFactsBlock: string = DEFAULT_PRACTICE_FACTS_BLOCK,
+  gscTopQueries: GscTopQuery[] = []
 ): Promise<{ section: string; generated: Record<string, unknown> }> {
-  const { cachedPrefix, sectionPrompt } = buildSystemPromptParts(section, businessData, creatorContext, practiceFactsBlock);
+  const { cachedPrefix, sectionPrompt } = buildSystemPromptParts(section, businessData, creatorContext, practiceFactsBlock, gscTopQueries);
   const userPrompt = buildUserPrompt(section, { ...data, entityType });
 
   const result = await runAgent({
@@ -286,7 +320,8 @@ export async function runGenerateSection(
   data: SeoSectionRunData,
   projectId?: string,
   entityId?: string,
-  practiceFactsBlock: string = DEFAULT_PRACTICE_FACTS_BLOCK
+  practiceFactsBlock: string = DEFAULT_PRACTICE_FACTS_BLOCK,
+  gscTopQueries: GscTopQuery[] = []
 ): Promise<SeoSectionResult> {
   const { generated } = await runGenerateOnly(
     section,
@@ -296,7 +331,8 @@ export async function runGenerateSection(
     data,
     projectId,
     entityId,
-    practiceFactsBlock
+    practiceFactsBlock,
+    gscTopQueries
   );
 
   const insight = await generateInsight(
@@ -328,7 +364,8 @@ export async function runAllSeoSectionsTiered(
   data: SeoSectionRunData,
   projectId?: string,
   entityId?: string,
-  practiceFactsBlock: string = DEFAULT_PRACTICE_FACTS_BLOCK
+  practiceFactsBlock: string = DEFAULT_PRACTICE_FACTS_BLOCK,
+  gscTopQueries: GscTopQuery[] = []
 ): Promise<SeoSectionResult[]> {
   let accumulated = { ...(data.existing_seo_data || {}) };
   const results: SeoSectionResult[] = [];
@@ -337,7 +374,7 @@ export async function runAllSeoSectionsTiered(
   for (const tier of SEO_TIERS) {
     const tierResults = await Promise.all(
       tier.map((section) =>
-        runGenerateOnly(section, entityType, businessData, creatorContext, { ...data, existing_seo_data: accumulated }, projectId, entityId, practiceFactsBlock)
+        runGenerateOnly(section, entityType, businessData, creatorContext, { ...data, existing_seo_data: accumulated }, projectId, entityId, practiceFactsBlock, gscTopQueries)
       )
     );
 

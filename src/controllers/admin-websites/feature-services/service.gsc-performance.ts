@@ -198,6 +198,44 @@ function emptyDashboard(rangeDays: number): GscPerformanceDashboard {
   };
 }
 
+/**
+ * Real-demand retrieval for the SEO content loop: return this project's actual
+ * top Google Search Console queries (last ~90 days, latest report backwards),
+ * aggregated with the SAME query/dimension logic the dashboard uses so the
+ * numbers are identical to what the GSC dashboard shows. Sorted highest-first
+ * (clicks, then impressions) and capped to `limit`.
+ *
+ * Returns [] when the project has no GSC data / no latest report date. It never
+ * invents a query or a number — an empty result means "no measured demand",
+ * and the caller must degrade to inferring the target query from page content.
+ */
+export async function getTopQueriesByProject(
+  projectId: string,
+  limit: number = TOP_LIMIT,
+): Promise<GscDimensionRow[]> {
+  const latestReportDate = normalizeDateString(
+    await GscDataModel.findLatestReportDate(projectId),
+  );
+  if (!latestReportDate) return [];
+
+  const fromDate = addUtcDays(latestReportDate, -(DEFAULT_RANGE_DAYS - 1));
+  const rows = await GscDataModel.findByProjectAndDateRange(
+    projectId,
+    fromDate,
+    latestReportDate,
+  );
+
+  const queryMap = new Map<string, MetricAccumulator>();
+  for (const day of rows) {
+    const data = day.data as GscStoredPayload;
+    for (const row of readQueryRows(data)) {
+      addDimensionRow(queryMap, readKey(row, 0), row);
+    }
+  }
+
+  return buildDimensionRows(queryMap).slice(0, limit);
+}
+
 export async function getDashboard(
   integration: IWebsiteIntegrationSafe,
   rangeDaysInput: unknown,
