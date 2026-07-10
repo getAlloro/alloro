@@ -28,6 +28,7 @@ import {
   buildFormSubmissionsMetrics,
   buildPmsMetrics,
   buildReferralMetrics,
+  buildChoosableMetrics,
 } from "./sectionBuilders";
 import logger from "../../lib/logger";
 import { weightedAverageRating } from "./metricsHelpers";
@@ -185,6 +186,9 @@ export async function computeDashboardMetrics(
   const formSubmissions = await buildFormSubmissionsMetrics(orgId);
   const pms = await buildPmsMetrics(orgId, locationId, dateRange);
   const referral = buildReferralMetrics(reOutput);
+  // Choosable (Stage 3) reuses the already-computed `reviews` for the practice
+  // side (one source of truth per number — no second GBP fetch).
+  const choosable = await buildChoosableMetrics(locationId, reviews);
 
   const result: DashboardMetrics = {
     reviews,
@@ -193,6 +197,7 @@ export async function computeDashboardMetrics(
     form_submissions: formSubmissions,
     pms,
     referral,
+    choosable,
   };
 
   // Validate at the boundary. A failure indicates a programming error

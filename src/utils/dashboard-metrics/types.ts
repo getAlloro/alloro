@@ -185,6 +185,58 @@ export const ReferralMetricsSchema = z.object({
 });
 
 // =====================================================================
+// CHOOSABLE (Stage 3 — competitor comparison, public data)
+// =====================================================================
+//
+// The Choosable-stage READ: how the practice's public review/rating profile
+// stacks against its curated `location_competitors` set. Practice side is
+// echoed from the already-computed `reviews` section (one source of truth per
+// number); competitor side comes from `location_competitors` rows. All fields
+// are null/false when no competitor set exists — never fabricated.
+//
+// Owns the READ only. The review-ASK action that acts on the gap is Chapter 6
+// (Memorable); this section supplies the caught comparison as a choose-signal.
+
+export type ChoosableWeakestFactor = "reviews" | "rating" | "photo" | "website";
+
+export interface ChoosableMetrics {
+  has_competitor_set: boolean; // false → whole section is informational only
+  competitor_count: number; // curated competitors compared against
+  practice_review_count: number | null; // = reviews.total_review_count, echoed for grounding
+  practice_rating: number | null; // = reviews.current_rating
+  competitor_median_review_count: number | null;
+  strongest_competitor_name: string | null; // most reviews among the set
+  strongest_competitor_review_count: number | null;
+  competitors_ahead_on_reviews: number | null; // count with more reviews than the practice
+  review_count_gap_to_median: number | null; // median − practice; >0 means practice trails
+  practice_leads_on_reviews: boolean | null; // practice ≥ median (kills the contradiction)
+  as_of: string | null; // oldest competitor discovery_checked_at (freshness)
+  // FIX B — other Choosable dimensions, honestly scoped (presence/quantity, never quality).
+  practice_profile_strength: number | null; // 0-100, same scale as competitors; null when completeness unknown
+  competitor_median_profile_strength: number | null;
+  weakest_choosable_factor: ChoosableWeakestFactor | null; // only from factors actually measured
+}
+
+export const ChoosableMetricsSchema = z.object({
+  has_competitor_set: z.boolean(),
+  competitor_count: z.number(),
+  practice_review_count: z.number().nullable(),
+  practice_rating: z.number().nullable(),
+  competitor_median_review_count: z.number().nullable(),
+  strongest_competitor_name: z.string().nullable(),
+  strongest_competitor_review_count: z.number().nullable(),
+  competitors_ahead_on_reviews: z.number().nullable(),
+  review_count_gap_to_median: z.number().nullable(),
+  practice_leads_on_reviews: z.boolean().nullable(),
+  as_of: z.string().nullable(),
+  practice_profile_strength: z.number().nullable(),
+  competitor_median_profile_strength: z.number().nullable(),
+  weakest_choosable_factor: z
+    .enum(["reviews", "rating", "photo", "website"])
+    .nullable(),
+});
+
+// =====================================================================
 // TOP-LEVEL DICTIONARY
 // =====================================================================
 
@@ -195,6 +247,7 @@ export interface DashboardMetrics {
   form_submissions: FormSubmissionsMetrics;
   pms: PmsMetrics;
   referral: ReferralMetrics;
+  choosable: ChoosableMetrics;
 }
 
 export const DashboardMetricsSchema = z
@@ -205,6 +258,7 @@ export const DashboardMetricsSchema = z
     form_submissions: FormSubmissionsMetricsSchema,
     pms: PmsMetricsSchema,
     referral: ReferralMetricsSchema,
+    choosable: ChoosableMetricsSchema,
   })
   .strict();
 
