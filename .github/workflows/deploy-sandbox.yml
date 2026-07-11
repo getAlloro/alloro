@@ -64,6 +64,57 @@ jobs:
           cp package*.json bundle/
           cp .env bundle/
           cp signals-google-key.json bundle/
+          # Generate a production knexfile that runs the COMPILED migrations from
+          # dist/ (mirrors dev.yml). Only dist/ ships in the bundle (no src/, no TS
+          # knexfile), so without this `npm run db:migrate` has nothing to run and
+          # the sandbox deploys with a stale schema.
+          cat > bundle/knexfile.js <<'EOF'
+          require("dotenv").config();
+          const fs = require("fs");
+          const path = require("path");
+
+          const migrationsDir = path.resolve(__dirname, "dist/database/migrations");
+          const migrationSource = {
+            getMigrations() {
+              return fs
+                .readdirSync(migrationsDir)
+                .filter((file) => file.endsWith(".js"))
+                .sort()
+                .map((file) => ({
+                  file,
+                  name: file.replace(/\.js$/, ".ts"),
+                }));
+            },
+            getMigrationName(migration) {
+              return migration.name;
+            },
+            getMigration(migration) {
+              return require(path.join(migrationsDir, migration.file));
+            },
+          };
+
+          const connection = process.env.DATABASE_URL
+            ? { connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } }
+            : {
+                host: process.env.DB_HOST,
+                port: parseInt(process.env.DB_PORT || "5432", 10),
+                user: process.env.DB_USER,
+                password: process.env.DB_PASSWORD,
+                database: process.env.DB_NAME,
+                ssl: { rejectUnauthorized: false },
+              };
+
+          const base = {
+            client: "pg",
+            connection,
+            migrations: {
+              migrationSource,
+            },
+            pool: { min: 2, max: 50 },
+          };
+
+          module.exports = { production: base, development: base, test: base };
+          EOF
 
       - name: Clean remote target dir
         uses: appleboy/ssh-action@v1.2.1
@@ -95,6 +146,23 @@ jobs:
           source: "bundle/**"
           target: ${{ secrets.SANDBOX_TARGET_DIR }}
           strip_components: 1
+
+      - name: Run database migrations
+        uses: appleboy/ssh-action@v1.2.1
+        with:
+          host: ${{ secrets.SANDBOX_EC2_HOST }}
+          username: ${{ secrets.SANDBOX_EC2_USER }}
+          port: ${{ secrets.SANDBOX_EC2_PORT }}
+          key: ${{ secrets.SANDBOX_EC2_KEY }}
+          script: |
+            set -euo pipefail
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+            [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+            nvm use node
+            cd "${{ secrets.SANDBOX_TARGET_DIR }}"
+            test -f .env
+            npm run db:migrate
 
       - name: Reload PM2
         uses: appleboy/ssh-action@v1.2.1
