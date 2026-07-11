@@ -153,6 +153,34 @@ jobs:
           target: ${{ secrets.SANDBOX_TARGET_DIR }}
           strip_components: 1
 
+      - name: Reset database schema (one-time — sandbox DB diverged from dev/dave)
+        uses: appleboy/ssh-action@v1.2.1
+        with:
+          host: ${{ secrets.SANDBOX_EC2_HOST }}
+          username: ${{ secrets.SANDBOX_EC2_USER }}
+          port: ${{ secrets.SANDBOX_EC2_PORT }}
+          key: ${{ secrets.SANDBOX_EC2_KEY }}
+          script: |
+            set -euo pipefail
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+            nvm use node
+            cd "${{ secrets.SANDBOX_TARGET_DIR }}"
+            test -f .env
+            node -e '
+              require("dotenv").config();
+              const { Client } = require("pg");
+              const conn = process.env.DATABASE_URL
+                ? { connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } }
+                : { host: process.env.DB_HOST, port: parseInt(process.env.DB_PORT || "5432", 10), user: process.env.DB_USER, password: process.env.DB_PASSWORD, database: process.env.DB_NAME, ssl: { rejectUnauthorized: false } };
+              const c = new Client(conn);
+              c.connect()
+                .then(() => c.query("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid()"))
+                .then(() => c.query("DROP SCHEMA public CASCADE; CREATE SCHEMA public;"))
+                .then(() => { console.log("SANDBOX SCHEMA RESET OK"); return c.end(); })
+                .catch((e) => { console.error("RESET FAILED:", e.message); process.exit(1); });
+            '
+
       - name: Run database migrations
         uses: appleboy/ssh-action@v1.2.1
         with:
