@@ -82,7 +82,9 @@ jobs:
                 .sort()
                 .map((file) => ({
                   file,
-                  name: file.replace(/\.js$/, ".ts"),
+                  // Match the sandbox DB's knex_migrations names, which are recorded
+                  // with a .js extension (dev/prod use .ts). Sandbox-only convention.
+                  name: file,
                 }));
             },
             getMigrationName(migration) {
@@ -109,6 +111,10 @@ jobs:
             connection,
             migrations: {
               migrationSource,
+              // The sandbox DB diverged from dev/dave (has orphan migrations from an
+              // older lineage). Skip the "corrupt directory" check so knex runs only
+              // the genuinely-pending migrations instead of refusing outright.
+              disableMigrationsListValidation: true,
             },
             pool: { min: 2, max: 50 },
           };
