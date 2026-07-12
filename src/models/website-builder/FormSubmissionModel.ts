@@ -29,6 +29,8 @@ export interface IFormSubmission {
   content_hash?: string;
   is_flagged?: boolean;
   flag_reason?: string;
+  responded_at?: Date | null;
+  response_channel?: string | null;
 }
 
 export interface FormSubmissionFormStats {
@@ -139,6 +141,21 @@ export class FormSubmissionModel extends BaseModel {
     return this.table(trx)
       .where("id", id)
       .update({ is_flagged: true, flag_reason: flagReason });
+  }
+
+  /**
+   * Stamp when + how an inbound lead was auto-answered by the Responder.
+   * Additive to the flagging/read mutators above; used by the website-form
+   * auto-reply path in formSubmissionController.
+   */
+  static async markResponded(
+    id: string,
+    channel: string,
+    trx?: QueryContext,
+  ): Promise<number> {
+    return this.table(trx)
+      .where("id", id)
+      .update({ responded_at: db.fn.now(), response_channel: channel });
   }
 
   static async markAsUnread(

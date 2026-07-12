@@ -84,6 +84,38 @@ function extractEmail(contents: Record<string, string>): string | null {
 }
 
 /**
+ * Extract the first email-like value from form contents, handling BOTH the flat
+ * key-value shape and the ordered sections array (extractEmail above only takes
+ * the flat Record; the main submission path can carry either shape).
+ */
+function extractLeadEmail(contents: FormContents): string | null {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const values: (string | FileValue)[] = Array.isArray(contents)
+    ? contents.flatMap((section) => section.fields.map(([, value]) => value))
+    : Object.values(contents);
+  for (const value of values) {
+    if (typeof value === "string" && emailRegex.test(value.trim())) {
+      return value.trim().toLowerCase();
+    }
+  }
+  return null;
+}
+
+/**
+ * Responder V1 hardcoded pilot auto-reply body (owner-approved once — Option B;
+ * no template store/UI yet). Plain acknowledgment; no results guarantee
+ * (Value #6). Replace with the per-practice approved template when that lands.
+ */
+function buildResponderAutoReplyBody(practiceName: string): string {
+  return [
+    `<p>Hi there,</p>`,
+    `<p>Thanks for contacting ${practiceName} — we've received your message and a member of our team will be in touch with you shortly.</p>`,
+    `<p>We appreciate you reaching out.</p>`,
+    `<p>— ${practiceName}</p>`,
+  ].join("");
+}
+
+/**
  * Get a display name for the business from the project.
  * Prefers project_identity.business.name; falls back to legacy step_gbp_scrape.
  */
@@ -515,6 +547,35 @@ export async function handleFormSubmission(req: Request, res: Response): Promise
         // No active integration → no log row (write-amplification rule)
       } catch (err) {
         logger.error({ err: err }, "[Form Submission] CRM enqueue failed:");
+        // Do not throw — visitor response must complete normally.
+      }
+    }
+
+    // ── 14c. Responder V1: instant owner-approved auto-reply to the LEAD ──
+    // Answers the inbound lead in minutes and stamps the response time. Gated on
+    // !flagged (never auto-reply to spam), only when a lead email is present, and
+    // in its own try/catch so a send blip never breaks the visitor response —
+    // mirrors the CRM-push guard above.
+    if (!flagged && submissionId) {
+      try {
+        const leadEmail = extractLeadEmail(finalContents);
+        if (leadEmail) {
+          const responderContext = await resolveFormSubmissionEmailContext(project);
+          const practiceName = responderContext.fromName || "our team";
+          const responderFrom = process.env.CONTACT_FORM_FROM || "info@getalloro.com";
+          await sendEmailWebhook({
+            cc: [],
+            bcc: [],
+            body: buildResponderAutoReplyBody(practiceName),
+            from: responderFrom,
+            subject: `Thanks for reaching out to ${practiceName}`,
+            fromName: responderContext.fromName,
+            recipients: [leadEmail],
+          });
+          await FormSubmissionModel.markResponded(submissionId, "email");
+        }
+      } catch (err) {
+        logger.error({ err }, "[Form Submission] Responder auto-reply failed:");
         // Do not throw — visitor response must complete normally.
       }
     }
