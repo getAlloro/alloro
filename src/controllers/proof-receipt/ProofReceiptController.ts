@@ -7,11 +7,14 @@ import logger from "../../lib/logger";
  *
  * The owner-facing "here's what Alloro did for you" receipt (Tier 1) for the
  * calendar month (1st-of-month UTC → now). Thin HTTP wrapper around
- * `buildProofReceipt`. Mirrors DashboardController.getMetrics — auth is the
- * standard authenticated-user middleware applied at the route.
+ * `buildProofReceipt`. Mirrors DashboardController.getMetrics — org + optional
+ * location scope; auth is the standard middleware applied at the route.
  *
  * Query params:
  *   - organization_id (required, int)
+ *   - location_id (optional, int) — scope to one office; omit for the whole
+ *     org (each item is location-tagged either way, so a multi-location
+ *     practice's feed is never blended without attribution).
  *
  * Response: { success: true, data: ProofReceipt }
  */
@@ -26,13 +29,27 @@ export async function getProofReceipt(req: Request, res: Response) {
       });
     }
 
+    // Optional single-office scope for multi-location practices. Omitted = the
+    // whole org (each item carries its location_id regardless).
+    const locationIdRaw = req.query.location_id;
+    const locationId =
+      locationIdRaw != null && String(locationIdRaw).trim() !== ""
+        ? parseInt(String(locationIdRaw), 10)
+        : undefined;
+    if (locationId !== undefined && isNaN(locationId)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid location_id parameter",
+      });
+    }
+
     // Calendar-month range: 1st-of-month (UTC) through now.
     const now = new Date();
     const since = new Date(
       Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)
     );
 
-    const receipt = await buildProofReceipt(organizationId, since, now);
+    const receipt = await buildProofReceipt(organizationId, since, now, locationId);
 
     return res.json({ success: true, data: receipt });
   } catch (error) {

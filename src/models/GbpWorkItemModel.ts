@@ -193,12 +193,19 @@ export class GbpWorkItemModel extends BaseModel {
     organizationId: number,
     since: Date,
     until: Date,
+    locationId?: number,
     trx?: QueryContext
   ): Promise<IGbpWorkItem[]> {
-    const rows = await this.table(trx)
+    let query = this.table(trx)
       .where({ organization_id: organizationId, status: "published" })
       .andWhere("published_at", ">=", since)
-      .andWhere("published_at", "<", until)
+      .andWhere("published_at", "<", until);
+    // Production GBP work is location-scoped; a multi-location practice must be
+    // able to scope to one office (else its storefronts blend into one feed).
+    if (typeof locationId === "number") {
+      query = query.where({ location_id: locationId });
+    }
+    const rows = await query
       .orderBy("published_at", "desc")
       .limit(MAX_WORK_ITEM_LIST_LIMIT);
     return rows.map((row: IGbpWorkItem) => this.deserializeJsonFields(row));

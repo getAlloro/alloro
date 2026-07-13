@@ -15,10 +15,12 @@ export interface ProofReceiptItem {
   type: "review_reply" | "local_post";
   at: Date; // published_at — when Alloro did it
   workItemId: string;
+  locationId: number; // which office — so a multi-location practice's feed stays de-blendable
 }
 
 export interface ProofReceipt {
   organizationId: number;
+  locationId?: number; // set when scoped to one office; omitted = whole org
   since: Date;
   until: Date;
   items: ProofReceiptItem[];
@@ -37,11 +39,13 @@ export async function buildProofReceipt(
   organizationId: number,
   since: Date,
   until: Date,
+  locationId?: number,
 ): Promise<ProofReceipt> {
   const published = await GbpWorkItemModel.listPublishedForOrgInRange(
     organizationId,
     since,
     until,
+    locationId,
   );
 
   const items: ProofReceiptItem[] = published
@@ -50,6 +54,7 @@ export async function buildProofReceipt(
       type: w.content_type,
       at: w.published_at as Date,
       workItemId: w.id,
+      locationId: w.location_id,
     }))
     .sort((a, b) => b.at.getTime() - a.at.getTime());
 
@@ -58,6 +63,7 @@ export async function buildProofReceipt(
 
   return {
     organizationId,
+    locationId,
     since,
     until,
     items,
