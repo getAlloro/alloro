@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PR 149 Findable Hardening Acceptance Tests</title>
+  <style>
+    :root { color-scheme:light; --paper:#fff; --ink:#080808; --muted:#5f5f5f; --line:#d8d8d8; --soft:#f5f5f5; --pass:#0a6b2e; --fail:#9b1c1c; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--paper); color:var(--ink); font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; line-height:1.5; }
+    .shell { width:min(960px,calc(100% - 32px)); margin:0 auto; padding:40px 0; }
+    .hero { border:1px solid var(--ink); border-radius:8px; padding:28px; margin-bottom:18px; }
+    .topline { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px; }
+    .eyebrow { margin:0; color:var(--muted); font-size:.75rem; font-weight:700; text-transform:uppercase; }
+    .pill { display:inline-flex; min-height:32px; align-items:center; padding:0 14px; border-radius:999px; background:var(--ink); color:#fff; font-size:.76rem; font-weight:800; text-transform:uppercase; }
+    .pill.passed { background:var(--pass); }
+    .pill.failed { background:var(--fail); }
+    h1 { margin:0 0 8px; font-size:clamp(1.8rem,4vw,2.6rem); line-height:1; }
+    .bar { display:flex; flex-wrap:wrap; gap:10px; margin-bottom:18px; }
+    button { border:1px solid var(--ink); border-radius:8px; padding:8px 14px; background:var(--paper); color:var(--ink); font:inherit; font-weight:700; cursor:pointer; }
+    .item { border:1px solid var(--line); border-left:4px solid var(--line); border-radius:8px; padding:16px; margin:10px 0; }
+    .item.pass { border-left-color:var(--pass); }
+    .item.fail { border-left-color:var(--fail); }
+    .item h3 { display:flex; align-items:center; flex-wrap:wrap; gap:10px; margin:0 0 6px; font-size:1rem; }
+    .tag { border:1px solid var(--line); border-radius:999px; padding:1px 8px; color:var(--muted); font-size:.66rem; font-weight:800; text-transform:uppercase; }
+    dt { margin-top:8px; color:var(--muted); font-size:.7rem; font-weight:700; text-transform:uppercase; }
+    ol { margin:4px 0 0 18px; padding:0; }
+    .st { font-size:.72rem; font-weight:800; text-transform:uppercase; }
+    .st.pass { color:var(--pass); }
+    .st.fail { color:var(--fail); }
+    .notice { border:1px dashed var(--line); border-radius:8px; padding:14px; background:var(--soft); }
+    code { border:1px solid var(--line); border-radius:4px; padding:.05rem .3rem; background:var(--soft); }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="hero">
+      <div class="topline"><p class="eyebrow">Alloro Acceptance Tests · Layer 2</p><span class="pill" id="pill">Not Run</span></div>
+      <h1 id="title">Acceptance Tests</h1>
+      <p id="meta" class="eyebrow"></p>
+    </header>
+    <div class="bar">
+      <input type="file" id="file" accept="application/json" hidden>
+      <button id="load">Load results file</button>
+      <button id="download">Download updated results</button>
+    </div>
+    <div id="notice" class="notice" hidden></div>
+    <div id="list"></div>
+  </main>
+  <script>
+    let data = null;
+    const $ = (id) => document.getElementById(id);
+    const esc = (value) => String(value).replace(/[&<>\"]/g, (character) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '\"':"&quot;" })[character]);
+    const rollup = (results) => {
+      if (!results.items || !results.items.length) return "Not Run";
+      if (results.items.some((item) => item.status === "fail" && !item.waiver)) return "Failed";
+      if (results.items.every((item) => item.status === "pass" || (item.status === "fail" && item.waiver))) return "Passed";
+      if (results.items.some((item) => item.status !== "pending")) return "In Progress";
+      return "Not Run";
+    };
+    function render() {
+      if (!data) return;
+      $("title").textContent = data.plan || "Acceptance Tests";
+      $("meta").textContent = `Plan: ${data.plan || "—"} · generated ${data.generatedAt || "—"}`;
+      const status = rollup(data);
+      data.status = status;
+      $("pill").textContent = status;
+      $("pill").className = `pill ${status.toLowerCase().replace(/\s/g, "")}`;
+      $("list").innerHTML = (data.items || []).map((item, index) => `
+        <div class="item ${item.status}">
+          <h3><input type="checkbox" data-index="${index}" ${item.status === "pass" ? "checked" : ""}>
+            ${esc(item.title || item.id)} <span class="tag">${esc(item.surface || "")}</span>
+            <span class="st ${item.status}">${esc(item.status || "pending")}</span></h3>
+          <dl>
+            ${item.precondition ? `<dt>Precondition</dt><dd>${esc(item.precondition)}</dd>` : ""}
+            ${item.steps?.length ? `<dt>Steps</dt><ol>${item.steps.map((step) => `<li>${esc(step)}</li>`).join("")}</ol>` : ""}
+            ${item.expected ? `<dt>Expected</dt><dd>${esc(item.expected)}</dd>` : ""}
+            ${item.evidence ? `<dt>Evidence</dt><dd>${esc(item.evidence)}</dd>` : ""}
+            ${item.notes ? `<dt>Notes</dt><dd>${esc(item.notes)}</dd>` : ""}
+          </dl>
+        </div>`).join("");
+      $("list").querySelectorAll("input[type=checkbox]").forEach((checkbox) => checkbox.addEventListener("change", (event) => {
+        data.items[Number(event.target.dataset.index)].status = event.target.checked ? "pass" : "pending";
+        render();
+      }));
+    }
+    function showNotice(message) { $("notice").hidden = false; $("notice").innerHTML = message; }
+    $("load").addEventListener("click", () => $("file").click());
+    $("file").addEventListener("change", (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try { data = JSON.parse(reader.result); $("notice").hidden = true; render(); }
+        catch (error) { showNotice(`Could not parse JSON: ${esc(error.message)}`); }
+      };
+      reader.readAsText(file);
+    });
+    $("download").addEventListener("click", () => {
+      if (!data) return;
+      const anchor = document.createElement("a");
+      anchor.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type:"application/json" }));
+      anchor.download = "test-results.json";
+      anchor.click();
+    });
+    fetch("./test-results.json").then((response) => response.json()).then((results) => { data = results; render(); })
+      .catch(() => showNotice("Could not auto-load <code>test-results.json</code>. Load it with the file picker."));
+  </script>
+</body>
+</html>

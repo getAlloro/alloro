@@ -131,6 +131,22 @@ function normalizeLeadProtectionLanguage(
   if (typeof value !== "string") return value;
   if (context.searchPosition === 1) return value;
 
+  if (context.searchPosition === 2 || context.searchPosition === 3) {
+    return value
+      .replace(
+        /\bto protect and improve the position\b/gi,
+        "to widen the top-three standing",
+      )
+      .replace(
+        /\bprotect and improve the position\b/gi,
+        "widen the top-three standing",
+      )
+      .replace(/\bto protect the lead\b/gi, "to protect the top-three standing")
+      .replace(/\bprotect the lead\b/gi, "protect the top-three standing")
+      .replace(/\bprotecting the lead\b/gi, "protecting the top-three standing")
+      .replace(/\bprotect that lead\b/gi, "protect that top-three standing");
+  }
+
   return value
     .replace(/\bto protect and improve the position\b/gi, "to improve the position")
     .replace(/\bprotect and improve the position\b/gi, "improve the position")

@@ -1,0 +1,66 @@
+{
+  "plan": "plans/07132026-pr149-findable-hardening",
+  "generatedAt": "2026-07-13",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "T1",
+      "title": "Dashboard copy preserves each search-position band",
+      "surface": "cli",
+      "precondition": "PR 149 hardening changes are present in the worktree",
+      "steps": [
+        "Run npm test -- src/components/dashboard/rankingsDashboard.utils.test.ts from frontend/"
+      ],
+      "expected": "Positions 1, 2-3, 4-20, not-in-top-20, and unavailable produce distinct truthful owner-facing copy",
+      "status": "pass",
+      "evidence": "Vitest: 1 file passed, 6 tests passed",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Output guardrail preserves top-three framing",
+      "surface": "cli",
+      "precondition": "PR 149 hardening changes are present in the worktree",
+      "steps": [
+        "Run npm test -- src/__tests__/ranking-output-guardrails.test.ts"
+      ],
+      "expected": "Positions 2 and 3 retain protective top-three language while position 4 is normalized",
+      "status": "pass",
+      "evidence": "Included in backend targeted run: 2 files passed, 5 tests passed",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "LLM prompt keeps ranking bands mutually exclusive",
+      "surface": "cli",
+      "precondition": "PR 149 hardening changes are present in the worktree",
+      "steps": [
+        "Run npm test -- src/__tests__/ranking-llm-prompt.test.ts"
+      ],
+      "expected": "Positions 4-20 target the top three, only outside-top-20 targets entry into the top 20, and unavailable stays pending",
+      "status": "pass",
+      "evidence": "Included in backend targeted run: 2 files passed, 5 tests passed",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T4",
+      "title": "Repository regression gates pass",
+      "surface": "cli",
+      "precondition": "Dependencies are installed",
+      "steps": [
+        "Run backend and frontend production builds",
+        "Run full backend and frontend Vitest suites",
+        "Run npm run check:conventions -- --strict",
+        "Run scoped lint on every changed source and test file"
+      ],
+      "expected": "No build, test, strict-convention, or changed-file lint errors",
+      "status": "pass",
+      "evidence": "Backend build passed; frontend build passed; backend 343/343 tests; frontend 70/70 tests; strict conventions passed; changed-file lint passed",
+      "notes": "Repository-wide frontend lint still has 3 unrelated pre-existing errors outside this PR's files.",
+      "waiver": ""
+    }
+  ]
+}

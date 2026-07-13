@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PR 149 Findable Hardening Spec</title>
+  <style>
+    :root { color-scheme: light; --paper:#fff; --ink:#080808; --muted:#5f5f5f; --line:#d8d8d8; --soft:#f5f5f5; }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--paper); color:var(--ink); font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; line-height:1.5; }
+    .spec-shell { width:min(1120px,calc(100% - 32px)); margin:0 auto; padding:48px 0; }
+    .spec-hero,.spec-card,.task-card { border:1px solid var(--line); border-radius:8px; background:var(--paper); }
+    .spec-hero { border-color:var(--ink); padding:32px; margin-bottom:20px; }
+    .hero-topline { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px; }
+    .spec-card { padding:28px; margin-top:16px; }
+    .task-card { padding:20px; margin-top:12px; background:var(--soft); }
+    .eyebrow,dt { color:var(--muted); font-size:.78rem; font-weight:700; text-transform:uppercase; }
+    .eyebrow { margin:0; }
+    .status-pill { display:inline-flex; align-items:center; min-height:34px; padding:0 12px; border:1px solid var(--ink); border-radius:999px; background:var(--ink); color:var(--paper); font-size:.78rem; font-weight:800; text-transform:uppercase; }
+    h1,h2,h3,p { margin-top:0; }
+    h1 { max-width:840px; margin-bottom:24px; font-size:clamp(2.25rem,6vw,5rem); line-height:.95; }
+    h2 { font-size:1.35rem; }
+    h3 { font-size:1rem; }
+    code { padding:.1rem .3rem; border:1px solid var(--line); border-radius:4px; background:var(--soft); font-size:.92em; }
+    .meta-grid,.split-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; }
+    .meta-grid { margin:0; }
+    .meta-grid div,.split-grid>div { border:1px solid var(--line); border-radius:8px; padding:16px; }
+    dd { margin:4px 0 0; font-weight:700; }
+    .checklist { list-style:none; padding-left:0; }
+    .checklist li { display:flex; gap:10px; align-items:flex-start; padding:10px 0; border-top:1px solid var(--line); }
+    @media (max-width:640px) { .spec-shell { width:min(100% - 20px,1120px); padding:24px 0; } .spec-hero,.spec-card { padding:20px; } }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill">Completed</span>
+      </div>
+      <h1>PR 149 Findable Hardening</h1>
+      <dl class="meta-grid">
+        <div><dt>Status</dt><dd>Completed</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/07132026-pr149-findable-hardening</dd></div>
+        <div><dt>Size</dt><dd>Medium</dd></div>
+        <div><dt>Risk</dt><dd>Level 2</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>PR 149 compiles and passes the existing suites, but direct contract tests exposed four owner-facing ranking-band contradictions. The PR must preserve measured search-position truth before it can be merged into <code>dev/dave</code>.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Correct the #1, #2-3, #4-20, not-in-top-20, and unavailable bands across the dashboard helper, LLM prompt, and output sanitizer. Add deterministic tests that fail on the four reviewed regressions.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <ul>
+        <li><code>frontend/src/components/dashboard/rankingsDashboard.utils.ts</code> - deterministic owner-facing fallback copy.</li>
+        <li><code>src/controllers/practice-ranking/feature-services/service.ranking-llm.ts</code> - ranking analysis prompt contract.</li>
+        <li><code>src/controllers/practice-ranking/feature-services/service.ranking-output-guardrails.ts</code> - deterministic post-LLM normalization.</li>
+      </ul>
+      <p><strong>Patterns:</strong> Constitution §6.1 for backend domain placement, §12.1 for frontend boundaries, and §20.1-§20.2 for mirrored contract tests. Frontend test analog: <code>frontend/src/components/PageEditor/seoPanel.utils.test.ts</code>.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div><h3>Must</h3><ul><li>Use <code>searchPosition</code> and <code>searchStatus</code> only.</li><li>Keep all new logic pure and deterministic.</li><li>Preserve existing rank calculations and persistence.</li></ul></div>
+        <div><h3>Must Not</h3><ul><li>No migrations, routes, dependencies, live LLM calls, or database access.</li><li>No unrelated prompt or dashboard redesign.</li><li>No production or dev deployment in this task.</li></ul></div>
+      </div>
+      <p><strong>Docs impact:</strong> No Alloro Docs change. This corrects dynamic generated/fallback wording without changing controls, labels, navigation, screenshots, or user guidance.</p>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level 2:</strong> Shared ranking copy can affect every newly generated ranking analysis and the next monthly summary that consumes its recommendation.</p>
+      <ul>
+        <li>Prompt drift. <strong>Mitigation:</strong> encode mutually exclusive bands and add a prompt-contract test.</li>
+        <li>Frontend/backend wording drift. <strong>Mitigation:</strong> test the dashboard helper and sanitizer with the same #1/#2/#4/not-top-20 cases.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> Local Rankings overview copy, persisted LLM ranking analysis text, and downstream Summary consumption of ranking recommendations. Ranking scores, Maps positions, competitor selection, and database rows are unchanged.</p>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <article class="task-card"><h3>T1: Deterministic dashboard bands</h3><p><strong>Do:</strong> Correct top-set review actions, explicit not-in-top-20 copy, and position-aware posting outcomes.</p><p><strong>Verify:</strong> frontend Vitest contract suite.</p></article>
+      <article class="task-card"><h3>T2: Position-aware output guardrail</h3><p><strong>Do:</strong> Preserve top-three protection language while keeping lower-rank normalization.</p><p><strong>Verify:</strong> backend Vitest guardrail suite.</p></article>
+      <article class="task-card"><h3>T3: Mutually exclusive LLM prompt bands</h3><p><strong>Do:</strong> Split #4-20, not-in-top-20, and unavailable instructions.</p><p><strong>Verify:</strong> prompt-contract test.</p></article>
+      <article class="task-card"><h3>T4: Merge verification and PR update</h3><p><strong>Do:</strong> Run builds, full suites, strict conventions, scoped lint, commit intentionally, and push to the existing PR branch.</p><p><strong>Depends on:</strong> T1-T3.</p></article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" checked disabled> PR-specific contract tests pass.</li>
+        <li><input type="checkbox" checked disabled> Backend and frontend builds pass.</li>
+        <li><input type="checkbox" checked disabled> Full backend and frontend suites pass.</li>
+        <li><input type="checkbox" checked disabled> <code>npm run check:conventions -- --strict</code> passes.</li>
+        <li><input type="checkbox" checked disabled> Only PR 149 hardening files are committed and pushed.</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

@@ -102,31 +102,71 @@ export function getPracticeDisplayName(result: RankingResult): string {
   );
 }
 
+type SearchPositionBand =
+  | "leader"
+  | "top_set"
+  | "ranked"
+  | "outside_top_20"
+  | "pending";
+
+function getSearchPositionBand(result: RankingResult): SearchPositionBand {
+  const status = result.searchStatus ?? "ok";
+  if (status === "not_in_top_20") return "outside_top_20";
+  if (status !== "ok" || result.searchPosition == null) return "pending";
+  if (result.searchPosition === 1) return "leader";
+  if (result.searchPosition === 2 || result.searchPosition === 3) return "top_set";
+  return "ranked";
+}
+
+function getRankingStatement(result: RankingResult): string {
+  const displayName = getPracticeDisplayName(result);
+  const band = getSearchPositionBand(result);
+  if (band === "leader") return `${displayName} holds a dominant #1 Local Search Ranking`;
+  if (band === "top_set") return `${displayName} is in the top three in Local Search`;
+  if (band === "ranked") {
+    return `${displayName} is currently #${result.searchPosition} in Local Search`;
+  }
+  if (band === "outside_top_20") {
+    return `${displayName} was not found in the top 20 in Local Search`;
+  }
+  return `${displayName} has a Local Search position pending this month`;
+}
+
+function getPostingOutcome(band: SearchPositionBand): string {
+  if (band === "leader") return "protect the lead";
+  if (band === "top_set") return "widen your top-three lead";
+  if (band === "ranked") return "move closer to the top three";
+  if (band === "outside_top_20") return "break into the top 20";
+  return "keep the profile active while the position refreshes";
+}
+
+function getReviewAction(band: SearchPositionBand): string {
+  if (band === "leader") {
+    return "Reply to unanswered Google reviews to protect trust signals";
+  }
+  if (band === "top_set") {
+    return "Reply to unanswered Google reviews to strengthen your top-three standing";
+  }
+  if (band === "pending") {
+    return "Reply to unanswered Google reviews to strengthen trust signals";
+  }
+  return "Reply to unanswered Google reviews to close the review gap";
+}
+
 export function getOverviewRecommendedAction(result: RankingResult): string {
   const recommendations =
     result.llmAnalysis?.top_recommendations?.map((rec) =>
       `${rec.title} ${rec.description ?? ""}`.toLowerCase(),
     ) ?? [];
-  const measuredRank =
-    (result.searchStatus ?? "ok") === "ok" && result.searchPosition != null;
-  const isLocalSearchLeader = measuredRank && result.searchPosition === 1;
-  const isTopSet =
-    measuredRank &&
-    (result.searchPosition === 2 || result.searchPosition === 3);
-  const postingOutcome = isLocalSearchLeader
-    ? "protect the lead"
-    : isTopSet
-      ? "widen your top-three lead"
-      : "improve the position";
+  const band = getSearchPositionBand(result);
+  const postingOutcome = getPostingOutcome(band);
 
   if (recommendations.some((rec) => rec.includes("post"))) {
     return `Start posting to Google Business Profile weekly to ${postingOutcome}`;
   }
 
   if (recommendations.some((rec) => rec.includes("review"))) {
-    return isLocalSearchLeader
-      ? "Reply to unanswered Google reviews to protect trust signals"
-      : "Reply to unanswered Google reviews to close the review gap";
+    return getReviewAction(band);
   }
 
   if (recommendations.some((rec) => rec.includes("photo"))) {
@@ -140,18 +180,7 @@ export function getStructuredOverviewInsight(
   result: RankingResult,
   score: number,
 ): string {
-  const hasMeasuredRank =
-    (result.searchStatus ?? "ok") === "ok" && result.searchPosition;
-  const inTopSet =
-    hasMeasuredRank &&
-    (result.searchPosition === 2 || result.searchPosition === 3);
-  const rankingStatement = hasMeasuredRank
-    ? result.searchPosition === 1
-      ? `${getPracticeDisplayName(result)} holds a dominant #1 Local Search Ranking`
-      : inTopSet
-        ? `${getPracticeDisplayName(result)} is in the top three in Local Search`
-        : `${getPracticeDisplayName(result)} is currently #${result.searchPosition} in Local Search`
-    : `${getPracticeDisplayName(result)} has a Local Search position pending this month`;
+  const rankingStatement = getRankingStatement(result);
   const roundedScore = Math.round(score);
 
   return `${rankingStatement} with a ${roundedScore} Alloro Health Score. Recommended Action: ${getOverviewRecommendedAction(result)}.`;
