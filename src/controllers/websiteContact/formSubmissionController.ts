@@ -103,14 +103,15 @@ function extractLeadEmail(contents: FormContents): string | null {
 
 /**
  * Responder V1 hardcoded pilot auto-reply body (owner-approved once — Option B;
- * no template store/UI yet). Plain acknowledgment; no results guarantee
- * (Value #6). Replace with the per-practice approved template when that lands.
+ * no template store/UI yet). Plain acknowledgment of receipt only — no promise
+ * of follow-up or timing, no results guarantee (Value #6). Replace with the
+ * per-practice approved template when that lands.
  */
 function buildResponderAutoReplyBody(practiceName: string): string {
   return [
     `<p>Hi there,</p>`,
-    `<p>Thanks for contacting ${practiceName} — we've received your message and a member of our team will be in touch with you shortly.</p>`,
-    `<p>We appreciate you reaching out.</p>`,
+    `<p>Thanks for reaching out to ${practiceName} — we've received your message and the team has been notified.</p>`,
+    `<p>We're glad you got in touch.</p>`,
     `<p>— ${practiceName}</p>`,
   ].join("");
 }

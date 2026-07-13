@@ -153,8 +153,11 @@ export class FormSubmissionModel extends BaseModel {
     channel: string,
     trx?: QueryContext,
   ): Promise<number> {
+    // Idempotent: only stamps if not already answered, so a re-driven
+    // submission can never trigger a duplicate auto-reply record.
     return this.table(trx)
       .where("id", id)
+      .whereNull("responded_at")
       .update({ responded_at: db.fn.now(), response_channel: channel });
   }
 
