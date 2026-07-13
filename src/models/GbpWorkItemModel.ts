@@ -183,6 +183,26 @@ export class GbpWorkItemModel extends BaseModel {
     return rows.map((row: IGbpWorkItem) => this.deserializeJsonFields(row));
   }
 
+  /**
+   * Owner-facing proof-receipt read (Tier 1): PUBLISHED work items for an org
+   * within [since, until), by published_at desc. The dated "what Alloro did"
+   * rollup that list() and gbp_work_events did not expose — see
+   * services/proofReceiptService + specs/proof-receipt-build-spec.md.
+   */
+  static async listPublishedForOrgInRange(
+    organizationId: number,
+    since: Date,
+    until: Date,
+    trx?: QueryContext
+  ): Promise<IGbpWorkItem[]> {
+    const rows = await this.table(trx)
+      .where({ organization_id: organizationId, status: "published" })
+      .andWhere("published_at", ">=", since)
+      .andWhere("published_at", "<", until)
+      .orderBy("published_at", "desc");
+    return rows.map((row: IGbpWorkItem) => this.deserializeJsonFields(row));
+  }
+
   static async create(
     data: Partial<IGbpWorkItem>,
     trx?: QueryContext
