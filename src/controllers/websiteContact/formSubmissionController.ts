@@ -32,6 +32,7 @@ import { resolveFormSubmissionEmailContext } from "./websiteContact-services/for
 import { ProjectModel } from "../../models/website-builder/ProjectModel";
 import { FormSubmissionModel, type FileValue, type FormSection, type FormContents } from "../../models/website-builder/FormSubmissionModel";
 import { FormResponderSettingsModel } from "../../models/FormResponderSettingsModel";
+import { isLikelyDeliverableLeadEmail } from "./websiteContact-utils/leadEmailQuality";
 import { WebsiteIntegrationModel } from "../../models/website-builder/WebsiteIntegrationModel";
 import { IntegrationFormMappingModel } from "../../models/website-builder/IntegrationFormMappingModel";
 import { CrmSyncLogModel } from "../../models/website-builder/CrmSyncLogModel";
@@ -570,25 +571,35 @@ export async function handleFormSubmission(req: Request, res: Response): Promise
           );
         const leadEmail = extractLeadEmail(finalContents);
         if (responderSettings?.enabled && leadEmail) {
-          const responderContext = await resolveFormSubmissionEmailContext(project);
-          const practiceName = responderContext.fromName || "our team";
-          const responderFrom = process.env.CONTACT_FORM_FROM || "info@getalloro.com";
-          const replyBody =
-            responderSettings.reply_body?.trim() ||
-            buildResponderAutoReplyBody(practiceName);
-          const replySubject =
-            responderSettings.reply_subject?.trim() ||
-            `Thanks for reaching out to ${practiceName}`;
-          await sendEmailWebhook({
-            cc: [],
-            bcc: [],
-            body: replyBody,
-            from: responderFrom,
-            subject: replySubject,
-            fromName: responderContext.fromName,
-            recipients: [leadEmail],
-          });
-          await FormSubmissionModel.markResponded(submissionId, "email");
+          // Partial backscatter mitigation: never auto-reply to a malformed or
+          // disposable address (see leadEmailQuality). NOT the complete fix —
+          // the form's own spam layers (Dave's) are the rest.
+          if (!isLikelyDeliverableLeadEmail(leadEmail)) {
+            logger.info(
+              { submissionId },
+              "[Form Submission] Responder skipped — lead email failed the quality gate (malformed/disposable)"
+            );
+          } else {
+            const responderContext = await resolveFormSubmissionEmailContext(project);
+            const practiceName = responderContext.fromName || "our team";
+            const responderFrom = process.env.CONTACT_FORM_FROM || "info@getalloro.com";
+            const replyBody =
+              responderSettings.reply_body?.trim() ||
+              buildResponderAutoReplyBody(practiceName);
+            const replySubject =
+              responderSettings.reply_subject?.trim() ||
+              `Thanks for reaching out to ${practiceName}`;
+            await sendEmailWebhook({
+              cc: [],
+              bcc: [],
+              body: replyBody,
+              from: responderFrom,
+              subject: replySubject,
+              fromName: responderContext.fromName,
+              recipients: [leadEmail],
+            });
+            await FormSubmissionModel.markResponded(submissionId, "email");
+          }
         }
       } catch (err) {
         logger.error({ err }, "[Form Submission] Responder auto-reply failed:");
