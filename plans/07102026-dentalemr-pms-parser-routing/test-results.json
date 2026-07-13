@@ -1,0 +1,82 @@
+{
+  "plan": "plans/07102026-dentalemr-pms-parser-routing",
+  "generatedAt": "2026-07-13",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "T1",
+      "title": "Organization-owned parser routing and persistence contracts",
+      "surface": "cli",
+      "precondition": "Feature worktree dependencies are available; no database migration is required for these synthetic tests.",
+      "steps": [
+        "Run the seven focused backend Vitest files for PMS type assignment, registry, router, default parser, DentalEMR parser, aggregation semantics, and migration shape.",
+        "Confirm supported and invalid PMS types, server-owned routing, default compatibility, parser metadata, and migration up/down behavior."
+      ],
+      "expected": "All focused backend contract tests pass without reading or mutating a live organization.",
+      "status": "pass",
+      "evidence": "2026-07-13: 7 test files passed; 26 tests passed.",
+      "notes": "The migration was verified statically and by unit test only; it was not executed against the active database.",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Four supplied DentalEMR exports reconcile exactly",
+      "surface": "cli",
+      "precondition": "The four user-supplied raw exports remain outside the repository in /Users/rustinedave/Desktop/untitled folder.",
+      "steps": [
+        "Run the DentalEMR file parser locally for Fredericksburg April/May and Sterling April/May with the requested target month.",
+        "Print aggregate values only and compare production, global unique referrals, per-source patient pairs, and Self totals with the spec targets."
+      ],
+      "expected": "Every location-month matches its expected aggregate values; Sterling May resolves from raw dates to 2026-05.",
+      "status": "pass",
+      "evidence": "Fredericksburg Apr: $197,042.90 / 156 / 158 / Self 8 and $6,301; Fredericksburg May: $183,942 / 171 / 180 / Self 17 and $3,344; Sterling Apr: $216,811.10 / 197 / 208 / Self 36 and $6,706; Sterling May: $192,668 / 165 / 181 / Self 35 and $7,824. Sterling XLSX selected both raw sheets and target-month scoping returned April.",
+      "notes": "No patient-level rows or names were printed, copied into tests, or added to git.",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "Batch-free paste progress and authoritative totals",
+      "surface": "cli",
+      "precondition": "Frontend test dependencies are available.",
+      "steps": [
+        "Run the focused PasteProgress, pastePipeline, pmsDataTransform, and usePmsManualEntryRows Vitest files.",
+        "Confirm one-shot parsing, truthful indeterminate/completed progress, authoritative totals, and edit invalidation behavior."
+      ],
+      "expected": "The focused frontend behavior suite passes with no former 50-row batching contract.",
+      "status": "pass",
+      "evidence": "2026-07-13: 4 test files passed; 11 tests passed.",
+      "notes": "Feature-scoped frontend ESLint also passed with zero errors.",
+      "waiver": ""
+    },
+    {
+      "id": "T4",
+      "title": "Full regression, architecture, and docs parity gates",
+      "surface": "cli",
+      "precondition": "App and Alloro Docs worktrees use their existing installed dependencies.",
+      "steps": [
+        "Run full backend and frontend Vitest suites.",
+        "Run backend and frontend production builds, strict Code Constitution checks, feature-scoped lint, diff checks, and the Alloro Docs production build."
+      ],
+      "expected": "No execution-caused test, build, type, lint, convention, docs, or whitespace failure remains.",
+      "status": "pass",
+      "evidence": "Backend 46 files/364 tests passed; frontend 20 files/75 tests passed; both app builds passed; strict conventions reported zero structural violations; changed backend/frontend files passed ESLint; Alloro Docs built successfully; both diffs passed git diff --check.",
+      "notes": "The repository-wide frontend lint still reports three pre-existing errors in untouched OS/settings files. The build also retains existing chunk-size warnings. Neither was introduced by this plan.",
+      "waiver": ""
+    },
+    {
+      "id": "T5",
+      "title": "Authenticated admin assignment and upload flow on dev",
+      "surface": "ui",
+      "precondition": "The branch and additive organizations.pms_type migration are deployed to dev; tester is signed in as a super admin and can Pilot into a dev/test organization.",
+      "steps": [
+        "Open /admin, select a dev/test organization, and switch PMS Parser between Default and DentalEMR.",
+        "Pilot into the organization, upload or paste a DentalEMR sample, and confirm the ready-state progress, table totals, and derived-total notice after editing."
+      ],
+      "expected": "The selected parser is enforced by organization state and the visible upload/paste behavior matches the tested contracts.",
+      "status": "fail",
+      "evidence": "Not run locally: the active environment was not safe for applying this migration, and the feature has not been deployed to dev.",
+      "notes": "This remains the required post-deploy dev validation before promotion to main.",
+      "waiver": "Accepted for the dev/dave code merge only. Running the migration from the active local environment would be unsafe; complete this check after the normal dev deployment applies the migration."
+    }
+  ]
+}

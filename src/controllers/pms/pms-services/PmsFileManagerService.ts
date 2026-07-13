@@ -5,12 +5,9 @@ import { generatePresignedUrl } from "../../../utils/core/s3";
 import { finalizePmsJob } from "./pms-finalize.service";
 import { restartMonthlyAgents } from "./pms-retry.service";
 import { assertNoActivePmsAutomation } from "./pms-mutation-guard.service";
-import { convertFileToJson } from "../pms-utils/file-converter.util";
 import { extractMonthEntriesFromResponse } from "../pms-utils/pms-normalizer.util";
 import { diffMonthFields } from "../pms-utils/pms-response-log-diff.util";
-import { resolveMapping } from "../../../utils/pms/resolveColumnMapping";
-import { applyMapping } from "../../../utils/pms/applyColumnMapping";
-import { signHeaders } from "../../../utils/pms/headerSignature";
+import { PmsParserRouterService } from "../feature-services/PmsParserRouterService";
 import {
   presentPmsFile,
   presentPmsFileDetail,
@@ -84,41 +81,34 @@ export async function previewConflicts(
 
 export async function previewUploadFile(
   file: Express.Multer.File,
-  context: FileManagerContext
+  context: FileManagerContext,
+  targetMonth?: string,
 ) {
-  const rows = await convertFileToJson(file);
-  if (!Array.isArray(rows) || rows.length === 0) {
-    throw Object.assign(new Error("Uploaded file produced no rows."), {
-      statusCode: 400,
-    });
-  }
-
-  const headers = Object.keys(rows[0] ?? {});
-  if (headers.length === 0) {
-    throw Object.assign(new Error("Uploaded file has no columns."), {
-      statusCode: 400,
-    });
-  }
-
-  const headerSignature = signHeaders(headers);
-  const resolved = await resolveMapping(
-    context.organizationId,
-    headers,
-    rows.slice(0, 10) as Record<string, unknown>[]
-  );
-  const monthlyRollup = applyMapping(
-    rows as Record<string, unknown>[],
-    resolved.mapping
-  );
-  const months = monthlyRollup.map((entry) => entry.month).filter(Boolean);
+  const parsed = await PmsParserRouterService.parseFile({
+    organizationId: context.organizationId,
+    file,
+    targetMonth,
+  });
+  const months = parsed.monthlyRollup
+    .map((entry) => entry.month)
+    .filter(Boolean);
   const conflicts = await previewConflicts(months, context);
 
   return {
     originalFileName: file.originalname,
-    recordsProcessed: rows.length,
-    mappingSource: resolved.source,
-    headerSignature,
-    monthlyRollup,
+    recordsProcessed: parsed.rawRows.length,
+    parserType: parsed.parserType,
+    requiresSanitization: parsed.requiresSanitization,
+    countSemantics: parsed.countSemantics,
+    selectedSheetNames: parsed.selectedSheetNames,
+    ...(parsed.mappingMetadata
+      ? {
+          mappingSource: parsed.mappingMetadata.source,
+          headerSignature: parsed.mappingMetadata.signature,
+        }
+      : {}),
+    monthlyRollup: parsed.monthlyRollup,
+    warnings: parsed.warnings,
     ...conflicts,
   };
 }

@@ -1,5 +1,12 @@
 import { apiPost } from "../index";
 import { logger } from "../../lib/logger";
+import type { ManualMonthEntry } from "./types";
+
+type CanonicalApiError = {
+  code: string;
+  message: string;
+  details: unknown;
+};
 
 // =====================================================================
 // PASTE-PARSE TYPES AND API FUNCTION
@@ -16,25 +23,33 @@ export interface SanitizationRow {
 export interface PasteParseApiResponse {
   success: boolean;
   data?: {
+    parserType: "default" | "dentalemr";
+    requiresSanitization: boolean;
     rows: SanitizationRow[];
+    monthlyRollup: ManualMonthEntry[];
     warnings: string[];
     rowsParsed: number;
     monthsDetected: number;
   };
-  error?: string;
+  error?: string | CanonicalApiError;
 }
 
 /**
- * Send pasted text batch for JS parsing (fixed columns: Date, Source, Type, Production).
+ * Send the complete pasted dataset for organization-routed parsing.
  */
 export async function parsePastedData(
   rawText: string,
-  currentMonth: string
+  currentMonth: string,
+  targetMonth?: string | null,
 ): Promise<PasteParseApiResponse> {
   try {
     const result = await apiPost({
       path: "/pms/parse-paste",
-      passedData: { rawText, currentMonth },
+      passedData: {
+        rawText,
+        currentMonth,
+        targetMonth: targetMonth || undefined,
+      },
       additionalHeaders: {
         Accept: "application/json",
         "Content-Type": "application/json",
@@ -81,11 +96,60 @@ export interface PasteSanitizeApiResponse {
   error?: string;
 }
 
+export type PasteUploadRequest = {
+  rawText: string;
+  currentMonth: string;
+  targetMonth?: string | null;
+  domain: string;
+  locationId?: number | null;
+  monthlyDataOverride: ManualMonthEntry[];
+};
+
+export type PasteUploadResponse =
+  | {
+      success: true;
+      data: {
+        jobId: number;
+        recordsProcessed: number;
+        recordsStored: number;
+        entryType: "paste";
+        parserType: "default" | "dentalemr";
+      };
+      error: null;
+    }
+  | { success: false; data: null; error: CanonicalApiError };
+
+export async function uploadPastedData(
+  request: PasteUploadRequest,
+): Promise<PasteUploadResponse> {
+  try {
+    return (await apiPost({
+      path: "/pms/upload-paste",
+      passedData: request,
+      additionalHeaders: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+    })) as PasteUploadResponse;
+  } catch (error) {
+    logger.error("PMS paste upload API error:", error);
+    return {
+      success: false,
+      data: null,
+      error: {
+        code: "PMS_PASTE_UPLOAD_FAILED",
+        message: "Failed to upload pasted data. Please try again.",
+        details: null,
+      },
+    };
+  }
+}
+
 /**
  * Deduplicate and sanitize parsed PMS rows (exact + AI fuzzy dedup).
  */
 export async function sanitizePastedData(
-  rows: SanitizationRow[]
+  rows: SanitizationRow[],
 ): Promise<PasteSanitizeApiResponse> {
   try {
     const result = await apiPost({

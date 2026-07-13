@@ -6,7 +6,7 @@
  * for auth tokens, making them pilot-mode-aware.
  */
 
-import { apiGet, apiPatch, apiDelete, apiPost, apiPut } from "./index";
+import { apiGet, apiPatch, apiDelete, apiPost, apiPut, unwrap } from "./index";
 
 /**
  * Typed interfaces for admin org responses
@@ -17,6 +17,7 @@ export interface AdminOrganization {
   name: string;
   domain: string | null;
   organization_type: "health" | "generic" | null;
+  pms_type: PmsParserType;
   subscription_tier: "DWY" | "DFY" | null;
   subscription_status: string | null;
   stripe_customer_id: string | null;
@@ -56,6 +57,7 @@ export interface AdminOrganizationDetail {
   name: string;
   domain: string | null;
   organization_type: "health" | "generic" | null;
+  pms_type: PmsParserType;
   subscription_tier: "DWY" | "DFY" | null;
   subscription_status: string | null;
   stripe_customer_id: string | null;
@@ -153,6 +155,12 @@ export interface AdminRecipientSettingsResponse {
 }
 
 export type AdminOrganizationListView = "active" | "archived" | "all";
+export type PmsParserType = "default" | "dentalemr";
+
+export interface AdminPmsParserAssignment {
+  pmsType: PmsParserType;
+  message: string;
+}
 
 export interface AdminOrganizationArchiveResult {
   organization: AdminOrganizationDetail;
@@ -245,6 +253,18 @@ export async function adminUpdateOrganizationType(
     path: `/admin/organizations/${orgId}/type`,
     passedData: { type },
   });
+}
+
+/** Assign the server-owned parser used for future PMS ingestion. */
+export async function adminUpdateOrganizationPmsType(
+  orgId: number,
+  pmsType: PmsParserType
+): Promise<AdminPmsParserAssignment> {
+  const response = await apiPatch({
+    path: `/admin/organizations/${orgId}/pms-type`,
+    passedData: { pmsType },
+  });
+  return unwrap<AdminPmsParserAssignment>(response);
 }
 
 /**

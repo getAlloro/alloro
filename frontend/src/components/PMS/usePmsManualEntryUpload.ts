@@ -177,7 +177,11 @@ export function usePmsManualEntryUpload({
       setDrawerOpen(false);
 
       try {
-        const response = await previewPmsUploadFile(file, locationId);
+        const response = await previewPmsUploadFile(
+          file,
+          locationId,
+          targetMonth,
+        );
         if (!response.success || !response.data) {
           throw new Error(
             response.error || `Could not preview this ${copy.fileNounLower}.`,

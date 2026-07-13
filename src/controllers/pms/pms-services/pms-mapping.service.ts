@@ -13,11 +13,33 @@ import type { ColumnMapping } from "../../../types/pmsMapping";
 import * as pasteParseService from "./pms-paste-parse.service";
 import { finalizePmsJob } from "./pms-finalize.service";
 import { assertNoActivePmsAutomation } from "./pms-mutation-guard.service";
+import { OrganizationModel } from "../../../models/OrganizationModel";
+import { resolvePmsParserType } from "../../../config/pmsParserRegistry";
 import logger from "../../../lib/logger";
 
 /** A 400-mapped validation/business-rule failure. */
 function badRequest(message: string): Error {
   return Object.assign(new Error(message), { statusCode: 400 });
+}
+
+async function assertDefaultParser(organizationId: number): Promise<void> {
+  const organization = await OrganizationModel.findPmsTypeById(organizationId);
+  if (!organization) {
+    throw Object.assign(new Error("Organization not found."), {
+      statusCode: 404,
+    });
+  }
+
+  if (
+    resolvePmsParserType(organization.pms_type, organizationId) !== "default"
+  ) {
+    throw Object.assign(
+      new Error(
+        "Column mapping is unavailable because this organization uses a custom PMS parser."
+      ),
+      { statusCode: 409, code: "PMS_CUSTOM_PARSER_MAPPING_DISABLED" }
+    );
+  }
 }
 
 /**
@@ -58,6 +80,7 @@ export async function buildPreviewMapping(args: {
   overrideMapping?: unknown;
 }): Promise<PreviewMappingResult> {
   const { headers, sampleRows, organizationId, overrideMapping } = args;
+  await assertDefaultParser(organizationId);
 
   // Override path: user edited the mapping in the drawer and clicked Re-process.
   // Skip the resolver chain — apply the supplied mapping directly to sample rows.
@@ -183,6 +206,7 @@ export async function createMappedUpload(args: {
   locationId?: unknown;
 }): Promise<{ jobId: number; mappingId: number; monthlyRollup: MonthlyRollupForJob }> {
   const { mapping, organizationId, actorUserId, month, domain } = args;
+  await assertDefaultParser(organizationId);
 
   let rows: Record<string, unknown>[] = [];
   if (Array.isArray(args.rows)) {
@@ -311,6 +335,7 @@ export async function reprocessJobWithMapping(args: {
   organizationId: number;
 }): Promise<{ jobId: number; mappingId: number; monthlyRollup: MonthlyRollupForJob }> {
   const { jobId, mapping, organizationId } = args;
+  await assertDefaultParser(organizationId);
 
   const job = await PmsJobModel.findById(jobId);
   if (!job) {
@@ -389,6 +414,7 @@ export async function getCachedMappingForSignature(args: {
   | null
 > {
   const { signature, organizationId } = args;
+  await assertDefaultParser(organizationId);
 
   const orgHit = await PmsColumnMappingModel.findByOrgAndSignature(
     organizationId,

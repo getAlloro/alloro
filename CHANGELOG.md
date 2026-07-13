@@ -2,6 +2,29 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.159] - July 2026
+
+### Organization PMS parser routing + DentalEMR
+
+Organizations can now be assigned a PMS parser by a super admin. Existing organizations remain on the unchanged Default parser, while DentalEMR organizations use a deterministic parser tailored to their exported procedure logs. The DentalEMR formula was reconciled against four supplied April/May exports from Fredericksburg and Sterling. Built on `plans/07102026-dentalemr-pms-parser-routing`; backend 364/364 and frontend 75/75 tests pass, both app builds pass, strict conventions report zero structural violations, and Alloro Docs builds. The code is ready for `dev/dave`; the additive migration and authenticated dev UI check remain part of the normal dev deployment gate.
+
+**Key Changes:**
+- **Organization-owned routing.** Added `organizations.pms_type` with safe `default` behavior, a super-admin assignment control, and server-owned routing for file preview/upload and paste preview/submit. Client payloads cannot select the parser.
+- **DentalEMR formula.** Counts global distinct patients for monthly referrals, distinct patient-source pairs for each source, sums `Ins. Adj. Fee.` production from completed treatments, merges boundary-asterisk practice variants, and rolls blank/`1endo` referrals into Self.
+- **Workbook and month handling.** DentalEMR XLS/XLSX parsing scans all worksheets for the required raw headers and scopes results by raw treatment date, so summary-first and multi-month workbooks resolve correctly.
+- **Default clients preserved.** The existing mapping/sanitization path remains the fallback, and custom-parser organizations are blocked from accidentally entering default mapping endpoints.
+- **Batch-free paste.** Copy/paste now sends one parse request, so patient deduplication is global instead of being broken at 50-row boundaries. The UI shows truthful parse/clean/ready phases and keeps Ready visible for review.
+- **Authoritative totals.** Non-additive DentalEMR totals survive preview and persistence. Manual source/referral edits explicitly switch the month back to a derived total and show that state in the UI.
+- **Docs parity.** Referrals Hub guidance now explains organization-selected parsing, single-request paste behavior, DentalEMR normalization, and authoritative totals.
+
+**Commits:**
+- `src/database/migrations/20260710000000_add_pms_type_to_organizations.ts`, `src/config/pmsParserRegistry.ts`, and `src/models/OrganizationModel.ts` — schema and organization parser registry.
+- `src/controllers/pms/feature-services/`, `feature-utils/`, `PmsPasteController.ts`, and PMS upload/file-manager services — parser routing, DentalEMR parsing, paste ingestion, and persistence metadata.
+- `src/controllers/admin-organizations/`, `src/routes/admin/organizations.ts`, and `frontend/src/components/Admin/org/OrgSubscriptionSection.tsx` — super-admin parser assignment.
+- `frontend/src/components/PMS/` and `frontend/src/api/pms/` — one-shot paste, phase progress, parser-aware flows, and authoritative totals.
+- `src/__tests__/pms-*.test.ts`, `src/__tests__/dentalemr-pms-parser.test.ts`, `src/__tests__/admin-organizations-pms-type.test.ts`, and focused frontend PMS tests — synthetic contract and regression coverage.
+- `plans/07102026-dentalemr-pms-parser-routing/` — completed spec and passing acceptance record with a written post-deploy UI waiver.
+
 ## [0.0.158] - July 2026
 
 ### Direct Mailgun email transport + admin test-send

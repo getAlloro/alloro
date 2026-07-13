@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Organization PMS Parser Routing and DentalEMR Parser Spec</title>
+  <style>
+    :root { color-scheme: light; --paper:#fff; --ink:#080808; --muted:#5f5f5f; --line:#d8d8d8; --soft:#f5f5f5; }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--paper); color:var(--ink); font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; line-height:1.5; }
+    .spec-shell { width:min(1120px,calc(100% - 32px)); margin:0 auto; padding:48px 0; }
+    .spec-hero,.spec-card,.task-card { border:1px solid var(--line); border-radius:8px; background:var(--paper); }
+    .spec-hero { border-color:var(--ink); padding:32px; margin-bottom:20px; }
+    .hero-topline { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px; }
+    .spec-card { padding:28px; margin-top:16px; }
+    .task-card { padding:20px; margin-top:12px; background:var(--soft); }
+    .eyebrow,dt { color:var(--muted); font-size:.78rem; font-weight:700; text-transform:uppercase; }
+    .eyebrow { margin:0; }
+    .status-pill { display:inline-flex; align-items:center; min-height:34px; padding:0 12px; border:1px solid var(--ink); border-radius:999px; background:var(--ink); color:var(--paper); font-size:.78rem; font-weight:800; text-transform:uppercase; }
+    .status-card { border-color:var(--ink) !important; }
+    h1,h2,h3,p { margin-top:0; }
+    h1 { max-width:900px; margin-bottom:24px; font-size:clamp(2.25rem,6vw,5rem); line-height:.95; }
+    h2 { font-size:1.35rem; }
+    h3 { font-size:1rem; }
+    code { padding:.1rem .3rem; border:1px solid var(--line); border-radius:4px; background:var(--soft); font-size:.92em; }
+    .meta-grid,.split-grid,.ledger-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:12px; }
+    .meta-grid { margin:0; }
+    .meta-grid div,.split-grid>div,.ledger-grid>div { border:1px solid var(--line); border-radius:8px; padding:16px; }
+    dd { margin:4px 0 0; font-weight:700; }
+    ul,ol { padding-left:1.25rem; }
+    li+li { margin-top:.45rem; }
+    table { width:100%; border-collapse:collapse; font-size:.9rem; }
+    th,td { padding:10px; border:1px solid var(--line); text-align:left; vertical-align:top; }
+    th { background:var(--soft); }
+    .table-wrap { overflow-x:auto; }
+    .checklist { list-style:none; padding-left:0; }
+    .checklist li { display:flex; gap:10px; align-items:flex-start; padding:10px 0; border-top:1px solid var(--line); }
+    .risk-level { display:inline-block; padding:2px 8px; border:1px solid var(--ink); border-radius:999px; font-size:.75rem; font-weight:800; }
+    @media (max-width:640px) { .spec-shell{width:min(100% - 20px,1120px);padding:24px 0}.spec-hero,.spec-card{padding:20px} }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill">Completed</span>
+      </div>
+      <h1>Organization PMS Parser Routing + DentalEMR</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/07102026-dentalemr-pms-parser-routing</dd></div>
+        <div><dt>Size</dt><dd>Large</dd></div>
+        <div><dt>Risk</dt><dd>Level 3 - Structural</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>All organizations currently enter the same mapping-based PMS parser. That default path is useful for unknown formats, but its global procedure-log mapping calculates production with the wrong formula for DentalEMR and its copy/paste UI finalizes independent 50-row batches, which can count one patient more than once when their rows cross a boundary.</p>
+      <p>DentalEMR also exposes two assumptions the current UI loses: total referrals are distinct patients for the month, while source counts are distinct patient-source relationships and therefore are not additive; and a real XLSX export can contain summary tabs before multiple raw tabs, while the current converter reads only the first worksheet.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Add a server-owned <code>pms_type</code> to organizations, an admin assignment control, and a parser router with <code>default</code> and <code>dentalemr</code> implementations. File upload, file preview, paste preview, and paste persistence must all route through the same organization-selected parser. Organizations left on <code>default</code> retain current behavior.</p>
+      <p>DentalEMR parsing is deterministic and uses no LLM. It reproduces the supplied April/May summaries, maps the resulting rollup directly into the existing editable table, preserves the authoritative distinct-patient total, and uses a truthful phase progress indicator without semantic row batching.</p>
+    </section>
+
+    <section class="spec-card" id="scope-ledger">
+      <h2>Scope Ledger</h2>
+      <div class="ledger-grid">
+        <div><h3>Objective</h3><p>Route each organization through its assigned PMS parser and ship the first custom parser for DentalEMR.</p></div>
+        <div><h3>Intended user</h3><p>Alloro super admins assign the parser; client admins/managers upload or paste PMS data.</p></div>
+        <div><h3>Surface</h3><p>Admin organization overview, PMS upload/file manager, paste preview, editable monthly table, and downstream referral aggregation.</p></div>
+        <div><h3>System of record</h3><p>The authenticated organization owns <code>organizations.pms_type</code>. Raw export dates and values own the calculation; filenames and PDF headings do not.</p></div>
+        <div><h3>In scope</h3><p>Schema, admin assignment, parser registry/router, DentalEMR CSV/XLS/XLSX handling, paste parity, authoritative totals, progress UX, tests, and docs parity.</p></div>
+        <div><h3>Out of scope</h3><p>Historical reprocessing, production assignment, other vendor parsers, generic fuzzy-cleaning redesign, and resumable/streaming uploads over 10 MB.</p></div>
+      </div>
+    </section>
+
+    <section class="spec-card" id="formula">
+      <h2>DentalEMR Formula Contract</h2>
+      <ol>
+        <li>Recognize raw worksheets/rows by the required headers <code>Treatment Date</code>, <code>Status</code>, <code>Ins. Adj. Fee.</code>, <code>Patient</code>, and <code>Referring Practice</code>. Allow and ignore extra columns.</li>
+        <li>Use <code>Treatment Date</code> for <code>YYYY-MM</code> bucketing. Do not trust a filename, worksheet name, or summary heading for the month.</li>
+        <li>Preserve the existing procedure-log contract by including rows whose status is case-insensitively <code>Done</code>. Zero-production rows still count as referrals.</li>
+        <li><strong>Total production:</strong> sum every qualifying row's <code>Ins. Adj. Fee.</code>. The same field is summed per normalized source. Do not use Gross Revenue or the existing global formula.</li>
+        <li><strong>Total referrals:</strong> count distinct non-blank patients per month.</li>
+        <li><strong>Per-source referrals:</strong> count distinct patient + normalized-source pairs per month.</li>
+        <li><strong>Source normalization:</strong> trim whitespace, strip all leading/trailing asterisks, trim again, then map blank or case-insensitive exact <code>1endo</code> to <code>Self</code>. Merge exact normalized names. No DentalEMR fuzzy-AI merge.</li>
+        <li><strong>Types:</strong> <code>Self</code> is <code>self</code>; every other normalized practice is <code>doctor</code>.</li>
+        <li>Store <code>total_referrals</code> independently from source totals. A patient appearing under two sources counts once in the monthly total and once under each source.</li>
+        <li>Persist parser metadata identifying the non-additive count semantics so downstream aggregation does not raise a false source-sum mismatch.</li>
+      </ol>
+    </section>
+
+    <section class="spec-card" id="fixtures">
+      <h2>Verified Fixture Targets</h2>
+      <p>The raw client files remain outside the repository and must never be committed. Automated tests use synthetic data; the values below drive a local acceptance pass against the supplied files.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Location / month</th><th>Raw rows</th><th>Total production</th><th>Total referrals</th><th>Source-patient pairs</th><th>Self after normalization</th></tr></thead>
+          <tbody>
+            <tr><td>Fredericksburg 2026-04</td><td>596</td><td>$197,042.90</td><td>156</td><td>158</td><td>8 / $6,301.00</td></tr>
+            <tr><td>Fredericksburg 2026-05</td><td>641</td><td>$183,942.00</td><td>171</td><td>180</td><td>17 / $3,344.00</td></tr>
+            <tr><td>Sterling 2026-04</td><td>709</td><td>$216,811.10</td><td>197</td><td>208</td><td>36 / $6,706.00 after blank + 1endo</td></tr>
+            <tr><td>Sterling 2026-05</td><td>641</td><td>$192,668.00</td><td>165</td><td>181</td><td>35 / $7,824.00 after blank + 1endo</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p><strong>Resolved evidence conflict:</strong> <code>sterling-may-summary.pdf</code> is headed “April 2026,” but its filename, raw file, and every valid raw treatment date identify <code>2026-05</code>. The parser follows the raw dates.</p>
+      <p><strong>Multi-sheet requirement:</strong> the supplied Sterling XLSX places summary sheets first and includes separate April and May raw worksheets. DentalEMR file parsing must scan worksheets for the required raw headers and parse every matching raw sheet, or only the requested target month when the upload is month-scoped. The default parser keeps its current first-sheet behavior.</p>
+    </section>
+
+    <section class="spec-card" id="progress">
+      <h2>Truthful Progress UX</h2>
+      <p>Remove the frontend's 50-row request batching. A 600-700-row DentalEMR export is about 132-184 KB, while the app accepts 50 MB JSON and 10 MB files. One request is faster than 12-15 sequential requests and lets the server deduplicate globally.</p>
+      <ul>
+        <li>Before confirmation, show actual detected row count and payload size. Remove batch count/copy.</li>
+        <li>Use milestone segments, not a fabricated time percentage: <strong>Parse</strong> and, only when the default parser requires it, <strong>Clean sources</strong>.</li>
+        <li>The active segment is indeterminate/animated. A segment fills only when its request actually completes. <strong>Ready</strong> is the only 100% state.</li>
+        <li>DentalEMR returns <code>requiresSanitization: false</code>; its deterministic parser finishes after Parse. The default parser retains the existing sanitizer phase.</li>
+        <li>Expose accessible status with <code>role="progressbar"</code> and <code>aria-valuetext</code>. Omit <code>aria-valuenow</code> while a phase is indeterminate.</li>
+        <li>Do not add polling, WebSockets, SSE, Redis progress state, or artificial delay. Row iteration finishes too quickly for polling to observe; queue overhead would make the operation slower.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant backend files</h3>
+      <ul>
+        <li><code>src/controllers/pms/pms-services/PmsFileManagerService.ts</code> - full-file preview currently resolves and applies the default mapping once.</li>
+        <li><code>src/controllers/pms/pms-services/pms-upload.service.ts</code> - persisted file uploads repeat the default mapping pipeline and store raw rows.</li>
+        <li><code>src/controllers/pms/pms-services/pms-paste-parse.service.ts</code> - tokenizes pasted text and currently applies the mapping to one frontend-provided batch.</li>
+        <li><code>src/controllers/pms/pms-services/pms-mapping.service.ts</code> - default-parser mapping preview, confirmation, raw-row persistence, and reprocessing.</li>
+        <li><code>src/controllers/pms/pms-utils/file-converter.util.ts</code> - XLS/XLSX conversion currently reads only <code>SheetNames[0]</code>.</li>
+        <li><code>src/utils/pms/resolveColumnMapping.ts</code> + <code>applyColumnMapping.ts</code> - existing default parser to preserve.</li>
+        <li><code>src/database/seeds/20260427000001_pms_column_mappings_global.ts</code> - evidence that the current procedure-log production formula differs from DentalEMR's confirmed Adj. Ins formula; do not rewrite it globally.</li>
+        <li><code>src/utils/pms/pmsAggregator.ts</code> - trusts top-level totals but currently flags non-additive source sums as a mismatch.</li>
+        <li><code>src/models/OrganizationModel.ts</code> - organization contract and list/detail selects.</li>
+        <li><code>src/controllers/admin-organizations/feature-services/OrganizationLifecycleAdminService.ts</code> - closest admin assignment service analog.</li>
+      </ul>
+      <h3>Relevant frontend files</h3>
+      <ul>
+        <li><code>frontend/src/components/PMS/usePasteHandler.ts</code> - owns the unsafe 50-row loop and two request phases.</li>
+        <li><code>frontend/src/components/PMS/PasteConfirmDialog.tsx</code> - currently renders batch-derived pseudo-percentage progress.</li>
+        <li><code>frontend/src/components/PMS/usePmsManualEntry.ts</code> - coordinates paste parsing, mapping preview, and the editable table; already near the large-file tier.</li>
+        <li><code>frontend/src/components/PMS/pmsDataTransform.ts</code>, <code>types.ts</code>, and <code>pmsManualEntryModal.utils.ts</code> - currently discard and recompute the authoritative total.</li>
+        <li><code>frontend/src/components/Admin/org/OrgSubscriptionSection.tsx</code> + <code>frontend/src/api/admin-organizations.ts</code> - existing organization-type assignment analog.</li>
+        <li><code>frontend/src/api/pms/</code> - typed upload, preview, paste, and mapping contracts. Existing client <code>pmsType: "auto-detect"</code> is unused and must be removed so the client never selects the parser.</li>
+      </ul>
+      <h3>Patterns and Constitution</h3>
+      <ul>
+        <li><strong>§5.3:</strong> never log raw rows, patient names/IDs, providers, or referring-user values.</li>
+        <li><strong>§5.4 / §11.2:</strong> derive parser type from authenticated organization context and validate PMS type/payload size server-side.</li>
+        <li><strong>§6.1 / §6.3 / §7.1 / §7.4:</strong> new backend code follows route - controller - feature service - model and lives under <code>feature-services/</code> or <code>feature-utils/</code>.</li>
+        <li><strong>§8.1:</strong> new/changed endpoints return the canonical <code>{ success, data, error }</code> contract.</li>
+        <li><strong>§10.3:</strong> <code>pms_type</code> is added through a reversible Knex migration.</li>
+        <li><strong>§12.1 / §14.1 / §16.1:</strong> frontend flows through typed <code>api/pms</code> functions and hooks, with surfaced errors.</li>
+        <li><strong>§13.1:</strong> do not grow <code>usePmsManualEntry.ts</code> past the hard ceiling; extract the parser-result/table-total integration into a focused hook or utility.</li>
+        <li><strong>§20.1 / §20.2 / §20.4:</strong> add service, API-contract, failure, and tenant-context tests using synthetic data only.</li>
+      </ul>
+      <p><strong>Backend reference analog:</strong> <code>src/controllers/gbp-automation/</code> (§6.1) for thin controller and feature-service structure.</p>
+      <p><strong>Frontend reference analog:</strong> <code>frontend/src/api/</code> + hook + feature component triad (§12.1), with the current Paste dialog as the visual baseline.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Add <code>organizations.pms_type</code> as non-null <code>varchar(50)</code>, default <code>default</code>; no index and no client-data backfill.</li>
+            <li>Support registry values <code>default</code> and <code>dentalemr</code>; unknown stored values safely fall back to default with a non-PII warning.</li>
+            <li>Let super admins change future parsing behavior from the organization overview. Historical jobs remain unchanged.</li>
+            <li>Use the same parser result contract for paste, file preview, and persisted file/paste uploads.</li>
+            <li>Keep the default route behaviorally identical, including mapping cache and optional sanitizer.</li>
+            <li>Reject paste payloads above the existing 10 MB PMS file limit with HTTP 413 and a clear upload-file instruction.</li>
+            <li>Preserve parsed totals until a user edits a referral/source row. Such an edit explicitly invalidates the authoritative override and returns that month to derived totals, with visible notice.</li>
+            <li>Record parser/count-semantics metadata in <code>response_log</code> and <code>original_response_log</code>.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must not</h3>
+          <ul>
+            <li>Do not let form data or JSON <code>pmsType</code> choose the parser.</li>
+            <li>Do not modify the global default mapping or apply DentalEMR rules to unassigned organizations.</li>
+            <li>Do not run AI mapping or fuzzy source sanitation for the DentalEMR parser.</li>
+            <li>Do not compute total referrals by summing source rows.</li>
+            <li>Do not commit the supplied client files or any patient-level fixture.</li>
+            <li>Do not silently choose a summary/pivot sheet in a DentalEMR workbook.</li>
+            <li>Do not add a queue, job table, Redis state, WebSocket, or SSE solely for the progress bar.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out of scope</h3>
+      <ul>
+        <li>Automatic production assignment of DentalEMR to a live organization; deployment and assignment are separate gated actions.</li>
+        <li>Reprocessing historical <code>pms_jobs</code>.</li>
+        <li>General cleanup of quotes, parenthetical scheduling instructions, misspellings, or provider duplicates beyond exact edge-asterisk normalization.</li>
+        <li>True streaming/resumable parsing for files or pastes above 10 MB.</li>
+        <li>Additional PMS vendors or an admin UI for authoring parser definitions.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><span class="risk-level">Level 3</span> This changes the critical financial/referral ingestion path, adds organization configuration, and corrects assumptions shared by preview, persistence, and downstream agents.</p>
+      <h3>Risks and mitigations</h3>
+      <ul>
+        <li><strong>Default-client regression.</strong> The router sits in every ingestion path. <strong>Mitigation:</strong> default adapter delegates to the existing resolver/applier unchanged; add byte-equivalence tests for the Alloro template and current default procedure-log fixture.</li>
+        <li><strong>Financial formula error.</strong> Existing mapping code and the confirmed DentalEMR formula disagree. <strong>Mitigation:</strong> isolate DentalEMR from the global mapping and reconcile four real location-month totals before acceptance.</li>
+        <li><strong>Workbook sheet ambiguity.</strong> A summary sheet appears first in the supplied XLSX. <strong>Mitigation:</strong> inspect all DentalEMR sheets by required raw headers, report selected sheet names, and fail clearly when none match.</li>
+        <li><strong>False referral mismatch.</strong> Source-patient relationships legitimately exceed global unique patients. <strong>Mitigation:</strong> persist count semantics, preserve top-level totals, and skip only the incompatible sum-reconciliation rule for that declared semantic.</li>
+        <li><strong>Stale total after editing.</strong> The table cannot reconstruct patient-level uniqueness after source counts are manually changed. <strong>Mitigation:</strong> invalidate the authoritative total on any referral/source mutation and visibly return to derived mode.</li>
+        <li><strong>Patient data exposure.</strong> Raw exports contain PII. <strong>Mitigation:</strong> synthetic committed tests, local-only acceptance files, no row-level logging, existing tenant-scoped raw-data persistence only.</li>
+        <li><strong>Progress complexity.</strong> A queued job/poller would introduce retry, cleanup, tenant, and PII-state problems for sub-second work. <strong>Mitigation:</strong> milestone/indeterminate phases backed by existing requests.</li>
+      </ul>
+      <h3>Blast radius</h3>
+      <ul>
+        <li><strong>Database/admin:</strong> organizations schema/model, admin list/detail responses, admin organization overview, super-admin mutation route.</li>
+        <li><strong>PMS ingestion:</strong> manual paste preview and submit, mapping preview/submit guard, direct upload, file-manager preview/overwrite, CSV/XLS/XLSX conversion.</li>
+        <li><strong>Data contract:</strong> monthly rollup totals, parser metadata, raw-input persistence, source-sum reconciliation, monthly-agent input.</li>
+        <li><strong>Frontend:</strong> paste hook/dialog, upload request types, manual-entry table state/transforms, mapping drawer routing.</li>
+        <li><strong>Docs:</strong> Referrals Hub upload guidance and replica parity check.</li>
+      </ul>
+      <h3>Pushback</h3>
+      <ul>
+        <li><strong>Do not build a numeric job-progress system for this.</strong> It would be slower and less reliable than the parser. The recommended phase bar is truthful and proportionate.</li>
+        <li><strong>Do not “fix” the global Open-Dental mapping.</strong> That would silently change every default organization. DentalEMR must be an explicitly assigned custom parser.</li>
+        <li><strong>Do not force additive totals.</strong> The supplied summaries prove the total and source breakdown answer different valid questions.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+
+      <article class="task-card">
+        <h3>T1: PMS type schema and organization model</h3>
+        <dl><div><dt>Do</dt><dd>Add the reversible migration and <code>PmsParserType</code> registry/resolver. Extend organization reads/types with <code>pms_type</code>. Default all existing/new organizations to <code>default</code>.</dd></div><div><dt>Files</dt><dd><code>src/database/migrations/&lt;timestamp&gt;_add_pms_type_to_organizations.ts</code>, <code>src/models/OrganizationModel.ts</code>, new config/type file, plan migration scaffolds</dd></div><div><dt>Depends on</dt><dd>None</dd></div><div><dt>Verify</dt><dd>Migration up/down; model tests; no production assignment.</dd></div></dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: Super-admin PMS parser assignment</h3>
+        <dl><div><dt>Do</dt><dd>Add <code>PATCH /api/admin/organizations/:id/pms-type</code> with route validation and model-backed service. Add a separate “PMS Parser” select with Default and DentalEMR options, confirmation copy, loading/error state, and refresh.</dd></div><div><dt>Files</dt><dd><code>src/routes/admin/organizations.ts</code>, <code>src/controllers/admin-organizations/AdminOrganizationsController.ts</code>, <code>src/controllers/admin-organizations/feature-services/OrganizationLifecycleAdminService.ts</code>, <code>frontend/src/api/admin-organizations.ts</code>, <code>frontend/src/components/Admin/org/OrgSubscriptionSection.tsx</code></dd></div><div><dt>Depends on</dt><dd>T1</dd></div><div><dt>Verify</dt><dd>API accepts supported types, rejects unknown values, requires super admin, and updates detail/list response.</dd></div></dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: Parser result contract and server-owned router</h3>
+        <dl><div><dt>Do</dt><dd>Create a typed router that derives <code>pms_type</code> from the authenticated organization and exposes row/paste and file entrypoints. Return parser type, processed rows, monthly rollup, warnings, selected sheet names, mapping metadata when default, and <code>requiresSanitization</code>. Wrap the current resolver/applier as the default adapter without changing behavior.</dd></div><div><dt>Files</dt><dd>new <code>src/controllers/pms/feature-services/PmsParserRouterService.ts</code>, default parser service/contract under <code>feature-services/</code> or <code>feature-utils/</code>, <code>src/utils/pms/resolveColumnMapping.ts</code> only if needed to avoid duplicate org reads</dd></div><div><dt>Depends on</dt><dd>T1</dd></div><div><dt>Verify</dt><dd>Router tests prove the client cannot override parser selection and default output is unchanged.</dd></div></dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: Deterministic DentalEMR parser and multi-sheet adapter</h3>
+        <dl><div><dt>Do</dt><dd>Implement the formula contract, shared accumulator, required-header validation, CSV/paste parsing, and DentalEMR-specific XLS/XLSX sheet discovery. An optional validated target month filters qualifying rows; otherwise all matching raw sheets/months are parsed. Finalize once after all rows/sheets.</dd></div><div><dt>Files</dt><dd>new parser service and pure normalization/accumulator utilities under <code>src/controllers/pms/feature-services/</code> and <code>feature-utils/</code>; focused file-adapter changes</dd></div><div><dt>Depends on</dt><dd>T3</dd></div><div><dt>Verify</dt><dd>Synthetic unit tests for Done filtering, Adj. Ins sums, zero production, duplicate patients, multi-source patients, asterisk merging, blank/1endo Self, multiple months, and summary-first XLSX.</dd></div></dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T5: File preview and persistence parity</h3>
+        <dl><div><dt>Do</dt><dd>Route file-manager preview and persisted file upload through <code>parseFile</code>. Pass optional target month from the selected month flow. Store parser/count-semantics metadata and raw rows. Preserve default mapping clone-on-confirm; custom parsers do not create column mappings.</dd></div><div><dt>Files</dt><dd><code>PmsFileManagerService.ts</code>, <code>pms-upload.service.ts</code>, file-manager controller/API/hook types as needed</dd></div><div><dt>Depends on</dt><dd>T3, T4</dd></div><div><dt>Verify</dt><dd>CSV and multi-sheet XLSX produce the same month rollups; target-month preview returns only that month; default file fixtures are unchanged.</dd></div></dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T6: One-shot paste preview and parser-owned paste submit</h3>
+        <dl><div><dt>Do</dt><dd>Send the entire paste once, enforce 10 MB/required-field limits, and return parser metadata. Add/reshape a paste-submit endpoint so raw pasted rows are re-parsed server-side and persisted with the same contract as files, including an optional user-edited rollup override. DentalEMR skips the mapping drawer and generic fuzzy sanitizer; default behavior retains both where applicable.</dd></div><div><dt>Files</dt><dd><code>src/routes/pms.ts</code>, focused paste controller/service, <code>pms-paste-parse.service.ts</code>, <code>pms-mapping.service.ts</code> guard, <code>frontend/src/api/pms/paste.ts</code>, paste submit API/hook</dd></div><div><dt>Depends on</dt><dd>T3, T4</dd></div><div><dt>Verify</dt><dd>A duplicate patient placed on former rows 49 and 51 counts once; a synthetic 600-row paste makes one parse request; persisted paste equals file output.</dd></div></dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T7: Authoritative referral totals through the editable table</h3>
+        <dl><div><dt>Do</dt><dd>Extend month UI state and transforms to preserve backend <code>total_referrals</code> separately from source rows. Summary cards and submit payload use it while untouched. Referral/source edits invalidate the override and show derived-mode notice. Teach <code>pmsAggregator</code> that DentalEMR's declared count semantics are intentionally non-additive.</dd></div><div><dt>Files</dt><dd><code>frontend/src/components/PMS/types.ts</code>, <code>pmsDataTransform.ts</code>, <code>pmsManualEntryModal.utils.ts</code>, row-edit hook/UI notice, <code>src/utils/pms/pmsAggregator.ts</code></dd></div><div><dt>Depends on</dt><dd>T4, T5, T6</dd></div><div><dt>Verify</dt><dd>156 total remains 156 while source rows sum 158; editing a source invalidates the override; no false mismatch flag for declared semantics.</dd></div></dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T8: Batch-free paste progress indicator</h3>
+        <dl><div><dt>Do</dt><dd>Delete <code>ROWS_PER_BATCH</code>, <code>chunkByRows</code>, batch progress state/copy, and pseudo-percentage math. Render the milestone/indeterminate progress contract and actual completed-row message. Keep error/warning behavior.</dd></div><div><dt>Files</dt><dd><code>frontend/src/components/PMS/usePasteHandler.ts</code>, <code>PasteConfirmDialog.tsx</code>, <code>types.ts</code>, extracted hook/utility if needed to keep size limits</dd></div><div><dt>Depends on</dt><dd>T6</dd></div><div><dt>Verify</dt><dd>Component/hook tests cover default two-phase, DentalEMR one-phase, sanitize fallback, failure, accessibility, and no batch copy.</dd></div></dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T9: Remove client-selected auto-detect contract</h3>
+        <dl><div><dt>Do</dt><dd>Remove the unused <code>pmsType: "auto-detect"</code> request field and all callsites. The only parser selector is the authenticated organization's stored value.</dd></div><div><dt>Files</dt><dd><code>frontend/src/api/pms/types.ts</code>, <code>frontend/src/api/pms/jobs.ts</code>, <code>DirectUploadModal.tsx</code>, <code>TemplateUploadModal.tsx</code>, <code>PMSUploadWizardModal.tsx</code>, <code>usePmsManualEntrySubmit.ts</code></dd></div><div><dt>Depends on</dt><dd>T3</dd></div><div><dt>Verify</dt><dd>Repo search finds no client parser override; uploads still compile and pass request tests.</dd></div></dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T10: Referrals Hub documentation parity</h3>
+        <dl><div><dt>Do</dt><dd>After reading the final live components, update Referrals Hub upload/paste guidance and changelog. Sync the static replica only if the changed progress/total state appears in the represented UI.</dd></div><div><dt>Files</dt><dd><code>/Users/rustinedave/Desktop/alloro-docs/src/data/pages/referrals-hub.ts</code>; conditional <code>ReferralsHubReplica.tsx</code></dd></div><div><dt>Depends on</dt><dd>T7, T8</dd></div><div><dt>Verify</dt><dd>Alloro Docs TypeScript/build and hotspot parity check.</dd></div></dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T11: Integration and acceptance matrix</h3>
+        <dl><div><dt>Do</dt><dd>Run synthetic automated coverage, default-regression fixtures, four local client-file reconciliations, paste/file parity, admin assignment, target-month/multi-sheet behavior, and downstream aggregation. Generate <code>test.html</code> and <code>test-results.json</code>.</dd></div><div><dt>Files</dt><dd>new focused backend/frontend tests; this plan's acceptance artifacts</dd></div><div><dt>Depends on</dt><dd>T1-T10</dd></div><div><dt>Verify</dt><dd><code>npm run check:all</code>, backend/frontend type checks and builds, relevant Vitest suites, authenticated browser acceptance through <code>http://localhost:3000/admin</code> and Pilot into a dev/test organization.</dd></div></dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="dependencies">
+      <h2>Dependency and Execution Waves</h2>
+      <ul>
+        <li><strong>Wave 1:</strong> T1 and T3 foundations.</li>
+        <li><strong>Wave 2:</strong> T2, T4, and T9 can proceed in parallel within their file boundaries.</li>
+        <li><strong>Wave 3:</strong> T5 and T6 integrate file and paste paths; T7 follows both. T8 follows the paste contract.</li>
+        <li><strong>Wave 4:</strong> T10 docs parity and T11 integration/acceptance.</li>
+      </ul>
+      <p>Because this is a Large plan with 10+ files and 4+ tasks, execution should use bounded sub-agent groups only where the task/file boundaries above do not overlap. The orchestrating agent owns integration and final verification.</p>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" checked disabled> Migration adds reversible non-null <code>organizations.pms_type = default</code>; no live org is silently assigned DentalEMR.</li>
+        <li><input type="checkbox" checked disabled> Super admin can switch an organization between Default and DentalEMR; unauthorized/invalid mutations fail.</li>
+        <li><input type="checkbox" checked disabled> Every file/paste preview and persistence path derives the parser from authenticated organization state.</li>
+        <li><input type="checkbox" checked disabled> Default parser fixtures remain byte-equivalent.</li>
+        <li><input type="checkbox" checked disabled> DentalEMR uses Adj. Ins production, global distinct-patient totals, per-source distinct patients, asterisk normalization, and blank/1endo Self.</li>
+        <li><input type="checkbox" checked disabled> Summary-first multi-sheet XLSX parses matching raw sheets and target-month scoping correctly.</li>
+        <li><input type="checkbox" checked disabled> Copy/paste sends one parse request and deduplicates across the former row-50 boundary.</li>
+        <li><input type="checkbox" checked disabled> Progress UI uses truthful completed/indeterminate phases, no fake numeric percentage, and accessible status.</li>
+        <li><input type="checkbox" checked disabled> Authoritative total survives preview and persistence; source-sum mismatch is not falsely flagged; edits explicitly invalidate the override.</li>
+        <li><input type="checkbox" checked disabled> Four supplied location-month targets reconcile exactly; Sterling May resolves to <code>2026-05</code> from raw dates.</li>
+        <li><input type="checkbox" checked disabled> No patient-level client file or row is committed or logged.</li>
+        <li><input type="checkbox" checked disabled> <code>npm run check:all</code>, backend/frontend type checks/builds, relevant Vitest suites, and Alloro Docs checks pass with execution-caused violations fixed.</li>
+        <li><input type="checkbox" checked disabled> <code>test-results.json</code> rolls up to Passed before <code>-d</code>.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-07-13</h3>
+        <p><strong>Change:</strong> Marked implementation and verification complete after integrated backend/frontend tests, production builds, feature-scoped lint, strict convention checks, Alloro Docs build, and exact local reconciliation of all four supplied DentalEMR location-month exports.</p>
+        <p><strong>Reason:</strong> Execution completion: code-level and local-file acceptance passed. Authenticated dev UI acceptance is explicitly waived in <code>test-results.json</code> until the additive migration is deployed to dev; no migration was run from the current active environment.</p>
+        <p><strong>Updated Done criteria:</strong> none.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

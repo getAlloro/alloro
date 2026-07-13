@@ -126,10 +126,8 @@ export function usePmsManualEntry({
   const [isReprocessing, setIsReprocessing] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  // Raw paste text captured at paste-event time, consumed AFTER legacy parse
-  // completes. Sequencing the mapping pipeline behind the legacy parse means
-  // the drawer can't auto-open while the user is still in the "Paste detected"
-  // confirmation dialog.
+  // Retained through submit so the server can re-parse and persist parser
+  // metadata with the reviewed monthly override.
   const pastedRawTextRef = useRef<string>("");
 
   // Forward-ref to runMappingPreview, populated by an effect below. handleParsedPaste
@@ -272,25 +270,36 @@ export function usePmsManualEntry({
   }, [pendingMonths, applyMerge]);
 
   const cancelMerge = useCallback(() => {
+    pastedRawTextRef.current = "";
     setPendingMonths(null);
     setMonthConflicts(null);
   }, []);
 
   // Paste handler
   const handleParsedPaste = useCallback(
-    (parsedMonths: MonthBucket[]) => {
+    (
+      parsedMonths: MonthBucket[],
+      metadata: {
+        parserType: "default" | "dentalemr";
+        rawText: string;
+        rowsParsed: number;
+      },
+    ) => {
       mergeOrConfirm(parsedMonths);
-
-      // Now that legacy parsing is done and the user can see the result, kick
-      // off the column-mapping resolver. This is what eventually opens the
-      // mapping drawer for non-org-cache signatures.
-      const text = pastedRawTextRef.current;
-      if (text) {
-        runMappingPreviewRef.current(text);
+      if (
+        targetMonth &&
+        parsedMonths.some((month) => month.month !== targetMonth)
+      ) {
         pastedRawTextRef.current = "";
+        return;
+      }
+      pastedRawTextRef.current = metadata.rawText;
+
+      if (metadata.parserType === "default") {
+        runMappingPreviewRef.current(metadata.rawText);
       }
     },
-    [mergeOrConfirm],
+    [mergeOrConfirm, targetMonth],
   );
 
   const handlePasteWarnings = useCallback((warnings: string[]) => {
@@ -309,12 +318,14 @@ export function usePmsManualEntry({
     phase: pastePhase,
     showConfirm: showPasteConfirm,
     pasteInfo,
-    batchProgress,
+    rowsParsed: pastedRowsParsed,
+    requiresSanitization,
     confirmPaste,
     cancelPaste,
     handlePasteEvent: legacyHandlePasteEvent,
   } = usePasteHandler({
     currentMonth: activeMonthStr,
+    targetMonth,
     onParsed: handleParsedPaste,
     onError: (msg) => setError(msg),
     onWarnings: handlePasteWarnings,
@@ -378,27 +389,13 @@ export function usePmsManualEntry({
     runMappingPreviewRef.current = runMappingPreview;
   }, [runMappingPreview]);
 
-  /**
-   * Wraps the legacy paste handler. Captures the raw text into a ref, then
-   * forwards the event to the positional parser. The mapping resolver does
-   * NOT run here — it's deferred to `handleParsedPaste` so the drawer can't
-   * pop while the user is still confirming the legacy "Paste detected" modal.
-   */
   const handlePasteEvent = useCallback(
     (e: React.ClipboardEvent) => {
-      // Sniff text first (the legacy handler may preventDefault and consume).
-      let text = "";
-      try {
-        text = e.clipboardData.getData("text/plain");
-      } catch {
-        // ignore — not all synthetic events expose clipboardData
-      }
       setSelectedUploadFile(null);
       setUploadPreview(null);
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
-      pastedRawTextRef.current = text;
       legacyHandlePasteEvent(e);
     },
     [legacyHandlePasteEvent],
@@ -430,6 +427,7 @@ export function usePmsManualEntry({
       setError(null);
       setMonthMismatch(null);
       if (targetMonth) {
+        pastedRawTextRef.current = "";
         const targetBucket = createEmptyMonthBucket(targetMonth);
         setMonths([targetBucket]);
         setActiveMonthId(targetBucket.id);
@@ -524,7 +522,7 @@ export function usePmsManualEntry({
   // useState/useRef inside), called here at the exact position the block
   // occupied so the overall hook-call order (and behavior) is unchanged.
   const {
-    clearAllData,
+    clearAllData: clearUploadedData,
     discardMismatchedUpload,
     reuploadCorrectedFile,
     handleFileInputChange,
@@ -558,6 +556,11 @@ export function usePmsManualEntry({
     setIsDragging,
   });
 
+  const clearAllData = useCallback(() => {
+    pastedRawTextRef.current = "";
+    clearUploadedData();
+  }, [clearUploadedData]);
+
   const sortedMonths = useMemo(
     () => [...months].sort((a, b) => a.month.localeCompare(b.month)),
     [months],
@@ -572,7 +575,20 @@ export function usePmsManualEntry({
   }, [months, activeMonthId, sortedMonths]);
 
   const rows = useMemo(() => activeMonth?.rows ?? [], [activeMonth?.rows]);
-  const totals = useMemo(() => calculateTotals(rows), [rows]);
+  const totals = useMemo(
+    () =>
+      calculateTotals(
+        rows,
+        activeMonth?.referralTotalMode === "authoritative"
+          ? activeMonth.authoritativeTotalReferrals
+          : undefined,
+      ),
+    [
+      activeMonth?.authoritativeTotalReferrals,
+      activeMonth?.referralTotalMode,
+      rows,
+    ],
+  );
 
   // Keep active ID valid
   useEffect(() => {
@@ -625,6 +641,8 @@ export function usePmsManualEntry({
     locationId,
     currentMapping,
     mappingAllRows,
+    pastedRawText: pastedRawTextRef.current,
+    currentMonth: activeMonthStr,
     months,
     onSuccess,
     onClose,
@@ -678,7 +696,8 @@ export function usePmsManualEntry({
     pastePhase,
     showPasteConfirm,
     pasteInfo,
-    batchProgress,
+    pastedRowsParsed,
+    requiresSanitization,
     confirmPaste,
     cancelPaste,
     handlePasteEvent,

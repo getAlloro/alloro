@@ -8,6 +8,8 @@
  */
 
 import { Response } from "express";
+import type { PmsParserType } from "../../config/pmsParserRegistry";
+import logger from "../../lib/logger";
 import { AuthRequest } from "../../middleware/auth";
 import { OrganizationModel } from "../../models/OrganizationModel";
 import * as OrganizationEnrichmentService from "./feature-services/OrganizationEnrichmentService";
@@ -472,6 +474,36 @@ export async function updateOrganizationType(
       return res.status(error.statusCode).json(error.body);
     }
     return handleError(res, error, "Update organization type");
+  }
+}
+
+export async function updatePmsParserType(req: AuthRequest, res: Response): Promise<Response> {
+  const orgId = Number(req.params.id);
+  try {
+    const pmsType = req.body.pmsType as PmsParserType;
+    const result = await OrganizationLifecycleAdminService.setPmsParserType(orgId, pmsType);
+    return res.status(result.status).json(result.body);
+  } catch (error) {
+    if (isAdminOrgError(error)) {
+      const message =
+        typeof error.body.message === "string"
+          ? error.body.message
+          : "Organization not found.";
+      return res.status(error.statusCode).json({
+        success: false,
+        data: null,
+        error: { code: "ORGANIZATION_NOT_FOUND", message, details: null },
+      });
+    }
+    logger.error(
+      { err: error, organizationId: orgId },
+      "[Admin/Orgs] Failed to update PMS parser"
+    );
+    return res.status(500).json({
+      success: false,
+      data: null,
+      error: { code: "PMS_TYPE_UPDATE_FAILED", message: "Failed to update the organization PMS parser.", details: null },
+    });
   }
 }
 

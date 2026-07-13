@@ -14,6 +14,7 @@
  */
 
 import { v4 as uuid } from "uuid";
+import type { PmsParserType } from "../../../config/pmsParserRegistry";
 import { OrganizationModel } from "../../../models/OrganizationModel";
 import { ProjectModel } from "../../../models/website-builder/ProjectModel";
 import { getStripe, isStripeConfigured } from "../../../config/stripe";
@@ -57,6 +58,31 @@ export async function setOrganizationType(
       success: true,
       type,
       message: `Organization type set to "${type}".`,
+    },
+  };
+}
+
+/** Assign the parser used for future PMS ingestion by this organization. */
+export async function setPmsParserType(
+  orgId: number,
+  pmsType: PmsParserType
+): Promise<AdminOrgActionResult> {
+  await requireOrganization(orgId);
+
+  await OrganizationModel.updateById(orgId, {
+    pms_type: pmsType,
+    updated_at: new Date(),
+  });
+
+  return {
+    status: 200,
+    body: {
+      success: true,
+      data: {
+        pmsType,
+        message: `PMS parser set to "${pmsType}".`,
+      },
+      error: null,
     },
   };
 }

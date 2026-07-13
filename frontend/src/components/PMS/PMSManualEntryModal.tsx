@@ -86,7 +86,8 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
     pastePhase,
     showPasteConfirm,
     pasteInfo,
-    batchProgress,
+    pastedRowsParsed,
+    requiresSanitization,
     confirmPaste,
     cancelPaste,
     handlePasteEvent,
@@ -377,7 +378,8 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
               pasteInfo={pasteInfo}
               isPasting={isPasting}
               phase={pastePhase}
-              batchProgress={batchProgress}
+              rowsParsed={pastedRowsParsed}
+              requiresSanitization={requiresSanitization}
               onConfirm={confirmPaste}
               onCancel={cancelPaste}
               droppedFileName={droppedFileName}
