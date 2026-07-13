@@ -109,12 +109,15 @@ type SearchPositionBand =
   | "outside_top_20"
   | "pending";
 
+const LEADER_SEARCH_POSITION = 1;
+const TOP_THREE_SEARCH_POSITIONS = new Set([2, 3]);
+
 function getSearchPositionBand(result: RankingResult): SearchPositionBand {
   const status = result.searchStatus ?? "ok";
   if (status === "not_in_top_20") return "outside_top_20";
   if (status !== "ok" || result.searchPosition == null) return "pending";
-  if (result.searchPosition === 1) return "leader";
-  if (result.searchPosition === 2 || result.searchPosition === 3) return "top_set";
+  if (result.searchPosition === LEADER_SEARCH_POSITION) return "leader";
+  if (TOP_THREE_SEARCH_POSITIONS.has(result.searchPosition)) return "top_set";
   return "ranked";
 }
 

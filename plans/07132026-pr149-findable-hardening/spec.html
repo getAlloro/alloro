@@ -92,6 +92,8 @@
       <article class="task-card"><h3>T2: Position-aware output guardrail</h3><p><strong>Do:</strong> Preserve top-three protection language while keeping lower-rank normalization.</p><p><strong>Verify:</strong> backend Vitest guardrail suite.</p></article>
       <article class="task-card"><h3>T3: Mutually exclusive LLM prompt bands</h3><p><strong>Do:</strong> Split #4-20, not-in-top-20, and unavailable instructions.</p><p><strong>Verify:</strong> prompt-contract test.</p></article>
       <article class="task-card"><h3>T4: Merge verification and PR update</h3><p><strong>Do:</strong> Run builds, full suites, strict conventions, scoped lint, commit intentionally, and push to the existing PR branch.</p><p><strong>Depends on:</strong> T1-T3.</p></article>
+      <article class="task-card"><h3>T5 (Rev 1): Constitution cleanup</h3><p><strong>Do:</strong> Name ranking thresholds and rename backend tests to mirror their service units.</p><p><strong>Verify:</strong> targeted lint, TypeScript builds, and Vitest suites.</p><p><strong>Depends on:</strong> T1-T4.</p></article>
+      <article class="task-card"><h3>T6 (Rev 1): Running-app acceptance</h3><p><strong>Do:</strong> Verify the customer-facing Local Rankings overview through the PR frontend running against the local app, then record browser evidence.</p><p><strong>Verify:</strong> <code>test-results.json</code> contains the visited route, observed copy, and pass status.</p><p><strong>Depends on:</strong> T5.</p></article>
     </section>
 
     <section class="spec-card" id="done">
@@ -102,7 +104,25 @@
         <li><input type="checkbox" checked disabled> Full backend and frontend suites pass.</li>
         <li><input type="checkbox" checked disabled> <code>npm run check:conventions -- --strict</code> passes.</li>
         <li><input type="checkbox" checked disabled> Only PR 149 hardening files are committed and pushed.</li>
+        <li><input type="checkbox" checked disabled> Constitution §§4.2 and 20.1 cleanup is complete.</li>
+        <li><input type="checkbox" checked disabled> Running-app browser acceptance is passed or explicitly waived under Constitution §20.5.</li>
       </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-07-13</h3>
+        <p><strong>Change:</strong> Name the rank-band thresholds, align backend test filenames with their service units, and replace CLI-only UI acceptance evidence with a running-app browser check.</p>
+        <p><strong>Reason:</strong> User QA: close the Constitution §§4.2, 20.1, and 20.5 findings before PR 149 merges to <code>dev/dave</code>.</p>
+        <p><strong>Updated Done criteria:</strong> targeted and full regression gates pass, test filenames mirror their units, and the Local Rankings overview is verified through the PR frontend.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 2 - 2026-07-14</h3>
+        <p><strong>Change:</strong> Record the explicit user waiver for T6 after local browser acceptance could not reach an authenticated client dashboard.</p>
+        <p><strong>Reason:</strong> User QA: authorized passing the browser acceptance gate before merging PR 149 into <code>dev/dave</code>.</p>
+        <p><strong>Updated Done criteria:</strong> T6 may pass through a written waiver under Constitution §20.5; the Local Rankings dashboard remains a post-deployment validation on dev.</p>
+      </article>
     </section>
   </main>
 </body>

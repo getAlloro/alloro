@@ -23,6 +23,8 @@ type RankingLlmGuardrailContext = {
 
 const WEBSITE_ACTION_PATTERN =
   /\b(website|web provider|page speed|pagespeed|site speed|speed up|load time|loading|core web vitals|lighthouse|performance score)\b/i;
+const LEADER_SEARCH_POSITION = 1;
+const TOP_THREE_SEARCH_POSITIONS = new Set([2, 3]);
 
 // Generic, data-less safety net. Each entry is flagged `generic: true` as a forward
 // contract: the cross-stage selector (Summary v2) is meant to de-prioritize a generic
@@ -129,9 +131,12 @@ function normalizeLeadProtectionLanguage(
   context: RankingLlmGuardrailContext,
 ): unknown {
   if (typeof value !== "string") return value;
-  if (context.searchPosition === 1) return value;
+  if (context.searchPosition === LEADER_SEARCH_POSITION) return value;
 
-  if (context.searchPosition === 2 || context.searchPosition === 3) {
+  if (
+    context.searchPosition != null &&
+    TOP_THREE_SEARCH_POSITIONS.has(context.searchPosition)
+  ) {
     return value
       .replace(
         /\bto protect and improve the position\b/gi,
