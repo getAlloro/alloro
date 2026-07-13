@@ -31,6 +31,7 @@ import { buildEmailBody } from "./websiteContact-services/emailBodyBuilder";
 import { resolveFormSubmissionEmailContext } from "./websiteContact-services/formSubmissionEmailContextService";
 import { ProjectModel } from "../../models/website-builder/ProjectModel";
 import { FormSubmissionModel, type FileValue, type FormSection, type FormContents } from "../../models/website-builder/FormSubmissionModel";
+import { FormResponderSettingsModel } from "../../models/FormResponderSettingsModel";
 import { WebsiteIntegrationModel } from "../../models/website-builder/WebsiteIntegrationModel";
 import { IntegrationFormMappingModel } from "../../models/website-builder/IntegrationFormMappingModel";
 import { CrmSyncLogModel } from "../../models/website-builder/CrmSyncLogModel";
@@ -552,24 +553,38 @@ export async function handleFormSubmission(req: Request, res: Response): Promise
       }
     }
 
-    // ── 14c. Responder V1: instant owner-approved auto-reply to the LEAD ──
-    // Answers the inbound lead in minutes and stamps the response time. Gated on
-    // !flagged (never auto-reply to spam), only when a lead email is present, and
-    // in its own try/catch so a send blip never breaks the visitor response —
-    // mirrors the CRM-push guard above.
-    if (!flagged && submissionId) {
+    // ── 14c. Responder: owner-controlled instant auto-reply to the LEAD ──
+    // OFF by default — Alloro never auto-replies until the owner turns it on in
+    // their responder settings (freedom + Option B consent + backscatter safety:
+    // no settings row / disabled → we send nothing). When on, uses the owner's
+    // own copy ('custom') or the AI draft they approved ('ai', stored on the
+    // settings row), falling back to the default acknowledgment only if blank.
+    // Gated on !flagged, only when a lead email is present, in its own try/catch
+    // so a send blip never breaks the visitor response.
+    if (!flagged && submissionId && project?.organization_id) {
       try {
+        const responderSettings =
+          await FormResponderSettingsModel.findEffectiveForLocation(
+            project.organization_id,
+            null
+          );
         const leadEmail = extractLeadEmail(finalContents);
-        if (leadEmail) {
+        if (responderSettings?.enabled && leadEmail) {
           const responderContext = await resolveFormSubmissionEmailContext(project);
           const practiceName = responderContext.fromName || "our team";
           const responderFrom = process.env.CONTACT_FORM_FROM || "info@getalloro.com";
+          const replyBody =
+            responderSettings.reply_body?.trim() ||
+            buildResponderAutoReplyBody(practiceName);
+          const replySubject =
+            responderSettings.reply_subject?.trim() ||
+            `Thanks for reaching out to ${practiceName}`;
           await sendEmailWebhook({
             cc: [],
             bcc: [],
-            body: buildResponderAutoReplyBody(practiceName),
+            body: replyBody,
             from: responderFrom,
-            subject: `Thanks for reaching out to ${practiceName}`,
+            subject: replySubject,
             fromName: responderContext.fromName,
             recipients: [leadEmail],
           });
