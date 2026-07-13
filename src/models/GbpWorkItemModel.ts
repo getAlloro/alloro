@@ -199,7 +199,8 @@ export class GbpWorkItemModel extends BaseModel {
       .where({ organization_id: organizationId, status: "published" })
       .andWhere("published_at", ">=", since)
       .andWhere("published_at", "<", until)
-      .orderBy("published_at", "desc");
+      .orderBy("published_at", "desc")
+      .limit(MAX_WORK_ITEM_LIST_LIMIT);
     return rows.map((row: IGbpWorkItem) => this.deserializeJsonFields(row));
   }
 
