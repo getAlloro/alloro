@@ -181,7 +181,13 @@ export async function assemblePatientJourney(
   const memorableCard = buildMemorableCard({
     currentNewThisMonth: reviews.newThisMonth,
     priorNewThisMonth: priorReviews.newThisMonth,
-    velocityDatesReliable: reviews.available && priorReviews.available,
+    // Velocity rung DISABLED until a real per-location date-coverage signal exists.
+    // `available` only means "has >=1 review", NOT that review_created_at is reliable:
+    // a bulk import stamped at one date fabricates a month-over-month "drop"
+    // (pressure-test 2026-07-13). Until a true date-reliability signal is wired, this
+    // stays false so the velocity rung never fires on a date artifact. The reply-gap
+    // rung (primary, done-for-you) is unaffected.
+    velocityDatesReliable: false,
     unrepliedCount: replyable.length,
     // Done-for-you variant is honest only when a reply could ACTUALLY deploy:
     // readiness checks the live Google connection, scope, GBP property AND the

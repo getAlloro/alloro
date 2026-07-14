@@ -289,7 +289,7 @@ export async function readVisits(
     return {
       value: readNumber(overview.users),
       available: true,
-      asOf: endDate,
+      asOf: clampAsOfToToday(endDate),
       note: "All-channel visits (search + direct + social), best-effort bot-filtered.",
       metadata: {
         rybbit: {
@@ -307,6 +307,17 @@ export async function readVisits(
   }
 }
 
+/**
+ * Never report an "as of" date in the future. For an in-progress month the month
+ * boundary is later than today — clamp so a current-month card doesn't read "as of"
+ * a future date (pressure-test 2026-07-13). ISO YYYY-MM-DD strings compare correctly.
+ */
+function clampAsOfToToday(dateStr: string | null): string | null {
+  if (dateStr === null) return null;
+  const today = new Date().toISOString().slice(0, 10);
+  return dateStr < today ? dateStr : today;
+}
+
 /** Lead count = non-flagged form submissions for the project in the month. */
 export async function readLeads(
   projectId: string,
@@ -315,6 +326,11 @@ export async function readLeads(
 ): Promise<StageRead> {
   try {
     const startIso = monthStart.toISOString();
+    // Report month's last day (monthEnd is the exclusive next-month boundary),
+    // clamped so an in-progress month never reports a future "as of".
+    const leadsAsOf = clampAsOfToToday(
+      isoDate(new Date(monthEnd.getTime() - 86400000)),
+    );
     const stats = await FormSubmissionModel.getMonthlyStatsByProject(projectId, startIso);
     const monthKey = `${monthStart.getUTCFullYear()}-${String(monthStart.getUTCMonth() + 1).padStart(2, "0")}`;
     const row = stats.find((entry) => entry.month === monthKey);
@@ -328,7 +344,7 @@ export async function readLeads(
         ? {
             value: 0,
             available: true,
-            asOf: isoDate(monthEnd),
+            asOf: leadsAsOf,
             metadata: { leads: { verified: 0 } },
           }
         : { ...emptyRead(), unavailableReason: "no_data" };
@@ -337,7 +353,7 @@ export async function readLeads(
     return {
       value: verified,
       available: true,
-      asOf: isoDate(monthEnd),
+      asOf: leadsAsOf,
       metadata: { leads: { verified } },
     };
   } catch (err) {

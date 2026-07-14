@@ -54,19 +54,32 @@ export function referralStatus(
     : { text: `${Math.abs(delta)} down`, tone: "warn" };
 }
 
-/** Local rank: "Google Post Due" when the last GBP post is ≥ 30 days old (or unknown). */
+/** Local rank: "Google Post Due" when the last GBP post is ≥ 30 days old. */
 export const POST_DUE_DAYS = 30;
 export function localRankStatus(daysSinceLastPost: number | null): CardStatus {
-  if (daysSinceLastPost === null || daysSinceLastPost >= POST_DUE_DAYS) {
+  // null = UNKNOWN (GBP not connected, or post-date unavailable). Unknown is no
+  // signal — never a gap. Returning "warn" here let the Practice Hub verdict tell
+  // an owner "Alloro caught a gap: your Findable stage" on a practice with zero GBP
+  // data (pressure-test 2026-07-13). Only a KNOWN ≥30-day gap is a real "post due".
+  if (daysSinceLastPost === null) {
+    return { text: null, tone: "neutral" };
+  }
+  if (daysSinceLastPost >= POST_DUE_DAYS) {
     return { text: "Google Post Due", tone: "warn" };
   }
   return { text: "current", tone: "positive" };
 }
 
-/** Reviews: green at 4.5+, amber below, neutral when unknown. */
+/** Reviews: green at 4.5+, amber below, RED below 3.0, neutral when unknown. */
 export const STRONG_RATING = 4.5;
+// Below this, a low rating is a real problem, not a "minor gap" — it must escalate
+// to critical so the verdict cannot call a 2-star practice "Healthy overall"
+// (pressure-test 2026-07-13: the verdict's `critical` branch was dead code because
+// no tone ever emitted it). Tunable heuristic, not a product band (see file header).
+export const CRITICAL_RATING = 3.0;
 export function reviewTone(rating: number | null): StatusTone {
   if (rating === null) return "neutral";
+  if (rating < CRITICAL_RATING) return "critical";
   return rating >= STRONG_RATING ? "positive" : "warn";
 }
 
