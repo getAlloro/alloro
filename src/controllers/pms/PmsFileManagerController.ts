@@ -69,7 +69,10 @@ export async function previewUploadFile(req: LocationScopedRequest, res: Respons
 
     const data = await fileManagerService.previewUploadFile(
       req.file,
-      contextFromRequest(req)
+      contextFromRequest(req),
+      typeof req.body?.targetMonth === "string"
+        ? req.body.targetMonth
+        : undefined,
     );
     return res.json({ success: true, data });
   } catch (error) {

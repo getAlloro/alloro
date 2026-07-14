@@ -100,7 +100,6 @@ export const TemplateUploadModal: React.FC<TemplateUploadModalProps> = ({
       const result = await uploadPMSData({
         domain: clientId,
         file,
-        pmsType: "auto-detect",
         locationId,
       });
 

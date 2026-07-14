@@ -2,6 +2,7 @@ import express from "express";
 import * as controller from "../controllers/pms/PmsController";
 import * as fileManagerController from "../controllers/pms/PmsFileManagerController";
 import * as mappingController from "../controllers/pms/PmsMappingController";
+import * as pasteController from "../controllers/pms/PmsPasteController";
 import { upload } from "../controllers/pms/pms-utils/file-upload.config";
 import { authenticateToken } from "../middleware/auth";
 import {
@@ -33,7 +34,8 @@ pmsRoutes.post(
   requireRole("admin", "manager"),
   controller.uploadPmsData
 );
-pmsRoutes.post("/parse-paste", authenticateToken, rbacMiddleware, controller.parsePaste);
+pmsRoutes.post("/parse-paste", ...canManagePmsFiles, pasteController.previewPaste);
+pmsRoutes.post("/upload-paste", ...canManagePmsFiles, pasteController.uploadPaste);
 pmsRoutes.post("/sanitize-paste", authenticateToken, rbacMiddleware, controller.sanitizePaste);
 pmsRoutes.post("/summary", authenticateToken, rbacMiddleware, controller.getPmsSummary);
 

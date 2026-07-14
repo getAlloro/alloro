@@ -2,6 +2,48 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.160] - July 2026
+
+### Configurable default PMS parser + parser-owned formulas
+
+Organizations can now leave their PMS parser assignment unset, which resolves to the configurable default parser, while custom parsers such as DentalEMR own their calculation formula. The admin selector labels this state “Default (configurable formula),” and custom-parser imports no longer expose the Formula settings toggle or mapping drawer. Built on `plans/07102026-dentalemr-pms-parser-routing` Rev 2. Focused Rev 2 checks passed: 12 backend and 12 frontend tests, backend/frontend TypeScript, feature-scoped ESLint, strict conventions, and diff checks. Authenticated local UI verification, the fresh full regression/build pass, and the Alloro Docs build were explicitly waived for the requested `dev/dave` merge and remain recommended before promotion to `main`.
+
+**Key Changes:**
+- **Nullable default assignment.** Added a follow-up migration that drops the legacy database default/not-null constraint, converts stored `default` values to `null`, and preserves custom parser keys. Runtime routing still resolves both null and legacy `default` to the default parser.
+- **Admin assignment contract.** The organization overview selector displays “Default (configurable formula),” persists null through the validated super-admin endpoint, and continues to support DentalEMR explicitly.
+- **Parser-owned formula controls.** Default-parser mappings can expose Formula settings after columns resolve. DentalEMR and future custom parsers render neither the toggle nor `ColumnMappingDrawer`.
+- **Stale-state protection.** Parser changes invalidate in-flight mapping/reprocess responses and clear old mapping/drawer state so late default-parser responses cannot reopen custom-parser controls.
+- **Docs parity.** Referrals Hub guidance explains when formula controls appear and when an assigned parser applies its own formula automatically.
+
+**Commits:**
+- `src/database/migrations/20260713000000_make_pms_type_nullable.ts`, parser registry/model/admin route-controller-service, and focused backend tests — nullable assignment and reversible migration contract.
+- `frontend/src/api/admin-organizations.ts`, `OrgSubscriptionSection.tsx`, and parser-assignment helpers/tests — configurable-default admin selection.
+- `frontend/src/components/PMS/PMSManualEntryModal.tsx`, manual-entry hooks, and focused component tests — parser-aware formula visibility and stale-response invalidation.
+- `plans/07102026-dentalemr-pms-parser-routing/` — completed Rev 2 spec and acceptance record with explicit T8/T9 waivers.
+
+## [0.0.159] - July 2026
+
+### Organization PMS parser routing + DentalEMR
+
+Organizations can now be assigned a PMS parser by a super admin. Existing organizations remain on the unchanged Default parser, while DentalEMR organizations use a deterministic parser tailored to their exported procedure logs. The DentalEMR formula was reconciled against four supplied April/May exports from Fredericksburg and Sterling. Built on `plans/07102026-dentalemr-pms-parser-routing`; backend 364/364 and frontend 75/75 tests pass, both app builds pass, strict conventions report zero structural violations, and Alloro Docs builds. The code is ready for `dev/dave`; the additive migration and authenticated dev UI check remain part of the normal dev deployment gate.
+
+**Key Changes:**
+- **Organization-owned routing.** Added `organizations.pms_type` with safe `default` behavior, a super-admin assignment control, and server-owned routing for file preview/upload and paste preview/submit. Client payloads cannot select the parser.
+- **DentalEMR formula.** Counts global distinct patients for monthly referrals, distinct patient-source pairs for each source, sums `Ins. Adj. Fee.` production from completed treatments, merges boundary-asterisk practice variants, and rolls blank/`1endo` referrals into Self.
+- **Workbook and month handling.** DentalEMR XLS/XLSX parsing scans all worksheets for the required raw headers and scopes results by raw treatment date, so summary-first and multi-month workbooks resolve correctly.
+- **Default clients preserved.** The existing mapping/sanitization path remains the fallback, and custom-parser organizations are blocked from accidentally entering default mapping endpoints.
+- **Batch-free paste.** Copy/paste now sends one parse request, so patient deduplication is global instead of being broken at 50-row boundaries. The UI shows truthful parse/clean/ready phases and keeps Ready visible for review.
+- **Authoritative totals.** Non-additive DentalEMR totals survive preview and persistence. Manual source/referral edits explicitly switch the month back to a derived total and show that state in the UI.
+- **Docs parity.** Referrals Hub guidance now explains organization-selected parsing, single-request paste behavior, DentalEMR normalization, and authoritative totals.
+
+**Commits:**
+- `src/database/migrations/20260710000000_add_pms_type_to_organizations.ts`, `src/config/pmsParserRegistry.ts`, and `src/models/OrganizationModel.ts` — schema and organization parser registry.
+- `src/controllers/pms/feature-services/`, `feature-utils/`, `PmsPasteController.ts`, and PMS upload/file-manager services — parser routing, DentalEMR parsing, paste ingestion, and persistence metadata.
+- `src/controllers/admin-organizations/`, `src/routes/admin/organizations.ts`, and `frontend/src/components/Admin/org/OrgSubscriptionSection.tsx` — super-admin parser assignment.
+- `frontend/src/components/PMS/` and `frontend/src/api/pms/` — one-shot paste, phase progress, parser-aware flows, and authoritative totals.
+- `src/__tests__/pms-*.test.ts`, `src/__tests__/dentalemr-pms-parser.test.ts`, `src/__tests__/admin-organizations-pms-type.test.ts`, and focused frontend PMS tests — synthetic contract and regression coverage.
+- `plans/07102026-dentalemr-pms-parser-routing/` — completed spec and passing acceptance record with a written post-deploy UI waiver.
+
 ## [0.0.158] - July 2026
 
 ### Direct Mailgun email transport + admin test-send

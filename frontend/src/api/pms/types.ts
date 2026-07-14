@@ -207,8 +207,8 @@ export interface PMSRecord {
 export interface PMSUploadRequest {
   domain: string;
   file: File;
-  pmsType?: string;
   locationId?: number | null;
+  targetMonth?: string | null;
   monthlyDataOverride?: ManualMonthEntry[];
 }
 

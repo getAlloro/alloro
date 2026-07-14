@@ -20,6 +20,8 @@ export interface MonthBucket {
   id: number; // Unique ID for tracking (Date.now())
   month: string; // Format: YYYY-MM
   rows: SourceRow[]; // All sources for this month
+  authoritativeTotalReferrals?: number;
+  referralTotalMode?: "authoritative" | "derived";
 }
 
 /**
@@ -86,8 +88,6 @@ export interface PasteParseResponse {
  * Info about a detected paste (before sending to AI)
  */
 export interface PasteInfo {
-  text: string;
   sizeKB: number;
   estimatedRows: number;
-  chunksRequired: number;
 }

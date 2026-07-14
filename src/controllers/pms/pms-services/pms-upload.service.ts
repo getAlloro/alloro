@@ -1,12 +1,8 @@
 import { PmsJobModel } from "../../../models/PmsJobModel";
 import { PmsColumnMappingModel } from "../../../models/PmsColumnMappingModel";
-import { convertFileToJson } from "../pms-utils/file-converter.util";
 import { resolveLocationId } from "../../../utils/locationResolver";
 import { OrganizationModel } from "../../../models/OrganizationModel";
-import { resolveMapping } from "../../../utils/pms/resolveColumnMapping";
-import { applyMapping } from "../../../utils/pms/applyColumnMapping";
 import type { MonthlyRollupForJob } from "../../../utils/pms/applyColumnMapping";
-import { signHeaders } from "../../../utils/pms/headerSignature";
 import { finalizePmsJob } from "./pms-finalize.service";
 import { OrganizationLifecycleService } from "../../../services/OrganizationLifecycleService";
 import { uploadToS3, deleteFromS3 } from "../../../utils/core/s3";
@@ -15,6 +11,8 @@ import { PmsJobEventModel } from "../../../models/PmsJobEventModel";
 import { assertNoActivePmsAutomation } from "./pms-mutation-guard.service";
 import { BaseModel } from "../../../models/BaseModel";
 import { diffMonthFields } from "../pms-utils/pms-response-log-diff.util";
+import { PmsParserRouterService } from "../feature-services/PmsParserRouterService";
+import { buildPersistedPmsParserMetadata } from "../pms-utils/pms-parser-persistence.util";
 import logger from "../../../lib/logger";
 
 /**
@@ -110,22 +108,17 @@ export async function processManualEntry(
 /**
  * Process a file upload (CSV, XLS, XLSX).
  *
- * Pipeline (post-mapping-system):
- *   1. Convert file → JSON rows (records keyed by header).
- *   2. Resolve a column mapping via the resolver chain
- *      (org-cache → global-library → AI inference).
- *   3. Apply the mapping inline to produce `monthly_rollup`.
- *   4. Persist the mapping into the org's cache (clone-on-confirm) so
- *      subsequent uploads of the same signature are silent.
+ * Pipeline:
+ *   1. Resolve the authenticated organization's PMS parser.
+ *   2. Parse the full file into the shared `monthly_rollup` contract.
+ *   3. Persist parser/count semantics and the raw rows.
+ *   4. For the default parser only, clone the resolved mapping into the
+ *      organization's cache so subsequent uploads are silent.
  *   5. Create an approved `pms_jobs` row with raw rows + parsed rollup
  *      pre-attached.
  *   6. Hand off to `finalizePmsJob` — skips admin/client approval
  *      (the client already reviewed via the column-mapping drawer)
  *      and fires monthly_agents immediately.
- *
- * NOTE: n8n PMS parsing webhook removed — parsing now handled inline via
- * resolveMapping + applyMapping. See plan
- * 04272026-no-ticket-pms-column-mapping-ai-inference.
  *
  * @param authOrganizationId - Organization ID from JWT/RBAC (authoritative).
  *   Falls back to domain lookup if null.
@@ -136,11 +129,9 @@ export async function processFileUpload(
   authOrganizationId?: number | null,
   passedLocationId?: number | null,
   actorUserId?: number | null,
-  overrideMonthlyRollup?: MonthlyRollupForJob | null
+  overrideMonthlyRollup?: MonthlyRollupForJob | null,
+  targetMonth?: string,
 ) {
-  const jsonData = await convertFileToJson(file);
-  const recordsProcessed = jsonData.length;
-
   // Use authenticated org ID if available, fall back to domain lookup for backward compat
   let organizationId = authOrganizationId ?? null;
   if (!organizationId) {
@@ -151,71 +142,40 @@ export async function processFileUpload(
   const locationId =
     passedLocationId ?? (await resolveLocationId(organizationId));
 
-  if (!Array.isArray(jsonData) || jsonData.length === 0) {
-    throw Object.assign(new Error("Uploaded file produced no rows"), {
-      statusCode: 400,
-    });
-  }
-
   if (organizationId) {
     await OrganizationLifecycleService.assertActive(organizationId);
   }
 
   await assertNoActivePmsAutomation(organizationId, locationId);
 
-  const headers = Object.keys(jsonData[0] ?? {});
-  if (headers.length === 0) {
-    throw Object.assign(new Error("Uploaded file has no columns"), {
-      statusCode: 400,
+  if (!organizationId) {
+    throw Object.assign(new Error("Organization context is required."), {
+      statusCode: 401,
     });
   }
 
-  const signature = signHeaders(headers);
-
-  // -----------------------------------------------------------------
-  // Resolve mapping (org-cache → global-library → AI inference).
-  // Resolver expects a numeric orgId; if we couldn't determine one we
-  // pass a sentinel that misses every org-cache and proceeds to library + AI.
-  // -----------------------------------------------------------------
-  const effectiveOrgId = organizationId ?? -1;
-  const resolved = await resolveMapping(
-    effectiveOrgId,
-    headers,
-    jsonData.slice(0, 10) as Record<string, unknown>[]
-  );
-
-  // Apply mapping inline → monthly_rollup.
-  let monthlyRollup: MonthlyRollupForJob;
-  try {
-    monthlyRollup = applyMapping(
-      jsonData as Record<string, unknown>[],
-      resolved.mapping
-    );
-  } catch (err) {
-    // Invalid mapping (both/neither of source/referring_practice mapped).
-    // Surface a 400 so the UI can prompt the user to fix the mapping via
-    // /pms/jobs/:id/reprocess (after they've confirmed the upload) — but
-    // since we haven't created a job yet, we just bail here.
-    throw Object.assign(
-      new Error(
-        err instanceof Error
-          ? err.message
-          : "Could not apply column mapping to uploaded file."
-      ),
-      { statusCode: 400 }
-    );
-  }
+  const parsed = await PmsParserRouterService.parseFile({
+    organizationId,
+    file,
+    targetMonth,
+  });
+  const recordsProcessed = parsed.rawRows.length;
+  const monthlyRollup = parsed.monthlyRollup;
+  const headers = Object.keys(parsed.rawRows[0] ?? {});
+  const signature = parsed.mappingMetadata?.signature;
+  const mappingSource = parsed.mappingMetadata?.source ?? parsed.parserType;
+  const parserMetadata = buildPersistedPmsParserMetadata(parsed);
 
   // Clone-on-confirm: upsert mapping into the org's cache so subsequent
-  // uploads of the same signature from this org are silent. Only run when
-  // we have a real org context.
+  // default-parser uploads of the same signature from this org are silent.
+  // Custom parsers deliberately do not create column mappings.
   let columnMappingId: number | null = null;
-  if (organizationId) {
+  if (parsed.mappingMetadata) {
     try {
       const upserted = await PmsColumnMappingModel.upsertOrgMapping(
         organizationId,
-        signature,
-        resolved.mapping
+        parsed.mappingMetadata.signature,
+        parsed.mappingMetadata.mapping,
       );
       columnMappingId = upserted.id;
     } catch {
@@ -225,15 +185,18 @@ export async function processFileUpload(
 
   const originalResponseLog = {
     monthly_rollup: monthlyRollup,
-    mapping_source: resolved.source,
-    header_signature: signature,
+    mapping_source: mappingSource,
+    ...(signature ? { header_signature: signature } : {}),
+    parser_metadata: parserMetadata,
+    selected_sheet_names: parsed.selectedSheetNames,
+    parser_warnings: parsed.warnings,
   };
   const responseLog = overrideMonthlyRollup
     ? {
+        ...originalResponseLog,
         monthly_rollup: overrideMonthlyRollup,
         mapping_source: "user-edited-file",
-        original_mapping_source: resolved.source,
-        header_signature: signature,
+        original_mapping_source: mappingSource,
       }
     : originalResponseLog;
   const uploadChanges = overrideMonthlyRollup
@@ -242,7 +205,7 @@ export async function processFileUpload(
   const s3Key = buildPmsFileS3Key(
     organizationId,
     locationId,
-    file.originalname || "pms-upload"
+    file.originalname || "pms-upload",
   );
   const mimeType = file.mimetype || "application/octet-stream";
 
@@ -258,9 +221,12 @@ export async function processFileUpload(
           response_log: responseLog,
           original_response_log: originalResponseLog,
           raw_input_data: {
-            rows: jsonData,
+            rows: parsed.rawRows,
             headers,
-            signature,
+            ...(signature ? { signature } : {}),
+            parser_type: parsed.parserType,
+            selected_sheet_names: parsed.selectedSheetNames,
+            ...(targetMonth ? { target_month: targetMonth } : {}),
           } as Record<string, unknown>,
           organization_id: organizationId,
           location_id: locationId,
@@ -273,7 +239,7 @@ export async function processFileUpload(
           is_approved: true,
           is_client_approved: true,
         } as any,
-        trx
+        trx,
       );
 
       await PmsJobEventModel.create(
@@ -287,14 +253,17 @@ export async function processFileUpload(
             sizeBytes: file.size,
             s3Key,
             months: (responseLog.monthly_rollup as MonthlyRollupForJob)
-              .map((entry: any) => entry?.month)
+              .map((entry) => entry.month)
               .filter(Boolean),
-            monthCount: (responseLog.monthly_rollup as MonthlyRollupForJob).length,
-            mappingSource: resolved.source,
-            headerSignature: signature,
+            monthCount: (responseLog.monthly_rollup as MonthlyRollupForJob)
+              .length,
+            parserType: parsed.parserType,
+            mappingSource,
+            ...(signature ? { headerSignature: signature } : {}),
+            selectedSheetNames: parsed.selectedSheetNames,
           },
         },
-        trx
+        trx,
       );
 
       if (uploadChanges.length > 0) {
@@ -311,7 +280,7 @@ export async function processFileUpload(
               source: "upload_modal",
             },
           },
-          trx
+          trx,
         );
       }
 
@@ -339,6 +308,7 @@ export async function processFileUpload(
     recordsProcessed,
     recordsStored: recordsProcessed,
     entryType: "csv" as const,
+    parserType: parsed.parserType,
     jobId,
     originalName: file.originalname,
   };
