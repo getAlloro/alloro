@@ -28,11 +28,15 @@ import {
   adminGetBillingDetails,
   type AdminOrganizationDetail,
   type AdminBillingDetails,
-  type PmsParserType,
+  type PmsParserAssignment,
 } from "../../../api/admin-organizations";
 import { fetchWebsites, linkWebsiteToOrganization } from "../../../api/websites";
 import { isAxiosError } from "../../../api";
 import { getErrorMessage } from "../../../lib/errorMessage";
+import {
+  getPmsParserAssignmentFromSelectValue,
+  getPmsParserSelectValue,
+} from "./pmsParserAssignment.utils";
 
 interface OrgSubscriptionSectionProps {
   org: AdminOrganizationDetail;
@@ -244,15 +248,18 @@ export function OrgSubscriptionSection({
     }
   };
 
-  const handleSetPmsType = async (pmsType: PmsParserType) => {
-    const label = pmsType === "dentalemr" ? "DentalEMR" : "Default";
+  const handleSetPmsType = async (pmsType: PmsParserAssignment) => {
+    const isDentalEmr = pmsType === "dentalemr";
+    const label = isDentalEmr
+      ? "DentalEMR"
+      : "Default (configurable formula)";
     const confirmed = await confirm({
       title: `Set PMS parser to "${label}"?`,
       message:
-        pmsType === "dentalemr"
+        isDentalEmr
           ? "Future PMS uploads and pasted data will use DentalEMR parsing. Existing PMS data will not be reprocessed."
-          : "Future PMS uploads and pasted data will use the default mapping parser. Existing PMS data will not be reprocessed.",
-      confirmLabel: `Use ${label}`,
+          : "Future PMS uploads and pasted data will use the configurable default formula. Existing PMS data will not be reprocessed.",
+      confirmLabel: isDentalEmr ? "Use DentalEMR" : "Use Default",
       variant: "danger",
     });
     if (!confirmed) return;
@@ -349,16 +356,18 @@ export function OrgSubscriptionSection({
                 <select
                   id="organization-pms-parser"
                   disabled={isSavingPmsType}
-                  value={org.pms_type}
+                  value={getPmsParserSelectValue(org.pms_type)}
                   onChange={(event) => {
-                    void handleSetPmsType(event.target.value as PmsParserType);
+                    void handleSetPmsType(
+                      getPmsParserAssignmentFromSelectValue(event.target.value),
+                    );
                   }}
                   aria-describedby={
                     pmsTypeError ? "organization-pms-parser-error" : undefined
                   }
                   className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-alloro-orange/50 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  <option value="default">Default</option>
+                  <option value="">Default (configurable formula)</option>
                   <option value="dentalemr">DentalEMR</option>
                 </select>
                 {isSavingPmsType && (

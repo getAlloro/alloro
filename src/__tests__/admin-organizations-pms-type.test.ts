@@ -10,7 +10,7 @@ import {
 const organization = {
   id: 37,
   name: "Synthetic Dental Practice",
-  pms_type: "default",
+  pms_type: null,
 } as IOrganization;
 
 describe("PATCH /api/admin/organizations/:id/pms-type", () => {
@@ -23,26 +23,42 @@ describe("PATCH /api/admin/organizations/:id/pms-type", () => {
     vi.restoreAllMocks();
   });
 
-  it.each(["default", "dentalemr"] as const)(
-    "assigns the supported %s parser and returns the canonical response",
-    async (pmsType) => {
+  it.each([
+    {
+      requestedPmsType: null,
+      storedPmsType: null,
+      message: "PMS parser set to the configurable default.",
+    },
+    {
+      requestedPmsType: "default" as const,
+      storedPmsType: null,
+      message: "PMS parser set to the configurable default.",
+    },
+    {
+      requestedPmsType: "dentalemr" as const,
+      storedPmsType: "dentalemr" as const,
+      message: 'PMS parser set to "dentalemr".',
+    },
+  ])(
+    "normalizes $requestedPmsType to the canonical stored assignment",
+    async ({ requestedPmsType, storedPmsType, message }) => {
       const response = await request(app)
         .patch("/api/admin/organizations/37/pms-type")
         .set(superAdminAuthHeader())
-        .send({ pmsType });
+        .send({ pmsType: requestedPmsType });
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual({
         success: true,
         data: {
-          pmsType,
-          message: `PMS parser set to "${pmsType}".`,
+          pmsType: storedPmsType,
+          message,
         },
         error: null,
       });
       expect(OrganizationModel.updateById).toHaveBeenCalledWith(
         37,
-        expect.objectContaining({ pms_type: pmsType })
+        expect.objectContaining({ pms_type: storedPmsType })
       );
     }
   );

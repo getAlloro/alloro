@@ -3,13 +3,11 @@ import { showUploadToast } from "../../lib/toast";
 
 import {
   previewPmsUploadFile,
-  type ColumnMapping,
   type ManualMonthEntry,
-  type MappingSource,
   type MonthlyRollupMonth,
-  type MonthlyRollupForJob,
 } from "../../api/pms";
 import type { MonthBucket } from "./types";
+import type { PasteParserType } from "./pastePipeline";
 import {
   formatMonthLabel,
   getPreviousMonth,
@@ -46,15 +44,10 @@ interface UsePmsManualEntryUploadParams {
   setMonthMismatch: React.Dispatch<React.SetStateAction<string[] | null>>;
   setDroppedFileName: React.Dispatch<React.SetStateAction<string | null>>;
   setIsPreviewingUpload: React.Dispatch<React.SetStateAction<boolean>>;
-  setCurrentMapping: React.Dispatch<React.SetStateAction<ColumnMapping | null>>;
-  setMappingSource: React.Dispatch<React.SetStateAction<MappingSource | null>>;
-  setMappingAllRows: React.Dispatch<
-    React.SetStateAction<Record<string, unknown>[]>
+  setActiveParserType: React.Dispatch<
+    React.SetStateAction<PasteParserType | null>
   >;
-  setParsedPreview: React.Dispatch<
-    React.SetStateAction<MonthlyRollupForJob | null>
-  >;
-  setDrawerOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  clearFormulaConfigurationState: () => void;
   setIsDragging: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
@@ -75,11 +68,8 @@ export function usePmsManualEntryUpload({
   setMonthMismatch,
   setDroppedFileName,
   setIsPreviewingUpload,
-  setCurrentMapping,
-  setMappingSource,
-  setMappingAllRows,
-  setParsedPreview,
-  setDrawerOpen,
+  setActiveParserType,
+  clearFormulaConfigurationState,
   setIsDragging,
 }: UsePmsManualEntryUploadParams) {
   // Clear all data and reset to empty state
@@ -91,6 +81,8 @@ export function usePmsManualEntryUpload({
     setError(null);
     setSelectedUploadFile(null);
     setUploadPreview(null);
+    setActiveParserType(null);
+    clearFormulaConfigurationState();
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -102,6 +94,8 @@ export function usePmsManualEntryUpload({
     setError,
     setSelectedUploadFile,
     setUploadPreview,
+    setActiveParserType,
+    clearFormulaConfigurationState,
     fileInputRef,
   ]);
 
@@ -170,11 +164,8 @@ export function usePmsManualEntryUpload({
       setSelectedUploadFile(file);
       setUploadPreview(null);
       setIsPreviewingUpload(true);
-      setCurrentMapping(null);
-      setMappingSource(null);
-      setMappingAllRows([]);
-      setParsedPreview(null);
-      setDrawerOpen(false);
+      setActiveParserType(null);
+      clearFormulaConfigurationState();
 
       try {
         const response = await previewPmsUploadFile(
@@ -192,6 +183,7 @@ export function usePmsManualEntryUpload({
         // not silently trimmed. droppedFileName stays set so the mismatch
         // panel can name the offending file.
         if (flagOffsetMonths(response.data.incomingMonths)) return;
+        setActiveParserType(response.data.parserType);
 
         const scopedRollup = targetMonth
           ? response.data.monthlyRollup.filter(
@@ -249,11 +241,8 @@ export function usePmsManualEntryUpload({
       setSelectedUploadFile,
       setUploadPreview,
       setIsPreviewingUpload,
-      setCurrentMapping,
-      setMappingSource,
-      setMappingAllRows,
-      setParsedPreview,
-      setDrawerOpen,
+      setActiveParserType,
+      clearFormulaConfigurationState,
     ],
   );
 

@@ -1,15 +1,25 @@
--- Execution reference - PostgreSQL equivalent.
--- Runnable artifact: src/database/migrations/20260710000000_add_pms_type_to_organizations.ts
+-- Rev 2 planning reference - PostgreSQL equivalent.
+-- Execution must add a new follow-up migration rather than rewriting
+-- src/database/migrations/20260710000000_add_pms_type_to_organizations.ts.
 
 ALTER TABLE organizations
-  ADD COLUMN pms_type varchar(50) NOT NULL DEFAULT 'default';
+  ALTER COLUMN pms_type DROP NOT NULL,
+  ALTER COLUMN pms_type DROP DEFAULT;
+
+UPDATE organizations
+SET pms_type = NULL
+WHERE pms_type = 'default';
 
 COMMENT ON COLUMN organizations.pms_type IS
-  'Server-owned PMS parser registry key; default preserves universal parser behavior.';
+  'Nullable server-owned PMS parser assignment; null resolves to the configurable default parser.';
 
 -- Verification:
--- SELECT pms_type, COUNT(*) FROM organizations GROUP BY pms_type;
--- Expected immediately after migration: every existing row is 'default'.
+-- SELECT COALESCE(pms_type, '<default>'), COUNT(*)
+-- FROM organizations GROUP BY pms_type;
+-- Expected: former default rows are null; custom parser keys are unchanged.
 
 -- Rollback:
--- ALTER TABLE organizations DROP COLUMN pms_type;
+-- UPDATE organizations SET pms_type = 'default' WHERE pms_type IS NULL;
+-- ALTER TABLE organizations
+--   ALTER COLUMN pms_type SET DEFAULT 'default',
+--   ALTER COLUMN pms_type SET NOT NULL;

@@ -14,7 +14,10 @@
  */
 
 import { v4 as uuid } from "uuid";
-import type { PmsParserType } from "../../../config/pmsParserRegistry";
+import {
+  normalizePmsParserAssignment,
+  type PmsParserAssignmentInput,
+} from "../../../config/pmsParserRegistry";
 import { OrganizationModel } from "../../../models/OrganizationModel";
 import { ProjectModel } from "../../../models/website-builder/ProjectModel";
 import { getStripe, isStripeConfigured } from "../../../config/stripe";
@@ -65,12 +68,13 @@ export async function setOrganizationType(
 /** Assign the parser used for future PMS ingestion by this organization. */
 export async function setPmsParserType(
   orgId: number,
-  pmsType: PmsParserType
+  pmsType: PmsParserAssignmentInput
 ): Promise<AdminOrgActionResult> {
   await requireOrganization(orgId);
+  const assignment = normalizePmsParserAssignment(pmsType);
 
   await OrganizationModel.updateById(orgId, {
-    pms_type: pmsType,
+    pms_type: assignment,
     updated_at: new Date(),
   });
 
@@ -79,8 +83,11 @@ export async function setPmsParserType(
     body: {
       success: true,
       data: {
-        pmsType,
-        message: `PMS parser set to "${pmsType}".`,
+        pmsType: assignment,
+        message:
+          assignment === null
+            ? "PMS parser set to the configurable default."
+            : `PMS parser set to "${assignment}".`,
       },
       error: null,
     },

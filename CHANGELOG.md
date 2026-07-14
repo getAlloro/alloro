@@ -2,6 +2,25 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.160] - July 2026
+
+### Configurable default PMS parser + parser-owned formulas
+
+Organizations can now leave their PMS parser assignment unset, which resolves to the configurable default parser, while custom parsers such as DentalEMR own their calculation formula. The admin selector labels this state “Default (configurable formula),” and custom-parser imports no longer expose the Formula settings toggle or mapping drawer. Built on `plans/07102026-dentalemr-pms-parser-routing` Rev 2. Focused Rev 2 checks passed: 12 backend and 12 frontend tests, backend/frontend TypeScript, feature-scoped ESLint, strict conventions, and diff checks. Authenticated local UI verification, the fresh full regression/build pass, and the Alloro Docs build were explicitly waived for the requested `dev/dave` merge and remain recommended before promotion to `main`.
+
+**Key Changes:**
+- **Nullable default assignment.** Added a follow-up migration that drops the legacy database default/not-null constraint, converts stored `default` values to `null`, and preserves custom parser keys. Runtime routing still resolves both null and legacy `default` to the default parser.
+- **Admin assignment contract.** The organization overview selector displays “Default (configurable formula),” persists null through the validated super-admin endpoint, and continues to support DentalEMR explicitly.
+- **Parser-owned formula controls.** Default-parser mappings can expose Formula settings after columns resolve. DentalEMR and future custom parsers render neither the toggle nor `ColumnMappingDrawer`.
+- **Stale-state protection.** Parser changes invalidate in-flight mapping/reprocess responses and clear old mapping/drawer state so late default-parser responses cannot reopen custom-parser controls.
+- **Docs parity.** Referrals Hub guidance explains when formula controls appear and when an assigned parser applies its own formula automatically.
+
+**Commits:**
+- `src/database/migrations/20260713000000_make_pms_type_nullable.ts`, parser registry/model/admin route-controller-service, and focused backend tests — nullable assignment and reversible migration contract.
+- `frontend/src/api/admin-organizations.ts`, `OrgSubscriptionSection.tsx`, and parser-assignment helpers/tests — configurable-default admin selection.
+- `frontend/src/components/PMS/PMSManualEntryModal.tsx`, manual-entry hooks, and focused component tests — parser-aware formula visibility and stale-response invalidation.
+- `plans/07102026-dentalemr-pms-parser-routing/` — completed Rev 2 spec and acceptance record with explicit T8/T9 waivers.
+
 ## [0.0.159] - July 2026
 
 ### Organization PMS parser routing + DentalEMR

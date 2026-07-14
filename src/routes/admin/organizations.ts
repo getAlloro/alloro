@@ -12,7 +12,7 @@ const organizationIdParamsSchema = z.object({
   id: z.coerce.number().int().positive(),
 });
 const pmsTypeBodySchema = z.object({
-  pmsType: z.enum(PMS_PARSER_TYPES),
+  pmsType: z.union([z.enum(PMS_PARSER_TYPES), z.null()]),
 });
 
 // POST /api/admin/organizations — Create organization with initial admin user

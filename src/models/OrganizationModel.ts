@@ -1,5 +1,5 @@
 import { Knex } from "knex";
-import type { PmsParserType } from "../config/pmsParserRegistry";
+import type { PmsParserAssignment } from "../config/pmsParserRegistry";
 import { db } from "../database/connection";
 import { BaseModel, QueryContext } from "./BaseModel";
 
@@ -9,7 +9,7 @@ export interface IOrganization {
   domain: string | null;
   referral_code: string | null;
   organization_type: "health" | "generic" | null;
-  pms_type: PmsParserType;
+  pms_type: PmsParserAssignment;
   subscription_tier: "DWY" | "DFY" | null;
   subscription_status: "active" | "inactive" | "trial" | "cancelled";
   subscription_started_at: Date | null;

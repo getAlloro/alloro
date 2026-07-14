@@ -17,7 +17,7 @@ export interface AdminOrganization {
   name: string;
   domain: string | null;
   organization_type: "health" | "generic" | null;
-  pms_type: PmsParserType;
+  pms_type: PmsParserAssignment;
   subscription_tier: "DWY" | "DFY" | null;
   subscription_status: string | null;
   stripe_customer_id: string | null;
@@ -57,7 +57,7 @@ export interface AdminOrganizationDetail {
   name: string;
   domain: string | null;
   organization_type: "health" | "generic" | null;
-  pms_type: PmsParserType;
+  pms_type: PmsParserAssignment;
   subscription_tier: "DWY" | "DFY" | null;
   subscription_status: string | null;
   stripe_customer_id: string | null;
@@ -156,9 +156,10 @@ export interface AdminRecipientSettingsResponse {
 
 export type AdminOrganizationListView = "active" | "archived" | "all";
 export type PmsParserType = "default" | "dentalemr";
+export type PmsParserAssignment = PmsParserType | null;
 
 export interface AdminPmsParserAssignment {
-  pmsType: PmsParserType;
+  pmsType: PmsParserAssignment;
   message: string;
 }
 
@@ -258,7 +259,7 @@ export async function adminUpdateOrganizationType(
 /** Assign the server-owned parser used for future PMS ingestion. */
 export async function adminUpdateOrganizationPmsType(
   orgId: number,
-  pmsType: PmsParserType
+  pmsType: PmsParserAssignment
 ): Promise<AdminPmsParserAssignment> {
   const response = await apiPatch({
     path: `/admin/organizations/${orgId}/pms-type`,

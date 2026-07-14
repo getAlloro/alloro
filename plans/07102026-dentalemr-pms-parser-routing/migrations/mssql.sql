@@ -1,3 +1,3 @@
 -- N/A - Alloro uses PostgreSQL + Knex only.
 -- This file exists to satisfy the plan-folder migration convention.
--- See pgsql.sql and knexmigration.js for the planned schema change.
+-- See pgsql.sql and knexmigration.js for the Rev 2 nullable-assignment change.

@@ -8,7 +8,7 @@
  */
 
 import { Response } from "express";
-import type { PmsParserType } from "../../config/pmsParserRegistry";
+import type { PmsParserAssignmentInput } from "../../config/pmsParserRegistry";
 import logger from "../../lib/logger";
 import { AuthRequest } from "../../middleware/auth";
 import { OrganizationModel } from "../../models/OrganizationModel";
@@ -480,7 +480,7 @@ export async function updateOrganizationType(
 export async function updatePmsParserType(req: AuthRequest, res: Response): Promise<Response> {
   const orgId = Number(req.params.id);
   try {
-    const pmsType = req.body.pmsType as PmsParserType;
+    const pmsType = req.body.pmsType as PmsParserAssignmentInput;
     const result = await OrganizationLifecycleAdminService.setPmsParserType(orgId, pmsType);
     return res.status(result.status).json(result.body);
   } catch (error) {

@@ -8,6 +8,7 @@ import logger from "../lib/logger";
 import {
   PMS_PARSER_TYPES,
   isPmsParserType,
+  normalizePmsParserAssignment,
   resolvePmsParserType,
 } from "../config/pmsParserRegistry";
 
@@ -26,5 +27,11 @@ describe("PMS parser registry", () => {
       { organizationId: 7 },
       "Unknown organization PMS parser type; using the default parser."
     );
+  });
+
+  it("normalizes configurable-default assignments before storage", () => {
+    expect(normalizePmsParserAssignment(null)).toBeNull();
+    expect(normalizePmsParserAssignment("default")).toBeNull();
+    expect(normalizePmsParserAssignment("dentalemr")).toBe("dentalemr");
   });
 });

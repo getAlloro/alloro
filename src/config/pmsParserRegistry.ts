@@ -3,6 +3,9 @@ import logger from "../lib/logger";
 export const PMS_PARSER_TYPES = ["default", "dentalemr"] as const;
 
 export type PmsParserType = (typeof PMS_PARSER_TYPES)[number];
+export type CustomPmsParserType = Exclude<PmsParserType, "default">;
+export type PmsParserAssignment = CustomPmsParserType | null;
+export type PmsParserAssignmentInput = PmsParserType | null;
 
 export interface PmsParserDefinition {
   type: PmsParserType;
@@ -16,6 +19,13 @@ export const PMS_PARSER_REGISTRY: readonly PmsParserDefinition[] = [
 
 export function isPmsParserType(value: unknown): value is PmsParserType {
   return typeof value === "string" && PMS_PARSER_TYPES.some((type) => type === value);
+}
+
+/** Convert the admin/API assignment contract into its canonical stored form. */
+export function normalizePmsParserAssignment(
+  value: PmsParserAssignmentInput
+): PmsParserAssignment {
+  return value === "default" ? null : value;
 }
 
 export function resolvePmsParserType(
