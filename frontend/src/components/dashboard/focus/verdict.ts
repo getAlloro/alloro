@@ -28,13 +28,15 @@ export const STAGE_LABEL: Record<JourneyStage, string> = {
  * Internal action `domain` → customer-journey STAGE (FIX 3, single source of
  * truth). Reviews read Choosable to the owner (staked 2026-07-07); "Memorable"
  * is Ch6's internal ownership of the review WORK, never the owner-facing label.
- * A gbp PRESENCE/profile signal maps to Findable; a gbp POST is a conversion
- * move and is never emitted as a Findable/rank fix, so this never implies a post
- * improves rank.
+ * ONLY real local rank (`ranking`) maps to Findable. A `gbp` action today is a
+ * POST — a consideration/engagement move that keeps the profile active — so it
+ * maps to Choosable, NEVER Findable: posts convert/engage, they do not rank
+ * (Sterling Sky / lever-evidence-map). Mapping a post to Findable implied that
+ * posting improves rank (honesty fix 2026-07-14).
  */
 export const DOMAIN_TO_STAGE: Record<string, JourneyStage> = {
   ranking: "findable",
-  gbp: "findable",
+  gbp: "choosable",
   review: "choosable",
   "form-submission": "bookable",
   referral: "memorable",

@@ -54,20 +54,17 @@ export function referralStatus(
     : { text: `${Math.abs(delta)} down`, tone: "warn" };
 }
 
-/** Local rank: "Google Post Due" when the last GBP post is ≥ 30 days old. */
-export const POST_DUE_DAYS = 30;
-export function localRankStatus(daysSinceLastPost: number | null): CardStatus {
-  // null = UNKNOWN (GBP not connected, or post-date unavailable). Unknown is no
-  // signal — never a gap. Returning "warn" here let the Practice Hub verdict tell
-  // an owner "Alloro caught a gap: your Findable stage" on a practice with zero GBP
-  // data (pressure-test 2026-07-13). Only a KNOWN ≥30-day gap is a real "post due".
-  if (daysSinceLastPost === null) {
-    return { text: null, tone: "neutral" };
-  }
-  if (daysSinceLastPost >= POST_DUE_DAYS) {
-    return { text: "Google Post Due", tone: "warn" };
-  }
-  return { text: "current", tone: "positive" };
+/**
+ * Findable (get-found) tone from REAL local rank position. A strong map-pack
+ * position reads positive; anything else stays NEUTRAL — we never flag a
+ * get-found "gap + move" we can't honestly deliver yet, and post-recency is NOT a
+ * rank signal (posts convert, they don't rank — Sterling Sky / lever-evidence-map).
+ * A null position is unknown, which is also neutral.
+ */
+export const RANK_STRONG = 3;
+export function rankTone(position: number | null): StatusTone {
+  if (position === null) return "neutral";
+  return position >= 1 && position <= RANK_STRONG ? "positive" : "neutral";
 }
 
 /** Reviews: green at 4.5+, amber below, RED below 3.0, neutral when unknown. */

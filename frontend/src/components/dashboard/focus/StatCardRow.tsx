@@ -15,7 +15,7 @@ import {
 } from "../../../utils/timeframe";
 import {
   referralStatus,
-  localRankStatus,
+  rankTone,
   reviewTone,
   formSubsTone,
   type StatusTone,
@@ -79,7 +79,6 @@ export function StatCardRow() {
     const thisRef = latest?.totalReferrals ?? null;
     const priorRef = months.at(-2)?.totalReferrals ?? null;
     const refStatus = referralStatus(thisRef, priorRef);
-    const rankStatus = localRankStatus(null); // demo has no days_since_last_post
     const rating = dm.reviews.average_rating;
     const demoMonth = formatDataMonth(latest?.month);
 
@@ -98,10 +97,8 @@ export function StatCardRow() {
         value: `#${dm.ranking.position}`,
         trailing: null,
         trailingTone: null,
-        dotTone: rankStatus.tone,
-        // Status nudge ("Google Post Due") sits below the rank, not beside it.
-        sub: rankStatus.text,
-        subTone: rankStatus.tone,
+        dotTone: rankTone(dm.ranking.position ?? null),
+        sub: null,
         href: RANK_HREF,
         wizardTarget: "dashboard-visibility",
       },
@@ -128,7 +125,6 @@ export function StatCardRow() {
   } else {
     // ---- Real data path ------------------------------------------------
     const ranking = metrics.data?.ranking;
-    const gbp = metrics.data?.gbp;
     const reviews = metrics.data?.reviews;
 
     // Chronological — month keys can be display labels ("Apr 2026"); a plain
@@ -142,7 +138,6 @@ export function StatCardRow() {
     const refStatus = referralStatus(thisRef, priorRef);
     const referralsMonth = formatDataMonth(latestMonth?.month);
 
-    const rankStatus = localRankStatus(gbp?.days_since_last_post ?? null);
     const position = ranking?.position ?? null;
     const rating = reviews?.current_rating ?? null;
     // Reviews card shows THIS MONTH's new reviews, not the all-time total.
@@ -174,10 +169,8 @@ export function StatCardRow() {
         value: position != null ? `#${position}` : "—",
         trailing: null,
         trailingTone: null,
-        dotTone: rankStatus.tone,
-        // Status nudge ("Google Post Due") sits below the rank, not beside it.
-        sub: rankStatus.text,
-        subTone: rankStatus.tone,
+        dotTone: rankTone(position),
+        sub: null,
         href: RANK_HREF,
         wizardTarget: "dashboard-visibility",
       },
