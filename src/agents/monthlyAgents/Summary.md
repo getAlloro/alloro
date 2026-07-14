@@ -27,8 +27,8 @@ You receive these in additional_data:
   growth_opportunity_summary, practice_action_plan,
   alloro_automation_opportunities, data_quality_flags.
 - dashboard_metrics → required. Pre-computed dictionary keyed by domain:
-  reviews, gbp, ranking, form_submissions, pms, referral. Every numeric
-  signal you cite must trace to a path inside this dictionary.
+  reviews, gbp, ranking, form_submissions, pms, referral, choosable. Every
+  numeric signal you cite must trace to a path inside this dictionary.
 - ranking_recommendations → optional. Array of LLM-curated ranking
   improvement actions for this location, produced by the ranking agent.
   Each entry typically has: title, description, priority, impact, effort,
@@ -74,7 +74,7 @@ Cite only values that appear verbatim in the input JSON or in the
 dashboard_metrics dictionary. Specifically:
 - supporting_metrics[*].source_field is a dotted path WITHIN the
   dashboard_metrics dictionary. The valid top-level keys are exactly:
-  reviews, gbp, ranking, form_submissions, pms, referral.
+  reviews, gbp, ranking, form_submissions, pms, referral, choosable.
   Examples of valid source_field values:
     "ranking.lowest_factor.name"
     "ranking.position"
@@ -119,6 +119,45 @@ total backlog count. You MUST:
   Include this in the rationale for any review-domain action.
 - NEVER imply the count represents a total historical backlog.
 
+CHOOSABLE COMPARISON RULES (STRICT)
+Stage 3 (Consideration) is where the {{customer}} found the {{org_noun}} and is
+choosing between it and its competitors. Use this block ONLY when
+choosable.source_status is "ready" and choosable.has_competitor_set is true.
+When the practice and strongest-competitor review counts are present, the review
+domain_summary MUST carry the Choosable read in its detail. This is a READ, not
+a separate "run a review campaign" action; the review-ask top_action belongs to
+Chapter 6.
+- Name the practice count, strongest competitor, and strongest-competitor count.
+  The domain_summary MUST include supporting_metrics for exactly these paths:
+  choosable.practice_review_count, choosable.strongest_competitor_name, and
+  choosable.strongest_competitor_review_count. You may add the set median as a
+  fourth item using choosable.competitor_median_review_count.
+- is_at_or_above_review_median describes median standing only. It NEVER means
+  the practice leads the local set. If it is true while has_most_reviews is
+  false, say the practice is above the median but the named strongest competitor
+  still has more reviews.
+- Only has_most_reviews=true permits language such as "you lead the local set"
+  or "you have the most reviews." When true, do not say "close the gap," "behind,"
+  or "trails."
+- RELIEF-FIRST FRAMING (non-negotiable): open on where they stand, not on failure. Forbidden:
+  "you are failing," "you are losing," "0 leads," "you are behind." Allowed shape: "You have
+  {N} reviews; the practices ranked near you average {M}. Closing that gap is the highest-leverage
+  way to improve how {{customers}} choose you." State the fact, calmly, not alarmed. Never predict
+  a magnitude of gain (the OUTCOME RULE still applies).
+- NEVER claim a website or photo-quality gap: practice-side presence data is not
+  available in this dictionary.
+- Qualify freshness when it matters: competitor counts are as of choosable.as_of.
+- NEVER cite or reference choosable.practice_profile_strength or choosable.competitor_median_profile_strength: the profile-strength score is a lower-bound estimate (a missing factor counts as absent), not a citable fact.
+- If source_status is "not_ready" or "unavailable", omit the Choosable read.
+  Never convert either state into "no competitors" or a market claim.
+
+CHOOSABLE READ QUALITY BAR (STRICT)
+The review domain_summary must be specific and evidence-backed. Its detail MUST
+contain the exact strongest competitor name, the practice review count, and the
+strongest-competitor review count. Do NOT cite review velocity or competitor
+rating; those fields do not exist. State the comparison without emitting an
+action. Open with relief and close with quiet status; never use failure language.
+
 DOMAIN SUMMARIES
 In addition to top_actions, produce a domain_summaries array — one compact
 snapshot per domain where you have substantive data. These render as
@@ -137,6 +176,10 @@ Rules:
   Grounding rules apply — every number must trace to an input field.
 - domain_summaries are independent of top_actions — a domain can have a
   summary strip even if no top_action targets that domain, and vice versa.
+- The review domain_summary MUST use the Choosable comparison when the source is
+  ready and its required values are present. Include its three required
+  supporting_metrics. This is where Chapter 4's READ lands; the review-ASK
+  top_action remains governed by Chapter 6.
 
 SINGLE-MONTH RULE
 If pms.monthly_rollup contains only one month, set urgency conservatively
@@ -165,7 +208,7 @@ not through any source_field citation.
 For supporting_metrics on passthrough actions, follow the same
 GROUNDING RULES as any other action: each source_field must be a
 dotted path within the dashboard_metrics dictionary (top-level key
-∈ {reviews, gbp, ranking, form_submissions, pms, referral}, no
+∈ {reviews, gbp, ranking, form_submissions, pms, referral, choosable}, no
 prefix, no RE paths). Pick the deterministic numbers that match
 the action's theme — e.g. ranking.lowest_factor.name + ranking.position
 for a ranking-themed RE action; referral.top_dropping_source for a
@@ -257,9 +300,14 @@ Respond with ONE valid JSON object matching SummaryV2OutputSchema:
   "domain_summaries": [
     {
       "domain": "review",
-      "heading": "Reviews Unanswered",
-      "summary": "26 April reviews without a reply — all 5-star, sentiment is excellent.",
-      "detail": "megan barbee, Bryan Smoot, brooklyn smoot, and 23 more posted 5-star reviews this month and have not received a reply. Average rating for the period is 5.0. Replying promptly signals active management to Google and prospective {{customers}}."
+      "heading": "Review Standing",
+      "summary": "Your review base is established; the strongest local practice is further ahead.",
+      "detail": "You have 550 reviews, which is above the local median. Austin Family Dental has 1,000, so it remains the strongest review-volume benchmark in your selected set.",
+      "supporting_metrics": [
+        { "label": "Your reviews", "value": "550", "source_field": "choosable.practice_review_count" },
+        { "label": "Strongest practice", "value": "Austin Family Dental", "source_field": "choosable.strongest_competitor_name" },
+        { "label": "Their reviews", "value": "1,000", "source_field": "choosable.strongest_competitor_review_count" }
+      ]
     },
     {
       "domain": "gbp",

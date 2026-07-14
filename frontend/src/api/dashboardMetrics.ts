@@ -1,4 +1,4 @@
-import { apiGet } from "./index";
+import { apiGet, unwrap } from "./index";
 import type { DashboardMetrics } from "../types/dashboardMetrics";
 
 /**
@@ -11,29 +11,19 @@ import type { DashboardMetrics } from "../types/dashboardMetrics";
  * Spec: plans/04282026-no-ticket-focus-dashboard-frontend/spec.md (T9)
  */
 
-interface DashboardMetricsResponse {
-  success: boolean;
-  data?: DashboardMetrics;
-  errorMessage?: string;
-}
-
 export async function fetchDashboardMetrics(
-  organizationId: number,
+  _organizationId: number,
   locationId: number | null
 ): Promise<DashboardMetrics> {
-  const params = new URLSearchParams();
-  params.set("organization_id", String(organizationId));
-  if (locationId != null) params.set("location_id", String(locationId));
-
-  const response = (await apiGet({
-    path: `/dashboard/metrics?${params.toString()}`,
-  })) as DashboardMetricsResponse;
-
-  if (!response?.success || !response.data) {
-    throw new Error(
-      response?.errorMessage || "Failed to fetch dashboard metrics"
-    );
+  if (locationId === null) {
+    throw new Error("A location is required to fetch dashboard metrics.");
   }
 
-  return response.data;
+  const params = new URLSearchParams();
+  params.set("locationId", String(locationId));
+
+  const response = await apiGet({
+    path: `/dashboard/metrics?${params.toString()}`,
+  });
+  return unwrap<DashboardMetrics>(response);
 }

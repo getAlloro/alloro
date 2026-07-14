@@ -7,7 +7,7 @@
  * Backend Plan 1: plans/04282026-no-ticket-monthly-agents-v2-backend/spec.md
  * Frontend Plan 2: plans/04282026-no-ticket-focus-dashboard-frontend/spec.md
  *
- * Wire shape: `GET /api/dashboard/metrics?organization_id=X[&location_id=Y]`
+ * Wire shape: `GET /api/dashboard/metrics?locationId=Y`
  * returns `{ success: true, data: DashboardMetrics }`. The frontend API
  * client unwraps the envelope before returning.
  *
@@ -109,6 +109,38 @@ export interface ReferralMetrics {
 }
 
 // =====================================================================
+// CHOOSABLE
+// =====================================================================
+
+export type ChoosableSourceStatus = "ready" | "not_ready" | "unavailable";
+export type ChoosableSourceReason =
+  | "missing_location"
+  | "location_not_found"
+  | "competitors_not_finalized"
+  | "no_active_competitors"
+  | "query_failed";
+
+export interface ChoosableMetrics {
+  source_status: ChoosableSourceStatus;
+  source_reason: ChoosableSourceReason | null;
+  has_competitor_set: boolean;
+  competitor_count: number;
+  practice_review_count: number | null;
+  practice_rating: number | null;
+  competitor_median_review_count: number | null;
+  strongest_competitor_name: string | null;
+  strongest_competitor_review_count: number | null;
+  competitors_ahead_on_reviews: number | null;
+  review_count_gap_to_median: number | null;
+  is_at_or_above_review_median: boolean | null;
+  has_most_reviews: boolean | null;
+  as_of: string | null;
+  practice_profile_strength: number | null;
+  competitor_median_profile_strength: number | null;
+  weakest_choosable_factor: "reviews" | "rating" | null;
+}
+
+// =====================================================================
 // TOP-LEVEL DICTIONARY
 // =====================================================================
 
@@ -119,4 +151,5 @@ export interface DashboardMetrics {
   form_submissions: FormSubmissionsMetrics;
   pms: PmsMetrics;
   referral: ReferralMetrics;
+  choosable: ChoosableMetrics;
 }
