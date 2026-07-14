@@ -16,6 +16,10 @@
 import { loadPrompt } from "../../../agents/service.prompt-loader";
 import { runAgent, type CostContext } from "../../../agents/service.llm-runner";
 import logger from "../../../lib/logger";
+import {
+  buildGscDemandUserBlock,
+  type GscTopQuery,
+} from "./util.seo-gsc-demand";
 
 export type SeoSection =
   | "critical"
@@ -96,7 +100,7 @@ function buildSystemPromptParts(
   section: SeoSection,
   businessData: Record<string, unknown>,
   creatorContext: string,
-  practiceFactsBlock: string
+  practiceFactsBlock: string,
 ): { cachedPrefix: string; sectionPrompt: string } {
   const base = loadPrompt("websiteAgents/SeoGeneration");
   const sectionInstructions = loadPrompt(SEO_SECTION_FILE_MAP[section]);
@@ -113,7 +117,11 @@ ${creatorContext ? `SEO GENERATION CRITERIA (from CroSEO mind):\n${creatorContex
   return { cachedPrefix, sectionPrompt: sectionInstructions };
 }
 
-function buildUserPrompt(section: SeoSection, data: SeoSectionRunData & { entityType: "page" | "post" }): string {
+function buildUserPrompt(
+  section: SeoSection,
+  data: SeoSectionRunData & { entityType: "page" | "post" },
+  gscTopQueries: GscTopQuery[] = [],
+): string {
   let prompt = `ENTITY TYPE: ${data.entityType}\n`;
 
   if (data.page_path) prompt += `PAGE PATH: ${data.page_path}\n`;
@@ -141,6 +149,11 @@ function buildUserPrompt(section: SeoSection, data: SeoSectionRunData & { entity
 
   if (data.all_page_descriptions?.length) {
     prompt += `\nEXISTING META DESCRIPTIONS (must be unique from these):\n${data.all_page_descriptions.join("\n")}\n`;
+  }
+
+  if (section === "geo_layer") {
+    const gscDemandBlock = buildGscDemandUserBlock(gscTopQueries);
+    if (gscDemandBlock) prompt += `\n${gscDemandBlock}\n`;
   }
 
   prompt += `\nGenerate the SEO data for the "${section}" section. Return ONLY valid JSON.`;
@@ -202,10 +215,20 @@ async function runGenerateOnly(
   data: SeoSectionRunData,
   projectId?: string,
   entityId?: string,
-  practiceFactsBlock: string = DEFAULT_PRACTICE_FACTS_BLOCK
+  practiceFactsBlock: string = DEFAULT_PRACTICE_FACTS_BLOCK,
+  gscTopQueries: GscTopQuery[] = []
 ): Promise<{ section: string; generated: Record<string, unknown> }> {
-  const { cachedPrefix, sectionPrompt } = buildSystemPromptParts(section, businessData, creatorContext, practiceFactsBlock);
-  const userPrompt = buildUserPrompt(section, { ...data, entityType });
+  const { cachedPrefix, sectionPrompt } = buildSystemPromptParts(
+    section,
+    businessData,
+    creatorContext,
+    practiceFactsBlock,
+  );
+  const userPrompt = buildUserPrompt(
+    section,
+    { ...data, entityType },
+    gscTopQueries,
+  );
 
   const result = await runAgent({
     systemPrompt: sectionPrompt,
@@ -286,7 +309,8 @@ export async function runGenerateSection(
   data: SeoSectionRunData,
   projectId?: string,
   entityId?: string,
-  practiceFactsBlock: string = DEFAULT_PRACTICE_FACTS_BLOCK
+  practiceFactsBlock: string = DEFAULT_PRACTICE_FACTS_BLOCK,
+  gscTopQueries: GscTopQuery[] = []
 ): Promise<SeoSectionResult> {
   const { generated } = await runGenerateOnly(
     section,
@@ -296,7 +320,8 @@ export async function runGenerateSection(
     data,
     projectId,
     entityId,
-    practiceFactsBlock
+    practiceFactsBlock,
+    gscTopQueries
   );
 
   const insight = await generateInsight(
@@ -328,7 +353,8 @@ export async function runAllSeoSectionsTiered(
   data: SeoSectionRunData,
   projectId?: string,
   entityId?: string,
-  practiceFactsBlock: string = DEFAULT_PRACTICE_FACTS_BLOCK
+  practiceFactsBlock: string = DEFAULT_PRACTICE_FACTS_BLOCK,
+  gscTopQueries: GscTopQuery[] = []
 ): Promise<SeoSectionResult[]> {
   let accumulated = { ...(data.existing_seo_data || {}) };
   const results: SeoSectionResult[] = [];
@@ -337,7 +363,7 @@ export async function runAllSeoSectionsTiered(
   for (const tier of SEO_TIERS) {
     const tierResults = await Promise.all(
       tier.map((section) =>
-        runGenerateOnly(section, entityType, businessData, creatorContext, { ...data, existing_seo_data: accumulated }, projectId, entityId, practiceFactsBlock)
+        runGenerateOnly(section, entityType, businessData, creatorContext, { ...data, existing_seo_data: accumulated }, projectId, entityId, practiceFactsBlock, gscTopQueries)
       )
     );
 
