@@ -51,6 +51,24 @@ vi.mock("../models/website-builder/ProjectModel", () => ({
   },
 }));
 
+const findReplyableForLocation = vi.fn();
+vi.mock("../models/website-builder/ReviewModel", () => ({
+  ReviewModel: {
+    findReplyableForLocation: (...a: unknown[]) =>
+      findReplyableForLocation(...a),
+  },
+}));
+
+const getLocationReadiness = vi.fn();
+vi.mock(
+  "../controllers/gbp-automation/feature-services/GbpReadinessService",
+  () => ({
+    GbpReadinessService: {
+      getLocationReadiness: (...a: unknown[]) => getLocationReadiness(...a),
+    },
+  }),
+);
+
 // ── Per-stage reader seam ─────────────────────────────────────────────────
 const readImpressions = vi.fn();
 const readVisits = vi.fn();
@@ -68,9 +86,10 @@ vi.mock("../controllers/patient-journey/feature-services/stageReaders", () => ({
   readReviews: (...a: unknown[]) => readReviews(...a),
 }));
 
+const warnLog = vi.fn();
 // Keep the Pino logger inert (no transport noise during the assertion).
 vi.mock("../lib/logger", () => ({
-  default: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+  default: { info: vi.fn(), warn: (...a: unknown[]) => warnLog(...a), error: vi.fn() },
 }));
 
 import {
@@ -129,6 +148,8 @@ function seedHappyPath(): void {
   readPms.mockResolvedValue(FULL_PMS);
   readRank.mockResolvedValue(FULL_RANK);
   readReviews.mockResolvedValue(FULL_REVIEWS);
+  findReplyableForLocation.mockResolvedValue([]);
+  getLocationReadiness.mockResolvedValue({ ready: false });
 }
 
 beforeEach(() => {
@@ -172,6 +193,7 @@ describe("assemblePatientJourney — contract shape", () => {
       rating: 4.8,
       count: 210,
       available: true,
+      card: null,
     });
     expect(typeof result.headline.text).toBe("string");
     expect(result.stages[0]).toMatchObject({
@@ -198,6 +220,45 @@ describe("assemblePatientJourney — contract shape", () => {
     // visits 800 → leads 120 = 15.0 %
     expect(byStep["visits>leads"]).toBe(15);
     expect(byStep["leads>patients"]).toBeUndefined();
+  });
+
+  it("builds the reply-gap card from the mocked optional enrichment seams", async () => {
+    findReplyableForLocation.mockResolvedValue([
+      { id: "review-1" },
+      { id: "review-2" },
+    ]);
+    getLocationReadiness.mockResolvedValue({ ready: true });
+
+    const result = await assemblePatientJourney({
+      organizationId: ORG,
+      locationId: LOCATION,
+      reportMonth: MONTH,
+    });
+
+    expect(findReplyableForLocation).toHaveBeenCalledWith(LOCATION, {
+      limit: 25,
+    });
+    expect(getLocationReadiness).toHaveBeenCalledWith(ORG, LOCATION);
+    expect(result.context.reviews.card).toMatchObject({
+      rung: "reply_gap",
+      execution_state: "built",
+      caught_number: 2,
+    });
+  });
+
+  it("keeps the funnel available when optional reply enrichment fails", async () => {
+    findReplyableForLocation.mockRejectedValue(new Error("reviews unavailable"));
+    getLocationReadiness.mockRejectedValue(new Error("readiness unavailable"));
+
+    const result = await assemblePatientJourney({
+      organizationId: ORG,
+      locationId: LOCATION,
+      reportMonth: MONTH,
+    });
+
+    expect(result.stages).toHaveLength(3);
+    expect(result.context.reviews.card).toBeNull();
+    expect(warnLog).toHaveBeenCalledTimes(2);
   });
 });
 
