@@ -239,6 +239,12 @@
         <p><strong>Reason:</strong> User QA: current dev does not contain this PR's code, so a live dev generation would test the wrong implementation. The combined synthetic tree passed the backend build, full test suite, strict Constitution checks, and backend lint.</p>
         <p><strong>Updated Done criteria:</strong> none; post-merge dev generation remains a deployment-stage validation.</p>
       </article>
+      <article class="revision-entry">
+        <h3>Rev 3 - 2026-07-14</h3>
+        <p><strong>Change:</strong> Re-ran compatibility after <code>dev/dave</code> advanced through PR 153 and recorded its patient-journey test baseline.</p>
+        <p><strong>Reason:</strong> User QA: the newest base and the PR 151 combined tree both have the same 13 patient-journey timeouts. PR 151 remains clean and mergeable, but the base branch itself is not fully green.</p>
+        <p><strong>Updated Done criteria:</strong> none; the acceptance contract remains no failure caused by PR 151, with unrelated base failures explicitly identified.</p>
+      </article>
     </section>
   </main>
 </body>

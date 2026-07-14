@@ -44,8 +44,8 @@
       ],
       "expected": "No failure caused by PR 151 or its hardening changes",
       "status": "pass",
-      "evidence": "2026-07-14 isolated PR head: build exit 0 and 41 files/346 tests passed. Combined with dev/dave 14032e01: clean synthetic merge, build exit 0, 59 files/452 tests passed, strict Constitution exit 0, backend lint exit 0, and dependency-cruiser reported 0 errors.",
-      "notes": "Frontend lint still reports three pre-existing errors in untouched files. The PR diff contains no frontend files, so these are not regressions from PR 151 or its hardening changes.",
+      "evidence": "2026-07-14 isolated PR head: build exit 0 and 41 files/346 tests passed. Combined with dev/dave 14032e01: clean synthetic merge, build exit 0 and 59 files/452 tests passed. After dev/dave advanced to a7a6ac19 through PR 153, the combined tree still passed build, strict Constitution, and backend lint; its full suite had 13 patient-journey timeouts. The same patient-journey test file on unmodified dev/dave a7a6ac19 had the identical 13 timeouts, proving they are base failures rather than PR 151 regressions.",
+      "notes": "Frontend lint also reports three pre-existing errors in untouched files. PR 151 changes neither frontend nor patient-journey files. GitHub reports PR 151 clean and mergeable, but dev/dave is not currently a fully green base.",
       "waiver": ""
     },
     {
@@ -63,7 +63,7 @@
       "status": "fail",
       "evidence": "Not run pre-merge: dev/dave does not yet contain PR 151 or these fixes.",
       "notes": "Running against the current dev deployment would validate the old implementation, not the reviewed combined tree.",
-      "waiver": "Deferred to post-merge dev validation. The merge gate is covered by hermetic prompt-contract tests plus the full suite on a clean synthetic merge with latest dev/dave; post-merge validation must keep apply_geo_content=false and send no emails."
+      "waiver": "Deferred to post-merge dev validation. The merge gate is covered by hermetic prompt-contract tests, a fully green isolated PR suite, a fully green combined suite before the unrelated PR 153 base change, and differential proof that the current patient-journey failures already exist on dev/dave alone. Post-merge validation must keep apply_geo_content=false and send no emails."
     }
   ]
 }
