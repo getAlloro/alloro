@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Receipts Report Integrity Fixes Spec</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card, .evidence-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--paper);
+    }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); margin-top: 12px; }
+    .evidence-card { padding: 16px; }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 34px;
+      padding: 0 12px;
+      border: 1px solid var(--ink);
+      border-radius: 999px;
+      background: var(--ink);
+      color: var(--paper);
+      font-size: 0.78rem;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+    .status-card { border-color: var(--ink) !important; }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 840px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; }
+    h2 { font-size: 1.35rem; }
+    h3 { font-size: 1rem; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+    .meta-grid, .split-grid, .evidence-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    .task-card dl { margin-bottom: 0; }
+    .task-card dl > div { padding: 9px 0; border-top: 1px solid var(--line); }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    .callout { border-left: 4px solid var(--ink); padding: 12px 16px; background: var(--soft); }
+    .compact li { margin: 6px 0; }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-completed">Completed</span>
+      </div>
+      <h1>Receipts Report Integrity Fixes</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/07142026-receipts-report-integrity-fixes</dd></div>
+        <div><dt>Size</dt><dd>Large</dd></div>
+        <div><dt>Risk</dt><dd>Level 3 — Structural Risk</dd></div>
+        <div><dt>Target</dt><dd>PR 152</dd></div>
+        <div><dt>Surface</dt><dd>Super-admin API</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>PR 152 builds a useful receipts report, but several metrics are not safe to show to customers. The current implementation can claim credit for Google activity Alloro did not publish, reads a ranking table that does not exist in production, obscures Rybbit failures as zero values, and has no authenticated API route or automated tests.</p>
+      <p>The review is recorded as a requested-changes review at <a href="https://github.com/getAlloro/alloro/pull/152#pullrequestreview-4692651075">PR review 4692651075</a>. This plan fixes every recorded issue without adding a migration, frontend surface, pricing assumptions, or unrelated refactor.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Deliver a production-compatible, read-only receipts-report backend that an authenticated super-admin can request for one organization and date range. The report will distinguish work Alloro actually published from synced Google state, use the production ranking source, report Rybbit users with explicit availability, and return a typed canonical API response.</p>
+      <div class="split-grid">
+        <div>
+          <h3>Organization-level output</h3>
+          <ul class="compact">
+            <li>Website visitors from Rybbit <code>users</code>, with explicit availability state.</li>
+            <li>Leads captured from organization-scoped form submissions.</li>
+            <li>A total that includes only additive, attributable work metrics.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Location-level output</h3>
+          <ul class="compact">
+            <li>Published GBP posts and review replies from <code>gbp_work_items</code>.</li>
+            <li>Ranking movement from explicit <code>practice_rankings.search_position</code> observations.</li>
+            <li>Latest observed non-client competitor and client review-count context from <code>search_results</code>.</li>
+          </ul>
+        </div>
+      </div>
+      <p class="callout"><strong>Success condition:</strong> the endpoint cannot turn synced Google activity, missing data, or source failures into a positive Alloro value claim.</p>
+    </section>
+
+    <section class="spec-card" id="evidence">
+      <h2>Evidence Behind The Plan</h2>
+      <div class="evidence-grid">
+        <article class="evidence-card">
+          <h3>Attribution mismatch</h3>
+          <p>For organization 39 from 2026-04-01 through 2026-06-30, the synced-source queries counted 512 owner replies and 3 live posts. The Alloro work ledger recorded 5 published review replies and 0 published local posts for the same period.</p>
+        </article>
+        <article class="evidence-card">
+          <h3>Production ranking source</h3>
+          <p>A read-only production check on 2026-07-14 found no <code>weekly_ranking_snapshots</code> table. <code>practice_rankings</code> exists and held 96 rows across 5 locations for organization 39, with a latest observation on 2026-07-01.</p>
+        </article>
+        <article class="evidence-card">
+          <h3>Architecture and test gap</h3>
+          <p>The PR service performs direct Knex queries outside the model layer, and convention checks identify that violation. The PR adds no unit, integration, route, or source-failure tests.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>PR Files To Reconcile</h3>
+      <ul class="compact">
+        <li><code>src/controllers/receipts-report/feature-services/service.receipts-report.ts</code> — current report orchestration and direct data access; rename and split by layer.</li>
+        <li><code>src/controllers/receipts-report/types.ts</code> — current broad contract and string flags; replace with a narrow typed report contract.</li>
+      </ul>
+
+      <h3>Existing Sources And Consumers</h3>
+      <ul class="compact">
+        <li><code>src/models/GbpWorkItemModel.ts</code> — source-of-truth schema for published Alloro GBP work.</li>
+        <li><code>src/models/PracticeRankingModel.ts</code> — production ranking shape, including <code>search_position</code>, <code>search_results</code>, and observation metadata.</li>
+        <li><code>src/models/website-builder/FormSubmissionModel.ts</code> — existing form-submission data access and project relationship.</li>
+        <li><code>src/models/LocationModel.ts</code> — organization-scoped location lookup.</li>
+        <li><code>src/models/OrganizationModel.ts</code> — existing organization existence check for a canonical not-found response.</li>
+        <li><code>src/utils/rybbit/service.rybbit-data.ts</code> — current Rybbit API client used by other reporting paths; extend without changing existing comparison behavior.</li>
+        <li><code>src/app.ts</code> — application route registration.</li>
+      </ul>
+
+      <h3>Patterns To Follow</h3>
+      <ul class="compact">
+        <li><strong>Backend vertical slice:</strong> <code>src/controllers/gbp-automation/</code> per Code Constitution §6.1.</li>
+        <li><strong>Protected admin route:</strong> <code>src/routes/admin/gbpAutomation.ts</code>, using <code>authenticateToken</code> and <code>superAdminMiddleware</code>.</li>
+        <li><strong>Canonical controller responses:</strong> <code>src/controllers/gbp-automation/feature-utils/controllerResponses.ts</code> per §8.1–§8.3.</li>
+        <li><strong>Route test:</strong> <code>src/__tests__/admin-organizations-pms-type.test.ts</code>, including real auth and role middleware behavior.</li>
+        <li><strong>Ranking types:</strong> <code>src/models/PracticeRankingModel.ts</code>; do not invent a parallel interpretation of search positions.</li>
+      </ul>
+
+      <h3>Constitution Articles</h3>
+      <p>This work must conform to naming and layer rules §1.1 and §1.4; thin-controller and service ownership rules §2.1 and §2.4; error non-swallowing §3.2; type safety §4.5; validation and tenant isolation §5.2 and §5.5; controller structure §6.1 and §6.3; model-only database access §7.1–§7.4; response contracts §8.1–§8.3; structured log context §9.3; migration discipline §10.3; authentication, boundary validation, and model-level tenant scope §11.1, §11.2, and §11.7; and testing gates §20.1–§20.5.</p>
+    </section>
+
+    <section class="spec-card" id="decisions">
+      <h2>Decisions</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Attribution</h3>
+          <p>Count an Alloro-published GBP action only when a matching <code>gbp_work_items</code> row has <code>status = 'published'</code>, the requested organization and location, an allowed <code>content_type</code>, and <code>published_at</code> inside the half-open date range.</p>
+        </div>
+        <div>
+          <h3>Dates</h3>
+          <p>The API accepts ISO <code>YYYY-MM-DD</code> values, requires <code>startDate &lt;= endDate</code>, and converts the inclusive end date into an exclusive next-day boundary. Observed ranking timestamps remain actual timestamps.</p>
+        </div>
+        <div>
+          <h3>Rank movement</h3>
+          <p>Use only explicit, completed <code>search_position</code> observations. Report first, last, best, and worst observed positions and their timestamps. Do not substitute <code>rank_position</code> or imply a calendar-period endpoint.</p>
+        </div>
+        <div>
+          <h3>Competitor context</h3>
+          <p>From the latest valid ranking observation, choose the non-client <code>search_results</code> entry with the lowest positive position. Use the <code>isClient</code> entry for client review-count context. Missing entries remain unavailable.</p>
+        </div>
+        <div>
+          <h3>Rybbit</h3>
+          <p>Add a typed users-period result: <code>ok</code> with a user count, <code>not_connected</code>, or <code>source_unavailable</code>. Do not use the comparison helper or convert a failed current request to zero.</p>
+        </div>
+        <div>
+          <h3>API failure boundary</h3>
+          <p>Database, authorization, and validation failures use canonical error responses. A Rybbit-only failure remains a successful report with an explicit field state so reliable database metrics are still usable.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul class="compact">
+            <li>Expose only <code>GET /api/admin/receipts-report/organizations/:organizationId</code>.</li>
+            <li>Require <code>authenticateToken</code> and <code>superAdminMiddleware</code>.</li>
+            <li>Require an organization ID in every report-model method and query.</li>
+            <li>Keep all Knex calls in the model layer and all orchestration in the service layer.</li>
+            <li>Use Zod for route params/query input and closed enums or discriminated unions for flags.</li>
+            <li>Use the canonical <code>{ success, data, error }</code> response shape.</li>
+            <li>Return <code>null</code> or an explicit unavailable state when a metric cannot be supported.</li>
+            <li>Use synthetic fixtures in automated tests; do not depend on production data.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul class="compact">
+            <li>Count <code>gbp_local_posts</code> or <code>website_builder.reviews.has_reply</code> as proof of Alloro-published work.</li>
+            <li>Read or recreate <code>weekly_ranking_snapshots</code>.</li>
+            <li>Add a migration, dependency, frontend page, PDF, email, billing logic, or replacement-rate estimate.</li>
+            <li>Use <code>any</code>, unbounded string flags, raw <code>console.*</code>, or direct DB calls from controllers/services.</li>
+            <li>Change existing Rybbit comparison callers while adding the receipts-specific users fetch.</li>
+            <li>Modify or stage unrelated Admin OS files or its active plan.</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3>Out Of Scope</h3>
+      <ul class="compact">
+        <li>Restoring the retired weekly ranking snapshot pipeline.</li>
+        <li>Frontend or Alloro Docs work; this is an internal backend endpoint with no user-visible UI or copy change.</li>
+        <li>Downloadable reports, scheduled delivery, customer self-service, or production deployment.</li>
+        <li>Assigning monetary value to metrics or defining replacement-cost rates.</li>
+        <li>General cleanup of existing models, Rybbit helpers, analytics services, or ranking ingestion.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 3 — Structural Risk. These numbers may be used in customer conversations, so a technically valid query with the wrong meaning is a product-integrity failure.</p>
+      <h3>Risks And Required Mitigations</h3>
+      <ul class="compact">
+        <li><strong>False attribution:</strong> synced Google state can include work done outside Alloro. <strong>Mitigation:</strong> use only the published <code>gbp_work_items</code> ledger for attributable GBP actions.</li>
+        <li><strong>Production incompatibility:</strong> the PR queries a missing table. <strong>Mitigation:</strong> use existing <code>practice_rankings</code> rows and add no migration.</li>
+        <li><strong>Ranking semantic drift:</strong> <code>rank_position</code> and <code>search_position</code> can disagree. <strong>Mitigation:</strong> expose explicit <code>search_position</code> observations, source/query context, and actual timestamps.</li>
+        <li><strong>False zeros:</strong> an analytics outage can look like zero website use. <strong>Mitigation:</strong> return a discriminated Rybbit availability state.</li>
+        <li><strong>Cross-tenant leakage:</strong> report aggregation spans several sources. <strong>Mitigation:</strong> require <code>organizationId</code> at every model boundary and test tenant isolation.</li>
+        <li><strong>External latency:</strong> Rybbit can be slow or unavailable. <strong>Mitigation:</strong> add a bounded timeout only to the new receipts-specific request, contain the failure to the website-visitors field, and log through the project logger without secrets.</li>
+        <li><strong>Date-filter performance:</strong> current indexes do not include <code>gbp_work_items.published_at</code> or <code>practice_rankings.search_checked_at</code>. <strong>Mitigation:</strong> preserve the approved no-migration scope, keep every query tenant/date/status scoped, inspect read-only query plans during verification, and record a separate index migration if production-scale plans require it.</li>
+        <li><strong>Dirty-worktree contamination:</strong> the current checkout contains unrelated Admin OS work. <strong>Mitigation:</strong> execute from an isolated PR worktree or a clean PR branch and stage only files listed by this plan.</li>
+      </ul>
+
+      <h3>Blast Radius</h3>
+      <ul class="compact">
+        <li><code>src/app.ts</code> gains one protected route mount.</li>
+        <li><code>src/utils/rybbit/service.rybbit-data.ts</code> gains a new export; existing comparison exports and consumers must remain behaviorally unchanged.</li>
+        <li>Existing ranking, GBP work-item, form-submission, and location tables are read only; their schemas and ingestion paths are unchanged.</li>
+        <li>The receipts-report PR files are replaced or renamed; there is currently no runtime consumer to preserve.</li>
+      </ul>
+
+      <h3>Pushback</h3>
+      <ul class="compact">
+        <li>Do not revive <code>weekly_ranking_snapshots</code> to make the PR compile. That would add a second ranking pipeline and hide the source mismatch.</li>
+        <li>Do not count all Google posts or owner replies and relabel them as “managed.” That wording does not repair false attribution.</li>
+        <li>Do not add UI, delivery, or dollar-value presentation until the underlying metrics have passed API-level acceptance.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="files">
+      <h2>Expected File Scope</h2>
+      <h3>Create Or Replace</h3>
+      <ul class="compact">
+        <li><code>src/controllers/receipts-report/ReceiptsReportController.ts</code></li>
+        <li><code>src/controllers/receipts-report/ReceiptsReportTypes.ts</code></li>
+        <li><code>src/controllers/receipts-report/feature-services/ReceiptsReportService.ts</code></li>
+        <li><code>src/controllers/receipts-report/feature-utils/ReceiptsReportError.ts</code></li>
+        <li><code>src/controllers/receipts-report/feature-utils/controllerResponses.ts</code></li>
+        <li><code>src/models/ReceiptsReportModel.ts</code></li>
+        <li><code>src/routes/admin/receiptsReport.ts</code></li>
+        <li><code>src/validation/receiptsReport.ts</code></li>
+        <li><code>src/__tests__/receipts-report-model.test.ts</code></li>
+        <li><code>src/__tests__/receipts-report-service.test.ts</code></li>
+        <li><code>src/__tests__/receipts-period-users.test.ts</code></li>
+        <li><code>src/__tests__/receipts-report-route.test.ts</code></li>
+      </ul>
+      <h3>Modify</h3>
+      <ul class="compact">
+        <li><code>src/app.ts</code> — mount the protected admin route.</li>
+        <li><code>src/utils/rybbit/service.rybbit-data.ts</code> — add the typed receipts-specific users-period fetch.</li>
+      </ul>
+      <h3>Remove Through Rename/Reconciliation</h3>
+      <ul class="compact">
+        <li><code>src/controllers/receipts-report/feature-services/service.receipts-report.ts</code></li>
+        <li><code>src/controllers/receipts-report/types.ts</code></li>
+      </ul>
+      <p>Exact test placement may follow an already-established adjacent directory if the execution read-before-write check finds a closer analog. Any change to this list requires a Revision Log entry before implementation.</p>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+
+      <article class="task-card">
+        <h3>T1: Freeze the typed report and request contracts</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Define the endpoint input schema, date-range semantics, closed metric flags, Rybbit availability union, ranking observation shape, canonical response data, and receipts-specific error codes. Remove broad <code>string</code> flags and <code>any</code>.</dd></div>
+          <div><dt>Files</dt><dd><code>ReceiptsReportTypes.ts</code>, <code>receiptsReport.ts</code>, <code>ReceiptsReportError.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>None</dd></div>
+          <div><dt>Verify</dt><dd>Type-level tests and <code>npx tsc --noEmit</code>; invalid dates, inverted ranges, and invalid organization IDs are rejected.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: Build tenant-scoped read models and typed Rybbit access</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Create a receipts-specific model containing all Knex reads for locations, form submissions, published GBP work items, and ranking observations. Add a new Rybbit period-users function that distinguishes success, not connected, and source unavailable without altering existing comparison callers.</dd></div>
+          <div><dt>Files</dt><dd><code>ReceiptsReportModel.ts</code>, <code>service.rybbit-data.ts</code>, <code>src/__tests__/receipts-report-model.test.ts</code>, <code>src/__tests__/receipts-period-users.test.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>Synthetic tests prove organization/date filtering, published-only GBP attribution, completed explicit ranking observations, grouping by location/content type, tenant isolation, and all Rybbit result states.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: Replace the report service with honest orchestration</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Rename the PR service to the Constitution form and make it coordinate models only. Aggregate attributable metrics, calculate explicit ranking observations, select competitor/client context deterministically, preserve unavailable states, and avoid adding unlike metrics into one total.</dd></div>
+          <div><dt>Files</dt><dd><code>ReceiptsReportService.ts</code>, <code>ReceiptsReportTypes.ts</code>, <code>src/__tests__/receipts-report-service.test.ts</code>; remove the superseded PR service/types paths</dd></div>
+          <div><dt>Depends on</dt><dd>T1, T2</dd></div>
+          <div><dt>Verify</dt><dd>Service tests cover the review evidence mismatch, missing-source cases, multiple keywords/observations, ties, empty locations, partial Rybbit failure, and deterministic totals.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: Add the authenticated super-admin route</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Create a thin controller, canonical response helpers, protected admin router, and app mount for <code>GET /api/admin/receipts-report/organizations/:organizationId?startDate=&amp;endDate=</code>.</dd></div>
+          <div><dt>Files</dt><dd><code>ReceiptsReportController.ts</code>, <code>controllerResponses.ts</code>, <code>receiptsReport.ts</code> route, <code>src/app.ts</code>, route test</dd></div>
+          <div><dt>Depends on</dt><dd>T1, T3</dd></div>
+          <div><dt>Verify</dt><dd>Route tests prove 401 unauthenticated, 403 non-super-admin, 400 invalid input, canonical success, canonical error, and exact service arguments.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T5: Complete regression and integrity coverage</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Fill any coverage gaps across contract, model, service, Rybbit, and route layers. Confirm existing Rybbit consumers remain unchanged and that no new export is dead.</dd></div>
+          <div><dt>Files</dt><dd>All receipts-report and Rybbit test files listed in this spec</dd></div>
+          <div><dt>Depends on</dt><dd>T2, T3, T4</dd></div>
+          <div><dt>Verify</dt><dd>Run targeted tests, the full backend test suite, TypeScript, build, <code>npm run check:all</code>, and <code>bash scripts/check-conventions.sh --strict</code>.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T6: Reconcile PR 152 and run behavioral acceptance</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Confirm each requested-changes item is addressed in the final diff. Generate <code>test.html</code> and <code>test-results.json</code>, then run the API acceptance checklist against a safe local or dev environment with super-admin auth and synthetic/non-production-mutating requests.</dd></div>
+          <div><dt>Files</dt><dd>This <code>spec.html</code>, generated acceptance artifacts, and the final PR diff</dd></div>
+          <div><dt>Depends on</dt><dd>T5</dd></div>
+          <div><dt>Verify</dt><dd>Every acceptance item passes with recorded evidence; no production write or deployment is performed.</dd></div>
+        </dl>
+      </article>
+
+      <h3>Execution Order And Parallel Work</h3>
+      <p>T1 is the contract gate. After T1, the database-model work and Rybbit helper within T2 may run independently because they touch separate files. T3 depends on both. After T3, route wiring and remaining lower-layer test expansion may proceed in parallel if file ownership is explicit. T6 is sequential and begins only after every automated gate in T5 passes.</p>
+      <p>Because the plan has six tasks and more than ten files, execution should use bounded sub-agents for independent task groups as required by the repo orchestration rules. Each agent must receive this spec and a non-overlapping file list.</p>
+    </section>
+
+    <section class="spec-card" id="acceptance-plan">
+      <h2>Acceptance Plan</h2>
+      <p>Execution will generate the required <code>test.html</code> viewer and <code>test-results.json</code> source of truth. Automated tests live under <code>src/__tests__/</code>, the only backend test tree included by <code>vitest.config.ts</code>. The checklist must include:</p>
+      <ul class="compact">
+        <li>Unauthenticated and non-super-admin requests are denied.</li>
+        <li>Malformed dates, inverted ranges, and invalid organization IDs are rejected.</li>
+        <li>A valid request returns the canonical response shape and organization-scoped locations.</li>
+        <li>Published Alloro GBP work counts match the work-item ledger rather than synced Google totals.</li>
+        <li>Rank movement uses explicit <code>search_position</code> observations with real timestamps.</li>
+        <li>A disconnected or failed Rybbit source is distinguishable from a real zero-user result.</li>
+        <li>An organization with no supported activity returns honest zero/null/unavailable values without claiming work.</li>
+      </ul>
+      <p>Finalization remains blocked until <code>test-results.json</code> rolls up to <code>Passed</code>, per §20.5.</p>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" checked disabled> Every requested-changes item recorded on PR 152 is addressed by code or an explicit, approved scope decision.</li>
+        <li><input type="checkbox" checked disabled> The endpoint is super-admin-only and every query is organization-scoped.</li>
+        <li><input type="checkbox" checked disabled> Attributable GBP metrics come only from published <code>gbp_work_items</code>.</li>
+        <li><input type="checkbox" checked disabled> Ranking metrics use production <code>practice_rankings.search_position</code> observations and actual timestamps.</li>
+        <li><input type="checkbox" checked disabled> Rybbit users distinguish <code>ok</code>, <code>not_connected</code>, and <code>source_unavailable</code>.</li>
+        <li><input type="checkbox" checked disabled> No direct Knex queries remain outside models in the receipts-report vertical slice.</li>
+        <li><input type="checkbox" checked disabled> No new <code>any</code>, raw <code>console.*</code>, broad string flags, dead exports, or unresolved imports exist.</li>
+        <li><input type="checkbox" checked disabled> Targeted model, service, Rybbit, and route tests pass with synthetic data.</li>
+        <li><input type="checkbox" checked disabled> <code>npx tsc --noEmit</code> passes with no errors caused by this work.</li>
+        <li><input type="checkbox" checked disabled> <code>npm run build</code> passes.</li>
+        <li><input type="checkbox" checked disabled> <code>npm run check:all</code> passes or only documented pre-existing failures remain.</li>
+        <li><input type="checkbox" checked disabled> <code>bash scripts/check-conventions.sh --strict</code> reports no must-fix violation from this work.</li>
+        <li><input type="checkbox" checked disabled> Read-only query plans for the published-work and ranking-observation reads are inspected on representative dev data; any required index change is documented as separate migration work.</li>
+        <li><input type="checkbox" checked disabled> Generated <code>test-results.json</code> rolls up to <code>Passed</code> with evidence.</li>
+        <li><input type="checkbox" checked disabled> No migration, frontend, Alloro Docs, replacement-rate, production-write, or deployment change was introduced.</li>
+        <li><input type="checkbox" checked disabled> The unrelated Admin OS working tree and <code>plans/07102026-admin-os-import-rendering-fidelity/</code> remain untouched.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="task-card revision-entry">
+        <h3>Rev 1 - 2026-07-14</h3>
+        <p><strong>Change:</strong> Moved all planned automated tests into <code>src/__tests__/</code> so Vitest runs them, and changed the Rybbit latency mitigation to add a bounded timeout only for the new receipts-specific request.</p>
+        <p><strong>Reason:</strong> Execution deviation: repository reconnaissance confirmed <code>vitest.config.ts</code> excludes nested source-local test folders, and the existing shared Rybbit fetch has no timeout behavior to preserve.</p>
+        <p><strong>Updated Done criteria:</strong> The four receipts test files must run from <code>src/__tests__/</code>; timeout/failure must return <code>source_unavailable</code> without changing existing Rybbit comparison callers.</p>
+      </article>
+      <article class="task-card revision-entry">
+        <h3>Rev 2 - 2026-07-14</h3>
+        <p><strong>Change:</strong> Corrected the Constitution article descriptions, added the existing organization model as the not-found source, and recorded the missing date-index risk for published-work and ranking-observation reads.</p>
+        <p><strong>Reason:</strong> Execution deviation: model and route reconnaissance clarified the exact article meanings, the clean 404 boundary, and the current production-compatible index surface.</p>
+        <p><strong>Updated Done criteria:</strong> Formal verification must inspect both date-filter query plans read-only; any index change remains a separate migration plan rather than hidden scope in PR 152.</p>
+      </article>
+      <article class="task-card revision-entry">
+        <h3>Rev 3 - 2026-07-14</h3>
+        <p><strong>Change:</strong> Recorded the completed verification pass, generated the behavioral acceptance artifacts, and documented that both representative dev query plans currently use low-cost sequential scans.</p>
+        <p><strong>Reason:</strong> Testing evidence: 41 focused tests and the full 379-test backend suite passed, TypeScript and the production build passed, strict Constitution checks found zero structural violations, and the three frontend lint errors are pre-existing in unrelated files. The query plans cost 10.48 and 76.69, so index work remains a separate growth migration rather than PR 152 scope.</p>
+        <p><strong>Updated Done criteria:</strong> None; all existing Done and acceptance criteria are satisfied.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>
