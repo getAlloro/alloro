@@ -1,60 +1,47 @@
-import React from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ClipboardPaste, FileText, Loader2, Sparkles, X } from "lucide-react";
-import type { PasteInfo } from "./types";
-import type { PastePhase } from "./usePasteHandler";
+import { ClipboardPaste, FileText, X } from "lucide-react";
 
-interface PasteConfirmDialogProps {
+import { PasteConfirmation } from "./PasteConfirmation";
+import { PasteProgress } from "./PasteProgress";
+import type { PastePhase } from "./pastePipeline";
+import type { PasteInfo } from "./types";
+
+export type PasteConfirmDialogProps = {
   pasteInfo: PasteInfo | null;
   isPasting: boolean;
   phase: PastePhase;
-  batchProgress: { current: number; total: number } | null;
+  rowsParsed: number | null;
+  requiresSanitization: boolean;
   onConfirm: () => void;
   onCancel: () => void;
-  /** Set when the user dropped a file (vs pasting). Switches the
-   *  dialog wording from "Paste detected" to "File detected". */
   droppedFileName?: string | null;
-}
-
-const ALORO_ORANGE = "#C9765E";
-
-const PHASE_CONFIG: Record<
-  Exclude<PastePhase, "idle">,
-  { icon: React.ReactNode; label: string; description: string }
-> = {
-  parsing: {
-    icon: <Loader2 size={16} className="animate-spin" />,
-    label: "Parsing data...",
-    description: "Reading rows from your pasted data",
-  },
-  sanitizing: {
-    icon: <Sparkles size={16} className="animate-pulse" />,
-    label: "Cleaning your data...",
-    description: "Deduplicating similar sources",
-  },
 };
 
-export const PasteConfirmDialog: React.FC<PasteConfirmDialogProps> = ({
+function getDialogTitle(
+  phase: PastePhase,
+  isPasting: boolean,
+  isFile: boolean,
+): string {
+  if (phase === "ready") return "Data ready";
+  if (isPasting) {
+    return phase === "sanitizing" ? "Cleaning your data" : "Parsing your data";
+  }
+  return isFile ? "File detected" : "Paste detected";
+}
+
+export function PasteConfirmDialog({
   pasteInfo,
   isPasting,
   phase,
-  batchProgress,
+  rowsParsed,
+  requiresSanitization,
   onConfirm,
   onCancel,
   droppedFileName,
-}) => {
+}: PasteConfirmDialogProps) {
   if (!pasteInfo) return null;
-
   const isFile = Boolean(droppedFileName);
-  const phaseConfig = phase !== "idle" ? PHASE_CONFIG[phase] : null;
-
-  const getOverallProgress = (): number => {
-    if (phase === "parsing" && batchProgress) {
-      return (batchProgress.current / batchProgress.total) * 75;
-    }
-    if (phase === "sanitizing") return 85;
-    return 0;
-  };
+  const isComplete = phase === "ready";
 
   return (
     <AnimatePresence>
@@ -62,159 +49,70 @@ export const PasteConfirmDialog: React.FC<PasteConfirmDialogProps> = ({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/30 flex items-center justify-center z-[110]"
-        onClick={onCancel}
+        className="fixed inset-0 z-[110] flex items-center justify-center bg-alloro-navy/40 backdrop-blur-sm"
+        onClick={isPasting ? undefined : onCancel}
       >
         <motion.div
-          initial={{ scale: 0.9, opacity: 0 }}
+          initial={{ scale: 0.95, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-          exit={{ scale: 0.9, opacity: 0 }}
-          onClick={(e) => e.stopPropagation()}
-          className="bg-white rounded-2xl p-6 w-96 shadow-xl relative"
+          exit={{ scale: 0.95, opacity: 0 }}
+          onClick={(event) => event.stopPropagation()}
+          className="relative w-96 rounded-xl border border-alloro-navy/10 bg-slate-50 p-6 shadow-xl"
         >
           <button
+            type="button"
             onClick={onCancel}
-            disabled={isPasting}
-            className="absolute right-3 top-3 p-1 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+            disabled={isPasting && !isComplete}
+            className="absolute right-3 top-3 rounded-lg p-2 text-alloro-navy/40 transition-all duration-200 hover:bg-alloro-navy/5 hover:text-alloro-navy focus-visible:ring-2 focus-visible:ring-alloro-teal/50 disabled:cursor-not-allowed disabled:opacity-50"
             aria-label="Close"
           >
-            <X size={16} className="text-gray-400" />
+            <X className="h-4 w-4" />
           </button>
 
           <div className="flex flex-col items-center">
-            <div
-              className="w-12 h-12 rounded-full flex items-center justify-center mb-4"
-              style={{ backgroundColor: `${ALORO_ORANGE}18` }}
-            >
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-alloro-orange/10 text-alloro-orange">
               {isFile ? (
-                <FileText size={24} style={{ color: ALORO_ORANGE }} />
+                <FileText className="h-6 w-6" />
               ) : (
-                <ClipboardPaste size={24} style={{ color: ALORO_ORANGE }} />
+                <ClipboardPaste className="h-6 w-6" />
               )}
             </div>
 
-            <h3 className="text-lg font-semibold text-gray-900 mb-1">
-              {isPasting
-                ? phaseConfig?.label || "Processing..."
-                : isFile
-                  ? "File detected"
-                  : "Paste detected"}
+            <h3 className="mb-1 text-lg font-semibold text-alloro-navy">
+              {getDialogTitle(phase, isPasting, isFile)}
             </h3>
 
-            {!isPasting && (
-              <>
-                <p className="text-sm text-gray-500 text-center mb-4">
-                  {pasteInfo.chunksRequired > 1
-                    ? `That's a lot of data! We'll process it in ${pasteInfo.chunksRequired} batches of ${50} rows each.`
-                    : isFile
-                      ? `Ready to parse ${droppedFileName}.`
-                      : "Ready to parse your pasted data."}
-                </p>
-
-                <div className="w-full bg-gray-50 rounded-xl p-3 mb-5 space-y-1">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-gray-500">Size</span>
-                    <span className="font-medium text-gray-700">
-                      {pasteInfo.sizeKB.toFixed(1)} KB
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-gray-500">Rows detected</span>
-                    <span className="font-medium text-gray-700">
-                      ~{pasteInfo.estimatedRows}
-                    </span>
-                  </div>
-                  {pasteInfo.chunksRequired > 1 && (
-                    <div className="flex justify-between text-xs">
-                      <span className="text-gray-500">Batches</span>
-                      <span className="font-medium text-gray-700">
-                        {pasteInfo.chunksRequired}
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex gap-3 w-full">
-                  <button
-                    onClick={onCancel}
-                    className="flex-1 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={onConfirm}
-                    className="flex-1 rounded-full px-4 py-2 text-sm font-medium text-white transition hover:brightness-110 flex items-center justify-center gap-2"
-                    style={{ backgroundColor: ALORO_ORANGE }}
-                  >
-                    {isFile ? <FileText size={14} /> : <ClipboardPaste size={14} />}
-                    {isFile ? "Parse File" : "Parse Data"}
-                  </button>
-                </div>
-              </>
-            )}
-
-            {isPasting && phaseConfig && (
-              <div className="w-full mt-2">
-                <div className="flex items-center justify-center gap-2 mb-1">
-                  <span style={{ color: ALORO_ORANGE }}>
-                    {phaseConfig.icon}
-                  </span>
-                  <span className="text-sm text-gray-600">
-                    {phase === "parsing" &&
-                    batchProgress &&
-                    batchProgress.total > 1
-                      ? `Processing batch ${batchProgress.current} of ${batchProgress.total}...`
-                      : phaseConfig.description}
-                  </span>
-                </div>
-
-                {/* Step indicators */}
-                <div className="flex items-center justify-center gap-1.5 mb-3 mt-2">
-                  {(["parsing", "sanitizing"] as const).map((p) => {
-                    const phases = ["parsing", "sanitizing"];
-                    const currentIdx = phases.indexOf(phase);
-                    const stepIdx = phases.indexOf(p);
-                    const isActive = phase === p;
-                    const isDone = currentIdx > stepIdx;
-
-                    return (
-                      <div key={p} className="flex items-center gap-1">
-                        <div
-                          className="w-2 h-2 rounded-full transition-colors duration-300"
-                          style={{
-                            backgroundColor: isActive || isDone ? ALORO_ORANGE : "#e5e7eb",
-                            opacity: isActive ? 1 : isDone ? 0.5 : 0.3,
-                          }}
-                        />
-                        <span
-                          className="text-[10px] font-medium transition-colors duration-300"
-                          style={{ color: isActive ? ALORO_ORANGE : "#9ca3af" }}
-                        >
-                          {p === "parsing" ? "Parse" : "Clean"}
-                        </span>
-                        {p === "parsing" && (
-                          <div className="w-4 h-px bg-gray-200 mx-0.5" />
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* Progress bar */}
-                <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
-                  <motion.div
-                    className="h-full rounded-full"
-                    style={{ backgroundColor: ALORO_ORANGE }}
-                    initial={{ width: "0%" }}
-                    animate={{ width: `${getOverallProgress()}%` }}
-                    transition={{ duration: 0.4, ease: "easeOut" }}
+            {!isPasting && !isComplete ? (
+              <PasteConfirmation
+                pasteInfo={pasteInfo}
+                isFile={isFile}
+                droppedFileName={droppedFileName}
+                onCancel={onCancel}
+                onConfirm={onConfirm}
+              />
+            ) : (
+              phase !== "idle" && (
+                <>
+                  <PasteProgress
+                    phase={phase}
+                    rowsParsed={rowsParsed}
+                    requiresSanitization={requiresSanitization}
                   />
-                </div>
-              </div>
+                  {isComplete && (
+                    <button
+                      type="button"
+                      onClick={onCancel}
+                      className="mt-5 w-full rounded-lg bg-alloro-orange px-4 py-2 text-sm font-medium text-slate-50 transition-all duration-200 hover:brightness-105 focus-visible:ring-2 focus-visible:ring-alloro-teal/50"
+                    >
+                      Review parsed data
+                    </button>
+                  )}
+                </>
+              )
             )}
           </div>
         </motion.div>
       </motion.div>
     </AnimatePresence>
   );
-};
+}

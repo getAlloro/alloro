@@ -1,4 +1,5 @@
 import { Knex } from "knex";
+import type { PmsParserAssignment } from "../config/pmsParserRegistry";
 import { db } from "../database/connection";
 import { BaseModel, QueryContext } from "./BaseModel";
 
@@ -8,6 +9,7 @@ export interface IOrganization {
   domain: string | null;
   referral_code: string | null;
   organization_type: "health" | "generic" | null;
+  pms_type: PmsParserAssignment;
   subscription_tier: "DWY" | "DFY" | null;
   subscription_status: "active" | "inactive" | "trial" | "cancelled";
   subscription_started_at: Date | null;
@@ -115,6 +117,7 @@ export class OrganizationModel extends BaseModel {
         "name",
         "domain",
         "organization_type",
+        "pms_type",
         "subscription_tier",
         "subscription_status",
         "stripe_customer_id",
@@ -272,6 +275,14 @@ export class OrganizationModel extends BaseModel {
     trx?: QueryContext
   ): Promise<{ is_sandbox: boolean } | undefined> {
     return this.table(trx).where({ id }).select("is_sandbox").first();
+  }
+
+  /** Server-owned PMS parser selection for an organization. */
+  static async findPmsTypeById(
+    id: number,
+    trx?: QueryContext
+  ): Promise<{ pms_type: string | null } | undefined> {
+    return this.table(trx).where({ id }).select("pms_type").first();
   }
 
   /** Domain-only projection for an organization (or undefined if missing). */

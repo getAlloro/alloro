@@ -1,23 +1,16 @@
 import { useQuery } from "@tanstack/react-query";
 import { fetchClientTasks } from "../../api/tasks";
+import { QUERY_KEYS } from "../../lib/queryClient";
 import type { ActionItem } from "../../types/tasks";
 
-/**
- * Frontend-side mirror of the backend `TopAction` shape (defined by the
- * Zod schema at `src/controllers/agents/types/agent-output-schemas.ts`).
- * Each SUMMARY-authored task row carries one of these in `metadata` (as a
- * JSON string in the DB, parsed lazily here).
- *
- * Spec: plans/04282026-no-ticket-focus-dashboard-frontend/spec.md (T10)
- */
-export interface TopActionSupportingMetric {
+export type TopActionSupportingMetric = {
   label: string;
   value: string;
   sub?: string;
   source_field: string;
-}
+};
 
-export interface DomainSummary {
+export type DomainSummary = {
   domain:
     | "review"
     | "gbp"
@@ -28,61 +21,110 @@ export interface DomainSummary {
   heading: string;
   summary: string;
   detail: string;
-}
+  supporting_metrics?: TopActionSupportingMetric[];
+};
 
-export interface TopActionCtaButton {
+export type TopActionCtaButton = {
   label: string;
   action_url: string;
-}
+};
 
-export interface TopAction {
+export type TopAction = {
   title: string;
   urgency: "high" | "medium" | "low";
   priority_score: number;
-  domain:
-    | "review"
-    | "gbp"
-    | "ranking"
-    | "form-submission"
-    | "pms-data-quality"
-    | "referral";
+  domain: DomainSummary["domain"];
   rationale: string;
   highlights?: string[];
   supporting_metrics: TopActionSupportingMetric[];
-  outcome: {
-    deliverables: string;
-    mechanism: string;
-  };
-  cta: {
-    primary: TopActionCtaButton;
-    secondary?: TopActionCtaButton;
-  };
+  outcome: { deliverables: string; mechanism: string };
+  cta: { primary: TopActionCtaButton; secondary?: TopActionCtaButton };
   due_at?: string;
-  // Ch2 unified-type extension (mirrors the backend Zod schema); optional, backward-compatible.
-  // `stage` = the journey stage this card addresses; the eyebrow reads it, DOMAIN_TO_STAGE as fallback.
   stage?: "findable" | "choosable" | "bookable" | "memorable";
   execution_state?: "built" | "read-only" | "handoff";
   generic?: boolean;
-}
+};
 
-/**
- * Resolved top-action row: the parsed `TopAction` payload plus the original
- * task row's identity, so callers can route to the underlying task.
- */
-export interface ResolvedTopAction extends TopAction {
+export type ResolvedTopAction = TopAction & {
   taskId: number;
+  createdAt: string;
   dueDate?: string;
   domain_summaries?: DomainSummary[];
+};
+
+export type SummaryDashboardSelection = {
+  topAction: ResolvedTopAction | null;
+  latestChoosableSummary: DomainSummary | null;
+};
+
+const EMPTY_SELECTION: SummaryDashboardSelection = {
+  topAction: null,
+  latestChoosableSummary: null,
+};
+
+const SUMMARY_DOMAINS = new Set<DomainSummary["domain"]>([
+  "review",
+  "gbp",
+  "ranking",
+  "form-submission",
+  "pms-data-quality",
+  "referral",
+]);
+
+const REQUIRED_CHOOSABLE_SOURCES = [
+  "choosable.practice_review_count",
+  "choosable.strongest_competitor_name",
+  "choosable.strongest_competitor_review_count",
+] as const;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }
 
-/**
- * Parses a task row's `metadata` (string or object) into a `TopAction` shape.
- * Returns `null` if parsing fails or the shape doesn't validate at the
- * structural level.
- */
+function parseSupportingMetric(value: unknown): TopActionSupportingMetric | null {
+  if (!isRecord(value)) return null;
+  if (
+    typeof value.label !== "string" ||
+    typeof value.value !== "string" ||
+    typeof value.source_field !== "string"
+  ) {
+    return null;
+  }
+  return {
+    label: value.label,
+    value: value.value,
+    source_field: value.source_field,
+    ...(typeof value.sub === "string" ? { sub: value.sub } : {}),
+  };
+}
+
+function parseDomainSummary(value: unknown): DomainSummary | null {
+  if (!isRecord(value) || !SUMMARY_DOMAINS.has(value.domain as DomainSummary["domain"])) {
+    return null;
+  }
+  if (
+    typeof value.heading !== "string" ||
+    typeof value.summary !== "string" ||
+    typeof value.detail !== "string"
+  ) {
+    return null;
+  }
+  const evidence = Array.isArray(value.supporting_metrics)
+    ? value.supporting_metrics
+        .map(parseSupportingMetric)
+        .filter((item): item is TopActionSupportingMetric => item !== null)
+    : undefined;
+  return {
+    domain: value.domain as DomainSummary["domain"],
+    heading: value.heading,
+    summary: value.summary,
+    detail: value.detail,
+    ...(evidence && evidence.length > 0 ? { supporting_metrics: evidence } : {}),
+  };
+}
+
 function parseTopAction(task: ActionItem): ResolvedTopAction | null {
   let raw: unknown = task.metadata;
-
   if (typeof raw === "string") {
     try {
       raw = JSON.parse(raw);
@@ -90,94 +132,93 @@ function parseTopAction(task: ActionItem): ResolvedTopAction | null {
       return null;
     }
   }
+  if (!isRecord(raw)) return null;
 
-  if (!raw || typeof raw !== "object") {
-    return null;
-  }
-
-  const m = raw as Partial<TopAction> & {
-    priority_score?: unknown;
-    supporting_metrics?: unknown;
-    outcome?: unknown;
-    cta?: unknown;
-  };
-
-  // Minimal structural guard — the full Zod check lives backend-side.
+  const action = raw as Partial<TopAction>;
   if (
-    typeof m.title !== "string" ||
-    typeof m.priority_score !== "number" ||
-    !m.outcome ||
-    !m.cta ||
-    !Array.isArray(m.supporting_metrics)
+    typeof action.title !== "string" ||
+    typeof action.priority_score !== "number" ||
+    !action.outcome ||
+    !action.cta ||
+    !Array.isArray(action.supporting_metrics)
   ) {
     return null;
   }
-
-  const parsed: ResolvedTopAction = {
-    ...(m as TopAction),
+  const summaries = Array.isArray(raw.domain_summaries)
+    ? raw.domain_summaries
+        .map(parseDomainSummary)
+        .filter((summary): summary is DomainSummary => summary !== null)
+    : [];
+  return {
+    ...(action as TopAction),
     taskId: task.id,
+    createdAt: task.created_at,
     dueDate: task.due_date,
+    ...(summaries.length > 0 ? { domain_summaries: summaries } : {}),
   };
-
-  const ds = (raw as Record<string, unknown>).domain_summaries;
-  if (Array.isArray(ds) && ds.length > 0) {
-    parsed.domain_summaries = ds as DomainSummary[];
-  }
-
-  return parsed;
 }
 
-interface UseTopActionResult {
-  topAction: ResolvedTopAction | null;
-  isLoading: boolean;
-  error: Error | null;
-  refetch: () => void;
+function isGroundedChoosableSummary(summary: DomainSummary): boolean {
+  if (summary.domain !== "review" || !summary.supporting_metrics) return false;
+  const sources = new Set(
+    summary.supporting_metrics.map((metric) => metric.source_field)
+  );
+  return REQUIRED_CHOOSABLE_SOURCES.every((source) => sources.has(source));
 }
 
-/**
- * useTopAction — reads tasks via `fetchClientTasks(orgId, locationId)`,
- * filters to `agent_type === "SUMMARY"`, parses each row's metadata, and
- * returns the highest `priority_score` row as `topAction` (or null).
- *
- * Disabled when `orgId` is null. Mirrors the staleTime used by other
- * Focus dashboard query hooks (5 minutes).
- */
+function compareNewestTask(left: ActionItem, right: ActionItem): number {
+  const dateDifference =
+    new Date(right.created_at).getTime() - new Date(left.created_at).getTime();
+  return dateDifference !== 0 ? dateDifference : right.id - left.id;
+}
+
+export function selectSummaryDashboardData(
+  tasks: ActionItem[]
+): SummaryDashboardSelection {
+  const summaryTasks = tasks.filter(
+    (task) => (task.agent_type as unknown as string) === "SUMMARY"
+  );
+  const parsedActions = summaryTasks
+    .map(parseTopAction)
+    .filter((action): action is ResolvedTopAction => action !== null);
+  const topAction =
+    [...parsedActions].sort(
+      (left, right) => right.priority_score - left.priority_score
+    )[0] ?? null;
+
+  const newestTask = [...summaryTasks].sort(compareNewestTask)[0];
+  const newestSummary = newestTask ? parseTopAction(newestTask) : null;
+  const latestChoosableSummary =
+    newestSummary?.domain_summaries?.find(isGroundedChoosableSummary) ?? null;
+  return { topAction, latestChoosableSummary };
+}
+
+async function fetchSummaryDashboardSelection(
+  orgId: number,
+  locationId: number | null
+): Promise<SummaryDashboardSelection> {
+  const response = await fetchClientTasks(orgId, locationId);
+  if (!response?.success || !response.tasks) return EMPTY_SELECTION;
+  return selectSummaryDashboardData([
+    ...response.tasks.ALLORO,
+    ...response.tasks.USER,
+  ]);
+}
+
 export function useTopAction(
   orgId: number | null,
   locationId: number | null
-): UseTopActionResult {
-  const query = useQuery<ResolvedTopAction | null>({
-    queryKey: ["topAction", orgId, locationId],
-    queryFn: async () => {
-      if (!orgId) return null;
-      const response = await fetchClientTasks(orgId, locationId ?? null);
-      if (!response?.success || !response.tasks) return null;
-
-      const all = [...response.tasks.ALLORO, ...response.tasks.USER];
-      const summaryTasks = all.filter(
-        (t) =>
-          // Cast through unknown — frontend AgentType union doesn't yet list
-          // "SUMMARY" but the backend writes it directly. Spec: D5.
-          (t.agent_type as unknown as string) === "SUMMARY"
-      );
-
-      const parsed = summaryTasks
-        .map(parseTopAction)
-        .filter((p): p is ResolvedTopAction => p !== null);
-
-      if (parsed.length === 0) return null;
-
-      parsed.sort((a, b) => b.priority_score - a.priority_score);
-      return parsed[0];
-    },
-    enabled: !!orgId,
+) {
+  const query = useQuery<SummaryDashboardSelection>({
+    queryKey: QUERY_KEYS.summaryDashboard(orgId, locationId),
+    queryFn: () => fetchSummaryDashboardSelection(orgId!, locationId),
+    enabled: orgId !== null,
     staleTime: 5 * 60 * 1000,
   });
-
   return {
-    topAction: query.data ?? null,
+    ...(query.data ?? EMPTY_SELECTION),
     isLoading: query.isLoading,
-    error: (query.error as Error | null) ?? null,
+    error: query.error instanceof Error ? query.error : null,
     refetch: () => {
       void query.refetch();
     },

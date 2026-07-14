@@ -59,6 +59,7 @@ import adminLeadgenRoutes from "./routes/admin/leadgenSubmissions";
 import adminPmsPipelineRoutes from "./routes/admin/pmsPipeline";
 import adminSupportRoutes from "./routes/admin/support";
 import adminGbpAutomationRoutes from "./routes/admin/gbpAutomation";
+import adminReceiptsReportRoutes from "./routes/admin/receiptsReport";
 import adminMissionControlRoutes from "./routes/admin/missionControl";
 import adminAiSeoAuditRoutes from "./routes/admin/aiSeoAudit";
 import adminOsRoutes from "./routes/admin/os";
@@ -241,6 +242,7 @@ app.use("/api/admin/leadgen-submissions", adminLeadgenRoutes);
 app.use("/api/admin/pms-jobs", adminPmsPipelineRoutes);
 app.use("/api/admin/support", adminSupportRoutes);
 app.use("/api/admin/gbp-automation", adminGbpAutomationRoutes);
+app.use("/api/admin/receipts-report", adminReceiptsReportRoutes);
 app.use("/api/admin/mission-control", adminMissionControlRoutes);
 app.use("/api/admin/ai-seo-audit", adminAiSeoAuditRoutes);
 app.use("/api/admin/os", adminOsRoutes); // OS knowledge base (super-admin, plans/07042026-alloro-os-admin-port)

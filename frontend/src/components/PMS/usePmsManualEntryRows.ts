@@ -1,6 +1,9 @@
 import { useCallback } from "react";
 
-import { addMonths } from "./pmsDataTransform";
+import {
+  addMonths,
+  invalidateAuthoritativeReferralTotal,
+} from "./pmsDataTransform";
 import type { MonthBucket, SourceRow } from "./types";
 import { getPreviousMonth } from "./pmsManualEntryModal.utils";
 
@@ -48,10 +51,10 @@ export function usePmsManualEntryRows({
     (patch: Partial<MonthBucket>) => {
       if (!activeMonth) return;
       setMonths((prev) =>
-        prev.map((m) => (m.id === activeMonth.id ? { ...m, ...patch } : m))
+        prev.map((m) => (m.id === activeMonth.id ? { ...m, ...patch } : m)),
       );
     },
-    [activeMonth, setMonths]
+    [activeMonth, setMonths],
   );
 
   const addMonthBucket = useCallback(() => {
@@ -84,13 +87,20 @@ export function usePmsManualEntryRows({
       setConfirmDeleteMonthId(null);
 
       const nextSorted = [...next].sort((a, b) =>
-        a.month.localeCompare(b.month)
+        a.month.localeCompare(b.month),
       );
       if (nextSorted[0]) {
         setActiveMonthId(nextSorted[0].id);
       }
     },
-    [months, targetMonth, setMonths, setError, setConfirmDeleteMonthId, setActiveMonthId]
+    [
+      months,
+      targetMonth,
+      setMonths,
+      setError,
+      setConfirmDeleteMonthId,
+      setActiveMonthId,
+    ],
   );
 
   const requestDeleteMonth = (id: number) => {
@@ -100,15 +110,25 @@ export function usePmsManualEntryRows({
 
   // Row management
   const updateMonthRows = useCallback(
-    (updater: (rows: SourceRow[]) => SourceRow[]) => {
+    (
+      updater: (rows: SourceRow[]) => SourceRow[],
+      shouldInvalidateReferralTotal = true,
+    ) => {
       if (!activeMonth) return;
       setMonths((prev) =>
         prev.map((m) =>
-          m.id === activeMonth.id ? { ...m, rows: updater(m.rows) } : m
-        )
+          m.id === activeMonth.id
+            ? shouldInvalidateReferralTotal
+              ? invalidateAuthoritativeReferralTotal({
+                  ...m,
+                  rows: updater(m.rows),
+                })
+              : { ...m, rows: updater(m.rows) }
+            : m,
+        ),
       );
     },
-    [activeMonth, setMonths]
+    [activeMonth, setMonths],
   );
 
   const addRow = useCallback(() => {
@@ -126,11 +146,13 @@ export function usePmsManualEntryRows({
 
   const updateRow = useCallback(
     (id: number, field: keyof SourceRow, value: string) => {
-      updateMonthRows((rows) =>
-        rows.map((row) => (row.id === id ? { ...row, [field]: value } : row))
+      updateMonthRows(
+        (rows) =>
+          rows.map((row) => (row.id === id ? { ...row, [field]: value } : row)),
+        field !== "production",
       );
     },
-    [updateMonthRows]
+    [updateMonthRows],
   );
 
   const handleTypeToggle = useCallback(
@@ -140,7 +162,7 @@ export function usePmsManualEntryRows({
         updateRow(rowId, "type", row.type === "self" ? "doctor" : "self");
       }
     },
-    [rows, updateRow]
+    [rows, updateRow],
   );
 
   const deleteRow = useCallback(
@@ -148,7 +170,7 @@ export function usePmsManualEntryRows({
       updateMonthRows((rows) => rows.filter((row) => row.id !== rowId));
       setConfirmDeleteRowId(null);
     },
-    [updateMonthRows, setConfirmDeleteRowId]
+    [updateMonthRows, setConfirmDeleteRowId],
   );
 
   const requestDeleteRow = (rowId: number) => {
@@ -158,17 +180,19 @@ export function usePmsManualEntryRows({
 
   const incrementField = useCallback(
     (rowId: number, field: "referrals" | "production", delta: number) => {
-      updateMonthRows((rows) =>
-        rows.map((row) => {
-          if (row.id === rowId) {
-            const current = Number(row[field]) || 0;
-            return { ...row, [field]: String(Math.max(0, current + delta)) };
-          }
-          return row;
-        })
+      updateMonthRows(
+        (rows) =>
+          rows.map((row) => {
+            if (row.id === rowId) {
+              const current = Number(row[field]) || 0;
+              return { ...row, [field]: String(Math.max(0, current + delta)) };
+            }
+            return row;
+          }),
+        field === "referrals",
       );
     },
-    [updateMonthRows]
+    [updateMonthRows],
   );
 
   // Month picker handlers
@@ -184,7 +208,7 @@ export function usePmsManualEntryRows({
     if (targetMonth) return;
     // Check if month already exists
     const existing = months.find(
-      (m) => m.month === ym && m.id !== activeMonth?.id
+      (m) => m.month === ym && m.id !== activeMonth?.id,
     );
     if (existing) {
       setError("This month already exists");

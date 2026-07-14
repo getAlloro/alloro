@@ -56,7 +56,6 @@ export function OsCommentComposer({
         placeholder={placeholder}
         aria-label={submitLabel}
         rows={2}
-        // eslint-disable-next-line jsx-a11y/no-autofocus
         autoFocus={autoFocus}
         className="w-full resize-y rounded-lg border border-line-medium bg-alloro-surface px-2.5 py-2 font-display text-[14px] text-alloro-textDark placeholder:text-gray-400 focus:border-alloro-orange focus:outline-none"
       />

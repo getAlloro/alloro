@@ -1,11 +1,10 @@
-import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { AlertTriangle, X } from "lucide-react";
-import type { OsImportSkipped, OsImportStub } from "../../../../api/admin-os";
-import { useImportOsFiles } from "../../../../hooks/queries/useAdminOsImports";
+import type { OsImportSkipped } from "../../../../api/admin-os";
 import { OsCategoryPill } from "../library/OsCategoryPill";
 import { OsDropzone } from "./OsDropzone";
 import { OsImportRow } from "./OsImportRow";
+import { useOsImportBatch } from "./useOsImportBatch";
 
 /**
  * Batch import modal (P6 T4, D13): a white bounded surface with a dropzone, an
@@ -34,41 +33,25 @@ function OsSkippedNotice({ skipped }: { skipped: OsImportSkipped[] }) {
   );
 }
 
+export type OsImportModalProps = {
+  isOpen: boolean;
+  onClose: () => void;
+  folderId?: string | null;
+};
+
 export function OsImportModal({
   isOpen,
   onClose,
   folderId = null,
-}: {
-  isOpen: boolean;
-  onClose: () => void;
-  folderId?: string | null;
-}) {
-  const importFiles = useImportOsFiles();
-  const [category, setCategory] = useState<string | null>(null);
-  const [started, setStarted] = useState<OsImportStub[]>([]);
-  const [skipped, setSkipped] = useState<OsImportSkipped[]>([]);
-
-  // Reset the transient batch state each time the modal opens.
-  useEffect(() => {
-    if (isOpen) {
-      setCategory(null);
-      setStarted([]);
-      setSkipped([]);
-    }
-  }, [isOpen]);
-
-  const handleFiles = (files: File[]) => {
-    if (importFiles.isPending) return;
-    importFiles.mutate(
-      { files, category, folderId },
-      {
-        onSuccess: (result) => {
-          setStarted((prev) => [...result.documents, ...prev]);
-          setSkipped(result.skipped);
-        },
-      },
-    );
-  };
+}: OsImportModalProps) {
+  const {
+    category,
+    setCategory,
+    started,
+    skipped,
+    isPending,
+    submitFiles,
+  } = useOsImportBatch({ isOpen, folderId });
 
   return (
     <AnimatePresence>
@@ -124,7 +107,10 @@ export function OsImportModal({
                 <OsCategoryPill category={category} onSelect={setCategory} />
               </div>
 
-              <OsDropzone onFiles={handleFiles} disabled={importFiles.isPending} />
+              <OsDropzone
+                onFiles={(files) => submitFiles(files, category)}
+                disabled={isPending}
+              />
 
               <OsSkippedNotice skipped={skipped} />
 

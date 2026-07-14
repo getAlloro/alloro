@@ -99,7 +99,6 @@ export const DirectUploadModal: React.FC<DirectUploadModalProps> = ({
       const result = await uploadPMSData({
         domain: clientId,
         file,
-        pmsType: "auto-detect",
         locationId,
       });
 

@@ -39,6 +39,12 @@ export interface OsKnowledgeBaseConfig {
    * import warnings (image-only / scanned pages; vision transcription deferred).
    */
   pdfLowTextChars: number;
+  /** Minimum PDF image dimension kept by pdf-parse. */
+  pdfImageThreshold: number;
+  /** Width used for bounded Gemini page screenshots. */
+  pdfScreenshotWidth: number;
+  /** Maximum PDF pages sent to Gemini during one conversion. */
+  pdfVisionMaxPages: number;
   /** Expiry of the presigned URL the asset-delivery redirect issues, seconds. */
   assetUrlTtlSeconds: number;
   /** Edit-lock lifetime; heartbeats extend it, the reaper deletes past it. */
@@ -55,6 +61,9 @@ const DEFAULTS: OsKnowledgeBaseConfig = {
   importMaxFileMb: 25,
   importBatchMaxFiles: 20,
   pdfLowTextChars: 20,
+  pdfImageThreshold: 80,
+  pdfScreenshotWidth: 1600,
+  pdfVisionMaxPages: 10,
   assetUrlTtlSeconds: 300,
   lockTtlSeconds: 120,
 };
@@ -132,6 +141,21 @@ export function parseOsKnowledgeBaseConfig(
       env,
       "OS_PDF_LOW_TEXT_CHARS",
       DEFAULTS.pdfLowTextChars
+    ),
+    pdfImageThreshold: parsePositiveIntegerEnv(
+      env,
+      "OS_PDF_IMAGE_THRESHOLD",
+      DEFAULTS.pdfImageThreshold
+    ),
+    pdfScreenshotWidth: parsePositiveIntegerEnv(
+      env,
+      "OS_PDF_SCREENSHOT_WIDTH",
+      DEFAULTS.pdfScreenshotWidth
+    ),
+    pdfVisionMaxPages: parsePositiveIntegerEnv(
+      env,
+      "OS_PDF_VISION_MAX_PAGES",
+      DEFAULTS.pdfVisionMaxPages
     ),
     assetUrlTtlSeconds: parsePositiveIntegerEnv(
       env,

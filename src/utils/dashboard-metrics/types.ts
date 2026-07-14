@@ -185,27 +185,59 @@ export const ReferralMetricsSchema = z.object({
 });
 
 // =====================================================================
-// CHOOSABLE (competitor comparison — honest, never fabricated)
+// CHOOSABLE (Stage 3 — competitor comparison, public data)
 // =====================================================================
+//
+// The Choosable-stage READ: how the practice's public review/rating profile
+// stacks against its curated `location_competitors` set. Practice side is
+// echoed from the already-computed `reviews` section (one source of truth per
+// number); competitor side comes from `location_competitors` rows. All fields
+// are null/false when no competitor set exists — never fabricated.
+//
+// Owns the READ only. The review-ASK action that acts on the gap is Chapter 6
+// (Memorable); this section supplies the caught comparison as a choose-signal.
+
+export type ChoosableWeakestFactor = "reviews" | "rating";
+export type ChoosableSourceStatus = "ready" | "not_ready" | "unavailable";
+export type ChoosableSourceReason =
+  | "missing_location"
+  | "location_not_found"
+  | "competitors_not_finalized"
+  | "no_active_competitors"
+  | "query_failed";
 
 export interface ChoosableMetrics {
-  has_competitor_set: boolean;
-  competitor_count: number;
-  practice_review_count: number | null;
-  practice_rating: number | null;
+  source_status: ChoosableSourceStatus;
+  source_reason: ChoosableSourceReason | null;
+  has_competitor_set: boolean; // false → whole section is informational only
+  competitor_count: number; // curated competitors compared against
+  practice_review_count: number | null; // = reviews.total_review_count, echoed for grounding
+  practice_rating: number | null; // = reviews.current_rating
   competitor_median_review_count: number | null;
-  strongest_competitor_name: string | null;
+  strongest_competitor_name: string | null; // most reviews among the set
   strongest_competitor_review_count: number | null;
-  competitors_ahead_on_reviews: number | null;
-  review_count_gap_to_median: number | null;
-  practice_leads_on_reviews: boolean | null;
-  practice_profile_strength: number | null;
+  competitors_ahead_on_reviews: number | null; // count with more reviews than the practice
+  review_count_gap_to_median: number | null; // median − practice; >0 means practice trails
+  is_at_or_above_review_median: boolean | null;
+  has_most_reviews: boolean | null;
+  as_of: string | null; // oldest competitor discovery_checked_at (freshness)
+  // FIX B — other Choosable dimensions, honestly scoped (presence/quantity, never quality).
+  practice_profile_strength: number | null; // 0-100, same scale as competitors; null when completeness unknown
   competitor_median_profile_strength: number | null;
-  weakest_choosable_factor: "reviews" | "rating" | "photo" | "website" | null;
-  as_of: string | null;
+  weakest_choosable_factor: ChoosableWeakestFactor | null; // only from factors actually measured
 }
 
 export const ChoosableMetricsSchema = z.object({
+  source_status: z.enum(["ready", "not_ready", "unavailable"]),
+  source_reason: z
+    .enum([
+      "missing_location",
+      "location_not_found",
+      "competitors_not_finalized",
+      "no_active_competitors",
+      "query_failed",
+    ])
+    .nullable(),
   has_competitor_set: z.boolean(),
   competitor_count: z.number(),
   practice_review_count: z.number().nullable(),
@@ -215,13 +247,14 @@ export const ChoosableMetricsSchema = z.object({
   strongest_competitor_review_count: z.number().nullable(),
   competitors_ahead_on_reviews: z.number().nullable(),
   review_count_gap_to_median: z.number().nullable(),
-  practice_leads_on_reviews: z.boolean().nullable(),
+  is_at_or_above_review_median: z.boolean().nullable(),
+  has_most_reviews: z.boolean().nullable(),
+  as_of: z.string().nullable(),
   practice_profile_strength: z.number().nullable(),
   competitor_median_profile_strength: z.number().nullable(),
   weakest_choosable_factor: z
-    .enum(["reviews", "rating", "photo", "website"])
+    .enum(["reviews", "rating"])
     .nullable(),
-  as_of: z.string().nullable(),
 });
 
 // =====================================================================

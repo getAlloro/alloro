@@ -1,0 +1,200 @@
+{
+  "plan": "plans/07102026-admin-os-import-rendering-fidelity",
+  "generatedAt": "2026-07-10",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "T1",
+      "title": "Converter and provider regression suite",
+      "surface": "cli",
+      "precondition": "Repository dependencies are installed; Gemini and S3 remain mocked or injected with deterministic fakes.",
+      "steps": [
+        "Run npx vitest run src/__tests__/os-conversion.test.ts src/__tests__/os-foundation.test.ts src/__tests__/os-ingest.test.ts.",
+        "Confirm deterministic PDF fallback, GFM reconstruction, image-marker validation, XLSX drawing extraction, config validation, and provider interface tests pass."
+      ],
+      "expected": "All targeted unit tests pass without a network call.",
+      "status": "pass",
+      "evidence": "2026-07-10: 3 targeted files, 33 tests passed. 2026-07-14 after fast-forwarding dev/dave: the full backend suite passed 53 files / 403 tests.",
+      "notes": "Synthetic data only; expected error-path logs were emitted by failure tests.",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "PDF and XLSX assets persist through conversion",
+      "surface": "cli",
+      "precondition": "Local disposable Postgres schema os is migrated; S3 and queues are mocked.",
+      "steps": [
+        "Run npm run test:integration:os -- src/integration-tests/os/p6-imports.itest.ts.",
+        "Confirm synthetic PDF and XLSX images create os.assets rows and stored Markdown uses /api/admin/os/assets/:id URLs."
+      ],
+      "expected": "The P6 integration suite passes and removes all synthetic DB rows afterward.",
+      "status": "pass",
+      "evidence": "2026-07-10: 1 file, 6 integration tests passed with mocked S3.",
+      "notes": "No AWS, Redis, Gemini, dev, or production call was made.",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "Wide tables remain semantic and scrollable",
+      "surface": "ui",
+      "precondition": "Frontend dependencies are installed.",
+      "steps": [
+        "Run npm --prefix frontend run test -- OsMarkdownBody.test.tsx osEditorExtensions.test.ts.",
+        "Open an OS document containing a table wider than the reading column.",
+        "Tab to the table region and scroll horizontally in reader and editor."
+      ],
+      "expected": "Native table markup remains present inside a focusable bounded overflow region; TipTap emits and styles tableWrapper.",
+      "status": "fail",
+      "evidence": "",
+      "notes": "Automated component checks passed in the 2026-07-14 full frontend suite (33 files / 121 tests), and the frontend production build passed; browser keyboard behavior was explicitly waived.",
+      "waiver": "User explicitly waived the signed-in browser keyboard and horizontal-scroll check on 2026-07-14 for finalization. Automated semantic-table and production-build coverage passed; this waiver is not visual evidence."
+    },
+    {
+      "id": "T4",
+      "title": "Supplied PDFs preserve deterministic source content",
+      "surface": "cli",
+      "precondition": "Use the two user-supplied PDFs outside Git and inject OsFakeLlmProvider.",
+      "steps": [
+        "Convert both supplied files without live Gemini or S3.",
+        "Count extracted assets and GFM table rows without printing document content."
+      ],
+      "expected": "Rules remains readable and is flagged for vision; Tech Stack yields one real image and three detected tables before live acceptance.",
+      "status": "pass",
+      "evidence": "2026-07-10: Rules 1757 Markdown chars, 0 images, vision warning; Tech Stack 7299 chars, 1 image, 24 GFM table lines.",
+      "notes": "This proves deterministic extraction only, not the final Rules table reconstruction.",
+      "waiver": ""
+    },
+    {
+      "id": "T5",
+      "title": "Rules Repository PDF renders as the source table",
+      "surface": "ui",
+      "precondition": "Local app at http://localhost:3000/admin; super-admin session; explicit approval to call Gemini and write/clean the configured AWS imports bucket.",
+      "steps": [
+        "Upload Alloro Rules Repository - Alloro Rules Repository.pdf through Admin OS.",
+        "Wait for Indexed, open the reader, and inspect the imported table.",
+        "Confirm eight columns, five rule rows, multiline descriptions/notes in their cells, and horizontal scrolling.",
+        "Record screenshot evidence and delete the imported document and stored objects."
+      ],
+      "expected": "One usable eight-column table with five source rules renders without widening the reading card.",
+      "status": "fail",
+      "evidence": "",
+      "notes": "Blocked on the separate live test/verification gate.",
+      "waiver": "User explicitly waived the live Rules Repository rendering check on 2026-07-14 for finalization. The exact eight-column, five-row browser result remains unverified."
+    },
+    {
+      "id": "T6",
+      "title": "Tech Stack PDF renders its diagram and three tables",
+      "surface": "ui",
+      "precondition": "Local app at http://localhost:3000/admin; super-admin session; explicit approval to call Gemini and write/clean the configured AWS imports bucket.",
+      "steps": [
+        "Upload Alloro_Tech_Stack_Reference (1).pdf through Admin OS.",
+        "Wait for Indexed and open the reader.",
+        "Confirm the real architecture diagram and the owner, monthly-cost, and revision-history tables render in page order.",
+        "Record screenshot evidence and delete the imported document and stored objects."
+      ],
+      "expected": "The source diagram displays through an authenticated OS asset URL and all three tables remain semantic.",
+      "status": "fail",
+      "evidence": "2026-07-10: the imported Markdown, os.assets row, and 517433-byte PNG object were confirmed; after Rev 5 the authenticated local asset route returned 302 and the target returned a valid PNG.",
+      "notes": "Refresh the signed-in document reader to confirm the formerly broken image now displays in the UI.",
+      "waiver": "User explicitly waived the signed-in Tech Stack reader check on 2026-07-14 for finalization. Asset extraction and authenticated PNG delivery passed, but the final browser presentation remains unverified."
+    },
+    {
+      "id": "T7",
+      "title": "Vision failure degrades without failing import",
+      "surface": "cli",
+      "precondition": "Use injected renderer/provider failures and synthetic PDF data.",
+      "steps": [
+        "Run the targeted converter tests.",
+        "Verify screenshot failure and invented image markers fall back to deterministic text and real placeholders with page-specific warnings."
+      ],
+      "expected": "Import conversion resolves with readable source content and warnings; no invented marker or URL is stored.",
+      "status": "pass",
+      "evidence": "2026-07-10: renderer-failure and invented-marker tests passed in os-conversion.test.ts.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T8",
+      "title": "Live acceptance state is fully cleaned up",
+      "surface": "ui",
+      "precondition": "T5 and T6 have run.",
+      "steps": [
+        "Delete both manual acceptance documents.",
+        "Confirm associated import, version, asset, activity, and S3 objects are gone."
+      ],
+      "expected": "No manual acceptance rows or objects remain after evidence capture.",
+      "status": "fail",
+      "evidence": "",
+      "notes": "Runs with T5 and T6.",
+      "waiver": "User explicitly waived cleanup verification on 2026-07-14 for finalization. Existing local manual-test documents, database rows, asset rows, and stored objects were not deleted by this finalization."
+    },
+    {
+      "id": "T9",
+      "title": "Library accepts a multi-file drop as one import batch",
+      "surface": "ui",
+      "precondition": "Authenticated super-admin session at http://localhost:3000/admin/os; use two supported test files.",
+      "steps": [
+        "Drag two supported files over the Library card and confirm the drop overlay appears.",
+        "Drop both files and confirm the import modal stays closed.",
+        "Confirm both processing documents appear in the Library from one batch and no duplicate request is created.",
+        "Repeat a non-file document or folder drag and confirm the file overlay and import do not trigger."
+      ],
+      "expected": "All dropped files are submitted together exactly once through the existing batch import flow and appear directly in the Library; the modal stays closed and non-file drag and drop is unchanged.",
+      "status": "fail",
+      "evidence": "2026-07-10: automated tests passed for two-file forwarding, overlay cleanup, non-file drag ignore, one direct mutation call, a closed modal, and the unchanged Import-button modal path.",
+      "notes": "Live signed-in browser verification remains pending.",
+      "waiver": "User explicitly waived the signed-in multi-file drag-and-drop browser check on 2026-07-14 for finalization. Automated batch, modal, overlay, and non-file-drag coverage passed."
+    },
+    {
+      "id": "T10",
+      "title": "The shared Admin OS workspace uses the available desktop width",
+      "surface": "ui",
+      "precondition": "Authenticated super-admin session at http://localhost:3000/admin on a desktop viewport wider than 1600px.",
+      "steps": [
+        "Open Library and confirm its card uses the wider workspace.",
+        "Open a document and confirm the left rail, reading column, and right rail have more space.",
+        "Open editor, Chat, and Trash and confirm the same responsive outer gutters remain."
+      ],
+      "expected": "All Admin OS routes share a centered workspace capped at 1600px instead of 1200px, without horizontal page overflow.",
+      "status": "fail",
+      "evidence": "2026-07-10: OsShell now owns a single max-w-[1600px] cap for every nested OS route.",
+      "notes": "Live signed-in visual confirmation remains pending.",
+      "waiver": "User explicitly waived the wide-desktop visual check on 2026-07-14 for finalization. The shared 1600px shell cap is code-verified but not browser-verified."
+    },
+    {
+      "id": "T11",
+      "title": "Extracted OS images pass both auth gates and return valid bytes",
+      "surface": "cli",
+      "precondition": "Local app server and one converted Tech Stack document with an extracted os.assets row.",
+      "steps": [
+        "Request the stored asset with a short-lived local super-admin query JWT and do not follow redirects automatically.",
+        "Confirm the OS route returns 302, then fetch the short-lived target.",
+        "Confirm the target is a PNG with the stored byte length and PNG signature.",
+        "Request the asset without a token and confirm it remains blocked."
+      ],
+      "expected": "The authenticated asset path returns a short-lived redirect to valid image/png bytes; missing and invalid tokens remain rejected and other Admin OS routes still require header auth.",
+      "status": "pass",
+      "evidence": "2026-07-10: middleware tests passed for valid, missing, invalid, and non-asset OS requests. The live local asset route returned 302; its target returned image/png, 517433 bytes, and a valid PNG signature; no-token returned 401.",
+      "notes": "Read-only verification used the existing local DB row and existing stored object; it created no document, asset, or S3 state.",
+      "waiver": ""
+    },
+    {
+      "id": "T12",
+      "title": "Editor matches the final Alloro OS table and image interactions",
+      "surface": "ui",
+      "precondition": "Authenticated super-admin session at http://localhost:3000/admin/os; use an editable document containing an image, a table, a following paragraph, and an empty code block.",
+      "steps": [
+        "Scroll the editor and confirm the formatting toolbar remains below the two sticky Admin Hub headers.",
+        "Place the cursor in the table and use its corner gear to add and delete a row and column, then confirm the delete-table action is present.",
+        "Select the image and confirm its top-right delete and bottom-right resize controls appear; resize it, save, and reopen the document.",
+        "Press Backspace at the start of the block after the image and confirm the image is selected without deleting prior text; press Backspace again and confirm Delete? appears; press Escape to cancel.",
+        "Press Backspace at the start of an empty code block and confirm it changes to a paragraph before content above it can be joined or removed."
+      ],
+      "expected": "The toolbar, table-corner menu, image edge controls, width persistence, and intentional Backspace behavior match the final Alloro OS source implementation while tables remain semantic and full width.",
+      "status": "fail",
+      "evidence": "2026-07-10: focused editor parity suite passed 6 files / 21 tests. 2026-07-14 after fast-forwarding dev/dave: the full frontend suite passed 33 files / 121 tests; focused ESLint, TypeScript, and the production build passed.",
+      "notes": "Live signed-in browser verification remains pending.",
+      "waiver": "User explicitly waived the signed-in editor interaction check on 2026-07-14 for finalization. Focused and full automated suites passed; toolbar stickiness, resize persistence, table controls, and Backspace behavior remain unverified in a live browser."
+    }
+  ]
+}

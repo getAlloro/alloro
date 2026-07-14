@@ -44,9 +44,20 @@ export interface OsChatTurn {
   content: string;
 }
 
+export interface OsDocumentPageTranscriptionInput {
+  pageNumber: number;
+  screenshotPng: Buffer;
+  extractedText: string;
+  imageCount: number;
+}
+
 export interface OsLlmProvider {
   /** AI taxonomy for one document — summary (≤2 sentences), category, tags. */
   generateDocMetadata(title: string, contentMd: string): Promise<OsDocMetadata>;
+  /** Exact semantic Markdown transcription of one source-document page image. */
+  transcribeDocumentPageToMarkdown(
+    input: OsDocumentPageTranscriptionInput
+  ): Promise<string>;
   /**
    * Grounded RAG answer as a token stream. `context` is the assembled
    * knowledge-base evidence (empty string ⇒ no relevant docs → an honest
@@ -71,6 +82,16 @@ const OS_FALLBACK_CATEGORY = "Uncategorized";
 const OS_CHAT_MAX_OUTPUT_TOKENS = 1024;
 const OS_CHAT_MAX_STREAM_ATTEMPTS = 3;
 const OS_CHAT_RETRY_BASE_DELAY_MS = 600;
+const OS_PDF_VISION_MAX_OUTPUT_TOKENS = 4096;
+
+const OS_PDF_VISION_SYSTEM_PROMPT = `Transcribe the supplied source-document page into semantic GitHub-Flavored Markdown.
+
+Rules:
+- Preserve only content visible on the page. Never invent, summarize, correct, or omit source text.
+- Reconstruct headings, paragraphs, lists, and tables. Use valid GFM tables with one header row and a delimiter row.
+- Preserve multiline table-cell text with <br>. Escape literal pipe characters inside cells.
+- The caller extracted the page's raster images separately. Use [[IMAGE_1]], [[IMAGE_2]], and so on only where those real images appear. Never create URLs, data URIs, or extra image markers.
+- Return Markdown only. No code fence, preface, commentary, page number, or citation.`;
 
 /**
  * Grounded-refusal persona for OS chat (master spec: "answer only from
@@ -211,6 +232,40 @@ export class OsGeminiLlmProvider implements OsLlmProvider {
     );
   }
 
+  async transcribeDocumentPageToMarkdown(
+    input: OsDocumentPageTranscriptionInput
+  ): Promise<string> {
+    const config = getOsKnowledgeBaseConfig();
+    const response = await this.getClient().models.generateContent({
+      model: config.chatModel,
+      contents: [
+        {
+          role: "user",
+          parts: [
+            {
+              inlineData: {
+                mimeType: "image/png",
+                data: input.screenshotPng.toString("base64"),
+              },
+            },
+            {
+              text:
+                `Page ${input.pageNumber}. Extracted raster images available: ${input.imageCount}. ` +
+                `The deterministic text below is reference evidence only; follow the page image for layout.\n\n` +
+                input.extractedText,
+            },
+          ],
+        },
+      ],
+      config: {
+        systemInstruction: OS_PDF_VISION_SYSTEM_PROMPT,
+        maxOutputTokens: OS_PDF_VISION_MAX_OUTPUT_TOKENS,
+        thinkingConfig: { thinkingBudget: 0 },
+      },
+    });
+    return response.text ?? "";
+  }
+
   /**
    * Open the token stream with a bounded busy retry (429/503) BEFORE any token
    * is yielded — a mid-iteration retry would re-emit already-sent tokens, so it
@@ -284,6 +339,12 @@ export class OsFakeLlmProvider implements OsLlmProvider {
     contentMd: string
   ): Promise<OsDocMetadata> {
     return deriveOsTitleFallbackMetadata(title, contentMd);
+  }
+
+  async transcribeDocumentPageToMarkdown(
+    input: OsDocumentPageTranscriptionInput
+  ): Promise<string> {
+    return input.extractedText;
   }
 
   /**

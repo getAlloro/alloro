@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Feature Friyay - 07-13-2026</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800;900&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="page-shell">
+      <section class="hero" aria-labelledby="page-title">
+        <div>
+          <div class="brand-mark"><span class="brand-dot"></span> Alloro Feature Friyay</div>
+          <h1 id="page-title">PMS imports can now follow each organization’s system</h1>
+          <p>
+            Coverage window: Monday, July 13, 2026 through Sunday, July 19, 2026.
+            This edition tracks organization-owned PMS parsing, configurable default
+            formulas, the first dedicated DentalEMR calculation path, and an internal
+            Admin OS document-import and editing upgrade.
+          </p>
+        </div>
+        <aside class="hero-panel" aria-label="Release state summary">
+          <p class="eyebrow">07-13-2026 edition</p>
+          <div class="status-stack">
+            <span class="tag good">Deployed</span>
+            <span class="tag">1 client workflow</span>
+            <span class="tag">2 admin/operator updates</span>
+            <span class="tag warn">Some UI checks waived</span>
+          </div>
+        </aside>
+      </section>
+
+      <section class="section" aria-labelledby="client-update">
+        <p class="eyebrow">Client workflow</p>
+        <h2 id="client-update">More accurate production totals from PMS exports</h2>
+        <div class="grid">
+          <article class="highlight-card">
+            <h3>Organization-specific parsing</h3>
+            <p>
+              PMS uploads and pasted spreadsheet data now use the parser assigned to
+              the organization. Practices without a custom parser keep the existing
+              configurable default workflow.
+            </p>
+            <div class="meta">
+              <span class="tag good">Pushed to dev/dave</span>
+              <span class="tag">Referrals Hub</span>
+            </div>
+          </article>
+          <article class="highlight-card">
+            <h3>DentalEMR calculation path</h3>
+            <p>
+              DentalEMR exports use their confirmed completed-treatment production
+              formula and patient-deduplication rules. Four supplied location-month
+              exports reconciled exactly against the expected summaries.
+            </p>
+            <div class="meta">
+              <span class="tag good">Fixture reconciled</span>
+              <span class="tag">Deterministic parser</span>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="operator-update">
+        <p class="eyebrow">Admin and operator notes</p>
+        <h2 id="operator-update">Parser assignment now controls formula access</h2>
+        <p class="section-subtitle">
+          Super admins can set the PMS Parser from the organization overview. “Default
+          (configurable formula)” stores an unset assignment and keeps Formula settings
+          available after columns resolve. Custom parsers such as DentalEMR own their
+          formula, so the formula toggle and sliding mapping drawer stay hidden.
+        </p>
+        <div class="grid">
+          <article class="highlight-card">
+            <h3>Admin OS keeps more document structure</h3>
+            <p>
+              Internal document imports now preserve supported PDF and Excel images,
+              semantic tables, and readable Markdown structure. Multi-file drops go
+              straight into the Library, and the editor restores the source OS table,
+              image, sticky-toolbar, and safe-Backspace controls.
+            </p>
+            <div class="meta">
+              <span class="tag">Internal Alloro tooling</span>
+              <span class="tag warn">Live UI checks waived</span>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="inventory">
+        <p class="eyebrow">Feature inventory</p>
+        <h2 id="inventory">Tracked items</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Bucket</th><th>Feature</th><th>Audience</th><th>State</th><th>Email?</th><th>Notes</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Client dashboard</td>
+                <td>Organization-owned PMS parsing + DentalEMR formula</td>
+                <td>Client admins and managers importing PMS data</td>
+                <td>Pushed to dev/dave; production not yet promoted</td>
+                <td>Drafted</td>
+                <td>
+                  Changelog 0.0.159–0.0.160. Four DentalEMR location-month exports
+                  reconcile exactly. Rev 2 focused checks passed; authenticated UI and
+                  fresh full-regression checks were explicitly waived for the dev merge.
+                  See <code>plans/07102026-dentalemr-pms-parser-routing/test-results.json</code>.
+                </td>
+              </tr>
+              <tr>
+                <td>Admin tooling</td>
+                <td>Nullable default parser assignment and formula-control gating</td>
+                <td>Alloro super admins</td>
+                <td>Pushed to dev/dave; post-deploy validation recommended</td>
+                <td>No</td>
+                <td>
+                  The parser selector sits next to organization Type. Null means the
+                  configurable default parser; DentalEMR and future custom parsers hide
+                  formula controls and reject stale mapping state.
+                </td>
+              </tr>
+              <tr>
+                <td>Documentation</td>
+                <td>Referrals Hub parser/formula guidance</td>
+                <td>Alloro team and docs readers</td>
+                <td>Implemented on the Docs feature branch</td>
+                <td>No</td>
+                <td>
+                  The Docs mirror explains when Formula settings appears and when an
+                  assigned parser applies its own calculation automatically.
+                </td>
+              </tr>
+              <tr>
+                <td>Admin tooling</td>
+                <td>Admin OS import fidelity, direct multi-file drop, and editor parity</td>
+                <td>Internal Alloro operators</td>
+                <td>Included in this dev/dave release; deployment verification pending</td>
+                <td>No</td>
+                <td>
+                  Automated conversion, persistence, auth, table, drag-and-drop, and
+                  editor checks pass. Seven signed-in browser and cleanup checks were
+                  explicitly waived; no live UI pass is claimed. Admin OS is absent from
+                  client-facing Alloro Docs, so docs parity is N/A. See
+                  <code>plans/07102026-admin-os-import-rendering-fidelity/test-results.json</code>.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="email-draft">
+        <p class="eyebrow">Email draft</p>
+        <h2 id="email-draft">Customer-ready draft included</h2>
+        <p class="section-subtitle">
+          Open <a href="./email.html">email.html</a> for the optional customer draft.
+          It has not been sent and should be used only for customers whose PMS workflow
+          is affected.
+        </p>
+      </section>
+
+      <section class="section" aria-labelledby="checklist">
+        <p class="eyebrow">Ship checklist</p>
+        <h2 id="checklist">Package checklist</h2>
+        <ul class="checklist">
+          <li><span class="box done">✓</span><span>Package status is visible in the first hero viewport.</span></li>
+          <li><span class="box done">✓</span><span>Dev and production states are kept separate.</span></li>
+          <li><span class="box done">✓</span><span>Verification waivers are disclosed instead of presented as passes.</span></li>
+          <li><span class="box done">✓</span><span>No client export or patient-level data is included.</span></li>
+        </ul>
+      </section>
+    </main>
+  </body>
+</html>

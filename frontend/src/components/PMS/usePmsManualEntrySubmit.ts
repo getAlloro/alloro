@@ -2,6 +2,7 @@ import { showUploadToast } from "../../lib/toast";
 
 import {
   submitManualPMSData,
+  uploadPastedData,
   uploadPMSData,
   uploadWithMapping,
   type ColumnMapping,
@@ -28,6 +29,8 @@ interface PmsManualEntrySubmitDeps {
   locationId?: number | null;
   currentMapping: ColumnMapping | null;
   mappingAllRows: Record<string, unknown>[];
+  pastedRawText: string;
+  currentMonth: string;
   months: MonthBucket[];
   onSuccess?: () => void;
   onClose: () => void;
@@ -45,6 +48,8 @@ export function createPmsManualEntrySubmit({
   locationId,
   currentMapping,
   mappingAllRows,
+  pastedRawText,
+  currentMonth,
   months,
   onSuccess,
   onClose,
@@ -72,8 +77,8 @@ export function createPmsManualEntrySubmit({
         const result = await uploadPMSData({
           domain: clientId,
           file: selectedUploadFile,
-          pmsType: "auto-detect",
           locationId,
+          targetMonth,
           monthlyDataOverride: backendData,
         });
 
@@ -105,6 +110,46 @@ export function createPmsManualEntrySubmit({
         setIsSubmitting(false);
       }
       return;
+    }
+
+    if (pastedRawText) {
+      setIsSubmitting(true);
+      setError(null);
+      try {
+        const result = await uploadPastedData({
+          rawText: pastedRawText,
+          currentMonth,
+          targetMonth,
+          domain: clientId,
+          locationId,
+          monthlyDataOverride: getSubmitMonths(),
+        });
+        if (!result.success) throw new Error(result.error.message);
+
+        setSubmitStatus("success");
+        showUploadToast(
+          copy.toastDataReceivedTitle,
+          copy.processingInsightsMessage,
+        );
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(
+            new CustomEvent("pms:job-uploaded", {
+              detail: { clientId, entryType: "paste", locationId },
+            }),
+          );
+        }
+        setTimeout(() => {
+          onSuccess?.();
+          onClose();
+        }, 2000);
+        return;
+      } catch (err) {
+        setSubmitStatus("error");
+        setError(err instanceof Error ? err.message : "Submission failed");
+        return;
+      } finally {
+        setIsSubmitting(false);
+      }
     }
 
     // ── Mapping path: when the user pasted a non-template file and we

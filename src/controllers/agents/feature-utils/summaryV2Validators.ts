@@ -1,155 +1,255 @@
-/**
- * Summary v2 Post-Zod Validators (Plan 1 T10)
- *
- * Pure validation helpers for Summary v2 agent output. Split out of
- * service.agent-orchestrator.ts in the decomposition pass — behavior identical.
- *
- * - validateSummarySupportingMetrics THROWS on mismatch (triggers the
- *   orchestrator's outer 3-attempt retry, with the error message included so
- *   the model can self-correct).
- * - validateSummaryHighlights warns only (the frontend's HighlightedText
- *   component silently drops unmatched highlights at render time).
- */
+/** Summary v2 post-Zod evidence and highlight validators. */
 
 import { log } from "./agentLogger";
-import type { SummaryV2Output } from "../types/agent-output-schemas";
+import type {
+  DomainSummary,
+  SummaryV2Output,
+  SupportingMetric,
+} from "../types/agent-output-schemas";
 import type { DashboardMetrics } from "../../../utils/dashboard-metrics/types";
 
-/**
- * Walk a dotted path on an object. `lookupDottedPath({a: {b: 1}}, "a.b") === 1`.
- * Returns undefined for any missing segment.
- */
-export function lookupDottedPath(obj: any, path: string): any {
-  if (!obj || !path) return undefined;
-  return path.split(".").reduce((acc, key) => {
-    if (acc === null || acc === undefined) return undefined;
-    return acc[key];
-  }, obj);
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }
 
-/**
- * Compare a Summary supporting_metric's `value` (string from agent) against
- * the dashboard_metrics dictionary value at `source_field`. Tolerant matching,
- * in order:
- *   1. exact string equality after trim
- *   2. numeric equivalence — strip non-numeric chars from BOTH sides, accept
- *      strict equality OR within 1% relative tolerance. Handles human-readable
- *      rounding ("$365,747" for 365747.01, "0.33" for 0.328…, "33%" for 33.33).
- *   3. string normalization — case-insensitive, underscores/dashes ↔ spaces,
- *      whitespace collapsed. Handles "GBP activity" ≈ "gbp_activity".
- *   4. substring after normalization (e.g. "#4 of 28" includes "4")
- *
- * Honors the prompt's stated contract: "Numeric equivalence counts
- * ($48,420 == 48420), but you cannot invent." The previous implementation
- * only stripped the metric side and used strict ===, which rejected any
- * decimal residue and any case/underscore variation.
- */
-export function metricValuesMatch(metricValue: string, dictValue: any): boolean {
-  if (dictValue === null || dictValue === undefined) {
-    // null/undefined dict value — accept any agent value (the agent may legitimately
-    // report "0" or "—" when the underlying metric is absent).
-    return true;
+function normalizeText(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function parseComparableNumber(value: string): number | null {
+  const numericText = value.replace(/[^\d.\-]/g, "");
+  if (!/\d/.test(numericText)) return null;
+  const parsed = Number(numericText);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+/** Walk a dotted path and return undefined for a missing segment. */
+export function lookupDottedPath(obj: unknown, path: string): unknown {
+  if (!path) return undefined;
+  let current: unknown = obj;
+  for (const key of path.split(".")) {
+    if (!isRecord(current)) return undefined;
+    current = current[key];
+  }
+  return current;
+}
+
+/** Compare agent display text with its deterministic dictionary value. */
+export function metricValuesMatch(
+  metricValue: string,
+  dictValue: unknown
+): boolean {
+  if (dictValue === null || dictValue === undefined) return true;
+
+  const dictString = String(dictValue).trim();
+  const metricString = metricValue.trim();
+  if (dictString === metricString) return true;
+
+  const dictNumber = parseComparableNumber(dictString);
+  const metricNumber = parseComparableNumber(metricString);
+  if (dictNumber !== null && metricNumber !== null) {
+    if (dictNumber === metricNumber) return true;
+    const denominator = Math.max(
+      Math.abs(dictNumber),
+      Math.abs(metricNumber),
+      1
+    );
+    if (Math.abs(dictNumber - metricNumber) / denominator <= 0.01) return true;
   }
 
-  const dictStr = String(dictValue).trim();
-  const metricStr = metricValue.trim();
+  const normalizedDict = normalizeText(dictString);
+  const normalizedMetric = normalizeText(metricString);
+  return (
+    normalizedDict === normalizedMetric ||
+    (normalizedDict.length > 0 && normalizedMetric.includes(normalizedDict)) ||
+    (normalizedMetric.length > 0 && normalizedDict.includes(normalizedMetric))
+  );
+}
 
-  if (dictStr === metricStr) return true;
+function validateMetricList(
+  evidence: SupportingMetric[],
+  prefix: string,
+  metrics: DashboardMetrics,
+  errors: string[]
+): void {
+  evidence.forEach((metric, index) => {
+    const path = `${prefix}.supporting_metrics[${index}]`;
+    const dictionaryValue = lookupDottedPath(metrics, metric.source_field);
+    if (dictionaryValue === undefined) {
+      errors.push(`${path}: source_field "${metric.source_field}" was not found`);
+      return;
+    }
+    if (!metricValuesMatch(metric.value, dictionaryValue)) {
+      errors.push(
+        `${path}: value "${metric.value}" does not match dashboard_metrics.${metric.source_field}`
+      );
+    }
+  });
+}
 
-  // Numeric: strip non-numeric chars from both sides, then compare with
-  // 1% relative tolerance. Stricter denominators avoid div-by-zero and
-  // asymmetric tolerance for small values.
-  const stripNonNumeric = (s: string): string => s.replace(/[^\d.\-]/g, "");
-  const dictNum = Number(stripNonNumeric(dictStr));
-  const metricNum = Number(stripNonNumeric(metricStr));
-  if (!Number.isNaN(dictNum) && !Number.isNaN(metricNum)) {
-    if (dictNum === metricNum) return true;
-    const denom = Math.max(Math.abs(dictNum), Math.abs(metricNum), 1);
-    if (Math.abs(dictNum - metricNum) / denom <= 0.01) return true;
+function containsValue(detail: string, value: string | number): boolean {
+  if (typeof value === "string") {
+    return normalizeText(detail).includes(normalizeText(value));
   }
+  const candidates = [String(value), value.toLocaleString("en-US")];
+  return candidates.some((candidate) => detail.includes(candidate));
+}
 
-  // String normalization: lowercase, underscores/hyphens to spaces,
-  // collapse whitespace. Then exact + substring.
-  const normalize = (s: string): string =>
-    s.toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
-  const dictNorm = normalize(dictStr);
-  const metricNorm = normalize(metricStr);
-  if (dictNorm === metricNorm) return true;
+function getChoosableReviewSummaries(
+  summaries: DomainSummary[]
+): DomainSummary[] {
+  return summaries.filter(
+    (summary) =>
+      summary.domain === "review" &&
+      summary.supporting_metrics?.some((metric) =>
+        metric.source_field.startsWith("choosable.")
+      )
+  );
+}
+
+function validateRequiredChoosableEvidence(
+  summary: DomainSummary,
+  metrics: DashboardMetrics,
+  errors: string[]
+): void {
+  const evidence = summary.supporting_metrics ?? [];
+  const requiredSources = [
+    "choosable.practice_review_count",
+    "choosable.strongest_competitor_name",
+    "choosable.strongest_competitor_review_count",
+  ];
+  requiredSources.forEach((source) => {
+    if (!evidence.some((metric) => metric.source_field === source)) {
+      errors.push(`domain_summaries.review: missing required evidence ${source}`);
+    }
+  });
+
+  const choosable = metrics.choosable;
   if (
-    dictNorm.length > 0 &&
-    metricNorm.length > 0 &&
-    (dictNorm.includes(metricNorm) || metricNorm.includes(dictNorm))
+    choosable.strongest_competitor_name &&
+    !containsValue(summary.detail, choosable.strongest_competitor_name)
   ) {
-    return true;
+    errors.push("domain_summaries.review: detail omits the strongest competitor name");
   }
-
-  return false;
+  [
+    choosable.practice_review_count,
+    choosable.strongest_competitor_review_count,
+  ].forEach((value) => {
+    if (value !== null && !containsValue(summary.detail, value)) {
+      errors.push(`domain_summaries.review: detail omits grounded count ${value}`);
+    }
+  });
 }
 
-/**
- * Plan 1 T10 post-Zod validator. Walks every
- * `top_actions[i].supporting_metrics[j].source_field` against the
- * dashboard_metrics dictionary. Throws on mismatch (which triggers the
- * orchestrator's outer 3-attempt retry, with the error message included
- * so the model can self-correct).
- *
- * If the metrics dictionary is null (computeDashboardMetrics failed),
- * the validator is skipped — Summary still ran with whatever input was
- * available; we don't want to block it on metrics infrastructure.
- */
+function validateChoosableWording(
+  summary: DomainSummary,
+  metrics: DashboardMetrics,
+  errors: string[]
+): void {
+  const detail = summary.detail.toLowerCase();
+  if (
+    metrics.choosable.has_most_reviews === false &&
+    /\b(you|your practice) (lead|leads|have the most reviews)\b/.test(detail)
+  ) {
+    errors.push("domain_summaries.review: claims leadership without the most reviews");
+  }
+  if (
+    metrics.choosable.has_most_reviews === true &&
+    /(close|closing) the gap|\bbehind\b|\btrails?\b/.test(detail)
+  ) {
+    errors.push("domain_summaries.review: claims a gap while the practice has the most reviews");
+  }
+  if (
+    metrics.choosable.is_at_or_above_review_median === true &&
+    /below (the )?(median|average)/.test(detail)
+  ) {
+    errors.push("domain_summaries.review: contradicts the review median");
+  }
+}
+
+function validateChoosableSummary(
+  output: SummaryV2Output,
+  metrics: DashboardMetrics,
+  errors: string[]
+): void {
+  const summaries = getChoosableReviewSummaries(output.domain_summaries ?? []);
+  const choosable = metrics.choosable;
+  if (choosable.source_status !== "ready") {
+    if (summaries.length > 0) {
+      errors.push("domain_summaries.review: Choosable evidence used when source is not ready");
+    }
+    return;
+  }
+
+  const hasRequiredValues =
+    choosable.practice_review_count !== null &&
+    choosable.strongest_competitor_name !== null &&
+    choosable.strongest_competitor_review_count !== null;
+  if (!hasRequiredValues) return;
+  if (summaries.length !== 1) {
+    errors.push("domain_summaries.review: exactly one grounded Choosable summary is required");
+    return;
+  }
+
+  validateRequiredChoosableEvidence(summaries[0], metrics, errors);
+  validateChoosableWording(summaries[0], metrics, errors);
+}
+
+/** Validate top-action and domain-summary evidence against dashboard metrics. */
 export function validateSummarySupportingMetrics(
   output: SummaryV2Output,
-  metrics: DashboardMetrics | null,
+  metrics: DashboardMetrics | null
 ): void {
   if (!metrics) {
-    log(`  [summary-v2] ⚠ No dashboard_metrics available — skipping value validator`);
+    log("  [summary-v2] No dashboard_metrics available; skipping value validator");
     return;
   }
 
   const errors: string[] = [];
-  output.top_actions.forEach((action, i) => {
-    action.supporting_metrics.forEach((metric, j) => {
-      const dictValue = lookupDottedPath(metrics, metric.source_field);
-      if (dictValue === undefined) {
-        errors.push(
-          `top_actions[${i}].supporting_metrics[${j}]: source_field "${metric.source_field}" not found in dashboard_metrics dictionary`,
-        );
-        return;
-      }
-      if (!metricValuesMatch(metric.value, dictValue)) {
-        errors.push(
-          `top_actions[${i}].supporting_metrics[${j}]: value "${metric.value}" doesn't match dashboard_metrics.${metric.source_field} = ${JSON.stringify(dictValue)}`,
-        );
-      }
-    });
+  output.top_actions.forEach((action, index) => {
+    validateMetricList(
+      action.supporting_metrics,
+      `top_actions[${index}]`,
+      metrics,
+      errors
+    );
   });
+  (output.domain_summaries ?? []).forEach((summary, index) => {
+    if (summary.supporting_metrics) {
+      validateMetricList(
+        summary.supporting_metrics,
+        `domain_summaries[${index}]`,
+        metrics,
+        errors
+      );
+    }
+  });
+  validateChoosableSummary(output, metrics, errors);
 
   if (errors.length > 0) {
-    const msg = `Summary v2 supporting_metrics validator failed:\n  - ${errors.join("\n  - ")}`;
-    log(`  [summary-v2] ⚠ ${msg}`);
-    throw new Error(msg);
+    const message = `Summary v2 supporting_metrics validator failed:\n  - ${errors.join("\n  - ")}`;
+    log(`  [summary-v2] ${message}`);
+    throw new Error(message);
   }
 }
 
-/**
- * Plan 1 T10 highlights validator. Each `highlights[i]` must be a contiguous
- * substring of the action's `rationale`. Mismatches are logged as warnings
- * but do NOT throw — the frontend's HighlightedText component will silently
- * drop unmatched highlights at render time, so this is a soft signal.
- */
+/** Warn when a highlight is not a verbatim rationale substring. */
 export function validateSummaryHighlights(output: SummaryV2Output): void {
   const warnings: string[] = [];
-  output.top_actions.forEach((action, i) => {
-    if (!action.highlights || action.highlights.length === 0) return;
-    action.highlights.forEach((phrase, j) => {
+  output.top_actions.forEach((action, actionIndex) => {
+    action.highlights?.forEach((phrase, highlightIndex) => {
       if (!action.rationale.includes(phrase)) {
         warnings.push(
-          `top_actions[${i}].highlights[${j}]: "${phrase}" not found verbatim in rationale; will be dropped at render time`,
+          `top_actions[${actionIndex}].highlights[${highlightIndex}]: "${phrase}" is not in rationale`
         );
       }
     });
   });
   if (warnings.length > 0) {
-    log(`  [summary-v2] ⚠ Highlights mismatches:\n  - ${warnings.join("\n  - ")}`);
+    log(`  [summary-v2] Highlights mismatches:\n  - ${warnings.join("\n  - ")}`);
   }
 }

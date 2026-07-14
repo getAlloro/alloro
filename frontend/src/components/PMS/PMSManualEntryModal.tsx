@@ -80,13 +80,15 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
     isReprocessing,
     drawerOpen,
     setDrawerOpen,
+    canConfigureFormula,
     confirmMerge,
     cancelMerge,
     isPasting,
     pastePhase,
     showPasteConfirm,
     pasteInfo,
-    batchProgress,
+    pastedRowsParsed,
+    requiresSanitization,
     confirmPaste,
     cancelPaste,
     handlePasteEvent,
@@ -190,17 +192,16 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
               )}
             </div>
             <div className="flex items-center gap-2">
-              {/* Mapping settings link — visible whenever a mapping has been
-	                  resolved, even silently from org-cache, so users can audit
-	                  what was applied. */}
-              {currentMapping && !drawerOpen && (
+              {/* Default-parser formulas stay configurable after mapping.
+                  Custom parsers own their formulas and expose no controls. */}
+              {canConfigureFormula && currentMapping && !drawerOpen && (
                 <button
                   type="button"
                   onClick={() => setDrawerOpen(true)}
                   className="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-50 hover:border-gray-300"
-                  title="Review or edit the column mapping"
+                  title="Review or edit the production formula and column mapping"
                 >
-                  Mapping settings
+                  Formula settings
                 </button>
               )}
               {isResolvingMapping && (
@@ -377,7 +378,8 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
               pasteInfo={pasteInfo}
               isPasting={isPasting}
               phase={pastePhase}
-              batchProgress={batchProgress}
+              rowsParsed={pastedRowsParsed}
+              requiresSanitization={requiresSanitization}
               onConfirm={confirmPaste}
               onCancel={cancelPaste}
               droppedFileName={droppedFileName}
@@ -407,7 +409,7 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
           {/* Column-mapping side drawer (T18). Slides over the right edge
               of the modal whenever a non-org-cache mapping needs review, or
               when the user clicks "Mapping settings" in the header. */}
-          {currentMapping && mappingSource && (
+          {canConfigureFormula && currentMapping && mappingSource && (
             <ColumnMappingDrawer
               isOpen={drawerOpen}
               headers={mappingHeaders}

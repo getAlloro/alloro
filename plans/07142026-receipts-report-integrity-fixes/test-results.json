@@ -1,0 +1,112 @@
+{
+  "plan": "plans/07142026-receipts-report-integrity-fixes",
+  "generatedAt": "2026-07-14",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "T1",
+      "title": "Protected route rejects unauthenticated and non-super-admin callers",
+      "surface": "api",
+      "precondition": "Run the receipts route tests with synthetic auth fixtures.",
+      "steps": [
+        "Request the endpoint without an access token.",
+        "Request the endpoint with an authenticated non-super-admin user."
+      ],
+      "expected": "The requests return 401 and 403 respectively, and the report service is not called.",
+      "status": "pass",
+      "evidence": "src/__tests__/receipts-report-route.test.ts passed in the 41-test focused run and the 379-test full suite.",
+      "notes": "The route uses the existing authenticateToken and superAdminMiddleware boundary.",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Boundary validation rejects invalid organization and date inputs",
+      "surface": "api",
+      "precondition": "Run the receipts route tests against the imported Express app.",
+      "steps": [
+        "Request an invalid organization id.",
+        "Request malformed and inverted date ranges."
+      ],
+      "expected": "Every invalid request returns 400 without invoking report orchestration.",
+      "status": "pass",
+      "evidence": "src/__tests__/receipts-report-route.test.ts passed all route validation cases.",
+      "notes": "Dates use an inclusive YYYY-MM-DD contract converted to a half-open UTC range.",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "Valid requests return the canonical organization-scoped report",
+      "surface": "api",
+      "precondition": "Use the synthetic super-admin request and mocked organization-scoped service result.",
+      "steps": [
+        "Request the endpoint with a valid organization id and date range.",
+        "Inspect the response envelope and exact service arguments."
+      ],
+      "expected": "The response is canonical and the organization/date arguments match the validated request.",
+      "status": "pass",
+      "evidence": "src/__tests__/receipts-report-route.test.ts passed canonical success, error, and argument assertions.",
+      "notes": "Every ReceiptsReportModel read requires organizationId.",
+      "waiver": ""
+    },
+    {
+      "id": "T4",
+      "title": "Attributable GBP work comes only from the published work ledger",
+      "surface": "api",
+      "precondition": "Run model and service tests with synthetic published, draft, out-of-period, and cross-tenant rows.",
+      "steps": [
+        "Aggregate local posts and review replies for the requested organization and period.",
+        "Compare included rows with excluded synced or non-published activity."
+      ],
+      "expected": "Only published local_post and review_reply gbp_work_items in the tenant/date boundary contribute.",
+      "status": "pass",
+      "evidence": "src/__tests__/receipts-report-model.test.ts and receipts-report-service.test.ts passed published-only and tenant-scope cases.",
+      "notes": "No gbp_local_posts or synced review reply flags are queried.",
+      "waiver": ""
+    },
+    {
+      "id": "T5",
+      "title": "Ranking movement uses explicit search positions and observation timestamps",
+      "surface": "api",
+      "precondition": "Run model and service tests with multiple ranking observations and search-result fixtures.",
+      "steps": [
+        "Load completed, successful search_position observations for the period.",
+        "Inspect first, last, best, worst, and latest competitor context."
+      ],
+      "expected": "The report preserves search_position semantics, real search_checked_at timestamps, and deterministic latest context.",
+      "status": "pass",
+      "evidence": "src/__tests__/receipts-report-model.test.ts and receipts-report-service.test.ts passed ranking and competitor cases.",
+      "notes": "Read-only dev EXPLAIN completed at estimated cost 76.69; future index work remains separate.",
+      "waiver": ""
+    },
+    {
+      "id": "T6",
+      "title": "Rybbit distinguishes real zero from unavailable states",
+      "surface": "api",
+      "precondition": "Run receipts-period-users tests with mocked project lookup and fetch responses.",
+      "steps": [
+        "Return a valid zero-user response.",
+        "Exercise missing connection, malformed payload, request failure, and timeout paths."
+      ],
+      "expected": "Zero returns ok with users 0; missing config returns not_connected; failures return source_unavailable.",
+      "status": "pass",
+      "evidence": "src/__tests__/receipts-period-users.test.ts passed all Rybbit success and failure-state cases.",
+      "notes": "The bounded timeout is limited to the new receipts-specific request.",
+      "waiver": ""
+    },
+    {
+      "id": "T7",
+      "title": "Empty supported activity remains honest",
+      "surface": "api",
+      "precondition": "Run service tests with an existing organization, empty location activity, and unavailable optional sources.",
+      "steps": [
+        "Generate a report with no attributable activity.",
+        "Inspect totals, ranking context, and optional-source states."
+      ],
+      "expected": "The report returns supported zeros and explicit null or unavailable states without claiming work.",
+      "status": "pass",
+      "evidence": "src/__tests__/receipts-report-service.test.ts passed empty, partial-source, and deterministic-total cases.",
+      "notes": "Unsupported replacement values remain null and ratesStaked remains false.",
+      "waiver": ""
+    }
+  ]
+}

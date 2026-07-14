@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Choosable Summary Hardening Spec</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); margin-top: 12px; }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 840px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; letter-spacing: 0; }
+    h2 { font-size: 1.35rem; letter-spacing: 0; }
+    h3 { font-size: 1rem; letter-spacing: 0; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-progress">In Progress</span>
+      </div>
+      <h1>Choosable Summary Hardening</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>In Progress</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/07142026-choosable-summary-hardening</dd></div>
+        <div><dt>Size</dt><dd>Large</dd></div>
+        <div><dt>Risk</dt><dd>Level 3</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>PR 150 adds a useful review-volume comparison to the Summary agent, but it is not safe to merge as written. The customer metrics endpoint trusts tenant IDs from the query string, unfinished competitor sets can be treated as curated, median standing is mislabeled as market leadership, generator prose lacks deterministic evidence validation, operational failures look identical to “no competitors,” and the generated comparison is not rendered to the customer.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Harden PR 150 so a newly generated Summary can show one compact, read-only review comparison on the Practice Hub using only a finalized competitor set and validated evidence. Secure the metrics endpoint with server-derived tenant context, preserve prior Summary outputs without migration or backfill, keep the existing top-action selection behavior unchanged, and hide the comparison whenever the newest Summary lacks grounded Choosable data.</p>
+    </section>
+
+    <section class="spec-card" id="scope-ledger">
+      <h2>Scope Ledger</h2>
+      <dl>
+        <div><dt>Objective</dt><dd>Make PR 150 tenant-safe, truth-preserving, customer-visible, and testable.</dd></div>
+        <div><dt>Intended user</dt><dd>Alloro client owners viewing the Practice Hub; admins validating the latest Summary output.</dd></div>
+        <div><dt>Surface</dt><dd><code>GET /api/dashboard/metrics</code>, monthly Summary generation, <code>/dashboard</code>, and matching Alloro Docs.</dd></div>
+        <div><dt>System of record</dt><dd>Practice review totals from <code>dashboard_metrics.reviews</code>; finalized active rows from <code>location_competitors</code>; the newest location-scoped Summary task for rendered copy.</dd></div>
+        <div><dt>In scope</dt><dd>Tenant enforcement, finalized-set gating, honest source status, corrected review semantics, evidence-backed domain summaries, latest-generation selection, one visible comparison strip, tests, and docs parity.</dd></div>
+        <div><dt>Out of scope</dt><dd>Ranking formulas, SerpApi position logic, top-action priority selection, review-request generation, database migrations, historical backfills, automatic agent reruns, production writes, deployment, and merge.</dd></div>
+        <div><dt>Open questions</dt><dd>None for implementation. A fresh dev or production Summary rerun remains a separate operational authorization after deployment.</dd></div>
+      </dl>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Verified PR state</h3>
+      <ul>
+        <li>Source: PR 150, <code>claude/inversion-04-choosable</code> at <code>f6e631310bd27bc1eb4411dee4aa337598b08a40</code>.</li>
+        <li>Target: <code>dev/dave</code>; latest fetched base at planning time: <code>94320d86c99df14f03a2ff58e3e3a57d517421b0</code>.</li>
+        <li>The main checkout contains unrelated OS work. Planning and later execution use the isolated PR worktree at <code>/private/tmp/alloro-pr150-review-150</code>.</li>
+        <li>The PR currently changes only the Summary prompt and dashboard-metrics builder/types. Customer rendering, endpoint isolation, and PR-specific tests are absent.</li>
+      </ul>
+
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>src/routes/dashboard.ts</code> and <code>src/controllers/dashboard/DashboardController.ts</code> — current metrics endpoint accepts client-supplied organization/location IDs and lacks location scoping.</li>
+        <li><code>src/utils/dashboard-metrics/sectionBuilders.ts</code> — PR 150 adds the 118-line Choosable builder and pushes this shared file to roughly 700 lines.</li>
+        <li><code>src/utils/dashboard-metrics/service.dashboard-metrics.ts</code> and <code>types.ts</code> — orchestration and deterministic wire contract used by the monthly Summary and customer metrics API.</li>
+        <li><code>src/models/LocationCompetitorModel.ts</code> — active competitor rows and onboarding status.</li>
+        <li><code>src/controllers/practice-ranking/feature-services/service.competitor-source-resolver.ts</code> — established finalized-competitor gate.</li>
+        <li><code>src/agents/monthlyAgents/Summary.md</code>, <code>src/controllers/agents/types/agent-output-schemas.ts</code>, and <code>src/controllers/agents/feature-utils/summaryV2Validators.ts</code> — generated copy contract and post-Zod evidence validation.</li>
+        <li><code>frontend/src/hooks/queries/useTopAction.ts</code> — parses Summary task metadata but currently chooses the hero solely by priority and does not independently expose the newest Summary comparison.</li>
+        <li><code>frontend/src/components/dashboard/DashboardOverview.tsx</code> and <code>frontend/src/components/dashboard/focus/OneThingBanner.tsx</code> — Practice Hub composition and existing hero behavior.</li>
+        <li><code>/Users/rustinedave/Desktop/alloro-docs/src/data/pages/practice-hub.ts</code> and <code>src/components/replicas/PracticeHubReplica.tsx</code> — required docs copy, hotspot map, and replica.</li>
+      </ul>
+
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li><strong>Backend reference (§6.1):</strong> <code>src/controllers/gbp-automation/GbpAutomationController.ts</code>, <code>feature-services/GbpReadinessService.ts</code>, and <code>feature-utils/controllerResponses.ts</code> for server context, thin orchestration, typed status, and canonical response envelopes.</li>
+        <li><strong>Competitor gate:</strong> <code>service.competitor-source-resolver.ts</code> checks onboarding status before loading curated rows.</li>
+        <li><strong>Frontend reference (§12.1):</strong> <code>frontend/src/api/dashboardMetrics.ts</code> → React Query hook → <code>components/dashboard/focus/</code>, using the shared API client and query-key factory.</li>
+        <li><strong>Visible strip:</strong> match the calm, light Practice Hub surfaces and the concise comparison language already used by <code>RankingsHubSurface.tsx</code>; no second CTA and no competing hero.</li>
+      </ul>
+
+      <h3>Code Constitution Contract</h3>
+      <p>This work must conform to §§1.3, 2.1–2.4, 3.2, 4.5, 5.5, 6.1–6.3, 7.1–7.4, 8.1–8.3, 9.1, 9.3, 11.1, 11.2, 11.7, 12.1–12.4, 13.1–13.3, 14.1, 14.3, 15.1, 16.1–16.2, 17.1–17.2, and 20.1–20.5.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Derive organization and accessible locations from authenticated request context; accept only a scoped <code>locationId</code> from the customer request (§5.5, §11.7).</li>
+            <li>Use only a finalized active competitor set; pending, curating, empty, and failed sources must be distinguishable.</li>
+            <li>Replace the ambiguous leadership flag with separate question-shaped booleans for “at or above median” and “has the most reviews” (§1.3).</li>
+            <li>Keep old Summary outputs valid by making new domain-summary evidence optional at the schema boundary.</li>
+            <li>Require grounded Choosable evidence before the new customer strip renders.</li>
+            <li>Select the strip from the newest Summary task by <code>created_at</code> with a deterministic ID tie-break; never fall back to an older comparison.</li>
+            <li>Keep the existing highest-priority hero action behavior unchanged.</li>
+            <li>Use Pino with organization/location context and no <code>any</code> in new code.</li>
+            <li>Update Alloro Docs in its separate working tree.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>Do not change ranking agent inputs, ranking formulas, <code>rank_position</code>, or SerpApi <code>search_position</code>.</li>
+            <li>Do not write directly to the database outside models (§7.4).</li>
+            <li>Do not collapse an operational failure into the same payload as an unconfigured competitor set (§3.2).</li>
+            <li>Do not render a comparison from an older Summary when the newest Summary lacks evidence.</li>
+            <li>Do not auto-backfill tasks, rerun agents, touch production data, deploy, merge, or push during execution without the later gate.</li>
+            <li>Do not modify the unrelated dirty main checkout.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Compatibility Contract</h3>
+      <ul>
+        <li>No database migration or data rewrite.</li>
+        <li>Prior Summary metadata without domain-summary evidence continues to parse.</li>
+        <li>Prior generations show no comparison strip.</li>
+        <li>The comparison becomes visible only after a new grounded Summary generation.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 3 — the plan closes a tenant-isolation vulnerability and changes an AI-generated customer-facing read. The mitigations are explicit and testable, so execution can proceed only after this spec is approved.</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><strong>R1 — Cross-tenant metrics read (Level 3).</strong> Query-provided IDs can select another organization/location. <strong>Mitigation:</strong> authenticated RBAC + location scope, server-derived organization, required scoped location, canonical access-denied response, and a negative tenant test.</li>
+        <li><strong>R2 — Uncurated comparisons (Level 2).</strong> Active discovery rows may exist before the owner finalizes the set. <strong>Mitigation:</strong> copy the finalized gate used by the ranking resolver and return a typed not-ready status otherwise.</li>
+        <li><strong>R3 — False “leader” wording (Level 2).</strong> Being above the median does not mean leading the strongest competitor. <strong>Mitigation:</strong> separate median standing from true maximum standing. Test practice 550 versus competitors 100 and 1,000: at/above median is true; market leader is false.</li>
+        <li><strong>R4 — Fabricated prose (Level 3).</strong> Domain-summary names and numbers are not currently walked by the evidence validator. <strong>Mitigation:</strong> optional typed evidence plus deterministic name/value validation against <code>dashboard_metrics.choosable</code>; invalid output triggers the existing Summary retry path.</li>
+        <li><strong>R5 — Stale comparison (Level 2).</strong> Task selection can retain an older high-priority Summary. <strong>Mitigation:</strong> preserve the hero selector, but independently select comparison copy only from the newest Summary generation and hide on missing evidence.</li>
+        <li><strong>R6 — Total Summary outage from optional competitor data (Level 2).</strong> Throwing on a competitor read could remove otherwise valid monthly output. <strong>Mitigation:</strong> log the operational error and return an explicit unavailable status, which the prompt and UI must not present as a real comparison.</li>
+        <li><strong>R7 — Docs drift (Level 2).</strong> A new Practice Hub section without replica/copy parity leaves support guidance wrong. <strong>Mitigation:</strong> update both Practice Hub docs files and verify the docs build separately.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> monthly Summary input/output for all future runs; the read-only dashboard metrics endpoint used by <code>ProductionPanel</code>, <code>StatCardRow</code>, and <code>RankingsHubSurface</code>; the task feed used by <code>OneThingBanner</code>; the Practice Hub layout; onboarding demo behavior; and Practice Hub documentation. No worker cadence, ranking calculation, database schema, or existing task row is changed.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li><strong>Recommended path A:</strong> hide the strip unless the newest Summary carries validated Choosable evidence. This is the selected path because it prevents stale or legacy copy from looking current.</li>
+        <li><strong>Rejected path B:</strong> fall back to any older Summary with comparison data. This would make the page look complete while silently showing stale competitor counts.</li>
+        <li><strong>Rejected path C:</strong> render deterministic metrics directly and bypass the Summary agent. That would change the product decision that the customer sees the Summary agent's contextual read.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+
+      <article class="task-card">
+        <h3>T1: Tenant-safe dashboard metrics endpoint</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add location-scope middleware; derive organization/location from authenticated context; require the customer request to send only <code>locationId</code>; use typed dashboard errors and the canonical <code>{ success, data, error }</code> envelope; update the frontend API client without changing its React Query cache partition by organization/location.</dd></div>
+          <div><dt>Files</dt><dd><code>src/routes/dashboard.ts</code>, <code>src/middleware/rbac.ts</code>, <code>src/controllers/dashboard/DashboardController.ts</code>, new <code>src/controllers/dashboard/feature-utils/DashboardMetricsError.ts</code>, new <code>src/controllers/dashboard/feature-utils/controllerResponses.ts</code>, <code>frontend/src/api/dashboardMetrics.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Route test proves a foreign location is denied and client-supplied organization IDs are not trusted; success and failure envelopes match §8.1.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: Finalized and honest Choosable metrics service</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Extract PR 150's Choosable logic from the large shared builder into a dashboard feature service. Validate organization/location ownership, require finalized onboarding before active competitors are loaded, add typed source status/reason, separate median standing from true review leadership, keep helper functions small, and return explicit unavailable status after a logged operational failure.</dd></div>
+          <div><dt>Files</dt><dd>new <code>src/controllers/dashboard/feature-services/ChoosableMetricsService.ts</code>, <code>src/utils/dashboard-metrics/sectionBuilders.ts</code>, <code>src/utils/dashboard-metrics/service.dashboard-metrics.ts</code>, <code>src/utils/dashboard-metrics/types.ts</code>, <code>frontend/src/types/dashboardMetrics.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1 for the authenticated HTTP path; direct monthly-agent calls remain supported.</dd></div>
+          <div><dt>Verify</dt><dd>Service tests cover missing location, organization mismatch, pending/curating/finalized-empty/finalized-ready states, model failure, freshness, median math, and the 550-vs-100/1,000 leadership edge case.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: Evidence-backed Summary domain comparison</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Update the Summary prompt to use the new source status and corrected booleans. Add optional supporting evidence to <code>DomainSummarySchema</code> so old outputs remain valid. Extend the post-Zod validator to verify domain-summary source fields and values, require the strongest competitor name plus grounded comparison counts for a Choosable review summary, and reject fabricated or contradictory output through the existing retry path.</dd></div>
+          <div><dt>Files</dt><dd><code>src/agents/monthlyAgents/Summary.md</code>, <code>src/controllers/agents/types/agent-output-schemas.ts</code>, <code>src/controllers/agents/feature-utils/summaryV2Validators.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T2</dd></div>
+          <div><dt>Verify</dt><dd>Validator tests accept grounded new output and legacy output, and reject an invented competitor, invented count, wrong source field, wrong median/leader wording, or evidence attached when the source is not ready.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: Latest-generation Practice Hub comparison strip</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Keep <code>useTopAction</code>'s highest-priority hero selection intact while independently resolving the newest Summary task by <code>created_at</code> and task ID. Runtime-parse the optional domain-summary evidence. Add a compact read-only Choosable comparison below <code>OneThingBanner</code>; show generated copy only when the newest review summary has validated <code>choosable.*</code> evidence. Add the query key to the shared factory and use existing organization-copy formatting. No CTA and no fallback to older summaries.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/hooks/queries/useTopAction.ts</code>, <code>frontend/src/lib/queryClient.ts</code>, new <code>frontend/src/components/dashboard/focus/ChoosableComparisonStrip.tsx</code>, <code>frontend/src/components/dashboard/DashboardOverview.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T3</dd></div>
+          <div><dt>Verify</dt><dd>Tests prove the hero is unchanged, the newest grounded comparison renders, a newest legacy/no-evidence Summary hides the strip even when an older comparison exists, and loading/error/empty states do not create a false comparison.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T5: Mirrored automated tests</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add synthetic tests at the same layer as each changed contract. Keep production data and PII out of fixtures. No focused or skipped tests.</dd></div>
+          <div><dt>Files</dt><dd>new <code>src/__tests__/dashboard-metrics.smoke.test.ts</code>, new <code>src/__tests__/choosable-metrics.test.ts</code>, new <code>src/__tests__/summary-v2-validators.test.ts</code>, new <code>frontend/src/hooks/queries/useTopAction.test.tsx</code>, new <code>frontend/src/components/dashboard/focus/ChoosableComparisonStrip.test.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1–T4</dd></div>
+          <div><dt>Verify</dt><dd><code>npm test -- --run</code> and <code>npm --prefix frontend test -- --run</code>; targeted tests first, then full suites.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T6: Practice Hub documentation parity</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Update the Practice Hub description, hotspot/step sequence, and static replica to include the read-only review comparison. Keep docs changes in the separate Alloro Docs working tree and do not mix them into the app PR commit.</dd></div>
+          <div><dt>Files</dt><dd><code>/Users/rustinedave/Desktop/alloro-docs/src/data/pages/practice-hub.ts</code>, <code>/Users/rustinedave/Desktop/alloro-docs/src/components/replicas/PracticeHubReplica.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T4</dd></div>
+          <div><dt>Verify</dt><dd>Alloro Docs TypeScript/build passes; Practice Hub replica and hotspot order match the application.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T7: Integration and behavioral verification</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Recheck the PR against the latest <code>dev/dave</code>, run the Constitution and build gates, create <code>test.html</code> plus <code>test-results.json</code>, and validate the customer/admin paths without triggering production work. Use Admin → Pilot → Practice Hub for One Endodontics when a newly generated dev Summary is available; otherwise verify the honest legacy state (strip absent) and keep the fresh-generation browser item pending until rerun authorization.</dd></div>
+          <div><dt>Files</dt><dd>new <code>plans/07142026-choosable-summary-hardening/test.html</code>, new <code>plans/07142026-choosable-summary-hardening/test-results.json</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1–T6</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code>; <code>npm run build</code>; <code>npm --prefix frontend run build</code>; targeted and full tests; scoped lint; <code>npm run check:conventions --strict</code>; <code>npm run check:all</code>; manual <code>http://localhost:3000/admin</code> Pilot check; admin Summary input/output inspection.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled> Tenant-scoped dashboard endpoint ignores client organization IDs and denies inaccessible locations.</li>
+        <li><input type="checkbox" disabled> Only finalized active competitor sets can produce a Choosable comparison.</li>
+        <li><input type="checkbox" disabled> Not-ready, empty, and operationally unavailable sources are distinguishable.</li>
+        <li><input type="checkbox" disabled> Median standing and true review leadership are separate, correctly named, and tested.</li>
+        <li><input type="checkbox" disabled> Domain-summary competitor names and numbers are validated against deterministic metrics.</li>
+        <li><input type="checkbox" disabled> Legacy Summary outputs still validate and render no comparison strip.</li>
+        <li><input type="checkbox" disabled> The Practice Hub strip uses only the newest Summary generation and never falls back to older comparison data.</li>
+        <li><input type="checkbox" disabled> Existing highest-priority hero action behavior is unchanged.</li>
+        <li><input type="checkbox" disabled> New backend service, validator, route, hook, and component tests pass with synthetic data.</li>
+        <li><input type="checkbox" disabled> <code>npx tsc --noEmit</code>, backend build, frontend build, strict conventions, scoped lint, and full test suites pass with no new failures.</li>
+        <li><input type="checkbox" disabled> <code>npm run check:all</code> introduces no new Constitution violations; every residual warning is classified with its § article.</li>
+        <li><input type="checkbox" disabled> Alloro Docs Practice Hub copy and replica match the new customer-visible strip.</li>
+        <li><input type="checkbox" disabled> Acceptance artifacts exist and roll up honestly; no fresh-generation result is marked passed without an authorized dev Summary run and direct evidence.</li>
+        <li><input type="checkbox" disabled> No migration, backfill, agent rerun, production write, deployment, push, or merge occurred during implementation/testing without its explicit gate.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-07-14</h3>
+        <p><strong>Change:</strong> Moved the three planned backend test files into <code>src/__tests__/</code> while preserving the tenant, service, and validator coverage.</p>
+        <p><strong>Reason:</strong> Execution deviation: the repository's backend Vitest configuration includes only <code>src/__tests__/**/*.{test,spec}.ts</code>; the originally planned colocated paths would not execute.</p>
+        <p><strong>Updated Done criteria:</strong> none; the same synthetic regression coverage remains required.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 2 - 2026-07-14</h3>
+        <p><strong>Change:</strong> Added a configurable location-scope failure responder in <code>src/middleware/rbac.ts</code> and selected the dashboard canonical response adapter in <code>src/routes/dashboard.ts</code>. Existing routes retain the legacy responder.</p>
+        <p><strong>Reason:</strong> Execution deviation: the shared middleware denied foreign locations before the controller and returned a legacy raw error, so the endpoint could not meet the planned canonical envelope without a narrow adapter seam.</p>
+        <p><strong>Updated Done criteria:</strong> the foreign-location route test must assert the canonical dashboard error code and envelope.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 3 - 2026-07-14</h3>
+        <p><strong>Change:</strong> Tightened Summary evidence comparison so numeric tolerance runs only when both values contain an actual digit; nonnumeric competitor names now use string comparison.</p>
+        <p><strong>Reason:</strong> User QA: the focused validator test exposed that two nonnumeric strings were stripped to empty strings and both coerced to numeric zero, allowing fabricated name evidence through the numeric comparison branch.</p>
+        <p><strong>Updated Done criteria:</strong> the fabricated-competitor test must fail on the evidence value mismatch itself.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 4 - 2026-07-14</h3>
+        <p><strong>Change:</strong> Marked the intentionally discarded Framer Motion props as consumed in the comparison-strip test mock.</p>
+        <p><strong>Reason:</strong> User QA: scoped frontend lint correctly rejected the three unused destructured test props.</p>
+        <p><strong>Updated Done criteria:</strong> scoped frontend lint and the comparison-strip test must pass with no errors.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

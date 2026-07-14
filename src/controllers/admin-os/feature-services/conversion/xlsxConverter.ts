@@ -1,11 +1,16 @@
 import * as XLSX from "xlsx";
 import type { OsParsedDocument } from "../../feature-utils/osConversionTypes";
+import {
+  extractXlsxImages,
+  isOoxmlWorkbook,
+  type XlsxSheetImageReference,
+} from "./xlsxImageExtractor";
 
 /**
  * Excel (.xlsx + legacy .xls) → GFM markdown converter (P6 T2). Ported from
  * alloro-os xlsxParser. Each worksheet becomes a `## <sheet>` section followed
- * by a GFM table (row 0 = header). SheetJS's community build cannot extract
- * embedded images, so `images` is always `[]`.
+ * by a GFM table (row 0 = header). Standard OOXML worksheet drawings are read
+ * separately so renderable embedded images follow their owning sheet table.
  */
 
 type RowMatrix = unknown[][];
@@ -57,9 +62,27 @@ function largeSheetWarning(name: string, matrix: RowMatrix): string | null {
   return null;
 }
 
+function escapeImageAlt(alt: string): string {
+  return alt.replace(/\r\n|\r|\n/g, " ").replace(/([\[\]\\])/g, "\\$1").trim();
+}
+
+function imagesToMarkdown(images: XlsxSheetImageReference[]): string {
+  return images
+    .map((image) => `![${escapeImageAlt(image.alt)}](${image.placeholder})`)
+    .join("\n\n");
+}
+
+function appendSheetImages(
+  section: string,
+  images: XlsxSheetImageReference[]
+): string {
+  const imageMarkdown = imagesToMarkdown(images);
+  return imageMarkdown ? `${section}\n\n${imageMarkdown}` : section;
+}
+
 /**
  * Parse an Excel workbook buffer into GFM markdown. One section per worksheet;
- * empty sheets are skipped with a warning.
+ * empty sheets are skipped unless they own an extracted image.
  */
 export async function convertXlsx(buffer: Buffer): Promise<OsParsedDocument> {
   let wb: XLSX.WorkBook;
@@ -72,23 +95,48 @@ export async function convertXlsx(buffer: Buffer): Promise<OsParsedDocument> {
 
   const sections: string[] = [];
   const warnings: string[] = [];
+  const isOoxml = isOoxmlWorkbook(buffer);
+  const extracted = isOoxml
+    ? await extractXlsxImages(buffer)
+    : {
+        images: [],
+        imagesBySheet: new Map<string, XlsxSheetImageReference[]>(),
+        warnings: [],
+      };
+
+  warnings.push(...extracted.warnings);
+  if (!isOoxml) {
+    warnings.push(
+      "Legacy .xls embedded images cannot be extracted; cell data was imported as tables only."
+    );
+  }
 
   for (const name of wb.SheetNames) {
     const sheet = wb.Sheets[name];
     if (!sheet) continue;
+    const sheetImages = extracted.imagesBySheet.get(name) ?? [];
     const matrix = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
       header: 1,
       blankrows: false,
       defval: "",
     });
     if (matrix.length === 0) {
-      warnings.push(`Sheet '${name}' is empty — skipped.`);
+      if (sheetImages.length > 0) {
+        sections.push(appendSheetImages(`## ${name}`, sheetImages));
+        warnings.push(
+          `Sheet '${name}' has no cell data; imported embedded images only.`
+        );
+      } else {
+        warnings.push(`Sheet '${name}' is empty — skipped.`);
+      }
       continue;
     }
     const large = largeSheetWarning(name, matrix);
     if (large) warnings.push(large);
-    sections.push(sheetToMarkdownTable(name, matrix));
+    sections.push(
+      appendSheetImages(sheetToMarkdownTable(name, matrix), sheetImages)
+    );
   }
 
-  return { markdown: sections.join("\n\n"), images: [], warnings };
+  return { markdown: sections.join("\n\n"), images: extracted.images, warnings };
 }

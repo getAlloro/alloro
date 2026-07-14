@@ -5,8 +5,9 @@
  * self-hosted Rybbit instance. Used by both daily (Proofline)
  * and monthly (Summary) agents.
  *
- * All functions are non-blocking — they log errors and return null,
- * never throw.
+ * The legacy comparison functions remain non-blocking and return null on
+ * failure. Receipts use a typed result so a missing connection, a source
+ * failure, and a real zero cannot be confused.
  */
 
 import { ProjectModel } from "../../models/website-builder/ProjectModel";
@@ -15,6 +16,7 @@ import logger from "../../lib/logger";
 
 const RYBBIT_API_URL = process.env.RYBBIT_API_URL || "";
 const RYBBIT_API_KEY = process.env.RYBBIT_API_KEY || "";
+const RECEIPTS_RYBBIT_TIMEOUT_MS = 6_000;
 
 // =====================================================================
 // SITE ID LOOKUP
@@ -25,6 +27,16 @@ export interface RybbitSiteConfig {
   /** IANA reporting timezone; falls back to Eastern when unset. */
   timeZone: string;
 }
+
+export type RybbitPeriodUsersResult =
+  | { status: "ok"; users: number }
+  | { status: "not_connected" }
+  | { status: "source_unavailable" };
+
+type RybbitPeriodSiteConfigResult =
+  | { status: "ok"; config: RybbitSiteConfig }
+  | { status: "not_connected" }
+  | { status: "source_unavailable" };
 
 /**
  * Look up the Rybbit site ID and reporting timezone for an organization.
@@ -88,6 +100,147 @@ export async function fetchRybbitOverview(
     logger.error({ err: err?.message || err }, `[Rybbit] Overview fetch error for site ${siteId}:`);
     return null;
   }
+}
+
+// =====================================================================
+// RECEIPTS PERIOD USERS
+// =====================================================================
+
+/**
+ * Fetch a period's deduplicated Rybbit users for a receipts report.
+ * Unlike the legacy comparison helpers, every unavailable state is explicit.
+ */
+export async function fetchRybbitPeriodUsers(
+  organizationId: number,
+  startDate: string,
+  endDate: string
+): Promise<RybbitPeriodUsersResult> {
+  const configResult = await getRybbitPeriodSiteConfig(organizationId);
+  if (configResult.status !== "ok") return configResult;
+
+  const { siteId, timeZone } = configResult.config;
+  const payload = await fetchRybbitPeriodUsersPayload(
+    organizationId,
+    siteId,
+    startDate,
+    endDate,
+    timeZone
+  );
+  const users = readPeriodUsers(payload);
+
+  if (users === null) {
+    logger.warn(
+      { organizationId, siteId },
+      "[Rybbit] Receipts period users unavailable"
+    );
+    return { status: "source_unavailable" };
+  }
+
+  return { status: "ok", users };
+}
+
+async function getRybbitPeriodSiteConfig(
+  organizationId: number
+): Promise<RybbitPeriodSiteConfigResult> {
+  try {
+    const project = await ProjectModel.findRybbitConfigByOrganizationId(
+      organizationId
+    );
+    const siteId = project?.rybbit_site_id?.trim();
+    if (!siteId) return { status: "not_connected" };
+
+    return {
+      status: "ok",
+      config: {
+        siteId,
+        timeZone: resolveRybbitTimeZone(project?.rybbit_time_zone),
+      },
+    };
+  } catch (err: unknown) {
+    logger.warn(
+      { err, organizationId },
+      "[Rybbit] Receipts site configuration lookup failed"
+    );
+    return { status: "source_unavailable" };
+  }
+}
+
+async function fetchRybbitPeriodUsersPayload(
+  organizationId: number,
+  siteId: string,
+  startDate: string,
+  endDate: string,
+  timeZone: string
+): Promise<unknown | null> {
+  if (!RYBBIT_API_URL || !RYBBIT_API_KEY) {
+    logger.warn(
+      { organizationId, siteId },
+      "[Rybbit] Receipts fetch skipped because API configuration is missing"
+    );
+    return null;
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(
+    () => controller.abort(),
+    RECEIPTS_RYBBIT_TIMEOUT_MS
+  );
+
+  try {
+    const params = new URLSearchParams({
+      start_date: startDate,
+      end_date: endDate,
+      time_zone: timeZone,
+    });
+    const url = `${RYBBIT_API_URL}/api/sites/${encodeURIComponent(
+      siteId
+    )}/overview?${params.toString()}`;
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${RYBBIT_API_KEY}` },
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      logger.warn(
+        { organizationId, siteId, status: response.status },
+        "[Rybbit] Receipts period users request failed"
+      );
+      return null;
+    }
+
+    const payload: unknown = await response.json();
+    return payload;
+  } catch (err: unknown) {
+    logger.warn(
+      { err, organizationId, siteId },
+      "[Rybbit] Receipts period users request failed"
+    );
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function readPeriodUsers(payload: unknown): number | null {
+  const outer = asRecord(payload);
+  if (!outer) return null;
+
+  const data = asRecord(outer.data) ?? outer;
+  const rawUsers = data.users;
+  const users =
+    typeof rawUsers === "number"
+      ? rawUsers
+      : typeof rawUsers === "string" && rawUsers.trim() !== ""
+        ? Number(rawUsers)
+        : Number.NaN;
+
+  return Number.isInteger(users) && users >= 0 ? users : null;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
 }
 
 // =====================================================================

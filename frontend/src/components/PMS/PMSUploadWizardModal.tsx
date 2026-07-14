@@ -105,7 +105,6 @@ export const PMSUploadWizardModal: React.FC<PMSUploadWizardModalProps> = ({
       const result = await uploadPMSData({
         domain: clientId,
         file,
-        pmsType: "auto-detect",
         locationId,
       });
 

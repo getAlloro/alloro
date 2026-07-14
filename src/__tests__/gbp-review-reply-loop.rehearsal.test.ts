@@ -21,8 +21,10 @@ const h = vi.hoisted(() => ({
   validateSafety: vi.fn(),
   findWorkItem: vi.fn(),
   markPublished: vi.fn(),
+  markFailedToDraft: vi.fn(),
   createAttempt: vi.fn(),
   markSucceeded: vi.fn(),
+  markFailed: vi.fn(),
   findReview: vi.fn(),
   updateReplyFields: vi.fn(),
   findProperty: vi.fn(),
@@ -49,13 +51,17 @@ vi.mock("../controllers/gbp-automation/feature-services/GbpContentSafetyService"
   GbpContentSafetyService: { validateReviewReply: h.validateSafety },
 }));
 vi.mock("../models/GbpWorkItemModel", () => ({
-  GbpWorkItemModel: { findById: h.findWorkItem, markPublished: h.markPublished },
+  GbpWorkItemModel: {
+    findById: h.findWorkItem,
+    markPublished: h.markPublished,
+    markFailedToDraft: h.markFailedToDraft,
+  },
 }));
 vi.mock("../models/GbpDeploymentAttemptModel", () => ({
   GbpDeploymentAttemptModel: {
     createRunningNext: h.createAttempt,
     markSucceeded: h.markSucceeded,
-    markFailed: vi.fn(),
+    markFailed: h.markFailed,
   },
 }));
 vi.mock("../models/website-builder/ReviewModel", () => ({
@@ -95,7 +101,9 @@ beforeEach(() => {
     response: { ok: true },
   });
   h.markPublished.mockResolvedValue(1);
+  h.markFailedToDraft.mockResolvedValue(1);
   h.markSucceeded.mockResolvedValue(undefined);
+  h.markFailed.mockResolvedValue(undefined);
   h.updateReplyFields.mockResolvedValue(undefined);
   h.notificationCreate.mockResolvedValue(1);
 });
@@ -137,10 +145,34 @@ describe("review-reply loop rehearsal — deploy + attribute", () => {
   it("refuses to post or attribute when the location is not ready (honest gate)", async () => {
     h.getReadiness.mockResolvedValue({ ready: false, googleProperty: null });
 
-    await GbpReviewReplyDeploymentService.deployNow("wi-1", 99).catch(() => undefined);
+    await expect(
+      GbpReviewReplyDeploymentService.deployNow("wi-1", 99),
+    ).resolves.toMatchObject({ id: "wi-1" });
 
-    // No Google call, and crucially no false "Alloro replied for you" notification.
+    // The normal failure path ran, with no Google call and no false "published" attribution.
     expect(h.replyToGbpReview).not.toHaveBeenCalled();
-    expect(h.notificationCreate).not.toHaveBeenCalled();
+    expect(h.markFailed).toHaveBeenCalledWith(
+      "attempt-1",
+      "GBP_NOT_READY",
+      "GBP review replies are not ready.",
+      expect.objectContaining({ details: expect.any(Object) }),
+    );
+    expect(h.markFailedToDraft).toHaveBeenCalledWith(
+      "wi-1",
+      "GBP_NOT_READY",
+      "GBP review replies are not ready.",
+    );
+    expect(h.notificationCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "gbp_reply_deploy_failed",
+        title: "GBP reply deployment failed",
+      }),
+    );
+    expect(
+      h.notificationCreate.mock.calls.some(
+        ([payload]) =>
+          (payload as { kind?: string }).kind === "gbp_reply_published",
+      ),
+    ).toBe(false);
   });
 });

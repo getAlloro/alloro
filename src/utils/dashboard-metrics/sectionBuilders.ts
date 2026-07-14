@@ -18,7 +18,6 @@ import { FormSubmissionModel } from "../../models/website-builder/FormSubmission
 import { PmsJobModel } from "../../models/PmsJobModel";
 import { PracticeRankingModel } from "../../models/PracticeRankingModel";
 import { ProjectModel } from "../../models/website-builder/ProjectModel";
-import { LocationCompetitorModel } from "../../models/LocationCompetitorModel";
 import {
   ReviewsMetrics,
   GbpMetrics,
@@ -26,7 +25,6 @@ import {
   FormSubmissionsMetrics,
   PmsMetrics,
   ReferralMetrics,
-  ChoosableMetrics,
 } from "./types";
 import {
   MS_PER_DAY,
@@ -504,131 +502,4 @@ export function buildReferralMetrics(reOutput: any | null): ReferralMetrics {
     top_growing_source: topGrowing,
     sources_count: sourcesCount,
   };
-}
-
-/** Median of a numeric list, or null when empty. */
-function medianOf(nums: number[]): number | null {
-  if (!nums.length) return null;
-  const sorted = [...nums].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
-}
-
-/**
- * CHOOSABLE (Chapter 4): the like-for-like competitor comparison the SUMMARY
- * agent needs to reason honestly about the "chosen" stage. Best-effort and
- * never-throw, matching the sibling builders. Two honesty rules are baked in:
- *   - The practice side is echoed from the already-computed `reviews` argument
- *     (one true source per number; no second fetch).
- *   - `practice_profile_strength` stays null: the practice's own completeness
- *     factors (photo/website/category) are NOT reliably known in this pipeline,
- *     and asserting absence from an unknown would violate Value #6. The weakest
- *     factor is inferred only from what we DO know (review count, rating).
- */
-export async function buildChoosableMetrics(
-  locationId: number | null,
-  reviews: ReviewsMetrics
-): Promise<ChoosableMetrics> {
-  const practiceReviews = reviews.total_review_count ?? null;
-  const practiceRating = reviews.current_rating ?? null;
-  const empty: ChoosableMetrics = {
-    has_competitor_set: false,
-    competitor_count: 0,
-    practice_review_count: practiceReviews,
-    practice_rating: practiceRating,
-    competitor_median_review_count: null,
-    strongest_competitor_name: null,
-    strongest_competitor_review_count: null,
-    competitors_ahead_on_reviews: null,
-    review_count_gap_to_median: null,
-    practice_leads_on_reviews: null,
-    practice_profile_strength: null,
-    competitor_median_profile_strength: null,
-    weakest_choosable_factor: null,
-    as_of: null,
-  };
-
-  if (locationId == null) return empty;
-
-  try {
-    const competitors =
-      await LocationCompetitorModel.findActiveByLocationId(locationId);
-    if (!competitors.length) return empty;
-
-    const reviewCounts = competitors
-      .map((c) => c.review_count)
-      .filter((n): n is number => typeof n === "number");
-    const medianReviews = medianOf(reviewCounts);
-    const strongest = competitors
-      .filter((c) => typeof c.review_count === "number")
-      .sort((a, b) => (b.review_count as number) - (a.review_count as number))[0];
-    const aheadOnReviews =
-      practiceReviews == null
-        ? null
-        : reviewCounts.filter((n) => n > practiceReviews).length;
-    const gapToMedian =
-      practiceReviews == null || medianReviews == null
-        ? null
-        : medianReviews - practiceReviews;
-    const leadsOnReviews =
-      practiceReviews == null || medianReviews == null
-        ? null
-        : practiceReviews >= medianReviews;
-
-    const medianStrength = medianOf(
-      competitors
-        .map((c) => c.profile_strength_score)
-        .filter((n): n is number => typeof n === "number")
-    );
-    const medianRating = medianOf(
-      competitors
-        .map((c) => c.rating)
-        .filter((n): n is number => typeof n === "number")
-    );
-    let weakest: ChoosableMetrics["weakest_choosable_factor"] = null;
-    if (gapToMedian != null && gapToMedian > 0) {
-      weakest = "reviews";
-    } else if (
-      practiceRating != null &&
-      medianRating != null &&
-      practiceRating < medianRating
-    ) {
-      weakest = "rating";
-    }
-
-    const checkedTimes = competitors
-      .map((c) => c.discovery_checked_at)
-      .filter((d): d is Date => d instanceof Date)
-      .map((d) => d.getTime());
-    const asOf = checkedTimes.length
-      ? new Date(Math.min(...checkedTimes)).toISOString()
-      : null;
-
-    return {
-      has_competitor_set: true,
-      competitor_count: competitors.length,
-      practice_review_count: practiceReviews,
-      practice_rating: practiceRating,
-      competitor_median_review_count: medianReviews,
-      strongest_competitor_name: strongest?.name ?? null,
-      strongest_competitor_review_count:
-        typeof strongest?.review_count === "number"
-          ? strongest.review_count
-          : null,
-      competitors_ahead_on_reviews: aheadOnReviews,
-      review_count_gap_to_median: gapToMedian,
-      practice_leads_on_reviews: leadsOnReviews,
-      practice_profile_strength: null,
-      competitor_median_profile_strength: medianStrength,
-      weakest_choosable_factor: weakest,
-      as_of: asOf,
-    };
-  } catch (err: any) {
-    logger.warn(
-      `[dashboard-metrics] Choosable metrics failed for location ${locationId}: ${
-        err?.message || err
-      }`
-    );
-    return empty;
-  }
 }
