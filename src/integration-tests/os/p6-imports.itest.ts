@@ -23,7 +23,7 @@
 
 import fs from "fs";
 import path from "path";
-import { describe, it, expect, vi, beforeAll, afterAll } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 vi.mock("../../workers/queues", () => {
   const add = vi.fn(async () => ({ id: "p6itest-job" }));
@@ -58,12 +58,19 @@ vi.mock("../../utils/core/s3", () => ({
 import { db } from "../../database/connection";
 import { OsImportService } from "../../controllers/admin-os/feature-services/OsImportService";
 import { OsConversionService } from "../../controllers/admin-os/feature-services/OsConversionService";
-import { setOsPdfjsLoader } from "../../controllers/admin-os/feature-services/conversion/pdfConverter";
 import { OsDocumentModel } from "../../models/OsDocumentModel";
 import { OsDocumentImportModel } from "../../models/OsDocumentImportModel";
 import { OsDocumentVersionModel } from "../../models/OsDocumentVersionModel";
 import { OsAssetModel } from "../../models/OsAssetModel";
 import { uploadToS3 } from "../../utils/core/s3";
+import {
+  setOsPdfParseFactory,
+  type OsPdfParser,
+} from "../../controllers/admin-os/feature-services/conversion/pdfParseAdapter";
+import {
+  OsFakeLlmProvider,
+  setOsLlmProvider,
+} from "../../controllers/admin-os/feature-services/service.os-llm";
 
 const FIXTURES = path.join(__dirname, "..", "..", "__tests__", "fixtures", "os");
 const readFixture = (name: string): Buffer =>
@@ -72,6 +79,12 @@ const readFixture = (name: string): Buffer =>
 const RUN_TAG = `p6itest-${Date.now()}`;
 const DOCX_MIME =
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+const XLSX_MIME =
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+const ONE_PIXEL_PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
+  "base64"
+);
 let userA = 0;
 const docIds: string[] = [];
 
@@ -93,16 +106,13 @@ beforeAll(async () => {
   );
   expect(schema.rows.length).toBe(1); // precondition: migration applied
   userA = await createUser();
-  // Vitest can't use the production Function-import shim; inject native import.
-  setOsPdfjsLoader(async () =>
-    (await import("pdfjs-dist/legacy/build/pdf.mjs")) as unknown as Awaited<
-      ReturnType<Parameters<typeof setOsPdfjsLoader>[0] & object>
-    >
-  );
+  setOsLlmProvider(new OsFakeLlmProvider());
 });
 
+afterEach(() => setOsPdfParseFactory(null));
+
 afterAll(async () => {
-  setOsPdfjsLoader(null);
+  setOsLlmProvider(null);
   // CASCADE removes versions / imports / assets with the documents row.
   for (const id of docIds) {
     await db.raw(`delete from os.documents where id = ?`, [id]);
@@ -173,25 +183,55 @@ describe("P6 import intake (live DB, mocked S3)", () => {
     docIds.push(stub.documentId);
 
     await OsConversionService.run(stub.importId);
+    await expectAssetRewrite(stub.documentId);
+  });
 
-    const assetRows = await db.raw(
-      `select id, s3_key from os.assets where document_id = ?`,
-      [stub.documentId]
+  it("pdf image extraction → os.assets row + authenticated markdown URL", async () => {
+    const parser: OsPdfParser = {
+      getText: vi.fn(async () => ({
+        pages: [{ num: 1, text: "Architecture diagram and owner notes" }],
+      })),
+      getTable: vi.fn(async () => ({ pages: [{ num: 1, tables: [] }] })),
+      getImage: vi.fn(async () => ({
+        pages: [
+          {
+            pageNumber: 1,
+            images: [
+              { data: ONE_PIXEL_PNG, name: "diagram", width: 1, height: 1 },
+            ],
+          },
+        ],
+      })),
+      getScreenshot: vi.fn(async () => ({
+        pages: [{ pageNumber: 1, data: ONE_PIXEL_PNG }],
+      })),
+      destroy: vi.fn(async () => undefined),
+    };
+    setOsPdfParseFactory(() => parser);
+    const result = await OsImportService.intake(
+      [intakeFile("Architecture.pdf", "application/pdf", Buffer.from("pdf"))],
+      userA
     );
-    const assets = assetRows.rows as Array<{ id: string; s3_key: string }>;
-    expect(assets.length).toBe(1);
-    const doc = await OsDocumentModel.findDocumentById(stub.documentId);
-    const version = await OsDocumentVersionModel.findVersionById(
-      doc!.current_version_id as string
+    const stub = result.documents[0];
+    docIds.push(stub.documentId);
+
+    await OsConversionService.run(stub.importId);
+
+    await expectAssetRewrite(stub.documentId);
+    expect(parser.destroy).toHaveBeenCalledTimes(1);
+  });
+
+  it("xlsx drawing extraction → os.assets row + authenticated markdown URL", async () => {
+    const result = await OsImportService.intake(
+      [intakeFile("Workbook.xlsx", XLSX_MIME, await buildXlsxWithImage())],
+      userA
     );
-    // The scheme-free placeholder is rewritten to the asset-delivery URL.
-    expect(version?.content_md).toContain(
-      `/api/admin/os/assets/${assets[0].id}`
-    );
-    expect(version?.content_md).not.toContain("__ALLORO_OS_IMG_");
-    // The asset object was uploaded under the D9 namespace.
-    expect(uploaded.has(assets[0].s3_key)).toBe(true);
-    expect(assets[0].s3_key).toContain(`os/assets/${stub.documentId}/`);
+    const stub = result.documents[0];
+    docIds.push(stub.documentId);
+
+    await OsConversionService.run(stub.importId);
+
+    await expectAssetRewrite(stub.documentId);
   });
 
   it("convert failure: markFailed flips doc + import to failed", async () => {
@@ -210,6 +250,50 @@ describe("P6 import intake (live DB, mocked S3)", () => {
     expect(imp?.status).toBe("failed");
   });
 });
+
+async function expectAssetRewrite(documentId: string): Promise<void> {
+  const doc = await OsDocumentModel.findDocumentById(documentId);
+  const version = await OsDocumentVersionModel.findVersionById(
+    doc!.current_version_id as string
+  );
+  const assetId = version?.content_md.match(
+    /\/api\/admin\/os\/assets\/([0-9a-f-]+)/i
+  )?.[1];
+  expect(assetId).toBeTruthy();
+  const asset = await OsAssetModel.findAssetById(assetId as string);
+  expect(asset?.document_id).toBe(documentId);
+  expect(version?.content_md).not.toContain("__ALLORO_OS_IMG_");
+  expect(asset?.s3_key).toContain(`os/assets/${documentId}/`);
+  expect(uploaded.has(asset!.s3_key)).toBe(true);
+}
+
+async function buildXlsxWithImage(): Promise<Buffer> {
+  const JSZip = (await import("jszip")).default;
+  const zip = await JSZip.loadAsync(readFixture("sample.xlsx"));
+  const sheetPath = "xl/worksheets/sheet1.xml";
+  const sheetXml = await zip.file(sheetPath)!.async("string");
+  zip.file(
+    sheetPath,
+    sheetXml.replace(
+      "</worksheet>",
+      '<drawing xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="rIdImageDrawing"/></worksheet>'
+    )
+  );
+  zip.file(
+    "xl/worksheets/_rels/sheet1.xml.rels",
+    '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdImageDrawing" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing1.xml"/></Relationships>'
+  );
+  zip.file(
+    "xl/drawings/drawing1.xml",
+    '<?xml version="1.0" encoding="UTF-8"?><xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><xdr:oneCellAnchor><xdr:from><xdr:col>1</xdr:col><xdr:row>2</xdr:row></xdr:from><xdr:ext cx="100" cy="100"/><xdr:pic><xdr:nvPicPr><xdr:cNvPr id="1" name="Synthetic image"/><xdr:cNvPicPr/></xdr:nvPicPr><xdr:blipFill><a:blip r:embed="rIdImage1"/></xdr:blipFill></xdr:pic><xdr:clientData/></xdr:oneCellAnchor></xdr:wsDr>'
+  );
+  zip.file(
+    "xl/drawings/_rels/drawing1.xml.rels",
+    '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdImage1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/image1.png"/></Relationships>'
+  );
+  zip.file("xl/media/image1.png", ONE_PIXEL_PNG);
+  return zip.generateAsync({ type: "nodebuffer" });
+}
 
 /** A minimal .docx OOXML carrying one embedded PNG, built with jszip. */
 async function buildDocxWithImage(): Promise<Buffer> {

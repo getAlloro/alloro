@@ -3,7 +3,8 @@
  *
  * Security model: the app mounts `requireAuthUnlessPublic` ahead of all router
  * mounts in `index.ts`. Every request must carry a valid JWT UNLESS its path
- * matches the explicit allowlist below. This flips the app from fail-open
+ * matches the explicit public allowlist or delegates JWT verification to a
+ * route-specific middleware below. This flips the app from fail-open
  * (routers had to remember to add auth) to fail-safe (a newly-added route is
  * protected by default).
  *
@@ -81,19 +82,33 @@ const PUBLIC_PREFIXES: readonly string[] = [
 ];
 
 /**
- * Returns true if the request path is on the public allowlist.
+ * Paths that are not public but must reach a narrower route-specific auth
+ * strategy. OS images load through <img>, so their route verifies the same JWT
+ * from `?token=` before applying the unchanged super-admin gate. No other OS
+ * route accepts a query token.
  */
-function isPublicPath(path: string): boolean {
-  if (PUBLIC_EXACT_PATHS.has(path)) return true;
-  return PUBLIC_PREFIXES.some(
+const DELEGATED_AUTH_PREFIXES: readonly string[] = [
+  "/api/admin/os/assets",
+];
+
+function matchesPrefix(path: string, prefixes: readonly string[]): boolean {
+  return prefixes.some(
     (prefix) => path === prefix || path.startsWith(`${prefix}/`)
   );
 }
 
 /**
- * App-level default-deny guard. Allows allowlisted public paths through
- * untouched; everything else must pass `authenticateToken` (401 without a valid
- * JWT). Mount ONCE in index.ts ahead of the router mounts.
+ * Returns true if the request path is on the public allowlist.
+ */
+function isPublicPath(path: string): boolean {
+  if (PUBLIC_EXACT_PATHS.has(path)) return true;
+  return matchesPrefix(path, PUBLIC_PREFIXES);
+}
+
+/**
+ * App-level default-deny guard. Allows public or explicitly delegated paths to
+ * reach their router; everything else must pass `authenticateToken` here (401
+ * without a valid JWT). Mount ONCE in index.ts ahead of the router mounts.
  */
 export const requireAuthUnlessPublic = (
   req: AuthRequest,
@@ -112,7 +127,10 @@ export const requireAuthUnlessPublic = (
     return next();
   }
 
-  if (isPublicPath(req.path)) {
+  if (
+    isPublicPath(req.path) ||
+    matchesPrefix(req.path, DELEGATED_AUTH_PREFIXES)
+  ) {
     return next();
   }
 

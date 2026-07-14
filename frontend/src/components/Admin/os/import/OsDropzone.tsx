@@ -68,6 +68,10 @@ export function OsDropzone({
       <p className="font-mono text-[11px] text-gray-400">
         Word, Excel, PDF, or Markdown
       </p>
+      <p className="max-w-md text-xs leading-relaxed text-gray-500">
+        Imports become semantic Markdown. Tables and supported images are
+        preserved when possible; complex PDF layouts are best-effort.
+      </p>
       <input
         ref={inputRef}
         type="file"

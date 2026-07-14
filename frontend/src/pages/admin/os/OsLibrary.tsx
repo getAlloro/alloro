@@ -20,6 +20,9 @@ import {
   type OsLibraryView,
 } from "../../../components/Admin/os/library/osLibraryFilters";
 import { OsLibraryToolbar } from "../../../components/Admin/os/library/OsLibraryToolbar";
+import { OsLibraryFileDropSurface } from "../../../components/Admin/os/library/OsLibraryFileDropSurface";
+import { useOsLibraryImport } from "../../../components/Admin/os/library/useOsLibraryImport";
+import { OsImportModal } from "../../../components/Admin/os/import/OsImportModal";
 import { OsDocumentRow } from "../../../components/Admin/os/library/OsDocumentRow";
 import { OsGroupedView } from "../../../components/Admin/os/library/OsGroupedView";
 import { OsFolderTree } from "../../../components/Admin/os/library/OsFolderTree";
@@ -34,6 +37,17 @@ import { OsRowSkeleton } from "../../../components/Admin/os/shared/OsRowSkeleton
  */
 
 const OS_LIBRARY_PAGE_SIZE = 100;
+
+function buildOsLibraryQuery(filters: OsLibraryFilters, page: number) {
+  return {
+    category: filters.category ?? undefined,
+    tag: filters.tag ?? undefined,
+    ownerId: filters.ownerId ?? undefined,
+    status: filters.status ?? undefined,
+    page,
+    limit: OS_LIBRARY_PAGE_SIZE,
+  };
+}
 
 function sortDocuments(
   documents: OsDocumentListItem[],
@@ -114,15 +128,9 @@ export default function OsLibrary() {
   );
   const [sort, setSort] = useState<OsLibrarySort>("updated");
   const [page, setPage] = useState(1);
+  const libraryImport = useOsLibraryImport();
 
-  const documentsQuery = useAdminOsDocuments({
-    category: filters.category ?? undefined,
-    tag: filters.tag ?? undefined,
-    ownerId: filters.ownerId ?? undefined,
-    status: filters.status ?? undefined,
-    page,
-    limit: OS_LIBRARY_PAGE_SIZE,
-  });
+  const documentsQuery = useAdminOsDocuments(buildOsLibraryQuery(filters, page));
   const foldersQuery = useAdminOsFolders();
   const categoriesQuery = useAdminOsCategories();
   const usersQuery = useAdminOsUsers();
@@ -161,78 +169,84 @@ export default function OsLibrary() {
   };
 
   return (
-    <section className="mt-6 rounded-xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
-      <OsLibraryControls
-        view={view}
-        onViewChange={setView}
-        filters={filters}
-        onFiltersChange={handleFiltersChange}
-        sort={sort}
-        onSortChange={setSort}
-        categoryOptions={categoryOptions}
-        tagOptions={tagOptions}
-        owners={usersQuery.data ?? []}
-        toolbar={<OsLibraryToolbar />}
-      />
-
-      {isLoading && (
-        <div className="pt-6">
-          <OsRowSkeleton rows={6} />
-        </div>
-      )}
-
-      {documentsQuery.isError && (
-        <OsErrorState
-          message="Couldn't load the library"
-          onRetry={() => void documentsQuery.refetch()}
+    <>
+      <OsLibraryFileDropSurface onFiles={libraryImport.handleDroppedFiles}>
+        <OsLibraryControls
+          view={view}
+          onViewChange={setView}
+          filters={filters}
+          onFiltersChange={handleFiltersChange}
+          sort={sort}
+          onSortChange={setSort}
+          categoryOptions={categoryOptions}
+          tagOptions={tagOptions}
+          owners={usersQuery.data ?? []}
+          toolbar={<OsLibraryToolbar onImport={libraryImport.handleOpenImport} />}
         />
-      )}
 
-      {isEmpty && !hasActiveFilters && (
-        <OsEmptyState
-          icon={BookOpen}
-          title="The library is empty"
-          body="Create your first document — internal docs, playbooks, and SOPs live here."
-          footer="0 documents · indexing idle"
-        />
-      )}
+        {isLoading && (
+          <div className="pt-6">
+            <OsRowSkeleton rows={6} />
+          </div>
+        )}
 
-      {isEmpty && hasActiveFilters && (
-        <OsLibraryNoMatches
-          onClear={() => handleFiltersChange(OS_EMPTY_LIBRARY_FILTERS)}
-        />
-      )}
-
-      {!isLoading && !documentsQuery.isError && documents.length > 0 && (
-        <>
-          {view === "list" && (
-            <div className="pt-2">
-              {documents.map((doc) => (
-                <OsDocumentRow key={doc.id} doc={doc} />
-              ))}
-            </div>
-          )}
-          {view === "grouped" && (
-            <OsGroupedView
-              documents={documents}
-              categoryOptions={categoryOptions}
-              onMoveDocument={handleMoveDocument}
-            />
-          )}
-          {view === "folders" && (
-            <OsFolderTree
-              documents={documents}
-              folderTree={foldersQuery.data?.tree ?? []}
-              onMoveDocument={handleMoveDocument}
-            />
-          )}
-          <OsLibraryFooter
-            pagination={documentsQuery.data?.pagination}
-            page={page}
-            onPageChange={setPage}
+        {documentsQuery.isError && (
+          <OsErrorState
+            message="Couldn't load the library"
+            onRetry={() => void documentsQuery.refetch()}
           />
-        </>
-      )}
-    </section>
+        )}
+
+        {isEmpty && !hasActiveFilters && (
+          <OsEmptyState
+            icon={BookOpen}
+            title="The library is empty"
+            body="Create your first document — internal docs, playbooks, and SOPs live here."
+            footer="0 documents · indexing idle"
+          />
+        )}
+
+        {isEmpty && hasActiveFilters && (
+          <OsLibraryNoMatches
+            onClear={() => handleFiltersChange(OS_EMPTY_LIBRARY_FILTERS)}
+          />
+        )}
+
+        {!isLoading && !documentsQuery.isError && documents.length > 0 && (
+          <>
+            {view === "list" && (
+              <div className="pt-2">
+                {documents.map((doc) => (
+                  <OsDocumentRow key={doc.id} doc={doc} />
+                ))}
+              </div>
+            )}
+            {view === "grouped" && (
+              <OsGroupedView
+                documents={documents}
+                categoryOptions={categoryOptions}
+                onMoveDocument={handleMoveDocument}
+              />
+            )}
+            {view === "folders" && (
+              <OsFolderTree
+                documents={documents}
+                folderTree={foldersQuery.data?.tree ?? []}
+                onMoveDocument={handleMoveDocument}
+              />
+            )}
+            <OsLibraryFooter
+              pagination={documentsQuery.data?.pagination}
+              page={page}
+              onPageChange={setPage}
+            />
+          </>
+        )}
+      </OsLibraryFileDropSurface>
+      <OsImportModal
+        isOpen={libraryImport.isImportOpen}
+        onClose={libraryImport.handleCloseImport}
+      />
+    </>
   );
 }

@@ -21,7 +21,8 @@
           <p>
             Coverage window: Monday, July 13, 2026 through Sunday, July 19, 2026.
             This edition tracks organization-owned PMS parsing, configurable default
-            formulas, and the first dedicated DentalEMR calculation path.
+            formulas, the first dedicated DentalEMR calculation path, and an internal
+            Admin OS document-import and editing upgrade.
           </p>
         </div>
         <aside class="hero-panel" aria-label="Release state summary">
@@ -29,8 +30,8 @@
           <div class="status-stack">
             <span class="tag good">Deployed</span>
             <span class="tag">1 client workflow</span>
-            <span class="tag">1 admin control</span>
-            <span class="tag warn">Post-deploy UI check waived</span>
+            <span class="tag">2 admin/operator updates</span>
+            <span class="tag warn">Some UI checks waived</span>
           </div>
         </aside>
       </section>
@@ -75,6 +76,21 @@
           available after columns resolve. Custom parsers such as DentalEMR own their
           formula, so the formula toggle and sliding mapping drawer stay hidden.
         </p>
+        <div class="grid">
+          <article class="highlight-card">
+            <h3>Admin OS keeps more document structure</h3>
+            <p>
+              Internal document imports now preserve supported PDF and Excel images,
+              semantic tables, and readable Markdown structure. Multi-file drops go
+              straight into the Library, and the editor restores the source OS table,
+              image, sticky-toolbar, and safe-Backspace controls.
+            </p>
+            <div class="meta">
+              <span class="tag">Internal Alloro tooling</span>
+              <span class="tag warn">Live UI checks waived</span>
+            </div>
+          </article>
+        </div>
       </section>
 
       <section class="section" aria-labelledby="inventory">
@@ -120,6 +136,20 @@
                 <td>
                   The Docs mirror explains when Formula settings appears and when an
                   assigned parser applies its own calculation automatically.
+                </td>
+              </tr>
+              <tr>
+                <td>Admin tooling</td>
+                <td>Admin OS import fidelity, direct multi-file drop, and editor parity</td>
+                <td>Internal Alloro operators</td>
+                <td>Included in this dev/dave release; deployment verification pending</td>
+                <td>No</td>
+                <td>
+                  Automated conversion, persistence, auth, table, drag-and-drop, and
+                  editor checks pass. Seven signed-in browser and cleanup checks were
+                  explicitly waived; no live UI pass is claimed. Admin OS is absent from
+                  client-facing Alloro Docs, so docs parity is N/A. See
+                  <code>plans/07102026-admin-os-import-rendering-fidelity/test-results.json</code>.
                 </td>
               </tr>
             </tbody>

@@ -158,6 +158,9 @@ describe("OsIngestService.run — pipeline order", () => {
       generateDocMetadata: vi.fn(async () => {
         throw new Error("gemini exploded");
       }),
+      transcribeDocumentPageToMarkdown: vi.fn(async () => {
+        throw new Error("PDF transcription not used in ingest tests");
+      }),
       // eslint-disable-next-line require-yield
       streamChat: async function* () {
         throw new Error("streamChat not used in ingest tests");

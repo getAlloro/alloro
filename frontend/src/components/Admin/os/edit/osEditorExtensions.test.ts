@@ -4,6 +4,7 @@ import {
   buildOsEditorExtensions,
   getOsEditorMarkdown,
 } from "./osEditorExtensions";
+import { normalizeOsMarkdown } from "../shared/osMarkdown";
 
 /**
  * Markdown round-trip for the OS editor config (P3 T4 verify): a
@@ -39,7 +40,7 @@ const x = 1;
 function parseAndSerialize(markdown: string): string {
   const editor = new Editor({
     extensions: buildOsEditorExtensions(),
-    content: markdown,
+    content: normalizeOsMarkdown(markdown),
   });
   try {
     return getOsEditorMarkdown(editor);
@@ -71,5 +72,16 @@ describe("OS editor markdown round-trip", () => {
     const once = parseAndSerialize(REPRESENTATIVE_MARKDOWN);
     const twice = parseAndSerialize(once);
     expect(twice).toBe(once);
+  });
+
+  it("keeps image width fragments and separates the following block", () => {
+    const output = parseAndSerialize(
+      "![Architecture](/api/admin/os/assets/image-1#w=320)```ts\nconst x = 1;\n```",
+    );
+
+    expect(output).toContain(
+      "![Architecture](/api/admin/os/assets/image-1#w=320)",
+    );
+    expect(output).toMatch(/#w=320\)\n\n```/);
   });
 });
