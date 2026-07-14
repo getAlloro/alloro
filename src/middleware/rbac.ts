@@ -18,6 +18,24 @@ export interface LocationScopedRequest extends RBACRequest {
   accessibleLocationIds?: number[];
 }
 
+export type LocationScopeFailureCode =
+  | "LOCATION_ACCESS_DENIED"
+  | "LOCATION_SCOPE_UNAVAILABLE";
+
+export type LocationScopeFailureResponder = (
+  res: Response,
+  status: number,
+  code: LocationScopeFailureCode,
+  message: string
+) => Response;
+
+const legacyLocationScopeFailure: LocationScopeFailureResponder = (
+  res,
+  status,
+  _code,
+  message
+) => res.status(status).json({ error: message });
+
 /**
  * RBAC Middleware - Checks user role from database on each request.
  * Requires authenticateToken to run first (populates req.user).
@@ -115,56 +133,75 @@ export const canManageRoles = (req: RBACRequest): boolean => {
  * - Manager/viewer: checks user_locations table; if no explicit grants, defaults to all
  * - Attaches req.accessibleLocationIds and optionally req.locationId
  */
-export const locationScopeMiddleware = async (
-  req: LocationScopedRequest,
-  res: Response,
-  next: NextFunction
-) => {
-  try {
-    const organizationId = req.organizationId;
-    if (!organizationId) return next();
+export function createLocationScopeMiddleware(
+  respondToFailure: LocationScopeFailureResponder = legacyLocationScopeFailure
+) {
+  return async (
+    req: LocationScopedRequest,
+    res: Response,
+    next: NextFunction
+  ) => {
+    try {
+      const organizationId = req.organizationId;
+      if (!organizationId) return next();
 
-    // Get all locations for this org
-    const orgLocations = await LocationModel.findByOrganizationId(organizationId);
-    const allLocationIds = orgLocations.map((l) => l.id);
+      // Get all locations for this org
+      const orgLocations =
+        await LocationModel.findByOrganizationId(organizationId);
+      const allLocationIds = orgLocations.map((l) => l.id);
 
-    if (req.userRole === "admin") {
-      req.accessibleLocationIds = allLocationIds;
-    } else {
-      // Manager/viewer: check user_locations
-      const userLocationIds = await UserLocationModel.getLocationIdsForUser(req.userId!);
-      if (userLocationIds.length === 0) {
-        // No explicit grants → all locations (default behavior)
+      if (req.userRole === "admin") {
         req.accessibleLocationIds = allLocationIds;
       } else {
-        // Only locations that exist in both user grants AND org locations
-        req.accessibleLocationIds = userLocationIds.filter((id) =>
-          allLocationIds.includes(id)
+        // Manager/viewer: check user_locations
+        const userLocationIds = await UserLocationModel.getLocationIdsForUser(
+          req.userId!
         );
+        if (userLocationIds.length === 0) {
+          // No explicit grants → all locations (default behavior)
+          req.accessibleLocationIds = allLocationIds;
+        } else {
+          // Only locations that exist in both user grants AND org locations
+          req.accessibleLocationIds = userLocationIds.filter((id) =>
+            allLocationIds.includes(id)
+          );
+        }
       }
-    }
 
-    // If a specific locationId is requested, validate access
-    const requestedLocationId =
-      (req.query.locationId as string) ||
-      (req.params.locationId as string) ||
-      req.body?.locationId;
+      // If a specific locationId is requested, validate access
+      const requestedLocationId =
+        (req.query.locationId as string) ||
+        (req.params.locationId as string) ||
+        req.body?.locationId;
 
-    if (
-      requestedLocationId !== undefined &&
-      requestedLocationId !== null &&
-      requestedLocationId !== ""
-    ) {
-      const locId = parseInt(requestedLocationId, 10);
-      if (!isNaN(locId) && !req.accessibleLocationIds.includes(locId)) {
-        return res.status(403).json({ error: "No access to this location" });
+      if (
+        requestedLocationId !== undefined &&
+        requestedLocationId !== null &&
+        requestedLocationId !== ""
+      ) {
+        const locId = parseInt(requestedLocationId, 10);
+        if (!isNaN(locId) && !req.accessibleLocationIds.includes(locId)) {
+          return respondToFailure(
+            res,
+            403,
+            "LOCATION_ACCESS_DENIED",
+            "No access to this location"
+          );
+        }
+        req.locationId = isNaN(locId) ? null : locId;
       }
-      req.locationId = isNaN(locId) ? null : locId;
-    }
 
-    next();
-  } catch (error) {
-    logger.error({ err: error }, "[RBAC] Error resolving location scope:");
-    return res.status(500).json({ error: "Unable to resolve location access" });
-  }
-};
+      next();
+    } catch (error) {
+      logger.error({ err: error }, "[RBAC] Error resolving location scope:");
+      return respondToFailure(
+        res,
+        500,
+        "LOCATION_SCOPE_UNAVAILABLE",
+        "Unable to resolve location access"
+      );
+    }
+  };
+}
+
+export const locationScopeMiddleware = createLocationScopeMiddleware();

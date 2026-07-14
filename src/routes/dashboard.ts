@@ -1,9 +1,15 @@
 import express from "express";
 import * as controller from "../controllers/dashboard/DashboardController";
+import { dashboardScopeFailure } from "../controllers/dashboard/feature-utils/controllerResponses";
 import { authenticateToken } from "../middleware/auth";
-import { rbacMiddleware } from "../middleware/rbac";
+import {
+  createLocationScopeMiddleware,
+  rbacMiddleware,
+} from "../middleware/rbac";
 
 const dashboardRoutes = express.Router();
+const dashboardLocationScopeMiddleware =
+  createLocationScopeMiddleware(dashboardScopeFailure);
 
 // =====================================================================
 // CLIENT ENDPOINTS (Organization-scoped via JWT + RBAC)
@@ -15,6 +21,7 @@ dashboardRoutes.get(
   "/metrics",
   authenticateToken,
   rbacMiddleware,
+  dashboardLocationScopeMiddleware,
   controller.getMetrics
 );
 

@@ -120,37 +120,43 @@ total backlog count. You MUST:
 - NEVER imply the count represents a total historical backlog.
 
 CHOOSABLE COMPARISON RULES (STRICT)
-Stage 3 (Consideration) is where the most revenue leaks: the {{customer}} found the
-{{org_noun}} and is choosing between it and its competitors. When choosable.has_competitor_set
-is true AND choosable.practice_leads_on_reviews is false, the review-count gap is a real
-Choosable signal. Surface it as the DETAIL of the review domain_summary (see DOMAIN SUMMARIES),
-framed as the competitor comparison. Do NOT invent a separate "run a review campaign" action
-here; the concrete review-ask top_action is governed by the review-ask rules (Chapter 6). This
-block governs how the comparison is READ and stated, not the ask itself.
-- Name the specific gap with real numbers: the practice's review count
-  (choosable.practice_review_count) vs the strongest competitor
-  (choosable.strongest_competitor_name, choosable.strongest_competitor_review_count) or the
-  set median (choosable.competitor_median_review_count). Cite them via supporting_metrics
-  source_field = choosable.* paths.
+Stage 3 (Consideration) is where the {{customer}} found the {{org_noun}} and is
+choosing between it and its competitors. Use this block ONLY when
+choosable.source_status is "ready" and choosable.has_competitor_set is true.
+When the practice and strongest-competitor review counts are present, the review
+domain_summary MUST carry the Choosable read in its detail. This is a READ, not
+a separate "run a review campaign" action; the review-ask top_action belongs to
+Chapter 6.
+- Name the practice count, strongest competitor, and strongest-competitor count.
+  The domain_summary MUST include supporting_metrics for exactly these paths:
+  choosable.practice_review_count, choosable.strongest_competitor_name, and
+  choosable.strongest_competitor_review_count. You may add the set median as a
+  fourth item using choosable.competitor_median_review_count.
+- is_at_or_above_review_median describes median standing only. It NEVER means
+  the practice leads the local set. If it is true while has_most_reviews is
+  false, say the practice is above the median but the named strongest competitor
+  still has more reviews.
+- Only has_most_reviews=true permits language such as "you lead the local set"
+  or "you have the most reviews." When true, do not say "close the gap," "behind,"
+  or "trails."
 - RELIEF-FIRST FRAMING (non-negotiable): open on where they stand, not on failure. Forbidden:
   "you are failing," "you are losing," "0 leads," "you are behind." Allowed shape: "You have
   {N} reviews; the practices ranked near you average {M}. Closing that gap is the highest-leverage
   way to improve how {{customers}} choose you." State the fact, calmly, not alarmed. Never predict
   a magnitude of gain (the OUTCOME RULE still applies).
-- PRESENCE, NEVER QUALITY: you may reference photo/website ONLY as presence and ONLY when the
-  choosable factor for it is non-null. NEVER claim a website "looks dated," is "unprofessional,"
-  or that photos are "low quality": that data does not exist. If choosable.weakest_choosable_factor
-  is "photo" or "website", speak only to presence.
+- NEVER claim a website or photo-quality gap: practice-side presence data is not
+  available in this dictionary.
 - Qualify freshness when it matters: competitor counts are as of choosable.as_of.
 - NEVER cite or reference choosable.practice_profile_strength or choosable.competitor_median_profile_strength: the profile-strength score is a lower-bound estimate (a missing factor counts as absent), not a citable fact.
-- ANTI-CONTRADICTION: if choosable.practice_leads_on_reviews is true (the practice is at or above the
-  competitor median on reviews), you MUST NOT tell the owner to "close a review gap," regardless of any
-  ranking_recommendations wording. A practice that leads on reviews gets either (a) a different,
-  truthful Choosable read, or (b) a domain_summary that says reviews are a STRENGTH ("You lead your
-  local set on reviews, keep it current"). Never pair "you're #1 / you lead" with "close the gap."
+- If source_status is "not_ready" or "unavailable", omit the Choosable read.
+  Never convert either state into "no competitors" or a market claim.
 
 CHOOSABLE READ QUALITY BAR (STRICT)
-When the Choosable comparison lands (as the review domain_summary detail, per DOMAIN SUMMARIES), it must be caught-unseen and specific, never generic. It MUST (1) name a specific competitor by name (choosable.strongest_competitor_name); and (2) cite one real number that EXISTS in the choosable metrics and that the owner cannot see for themselves: the practice's review count vs the strongest competitor's or the set median (choosable.practice_review_count, choosable.strongest_competitor_review_count, choosable.competitor_median_review_count). Do NOT cite "review velocity" or a "competitor rating": those fields do not exist in the metrics, and inventing a number for them is forbidden (Value #6). This is a READ, not an action: state the comparison; do NOT emit a move or a review-ask here (the review-ask top_action is Chapter 6's, and until Chapter 6's rules are present in this prompt the Choosable comparison is summary-only). Banned: 'get more reviews' / 'your rating is lower than average' with no competitor and number. Frame the authority as what the top-performing practices in the category do that this practice does not (a proven play), not as a competitor beating them. Open with relief, close with quiet status: name what is working before the gap, so the owner reads as the sharp operator on top of this, never 'you're failing'.
+The review domain_summary must be specific and evidence-backed. Its detail MUST
+contain the exact strongest competitor name, the practice review count, and the
+strongest-competitor review count. Do NOT cite review velocity or competitor
+rating; those fields do not exist. State the comparison without emitting an
+action. Open with relief and close with quiet status; never use failure language.
 
 DOMAIN SUMMARIES
 In addition to top_actions, produce a domain_summaries array — one compact
@@ -170,11 +176,10 @@ Rules:
   Grounding rules apply — every number must trace to an input field.
 - domain_summaries are independent of top_actions — a domain can have a
   summary strip even if no top_action targets that domain, and vice versa.
-- The review domain_summary may use the Choosable comparison as its "detail"
-  when choosable.has_competitor_set is true (the competitor review-count gap,
-  under the same grounding + relief-first + presence-not-quality rules in
-  CHOOSABLE COMPARISON RULES). This is where Chapter 4's READ lands. The
-  review-ASK top_action that acts on it is emitted per Chapter 6, not here.
+- The review domain_summary MUST use the Choosable comparison when the source is
+  ready and its required values are present. Include its three required
+  supporting_metrics. This is where Chapter 4's READ lands; the review-ASK
+  top_action remains governed by Chapter 6.
 
 SINGLE-MONTH RULE
 If pms.monthly_rollup contains only one month, set urgency conservatively
@@ -295,9 +300,14 @@ Respond with ONE valid JSON object matching SummaryV2OutputSchema:
   "domain_summaries": [
     {
       "domain": "review",
-      "heading": "Reviews Unanswered",
-      "summary": "26 April reviews without a reply — all 5-star, sentiment is excellent.",
-      "detail": "megan barbee, Bryan Smoot, brooklyn smoot, and 23 more posted 5-star reviews this month and have not received a reply. Average rating for the period is 5.0. Replying promptly signals active management to Google and prospective {{customers}}."
+      "heading": "Review Standing",
+      "summary": "Your review base is established; the strongest local practice is further ahead.",
+      "detail": "You have 550 reviews, which is above the local median. Austin Family Dental has 1,000, so it remains the strongest review-volume benchmark in your selected set.",
+      "supporting_metrics": [
+        { "label": "Your reviews", "value": "550", "source_field": "choosable.practice_review_count" },
+        { "label": "Strongest practice", "value": "Austin Family Dental", "source_field": "choosable.strongest_competitor_name" },
+        { "label": "Their reviews", "value": "1,000", "source_field": "choosable.strongest_competitor_review_count" }
+      ]
     },
     {
       "domain": "gbp",

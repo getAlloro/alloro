@@ -418,6 +418,13 @@ export const DomainSummarySchema = z.object({
   heading: z.string().min(1).max(30),
   summary: z.string().min(1).max(150),
   detail: z.string().min(1).max(500),
+  // Optional for stored pre-Choosable outputs. Required by the prompt and
+  // post-Zod validator when a review summary cites competitor comparisons.
+  supporting_metrics: z
+    .array(SupportingMetricSchema)
+    .min(3)
+    .max(4)
+    .optional(),
 });
 
 export const SummaryV2OutputSchema = z

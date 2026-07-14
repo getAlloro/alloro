@@ -10,6 +10,7 @@
  *   <PracticeHubHeader />     (PRACTICE HUB · YEAR TO DATE + greeting)
  *   <ProductionPanel />       (one YTD production chart)
  *   <OneThingBanner />        (the single top action — useTopAction)
+ *   <ChoosableComparisonStrip /> (newest grounded Summary comparison)
  *   <StatCardRow />           (Referrals · Local rank · Reviews · Form subs)
  *
  * Data-load reduction vs. the old layout — these fetches are intentionally
@@ -37,6 +38,7 @@ import { DashboardAlertStack } from "./alerts/DashboardAlertStack";
 import { showErrorToast, showSparkleToast } from "../../lib/toast";
 import { ProductionPanel } from "./focus/ProductionPanel";
 import { OneThingBanner } from "./focus/OneThingBanner";
+import { ChoosableComparisonStrip } from "./focus/ChoosableComparisonStrip";
 import { PatientJourneyCard } from "./focus/PatientJourneyCard";
 import { StatCardRow } from "./focus/StatCardRow";
 import { useIsWizardActive } from "../../contexts/OnboardingWizardContext";
@@ -154,6 +156,7 @@ export function DashboardOverview(props: DashboardOverviewProps) {
 
       <ProductionPanel />
       <OneThingBanner />
+      <ChoosableComparisonStrip />
       <PatientJourneyCard />
       <StatCardRow />
     </div>

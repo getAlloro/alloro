@@ -28,8 +28,8 @@ import {
   buildFormSubmissionsMetrics,
   buildPmsMetrics,
   buildReferralMetrics,
-  buildChoosableMetrics,
 } from "./sectionBuilders";
+import { ChoosableMetricsService } from "../../controllers/dashboard/feature-services/ChoosableMetricsService";
 import logger from "../../lib/logger";
 import { weightedAverageRating } from "./metricsHelpers";
 
@@ -188,7 +188,11 @@ export async function computeDashboardMetrics(
   const referral = buildReferralMetrics(reOutput);
   // Choosable (Stage 3) reuses the already-computed `reviews` for the practice
   // side (one source of truth per number — no second GBP fetch).
-  const choosable = await buildChoosableMetrics(locationId, reviews);
+  const choosable = await ChoosableMetricsService.build(
+    orgId,
+    locationId,
+    reviews
+  );
 
   const result: DashboardMetrics = {
     reviews,
