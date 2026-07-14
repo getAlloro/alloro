@@ -11,7 +11,11 @@ import type {
   PatientJourneyStageKey,
   PatientJourneyConversion,
   PatientJourneyPeriod,
+  BookableCard,
 } from "./types";
+
+/** Below this many monthly visitors the leak is an Awareness problem, not Bookable. */
+const BOOKABLE_VISITS_FLOOR = 10;
 
 /** Step labels for each adjacent stage transition. */
 const STEP_LABELS: Record<string, string> = {
@@ -105,6 +109,48 @@ export function buildHeadline(
   return {
     text: `Your largest opportunity is moving people from ${fromStage.label} to ${toStage.label}.${pctText}`,
     leakStageKey,
+  };
+}
+
+/**
+ * The Bookable-stage candidate card (Ch5a, FIX 5.3): the "one move" for the
+ * visit→booking step. Pure, no DB — mirrors buildHeadline. Produced ONLY when
+ * that step is real AND it is the leak; returns null (never generic filler) when
+ * the leak is upstream or the data is absent, so Chapter 7's selector can pick a
+ * leakier stage. Never claims phone-answer or response-time data (it doesn't
+ * exist), and never blames booking for an Awareness/Findable shortfall.
+ */
+export function buildBookableCandidate(
+  stages: PatientJourneyStage[],
+  leakStageKey: PatientJourneyStageKey | null,
+): BookableCard | null {
+  if (leakStageKey !== "leads") return null;
+
+  const visitsStage = stages.find((s) => s.key === "visits");
+  const leadsStage = stages.find((s) => s.key === "leads");
+  if (
+    !visitsStage?.available ||
+    visitsStage.value === null ||
+    visitsStage.value < BOOKABLE_VISITS_FLOOR ||
+    !leadsStage
+  ) {
+    return null;
+  }
+
+  const visits = visitsStage.value;
+  const leads = leadsStage.value ?? 0;
+  const hook =
+    leads > 0
+      ? `${visits} people reached your site last month and ${leads} asked to book. The visit-to-booking step is where you're losing the most.`
+      : `${visits} people reached your site last month and none reached the booking step yet. The visit-to-booking step is where you're losing the most.`;
+
+  return {
+    stage: "bookable",
+    generic: false,
+    hook,
+    action:
+      'The highest-leverage move is making your booking form the first thing visitors see and sharpening the call-to-action from "Learn more" to "Book now."',
+    caught_number: leads,
   };
 }
 

@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PR 153 Merge Conflict Fixes Spec</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); margin-top: 12px; }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 840px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; letter-spacing: 0; }
+    h2 { font-size: 1.35rem; letter-spacing: 0; }
+    h3 { font-size: 1rem; letter-spacing: 0; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-completed">Completed</span>
+      </div>
+      <h1>PR 153 Merge Conflict Fixes</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/07142026-pr-153-merge-conflict-fixes</dd></div>
+        <div><dt>Size</dt><dd>Medium</dd></div>
+        <div><dt>Risk</dt><dd>Level 3</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>PR 153 cannot merge into <code>dev/dave</code> because the branch conflicts with already-landed Choosable metrics and ranking guardrail work. The conflict resolution also has to fix a tenant-scope risk and a false-positive test before the PR can be safely verified.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Resolve PR 153 against current <code>dev/dave</code>, preserve the guarded Choosable metrics contract, keep the intended Ch3-7 owner-facing copy and honesty-layer fixes, repair the review-reply rehearsal test, and leave the branch with clean mergeability plus verified backend/frontend checks.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>src/utils/dashboard-metrics/service.dashboard-metrics.ts</code> - metrics dictionary assembler; conflict point between PR-side builder and base service.</li>
+        <li><code>src/controllers/dashboard/feature-services/ChoosableMetricsService.ts</code> - current guarded reference for Choosable metrics; must be preserved.</li>
+        <li><code>src/utils/dashboard-metrics/types.ts</code> - backend metrics contract consumed by Summary validators and the dashboard endpoint.</li>
+        <li><code>frontend/src/types/dashboardMetrics.ts</code> - frontend mirror of the metrics contract; must remain in sync if the backend contract changes.</li>
+        <li><code>src/controllers/agents/feature-utils/summaryV2Validators.ts</code> - validates Choosable evidence and anti-contradiction rules.</li>
+        <li><code>src/agents/monthlyAgents/Summary.md</code> - Summary prompt conflict point; must retain valid source-field guidance.</li>
+        <li><code>src/controllers/practice-ranking/feature-services/service.ranking-llm.ts</code> - ranking prompt conflict point; preserve top-three and unknown-position rules.</li>
+        <li><code>src/controllers/practice-ranking/feature-services/service.ranking-output-guardrails.ts</code> - ranking sanitizer conflict point; preserve top-three guardrail behavior.</li>
+        <li><code>src/__tests__/gbp-review-reply-loop.rehearsal.test.ts</code> - test added by PR 153; false-positive not-ready path must be corrected.</li>
+      </ul>
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li><code>§6.1</code> backend domains should mirror the clean service shape: thin orchestration, service-owned business logic, DB access through models.</li>
+        <li><code>§5.5</code> and <code>§11.7</code> require tenant-owned data to be scoped by server-side organization/location context.</li>
+        <li><code>§20.2</code> requires failure-path and tenant-scope coverage, not tests that pass because they swallow errors.</li>
+        <li><code>§12.1</code> requires frontend API types to mirror backend API contracts through the existing typed API/hook path.</li>
+      </ul>
+      <p><strong>Reference file:</strong> <code>src/controllers/dashboard/feature-services/ChoosableMetricsService.ts</code> - closest current analog for guarded Choosable metrics resolution.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Start from current <code>dev/dave</code> truth and merge PR 153 intentionally.</li>
+            <li>Preserve <code>ChoosableMetricsService.build(orgId, locationId, reviews)</code> or an equivalent org-guarded service.</li>
+            <li>Keep <code>source_status</code>, <code>source_reason</code>, <code>is_at_or_above_review_median</code>, and <code>has_most_reviews</code> in the Choosable contract unless every downstream validator is intentionally updated.</li>
+            <li>Retain PR 153's intended owner-facing Ch3-7 copy and freshness fixes when they do not conflict with safer base behavior.</li>
+            <li>Repair the not-ready review-reply test so it proves the service path, not a swallowed mock crash.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>Do not accept the PR-side unguarded <code>buildChoosableMetrics(locationId, reviews)</code> path.</li>
+            <li>Do not downgrade current Summary validator safety checks.</li>
+            <li>Do not broaden the PR into unrelated dashboard, ranking, or agent prompt rewrites.</li>
+            <li>Do not merge or deploy as part of this fix unless explicitly requested later.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>New product behavior beyond resolving PR 153's conflicts and review findings.</li>
+        <li>Production or dev deployment.</li>
+        <li>Database migrations.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 3 - merge resolution crosses backend contracts, Summary validation, dashboard API shape, and tenant-isolated data.</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li>Tenant leakage through unguarded competitor lookup. <strong>Mitigation:</strong> keep the org-validated <code>ChoosableMetricsService</code> path and add/keep tests for mismatched org/location behavior.</li>
+        <li>Summary validation drift if the older PR-side Choosable shape wins the conflict. <strong>Mitigation:</strong> preserve the richer base contract and update prompt/frontend mirrors only if required.</li>
+        <li>False test confidence in the review-reply not-ready path. <strong>Mitigation:</strong> mock the full failure path and assert behavior after the service returns normally.</li>
+        <li>Ranking copy regression from sanitizer/prompt conflict. <strong>Mitigation:</strong> preserve top-three, unknown-position, and no-fabricated-rank guardrail tests.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> <code>GET /api/dashboard/metrics</code>, monthly Summary agent inputs and validators, Practice Hub top-action display, Local Rankings narrative output, Patient Journey review/booking cards, and GBP review-reply deployment tests.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li>Do not "just resolve conflicts" by picking one side. Future-us will hate that because the base branch already contains safety work the PR branch does not know about.</li>
+        <li>The recommended path is to treat <code>dev/dave</code> as canonical for guarded Choosable metrics and ranking guardrails, then layer in only the PR 153 additions that still fit those contracts.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <article class="task-card">
+        <h3>T1: Prepare Merge Resolution Branch</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Create or switch to a scoped branch from current <code>dev/dave</code>, merge <code>origin/pr/153</code>, and keep conflict markers contained to the PR 153 files.</dd></div>
+          <div><dt>Files</dt><dd><code>src/agents/monthlyAgents/Summary.md</code>, <code>src/controllers/practice-ranking/feature-services/service.ranking-llm.ts</code>, <code>src/controllers/practice-ranking/feature-services/service.ranking-output-guardrails.ts</code>, <code>src/utils/dashboard-metrics/service.dashboard-metrics.ts</code>, <code>src/utils/dashboard-metrics/types.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>git status --short</code> shows expected conflict set only.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: Preserve Guarded Choosable Contract</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Resolve dashboard metrics conflicts by keeping the org-validated service path and the richer Choosable contract from <code>dev/dave</code>. Drop the PR-side unguarded helper unless it is rewritten behind the same organization ownership guard.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/dashboard/feature-services/ChoosableMetricsService.ts</code>, <code>src/utils/dashboard-metrics/service.dashboard-metrics.ts</code>, <code>src/utils/dashboard-metrics/types.ts</code>, <code>frontend/src/types/dashboardMetrics.ts</code>, <code>src/controllers/agents/feature-utils/summaryV2Validators.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>Backend and frontend Choosable types match; Summary validators still compile and reference existing fields.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: Reconcile Ranking And Summary Honesty Rules</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Merge PR 153 prompt and guardrail improvements without removing existing top-three, unknown-position, leader-coherence, and anti-contradiction protections.</dd></div>
+          <div><dt>Files</dt><dd><code>src/agents/monthlyAgents/Summary.md</code>, <code>src/controllers/practice-ranking/feature-services/service.ranking-llm.ts</code>, <code>src/controllers/practice-ranking/feature-services/service.ranking-output-guardrails.ts</code>, <code>src/__tests__/service.ranking-output-guardrails.test.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1, T2</dd></div>
+          <div><dt>Verify</dt><dd>Run targeted guardrail tests and inspect sanitizer cases for #1, #2/#3, outside top set, and unknown rank.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: Repair Review Reply Rehearsal Test</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add the missing <code>markFailedToDraft</code> mock, stop swallowing arbitrary errors, and assert the not-ready path avoids only the false published notification while still completing the expected failure handling.</dd></div>
+          <div><dt>Files</dt><dd><code>src/__tests__/gbp-review-reply-loop.rehearsal.test.ts</code>, optionally <code>src/controllers/gbp-automation/feature-services/GbpReviewReplyDeploymentService.ts</code> if a real service bug appears while fixing the test.</dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd><code>npx vitest run src/__tests__/gbp-review-reply-loop.rehearsal.test.ts</code></dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T5: Verification And PR Readiness</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Run merge/readiness checks, type checks, conventions, and relevant tests. Update PR status with remaining verification truth if any check is blocked by environment.</dd></div>
+          <div><dt>Files</dt><dd>No planned source edits beyond T1-T4.</dd></div>
+          <div><dt>Depends on</dt><dd>T2, T3, T4</dd></div>
+          <div><dt>Verify</dt><dd><code>git diff --check</code>, <code>npx tsc --noEmit</code>, <code>cd frontend &amp;&amp; npm run build</code>, <code>npm run check:all</code>, targeted Vitest tests, and <code>gh pr view 153 --json mergeable</code>.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" checked disabled> PR 153 merge resolution branch is ready to push and re-check against GitHub.</li>
+        <li><input type="checkbox" checked disabled> Choosable metrics remain org/location scoped and preserve the richer contract.</li>
+        <li><input type="checkbox" checked disabled> Ranking/Summary guardrails retain top-three, unknown-position, and anti-contradiction protections.</li>
+        <li><input type="checkbox" checked disabled> Review-reply not-ready rehearsal test no longer passes by swallowing a mock crash.</li>
+        <li><input type="checkbox" checked disabled> <code>git diff --check</code> passes.</li>
+        <li><input type="checkbox" checked disabled> <code>npx tsc --noEmit</code> passes.</li>
+        <li><input type="checkbox" checked disabled> <code>cd frontend &amp;&amp; npm run build</code> passes.</li>
+        <li><input type="checkbox" checked disabled> <code>npm run check:all</code> exits 0 with existing advisory findings documented with <code>§N.M</code> citations.</li>
+        <li><input type="checkbox" checked disabled> Targeted Vitest coverage passes for ranking guardrails and review-reply rehearsal.</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

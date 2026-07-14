@@ -29,14 +29,26 @@ export const MONTH_HISTORY_LIMIT = 12;
  * `unavailableReason`. Stages without a reason keep the legacy generic copy.
  */
 export function stageEmptyStateCopy(stage: PatientJourneyStage): string {
+  // FIX 5.2: the leads (Bookable) stage gets relief-framed, forms-flavored copy
+  // that always names a fixable move — never a Google-flavored dead-end. The
+  // default (no reason) also returns the "connect it" copy so the dead-end is
+  // gone even before Chapter 1's reason codes arrive.
+  if (stage.key === "leads") {
+    switch (stage.unavailableReason) {
+      case "pending":
+        return "Still counting this month's booking requests.";
+      case "no_data":
+        return "No booking requests came in through your forms this month yet.";
+      case "not_connected":
+      default:
+        return "Your website's booking form isn't sending leads to Alloro yet, connecting it is this stage's one fixable move.";
+    }
+  }
   switch (stage.unavailableReason) {
     case "pending":
       return "Google data is still pending";
     case "no_data":
-      // A connected source with zero rows this month — real zero, not broken.
-      return stage.key === "leads"
-        ? "No leads yet this month"
-        : "No Google data for this month";
+      return "No Google data for this month";
     case "not_connected":
       return "Not connected yet";
     default:

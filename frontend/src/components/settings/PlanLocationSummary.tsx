@@ -1,6 +1,7 @@
 import React from "react";
 import { MapPin } from "lucide-react";
 import type { LocationBillingSummary } from "../../api/billing";
+import { formatCents } from "./billingFormat";
 
 /**
  * "N locations × $X/mo = $Z/mo" line for the Billing plan card.
@@ -8,16 +9,6 @@ import type { LocationBillingSummary } from "../../api/billing";
  * Renders nothing when the summary is missing or carries no price
  * (e.g. subscription unreachable) — the card simply stays as it was.
  */
-
-export const formatCents = (
-  cents: number,
-  currency: string | null
-): string =>
-  new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: (currency || "usd").toUpperCase(),
-    maximumFractionDigits: cents % 100 === 0 ? 0 : 2,
-  }).format(cents / 100);
 
 export const PlanLocationSummary: React.FC<{
   summary?: LocationBillingSummary;

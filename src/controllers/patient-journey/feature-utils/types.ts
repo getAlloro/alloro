@@ -13,6 +13,8 @@
  * multi-location practices.
  */
 
+import type { MemorableCard } from "./memorableCard";
+
 /**
  * Funnel stage keys. The current monitored pipeline emits
  * impressions → visits → leads; `patients` is reserved until converted-patient
@@ -104,6 +106,8 @@ export interface PatientJourneyReviewsContext {
   newThisMonth: number | null;
   replyRatePct: number | null;
   available: boolean;
+  /** Memorable-stage candidate card (reply-gap / velocity ladder), or null. */
+  card: MemorableCard | null;
 }
 
 export interface PatientJourneyContext {
@@ -116,6 +120,14 @@ export interface PatientJourneyHeadline {
   leakStageKey: PatientJourneyStageKey | null;
 }
 
+export interface BookableCard {
+  stage: "bookable";
+  generic: false;
+  hook: string;
+  action: string;
+  caught_number: number;
+}
+
 export interface PatientJourney {
   location: PatientJourneyLocation;
   period: PatientJourneyPeriod;
@@ -123,6 +135,8 @@ export interface PatientJourney {
   conversions: PatientJourneyConversion[];
   /** Stage at the bottom of the biggest-leak step, or null. */
   leakStageKey: PatientJourneyStageKey | null;
+  /** The Bookable-stage candidate card (Ch5a), or null. */
+  bookableCard: BookableCard | null;
   revenue: PatientJourneyRevenue;
   context: PatientJourneyContext;
   headline: PatientJourneyHeadline;

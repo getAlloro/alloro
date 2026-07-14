@@ -6,11 +6,11 @@ import {
   rememberOsRecentDoc,
   useOsCommandPalette,
 } from "../../../../hooks/queries/useOsCommandPalette";
+import { OsSearchResults } from "./OsSearchResults";
 import {
   buildOsPaletteItems,
-  OsSearchResults,
   type OsPaletteItem,
-} from "./OsSearchResults";
+} from "./osPaletteItems";
 
 /**
  * ⌘K command palette for the OS surface (plans/07042026-alloro-os-admin-port
