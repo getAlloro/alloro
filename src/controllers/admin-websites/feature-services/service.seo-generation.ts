@@ -27,8 +27,8 @@ import {
   type SeoSection,
 } from "../feature-utils/util.seo-section-runner";
 import { deriveCanonicalPath } from "../feature-utils/util.canonical-path";
+import type { GscTopQuery } from "../feature-utils/util.seo-gsc-demand";
 import { getTopQueriesByProject } from "./service.gsc-performance";
-import type { GscTopQuery } from "../feature-utils/util.seo-section-runner";
 import logger from "../../../lib/logger";
 
 const MODEL = "claude-sonnet-5";
@@ -152,15 +152,14 @@ export async function generateSeoForSection(
     post_title,
   } = body;
 
-  // Fetch business data, practice facts, mind skill context, and this site's
-  // real GSC top queries in parallel. gscTopQueries is [] when the project has
-  // no Search Console data — the section runner then omits the demand block.
+  // Only GEO generation consumes Search Console demand. Other single-section
+  // runs avoid the optional lookup entirely.
   const [businessData, practiceFactsBlock, creatorContext, validatorContext, gscTopQueries] = await Promise.all([
     fetchBusinessData(projectId, location_context),
     fetchPracticeFactsBlock(entityId, entityType),
     fetchMindSkillCreator(),
     fetchMindSkillValidator(),
-    getTopQueriesByProject(projectId),
+    section === "geo_layer" ? getTopQueriesByProject(projectId) : [],
   ]);
 
   if (!businessData) {

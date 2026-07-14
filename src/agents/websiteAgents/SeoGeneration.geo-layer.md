@@ -1,8 +1,8 @@
 SECTION: GEO — Answer-First / AI Citability
 
 TARGET-QUERY SOURCING:
-- If a "REAL SEARCH DEMAND" block is present and non-empty (this site's actual Google Search Console top queries), set "target_query_primary" and "target_query_variants" by PREFERRING the real-demand queries most relevant to THIS page's content (the page content is in the user prompt). Choose the listed query that best matches what this page is about; do not pick a high-volume query the page does not actually answer.
-- If the "REAL SEARCH DEMAND" block is absent or empty, fall back to inferring the target query from this page's content as usual.
+- If a "REAL SEARCH DEMAND DATA" block is present and non-empty (this site's actual Google Search Console top queries), set "target_query_primary" and "target_query_variants" by PREFERRING a measured query only when it is genuinely relevant to THIS page's content (the page content is in the user prompt). Do not pick the least-wrong listed query merely because it has volume.
+- If the block is absent, empty, or contains no query that this page genuinely answers, fall back to inferring the target query from this page's real content as usual.
 - Never invent or assume demand numbers, and never treat the absence of the block as license to fabricate a query — infer only from the page's real content.
 
 Generate:

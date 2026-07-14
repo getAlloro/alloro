@@ -148,6 +148,15 @@ vi.mock("../agents/service.llm-runner", () => ({
   runAgent: (opts: unknown) => runAgentMock(opts),
 }));
 
+const getTopQueriesByProjectMock = vi.fn();
+vi.mock(
+  "../controllers/admin-websites/feature-services/service.gsc-performance",
+  () => ({
+    getTopQueriesByProject: (projectId: string) =>
+      getTopQueriesByProjectMock(projectId),
+  }),
+);
+
 // fetch() is used for the (optional) mind-skill context calls — make them a
 // harmless no-op so the test never reaches the network.
 vi.stubGlobal(
@@ -193,6 +202,84 @@ describe("service.seo-generation — GEO auto-apply (T5)", () => {
     });
     pageFindRawById.mockResolvedValue({ id: PAGE_ID, path: "/services/cleaning" });
     postTypeFindRawById.mockResolvedValue({ id: "pt-articles", slug: "articles" });
+    getTopQueriesByProjectMock.mockResolvedValue([]);
+  });
+
+  it("does not fetch optional GSC demand for a non-GEO single-section run", async () => {
+    queueGeneratedSections({
+      high_impact: { meta_description: "Get a cleaning." },
+    });
+
+    const { generateSeoForSection } = await import(
+      "../controllers/admin-websites/feature-services/service.seo-generation"
+    );
+
+    await generateSeoForSection(PROJECT_ID, PAGE_ID, "page", {
+      section: "high_impact",
+      location_context: null,
+      page_content: "<h1>Cleaning</h1>",
+    });
+
+    expect(getTopQueriesByProjectMock).not.toHaveBeenCalled();
+  });
+
+  it("fetches GSC demand once and exposes it only to the GEO user message", async () => {
+    getTopQueriesByProjectMock.mockResolvedValue([
+      {
+        key: "teeth cleaning near me",
+        clicks: 12,
+        impressions: 90,
+        ctr: 12 / 90,
+        position: 3.2,
+      },
+    ]);
+    queueGeneratedSections({});
+
+    const { generateAllSeoSections } = await import(
+      "../controllers/admin-websites/feature-services/service.seo-generation"
+    );
+
+    await generateAllSeoSections(PROJECT_ID, PAGE_ID, "page", {
+      location_context: null,
+      page_content: "<h1>Cleaning</h1>",
+      apply_geo_content: false,
+    });
+
+    expect(getTopQueriesByProjectMock).toHaveBeenCalledTimes(1);
+    expect(getTopQueriesByProjectMock).toHaveBeenCalledWith(PROJECT_ID);
+
+    const generationCalls = runAgentMock.mock.calls
+      .map(([options]) =>
+        options as {
+          systemPrompt: string;
+          cachedSystemBlocks?: string[];
+          userMessage: string;
+        },
+      )
+      .filter(({ userMessage }) => userMessage.includes("Generate the SEO data"));
+    const geoCall = generationCalls.find(({ userMessage }) =>
+      userMessage.includes('"geo_layer" section'),
+    );
+    const nonGeoCalls = generationCalls.filter(
+      ({ userMessage }) => !userMessage.includes('"geo_layer" section'),
+    );
+
+    expect(generationCalls).toHaveLength(6);
+    expect(geoCall?.userMessage).toContain("REAL SEARCH DEMAND DATA");
+    expect(geoCall?.userMessage).toContain("teeth cleaning near me");
+    expect(geoCall?.systemPrompt).toContain(
+      "contains no query that this page genuinely answers",
+    );
+    expect(
+      generationCalls.flatMap(({ cachedSystemBlocks }) =>
+        cachedSystemBlocks ?? [],
+      ),
+    ).not.toEqual(
+      expect.arrayContaining([expect.stringContaining("REAL SEARCH DEMAND DATA")]),
+    );
+    for (const call of nonGeoCalls) {
+      expect(call.userMessage).not.toContain("REAL SEARCH DEMAND DATA");
+    }
   });
 
   it("pages: non-empty opening_content_recommendation creates a NEW page version row, never updates the live row in place", async () => {

@@ -16,6 +16,10 @@
 import { loadPrompt } from "../../../agents/service.prompt-loader";
 import { runAgent, type CostContext } from "../../../agents/service.llm-runner";
 import logger from "../../../lib/logger";
+import {
+  buildGscDemandUserBlock,
+  type GscTopQuery,
+} from "./util.seo-gsc-demand";
 
 export type SeoSection =
   | "critical"
@@ -42,21 +46,6 @@ export interface SeoSectionResult {
   section: string;
   generated: Record<string, unknown>;
   insight: string;
-}
-
-/**
- * A single real Google Search Console top query for this site (structurally a
- * GscDimensionRow from service.gsc-performance — declared locally so the util
- * layer stays decoupled from the service layer). An EMPTY list means "no
- * measured demand"; the prefix omits the REAL SEARCH DEMAND block entirely and
- * the geo_layer prompt falls back to inferring the target query from content.
- */
-export interface GscTopQuery {
-  key: string;
-  clicks: number;
-  impressions: number;
-  ctr: number;
-  position: number;
 }
 
 const MODEL = "claude-sonnet-5";
@@ -112,7 +101,6 @@ function buildSystemPromptParts(
   businessData: Record<string, unknown>,
   creatorContext: string,
   practiceFactsBlock: string,
-  gscTopQueries: GscTopQuery[] = []
 ): { cachedPrefix: string; sectionPrompt: string } {
   const base = loadPrompt("websiteAgents/SeoGeneration");
   const sectionInstructions = loadPrompt(SEO_SECTION_FILE_MAP[section]);
@@ -124,29 +112,16 @@ ${practiceFactsBlock}
 BUSINESS DATA:
 ${JSON.stringify(businessData, null, 2)}
 
-${creatorContext ? `SEO GENERATION CRITERIA (from CroSEO mind):\n${creatorContext}\n` : ""}${buildGscDemandBlock(gscTopQueries)}`;
+${creatorContext ? `SEO GENERATION CRITERIA (from CroSEO mind):\n${creatorContext}\n` : ""}`;
 
   return { cachedPrefix, sectionPrompt: sectionInstructions };
 }
 
-/**
- * Render the REAL SEARCH DEMAND block from this site's actual GSC top queries,
- * highest-first. When the list is EMPTY the block is omitted entirely — never
- * a "no data" line — so the model degrades cleanly to inferring the target
- * query from page content (see SeoGeneration.geo-layer.md). Every number here
- * is a measured GSC figure; nothing is fabricated.
- */
-function buildGscDemandBlock(gscTopQueries: GscTopQuery[]): string {
-  if (gscTopQueries.length === 0) return "";
-
-  const lines = gscTopQueries.map(
-    (q) =>
-      `- "${q.key}": ${q.clicks} clicks, ${q.impressions} impressions, avg position ${q.position.toFixed(1)}`
-  );
-  return `\nREAL SEARCH DEMAND (Google Search Console, this site's actual top queries, highest first). For GEO target-query selection only; do NOT copy these queries into meta titles, descriptions, or schema output:\n${lines.join("\n")}\n`;
-}
-
-function buildUserPrompt(section: SeoSection, data: SeoSectionRunData & { entityType: "page" | "post" }): string {
+function buildUserPrompt(
+  section: SeoSection,
+  data: SeoSectionRunData & { entityType: "page" | "post" },
+  gscTopQueries: GscTopQuery[] = [],
+): string {
   let prompt = `ENTITY TYPE: ${data.entityType}\n`;
 
   if (data.page_path) prompt += `PAGE PATH: ${data.page_path}\n`;
@@ -174,6 +149,11 @@ function buildUserPrompt(section: SeoSection, data: SeoSectionRunData & { entity
 
   if (data.all_page_descriptions?.length) {
     prompt += `\nEXISTING META DESCRIPTIONS (must be unique from these):\n${data.all_page_descriptions.join("\n")}\n`;
+  }
+
+  if (section === "geo_layer") {
+    const gscDemandBlock = buildGscDemandUserBlock(gscTopQueries);
+    if (gscDemandBlock) prompt += `\n${gscDemandBlock}\n`;
   }
 
   prompt += `\nGenerate the SEO data for the "${section}" section. Return ONLY valid JSON.`;
@@ -238,8 +218,17 @@ async function runGenerateOnly(
   practiceFactsBlock: string = DEFAULT_PRACTICE_FACTS_BLOCK,
   gscTopQueries: GscTopQuery[] = []
 ): Promise<{ section: string; generated: Record<string, unknown> }> {
-  const { cachedPrefix, sectionPrompt } = buildSystemPromptParts(section, businessData, creatorContext, practiceFactsBlock, gscTopQueries);
-  const userPrompt = buildUserPrompt(section, { ...data, entityType });
+  const { cachedPrefix, sectionPrompt } = buildSystemPromptParts(
+    section,
+    businessData,
+    creatorContext,
+    practiceFactsBlock,
+  );
+  const userPrompt = buildUserPrompt(
+    section,
+    { ...data, entityType },
+    gscTopQueries,
+  );
 
   const result = await runAgent({
     systemPrompt: sectionPrompt,

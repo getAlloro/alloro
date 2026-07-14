@@ -1,5 +1,6 @@
 import { GscDataModel, type IGscData } from "../../../models/website-builder/GscDataModel";
 import type { IWebsiteIntegrationSafe } from "../../../models/website-builder/WebsiteIntegrationModel";
+import logger from "../../../lib/logger";
 
 const DEFAULT_RANGE_DAYS = 90;
 const MAX_RANGE_DAYS = 548;
@@ -213,27 +214,35 @@ export async function getTopQueriesByProject(
   projectId: string,
   limit: number = TOP_LIMIT,
 ): Promise<GscDimensionRow[]> {
-  const latestReportDate = normalizeDateString(
-    await GscDataModel.findLatestReportDate(projectId),
-  );
-  if (!latestReportDate) return [];
+  try {
+    const latestReportDate = normalizeDateString(
+      await GscDataModel.findLatestReportDate(projectId),
+    );
+    if (!latestReportDate) return [];
 
-  const fromDate = addUtcDays(latestReportDate, -(DEFAULT_RANGE_DAYS - 1));
-  const rows = await GscDataModel.findByProjectAndDateRange(
-    projectId,
-    fromDate,
-    latestReportDate,
-  );
+    const fromDate = addUtcDays(latestReportDate, -(DEFAULT_RANGE_DAYS - 1));
+    const rows = await GscDataModel.findByProjectAndDateRange(
+      projectId,
+      fromDate,
+      latestReportDate,
+    );
 
-  const queryMap = new Map<string, MetricAccumulator>();
-  for (const day of rows) {
-    const data = day.data as GscStoredPayload;
-    for (const row of readQueryRows(data)) {
-      addDimensionRow(queryMap, readKey(row, 0), row);
+    const queryMap = new Map<string, MetricAccumulator>();
+    for (const day of rows) {
+      const data = day.data as GscStoredPayload;
+      for (const row of readQueryRows(data)) {
+        addDimensionRow(queryMap, readKey(row, 0), row);
+      }
     }
-  }
 
-  return buildDimensionRows(queryMap).slice(0, limit);
+    return buildDimensionRows(queryMap).slice(0, limit);
+  } catch (err) {
+    logger.warn(
+      { err, projectId },
+      "[GSC Performance] Optional SEO demand lookup failed",
+    );
+    return [];
+  }
 }
 
 export async function getDashboard(
