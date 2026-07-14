@@ -103,6 +103,16 @@ export function getPracticeDisplayName(result: RankingResult): string {
 }
 
 export function getOverviewRecommendedAction(result: RankingResult): string {
+  // Prefer the actual top recommendation the engine produced. Under the Ch2
+  // Chancellor-bar prompt rule it is specific and caught-unseen (named
+  // competitor + a real number + a this-week move), so surfacing its title
+  // beats flattening it into generic keyword-matched homework. Fall back to the
+  // templated action only when the engine genuinely produced nothing.
+  const topTitle = result.llmAnalysis?.top_recommendations?.[0]?.title?.trim();
+  if (topTitle) {
+    return topTitle;
+  }
+
   const recommendations =
     result.llmAnalysis?.top_recommendations?.map((rec) =>
       `${rec.title} ${rec.description ?? ""}`.toLowerCase(),

@@ -11,6 +11,8 @@ import {
   ActionBannerShell,
 } from "../ActionBanner";
 import { formatGeneratedCopyForOrg } from "../../../utils/generatedCopy";
+import { DOMAIN_TO_STAGE, STAGE_LABEL, buildHealthVerdict } from "./verdict";
+import { useStageTones } from "./useStageTones";
 
 /**
  * OneThingBanner — the "1 thing that matters" strip for the simplified
@@ -30,11 +32,16 @@ export function OneThingBanner() {
   const locationId = selectedLocation?.id ?? null;
 
   const { topAction: realTopAction, isLoading } = useTopAction(orgId, locationId);
+  const stageTones = useStageTones();
 
   const action: ResolvedTopAction | null =
     isWizardActive && wizard
       ? (wizard.heroAction as ResolvedTopAction)
       : realTopAction;
+
+  // FIX 2: the 30-second health/leak verdict, from the SAME tones as the stat
+  // dots (real-data path only; the wizard tour drives its own demo hero).
+  const verdict = isWizardActive ? null : buildHealthVerdict(stageTones);
 
   if (!isWizardActive && isLoading) {
     return (
@@ -59,20 +66,35 @@ export function OneThingBanner() {
     );
   }
 
+  // FIX 3: the eyebrow names the ACTION's journey stage — the card's authored
+  // `stage` field first, DOMAIN_TO_STAGE as the fallback — so the single move is
+  // visibly stage-anchored and agrees with the verdict on one screen.
+  const actionStage = action.stage ?? DOMAIN_TO_STAGE[action.domain] ?? null;
+  const eyebrow = actionStage
+    ? `This month · ${STAGE_LABEL[actionStage]} · 1 thing that matters`
+    : "This month · 1 thing that matters";
+
   return (
-    <ActionBanner
-      hub="practice-hub"
-      eyebrow="This month · 1 thing that matters"
-      title={formatGeneratedCopyForOrg(
-        action.title,
-        userProfile?.organizationType,
+    <div className="flex flex-col gap-2">
+      {verdict && (
+        <p className="px-1 text-[13.5px] font-medium leading-snug text-alloro-navy">
+          {verdict.text}
+        </p>
       )}
-      description={formatGeneratedCopyForOrg(
-        action.rationale,
-        userProfile?.organizationType,
-      )}
-      wizardTarget="dashboard-hero"
-    />
+      <ActionBanner
+        hub="practice-hub"
+        eyebrow={eyebrow}
+        title={formatGeneratedCopyForOrg(
+          action.title,
+          userProfile?.organizationType,
+        )}
+        description={formatGeneratedCopyForOrg(
+          action.rationale,
+          userProfile?.organizationType,
+        )}
+        wizardTarget="dashboard-hero"
+      />
+    </div>
   );
 }
 

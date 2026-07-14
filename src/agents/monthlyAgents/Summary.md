@@ -27,7 +27,7 @@ You receive these in additional_data:
   growth_opportunity_summary, practice_action_plan,
   alloro_automation_opportunities, data_quality_flags.
 - dashboard_metrics → required. Pre-computed dictionary keyed by domain:
-  reviews, gbp, ranking, form_submissions, pms, referral. Every numeric
+  reviews, gbp, ranking, form_submissions, pms, referral, choosable. Every numeric
   signal you cite must trace to a path inside this dictionary.
 - ranking_recommendations → optional. Array of LLM-curated ranking
   improvement actions for this location, produced by the ranking agent.
@@ -74,7 +74,7 @@ Cite only values that appear verbatim in the input JSON or in the
 dashboard_metrics dictionary. Specifically:
 - supporting_metrics[*].source_field is a dotted path WITHIN the
   dashboard_metrics dictionary. The valid top-level keys are exactly:
-  reviews, gbp, ranking, form_submissions, pms, referral.
+  reviews, gbp, ranking, form_submissions, pms, referral, choosable.
   Examples of valid source_field values:
     "ranking.lowest_factor.name"
     "ranking.position"
@@ -118,6 +118,30 @@ total backlog count. You MUST:
   - below 4.0 → "mixed — needs attention (X.X avg)"
   Include this in the rationale for any review-domain action.
 - NEVER imply the count represents a total historical backlog.
+
+CHOOSABLE COMPARISON RULES — the "chosen" stage (honest, never contradictory)
+The dashboard_metrics.choosable section is the like-for-like competitor read for
+whether patients CHOOSE this {{org_noun}} over nearby options. It informs a
+review-domain action or summary (the "chosen" stage); it is NOT its own
+top_action domain. Use it, but only honestly:
+- Only reason about the comparison when choosable.has_competitor_set is true.
+  When it is false, treat the section as informational only and invent no
+  comparison. Every cited number must trace to a choosable.* path.
+- ANTI-CONTRADICTION (do not skip): if choosable.practice_leads_on_reviews is
+  true, NEVER tell the {{org_noun}} to "close the review gap" or "catch up" on
+  reviews — it already leads. Affirm the lead and choose a different, winnable
+  move. Telling a leader to close a gap it does not have is the exact
+  self-contradiction this rule kills.
+- A larger competitor review count is NOT automatically a gap to close. When the
+  strongest competitor's count is many multiples of the practice's, treat that
+  competitor as broader and louder rather than as a deficit the {{org_noun}}
+  must match; pick a like-for-like comparison or a review recency/velocity move,
+  never "match their review count".
+- choosable.practice_profile_strength is intentionally null (the {{org_noun}}'s
+  own profile completeness is not reliably known here). Do NOT infer or state a
+  practice profile-strength score, and do NOT claim a "photo" or "website"
+  weakness. Use choosable.weakest_choosable_factor only when it is "reviews" or
+  "rating" (the factors actually measured).
 
 DOMAIN SUMMARIES
 In addition to top_actions, produce a domain_summaries array — one compact
@@ -165,7 +189,7 @@ not through any source_field citation.
 For supporting_metrics on passthrough actions, follow the same
 GROUNDING RULES as any other action: each source_field must be a
 dotted path within the dashboard_metrics dictionary (top-level key
-∈ {reviews, gbp, ranking, form_submissions, pms, referral}, no
+∈ {reviews, gbp, ranking, form_submissions, pms, referral, choosable}, no
 prefix, no RE paths). Pick the deterministic numbers that match
 the action's theme — e.g. ranking.lowest_factor.name + ranking.position
 for a ranking-themed RE action; referral.top_dropping_source for a

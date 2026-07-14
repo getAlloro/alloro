@@ -6,6 +6,9 @@ type RankingRecommendation = {
   effort?: string;
   timeline?: string;
   expected_outcome?: string;
+  // Marks a data-less safety-net entry so Chapter 7 can de-prioritize it in
+  // favor of a specific, caught-unseen candidate from another stage.
+  generic?: boolean;
 };
 
 type RankingGap = {
@@ -23,33 +26,41 @@ type RankingLlmGuardrailContext = {
 const WEBSITE_ACTION_PATTERN =
   /\b(website|web provider|page speed|pagespeed|site speed|speed up|load time|loading|core web vitals|lighthouse|performance score)\b/i;
 
+// Data-less safety net: fired only when the LLM produced no usable recommendation.
+// Each entry is flagged `generic: true` so cross-stage selection (Chapter 7) can
+// de-prioritize it in favor of a specific, caught-unseen candidate from another
+// stage, and the copy is relief-first (leads with what is already working) so a
+// fallback never frames the practice as behind.
 const SAFE_RECOMMENDATION_BACKFILL: RankingRecommendation[] = [
   {
-    title: "Keep review momentum moving",
+    title: "Keep your review momentum going",
     description:
-      "Ask every completed patient for a Google review so the lead over nearby practices keeps widening.",
+      "Your recent reviews are already helping patients find and trust you. Asking a few more completed patients each week keeps that momentum going.",
     impact: "high",
     effort: "low",
     timeline: "30 days",
     expected_outcome: "More recent reviews and stronger local search trust signals.",
+    generic: true,
   },
   {
-    title: "Post to Google every week",
+    title: "Keep your Google profile active",
     description:
-      "Publish one useful Google post with a real practice photo each week to show the profile is active.",
+      "An active profile reassures patients you are open and engaged. One useful Google post with a real practice photo each week keeps it looking current.",
     impact: "medium",
     effort: "low",
     timeline: "30 days",
     expected_outcome: "A more active Google profile without extra dashboard clutter.",
+    generic: true,
   },
   {
-    title: "Add fresh practice photos",
+    title: "Round out your profile photos",
     description:
-      "Upload current office and team photos so patients see a more complete profile before they call.",
+      "Patients look at photos before they call. Adding a few current office and team photos gives them a more complete first impression.",
     impact: "medium",
     effort: "low",
     timeline: "2 weeks",
     expected_outcome: "Better profile engagement and a stronger first impression.",
+    generic: true,
   },
 ];
 

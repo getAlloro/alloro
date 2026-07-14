@@ -23,6 +23,10 @@ import type {
   PatientJourneyStage,
   OrgType,
 } from "../feature-utils/types";
+import { buildMemorableCard } from "../feature-utils/memorableCard";
+import { ReviewModel } from "../../../models/website-builder/ReviewModel";
+import { GbpReadinessService } from "../../gbp-automation/feature-services/GbpReadinessService";
+import { buildBookableCandidate } from "../feature-utils/funnelMath";
 import {
   buildConversions,
   buildHeadline,
@@ -125,13 +129,26 @@ export async function assemblePatientJourney(
   const { location, projectId } = await resolveEntities(input);
   const period = buildPeriod(input.reportMonth);
   const { start: monthStart, end: monthEnd } = monthBounds(input.reportMonth);
+  const prevMonthStart = new Date(
+    Date.UTC(monthStart.getUTCFullYear(), monthStart.getUTCMonth() - 1, 1),
+  );
   const isMulti = location.isMultiLocation;
   const isCurrentMonth = isCurrentUtcMonth(input.reportMonth);
 
   const emptyRead: StageRead = { value: null, available: false, asOf: null };
 
   // Website-traffic stages need a project; per-location stages do not.
-  const [impressions, visits, leads, pms, rank, reviews] =
+  const [
+    impressions,
+    visits,
+    leads,
+    pms,
+    rank,
+    reviews,
+    priorReviews,
+    replyable,
+    replyReadiness,
+  ] =
     await Promise.all([
       projectId
         ? readImpressions(
@@ -153,7 +170,26 @@ export async function assemblePatientJourney(
       readPms(input.organizationId, input.locationId),
       readRank(input.organizationId, input.locationId),
       readReviews(input.locationId, monthStart, monthEnd),
+      readReviews(input.locationId, prevMonthStart, monthStart),
+      ReviewModel.findReplyableForLocation(input.locationId, { limit: 25 }),
+      GbpReadinessService.getLocationReadiness(
+        input.organizationId,
+        input.locationId,
+      ),
     ]);
+
+  const memorableCard = buildMemorableCard({
+    currentNewThisMonth: reviews.newThisMonth,
+    priorNewThisMonth: priorReviews.newThisMonth,
+    velocityDatesReliable: reviews.available && priorReviews.available,
+    unrepliedCount: replyable.length,
+    // Done-for-you variant is honest only when a reply could ACTUALLY deploy:
+    // readiness checks the live Google connection, scope, GBP property AND the
+    // review_reply_enabled setting together. Gating on the setting alone could
+    // promise "Alloro can post for you" while an actual deploy would fail.
+    replyDraftPathWired: Boolean(replyReadiness?.ready),
+    repliedByAlloroCount: null,
+  });
 
   const stages: PatientJourneyStage[] = [
     toStage(
@@ -187,6 +223,7 @@ export async function assemblePatientJourney(
 
   const { conversions, leakStageKey } = buildConversions(stages);
   const headline = buildHeadline(stages, conversions, leakStageKey);
+  const bookableCard = buildBookableCandidate(stages, leakStageKey);
 
   logger.info(
     {
@@ -207,6 +244,7 @@ export async function assemblePatientJourney(
     stages,
     conversions,
     leakStageKey,
+    bookableCard,
     revenue: pms.revenue,
     context: {
       rank: {
@@ -220,6 +258,7 @@ export async function assemblePatientJourney(
         newThisMonth: reviews.newThisMonth,
         replyRatePct: reviews.replyRatePct,
         available: reviews.available,
+        card: memorableCard,
       },
     },
     headline,

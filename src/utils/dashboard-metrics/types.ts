@@ -185,6 +185,46 @@ export const ReferralMetricsSchema = z.object({
 });
 
 // =====================================================================
+// CHOOSABLE (competitor comparison — honest, never fabricated)
+// =====================================================================
+
+export interface ChoosableMetrics {
+  has_competitor_set: boolean;
+  competitor_count: number;
+  practice_review_count: number | null;
+  practice_rating: number | null;
+  competitor_median_review_count: number | null;
+  strongest_competitor_name: string | null;
+  strongest_competitor_review_count: number | null;
+  competitors_ahead_on_reviews: number | null;
+  review_count_gap_to_median: number | null;
+  practice_leads_on_reviews: boolean | null;
+  practice_profile_strength: number | null;
+  competitor_median_profile_strength: number | null;
+  weakest_choosable_factor: "reviews" | "rating" | "photo" | "website" | null;
+  as_of: string | null;
+}
+
+export const ChoosableMetricsSchema = z.object({
+  has_competitor_set: z.boolean(),
+  competitor_count: z.number(),
+  practice_review_count: z.number().nullable(),
+  practice_rating: z.number().nullable(),
+  competitor_median_review_count: z.number().nullable(),
+  strongest_competitor_name: z.string().nullable(),
+  strongest_competitor_review_count: z.number().nullable(),
+  competitors_ahead_on_reviews: z.number().nullable(),
+  review_count_gap_to_median: z.number().nullable(),
+  practice_leads_on_reviews: z.boolean().nullable(),
+  practice_profile_strength: z.number().nullable(),
+  competitor_median_profile_strength: z.number().nullable(),
+  weakest_choosable_factor: z
+    .enum(["reviews", "rating", "photo", "website"])
+    .nullable(),
+  as_of: z.string().nullable(),
+});
+
+// =====================================================================
 // TOP-LEVEL DICTIONARY
 // =====================================================================
 
@@ -195,6 +235,7 @@ export interface DashboardMetrics {
   form_submissions: FormSubmissionsMetrics;
   pms: PmsMetrics;
   referral: ReferralMetrics;
+  choosable: ChoosableMetrics;
 }
 
 export const DashboardMetricsSchema = z
@@ -205,6 +246,7 @@ export const DashboardMetricsSchema = z
     form_submissions: FormSubmissionsMetricsSchema,
     pms: PmsMetricsSchema,
     referral: ReferralMetricsSchema,
+    choosable: ChoosableMetricsSchema,
   })
   .strict();
 
