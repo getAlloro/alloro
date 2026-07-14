@@ -74,8 +74,8 @@
       ],
       "expected": "The selected parser is enforced by organization state and the visible upload/paste behavior matches the tested contracts.",
       "status": "fail",
-      "evidence": "Not run locally: the active environment was not safe for applying this migration, and the feature has not been deployed to dev.",
-      "notes": "This remains the required post-deploy dev validation before promotion to main.",
+      "evidence": "2026-07-14: dev workflow 29321162841 successfully built and deployed merge 191085e8 to both dev targets, applied both PMS migrations, reloaded PM2, and passed both health checks. The authenticated UI steps were not run.",
+      "notes": "The deployment and migration gates passed. Authenticated dev UI validation remains waived and is still recommended before promotion to main.",
       "waiver": "Accepted for the dev/dave code merge only. Running the migration from the active local environment would be unsafe; complete this check after the normal dev deployment applies the migration."
     },
     {
@@ -121,7 +121,7 @@
       ],
       "expected": "Admin assignment and Referrals Hub behavior match the nullable/default and parser-owned formula contract without sending email.",
       "status": "fail",
-      "evidence": "Not run: this worktree has no active .env, so no local app, database migration, authenticated browser session, or email-capable runtime was started.",
+      "evidence": "No authenticated browser session was run. Dev workflow 29321162841 succeeded on 2026-07-14, both migrations are applied with no pending migrations, and https://dev.getalloro.com/api/health/db returned healthy.",
       "notes": "Post-deploy dev validation is still recommended before promotion to main.",
       "waiver": "Dave explicitly waived this authenticated local UI check on 2026-07-14 for the requested dev/dave merge. No email was sent and no local database migration was run."
     },
@@ -136,8 +136,8 @@
       ],
       "expected": "No Rev 2 regression remains and the Referrals Hub parser/formula guidance builds successfully.",
       "status": "fail",
-      "evidence": "Not run after Rev 2. The focused Rev 2 backend/frontend tests, TypeScript checks, ESLint, strict convention check, and diff checks passed on 2026-07-13; the full suites, production builds, and Alloro Docs build were not rerun.",
-      "notes": "The earlier Rev 1 full regression and Docs build remain recorded in T4, but do not substitute for a fresh Rev 2 full pass.",
+      "evidence": "Focused Rev 2 backend/frontend tests, TypeScript checks, ESLint, strict conventions, and diff checks passed. Dev workflow 29321162841 then passed backend/frontend production builds and both deployment health checks. The full test suites, npm run check:all, and Alloro Docs build were not rerun after Rev 2.",
+      "notes": "The CI production builds now have fresh Rev 2 evidence. The full test-suite and Docs-build portions remain covered only by the written waiver.",
       "waiver": "Dave explicitly waived the Rev 2 full regression, production builds, and Alloro Docs build on 2026-07-14 for the requested dev/dave merge."
     }
   ]

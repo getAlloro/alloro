@@ -381,6 +381,12 @@
         <p><strong>Reason:</strong> User waiver: Dave explicitly requested <code>-d</code> and merge to <code>dev/dave</code> without the remaining T8/T9 verification.</p>
         <p><strong>Updated Done criteria:</strong> Rev 2 is accepted for dev deployment with T8/T9 waived. Post-deploy dev UI validation remains recommended before any later promotion to <code>main</code>.</p>
       </article>
+      <article class="revision-entry">
+        <h3>Rev 5 - 2026-07-14</h3>
+        <p><strong>Change:</strong> Recorded successful dev workflow 29321162841 for merge <code>191085e8</code>: backend/frontend builds passed, both PMS migrations applied with no pending migrations, both dev targets reloaded, and both health checks passed.</p>
+        <p><strong>Reason:</strong> Post-deploy evidence: the durable acceptance record must distinguish successful deployment from the still-waived authenticated UI, full test-suite/check-all, and Alloro Docs checks.</p>
+        <p><strong>Updated Done criteria:</strong> none; T5/T8/T9 retain their written waivers for the checks that were not run.</p>
+      </article>
     </section>
   </main>
 </body>
