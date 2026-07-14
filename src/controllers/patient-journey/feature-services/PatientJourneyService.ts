@@ -56,6 +56,11 @@ interface ResolvedEntities {
   projectId: string | null;
 }
 
+interface ReplyOpportunity {
+  unrepliedCount: number;
+  isDraftPathWired: boolean;
+}
+
 /** Resolve org/location/project context + org-type + multi-location flag. */
 async function resolveEntities(
   input: PatientJourneyInput,
@@ -90,6 +95,37 @@ async function resolveEntities(
       isMultiLocation: locationCount > 1,
     },
     projectId: project?.id ?? null,
+  };
+}
+
+async function readReplyOpportunity(
+  organizationId: number,
+  locationId: number,
+): Promise<ReplyOpportunity> {
+  const [replyable, readiness] = await Promise.all([
+    ReviewModel.findReplyableForLocation(locationId, { limit: 25 }).catch(
+      (err) => {
+        logger.warn(
+          { err, organizationId, locationId },
+          "[patient-journey] replyable review enrichment failed",
+        );
+        return [];
+      },
+    ),
+    GbpReadinessService.getLocationReadiness(organizationId, locationId).catch(
+      (err) => {
+        logger.warn(
+          { err, organizationId, locationId },
+          "[patient-journey] reply readiness enrichment failed",
+        );
+        return null;
+      },
+    ),
+  ]);
+
+  return {
+    unrepliedCount: replyable.length,
+    isDraftPathWired: Boolean(readiness?.ready),
   };
 }
 
@@ -146,8 +182,7 @@ export async function assemblePatientJourney(
     rank,
     reviews,
     priorReviews,
-    replyable,
-    replyReadiness,
+    replyOpportunity,
   ] =
     await Promise.all([
       projectId
@@ -171,8 +206,7 @@ export async function assemblePatientJourney(
       readRank(input.organizationId, input.locationId),
       readReviews(input.locationId, monthStart, monthEnd),
       readReviews(input.locationId, prevMonthStart, monthStart),
-      ReviewModel.findReplyableForLocation(input.locationId, { limit: 25 }),
-      GbpReadinessService.getLocationReadiness(
+      readReplyOpportunity(
         input.organizationId,
         input.locationId,
       ),
@@ -188,12 +222,12 @@ export async function assemblePatientJourney(
     // stays false so the velocity rung never fires on a date artifact. The reply-gap
     // rung (primary, done-for-you) is unaffected.
     velocityDatesReliable: false,
-    unrepliedCount: replyable.length,
+    unrepliedCount: replyOpportunity.unrepliedCount,
     // Done-for-you variant is honest only when a reply could ACTUALLY deploy:
     // readiness checks the live Google connection, scope, GBP property AND the
     // review_reply_enabled setting together. Gating on the setting alone could
     // promise "Alloro can post for you" while an actual deploy would fail.
-    replyDraftPathWired: Boolean(replyReadiness?.ready),
+    replyDraftPathWired: replyOpportunity.isDraftPathWired,
     repliedByAlloroCount: null,
   });
 
