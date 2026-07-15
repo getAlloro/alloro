@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Project Board Comment And Attachment Feed Spec</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); }
+    .task-card + .task-card { margin-top: 14px; }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 880px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; letter-spacing: 0; }
+    h2 { font-size: 1.35rem; letter-spacing: 0; }
+    h3 { font-size: 1rem; letter-spacing: 0; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    .task-card dl { display: grid; gap: 12px; margin-bottom: 0; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    .note { padding: 14px 16px; border-left: 3px solid var(--ink); background: var(--soft); }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-completed">Completed</span>
+      </div>
+      <h1>Project Board Comment And Attachment Feed</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/07162026-project-board-comment-attachment-feed</dd></div>
+        <div><dt>Size</dt><dd>Medium</dd></div>
+        <div><dt>Risk</dt><dd>Level 2</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>The task sidebar splits comments and files into isolated views. A file uploaded from Attachments is invisible in the conversation, and the Comments tab has no file drop path, so the task history is incomplete and upload progress depends on which tab is open.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Turn Comments into a chronological task feed that interleaves real comment rows and real task attachment rows. Reorder the tabs to Details, Comments, Attachments; allow file drag-and-drop plus a keyboard-accessible picker from Comments; and keep completed, pending, failed, and deleted attachment state synchronized across both tabs.</p>
+      <p class="note"><strong>Core contract:</strong> <code>pm_task_comments</code> and <code>pm_task_attachments</code> remain the sources of truth. The frontend creates a typed read model sorted by <code>created_at</code>; it does not create a synthetic comment or a new attachment relationship.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>frontend/src/components/pm/TaskDetailPanel.tsx</code> - owns the sidebar tabs, their counts, and the always-mounted tab bodies.</li>
+        <li><code>frontend/src/components/pm/CommentsSection.tsx</code> - currently fetches and mutates comments in component-local state.</li>
+        <li><code>frontend/src/components/pm/AttachmentsSection.tsx</code> - currently fetches attachments and owns its upload progress queue locally.</li>
+        <li><code>frontend/src/api/pm.ts</code> - already exposes typed comment CRUD, attachment CRUD, upload progress, preview, and download functions through the shared API client.</li>
+        <li><code>frontend/src/types/pm.ts</code> - already defines <code>PmTaskComment</code> and <code>PmTaskAttachment</code>, including compatible <code>created_at</code> timestamps.</li>
+        <li><code>frontend/src/lib/queryClient.ts</code> - owns the required <code>QUERY_KEYS</code> factory.</li>
+        <li><code>src/models/PmTaskCommentModel.ts</code> and <code>src/models/PmTaskAttachmentModel.ts</code> - confirm chronological comment reads and timestamped task attachment reads without requiring a schema change.</li>
+      </ul>
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li><strong>§12.1:</strong> mirror the <code>frontend/src/api/</code> + React Query + feature-folder triad. Existing <code>frontend/src/api/pm.ts</code> remains the API layer.</li>
+        <li><strong>§14.1 and §14.3:</strong> components render; hooks own data-fetching and mutations; hooks call the existing PM API functions.</li>
+        <li><strong>§15.1:</strong> comments and completed attachments are React Query server state. Only in-flight upload progress stays local UI state.</li>
+        <li><strong>§13.1, §13.2, and §13.3:</strong> extract the new combined-feed rendering and data orchestration instead of adding more responsibilities to the existing large components.</li>
+        <li><strong>§16.1 through §16.3:</strong> surface query and mutation failures through the existing API error contract and visible inline/toast feedback.</li>
+        <li><strong>§17.2:</strong> use a discriminated union for feed items and add no <code>any</code>.</li>
+        <li><strong>§20.3 and §20.4:</strong> add focused, synthetic Vitest/Testing Library coverage without skipped tests or live data.</li>
+      </ul>
+      <p><strong>Reference analogs:</strong> <code>frontend/src/hooks/queries/useSupportQueries.ts</code> for query invalidation and shared attachment state; <code>frontend/src/hooks/queries/useAdminOsComments.ts</code> for comment mutations; <code>frontend/src/components/pm/AttachmentPreviewModal.tsx</code> for preview and download behavior.</p>
+      <h3>Current Route And User</h3>
+      <p>The surface is the internal super-admin Project Board at <code>/admin/pm/:projectId</code>. The task sidebar continues to open on Details by default.</p>
+      <h3>Documentation Impact</h3>
+      <p>No matching Project Board page or replica was found in <code>/Users/rustinedave/Desktop/alloro-docs</code>. No docs file is planned. Execution and finalization must re-check docs parity and record why a docs change remains unnecessary.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Render Comments as an ascending chronological feed of comment and attachment records, with a deterministic tie-breaker for equal timestamps.</li>
+            <li>Append a pending upload item immediately after the current latest feed item, then replace it with the server attachment record on success.</li>
+            <li>Show the same upload queue and failure state in Comments and Attachments regardless of where the upload started.</li>
+            <li>Accept drag-and-drop anywhere in the Comments upload target and provide an equivalent labeled file-picker control for keyboard and assistive-technology users.</li>
+            <li>Keep the Comments badge limited to real comments and the Attachments badge limited to completed task attachments.</li>
+            <li>Preserve existing MIME limits, file-size limits, preview/download behavior, delete permissions, comment editing, mentions, and markdown safety.</li>
+            <li>Removing an attachment from either tab must remove it from both after the successful server mutation.</li>
+            <li>Use <code>QUERY_KEYS</code>, React Query invalidation/cache updates, typed props, visible focus states, and the existing PM theme variables.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>Do not add a database migration or <code>comment_id</code> relationship.</li>
+            <li>Do not create fake comment rows to represent uploads or trigger comment notifications for attachment-only activity.</li>
+            <li>Do not use <code>pm_activity_log</code> as the feed source; that log is clearable and is not the canonical comment/file record.</li>
+            <li>Do not cherry-pick the stale <code>codex/project-board-comments-ux</code> commit wholesale; its attachment filtering contradicts this feature.</li>
+            <li>Do not add new API endpoints, dependencies, state libraries, raw fetches, inline styles, or unrelated PM refactors.</li>
+            <li>Do not leave failed uploads looking completed or add them to the attachment count.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Real-time cross-user updates through WebSockets or polling.</li>
+        <li>Email or in-app notification changes.</li>
+        <li>Changes to permitted file types, size limits, S3 storage, or backend authorization.</li>
+        <li>Threaded comments, attachment-to-comment grouping, comment attachments that delete with a comment, or rich inline file embeds inside markdown.</li>
+        <li>A full visual redesign or full decomposition of legacy PM sidebar components beyond extracting the logic needed for this feature.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 2 - Concern</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li>Two independently fetched copies of attachment state can drift across tabs. <strong>Mitigation:</strong> route both tabs through the same React Query keys and one shared upload queue.</li>
+        <li>Comments are returned oldest-first while attachments are returned newest-first. <strong>Mitigation:</strong> normalize both into a discriminated feed union and sort once by timestamp plus a stable id tie-breaker.</li>
+        <li>Drop events can fire more than once when nested elements handle them. <strong>Mitigation:</strong> centralize the drop handler, prevent default propagation, and give each queued file a unique client id.</li>
+        <li>An upload can reach S3 but fail before the UI receives the completed metadata response. <strong>Mitigation:</strong> keep the pending row in an explicit failed state, do not increment the attachment count, and allow the user to retry by selecting or dropping the file again.</li>
+        <li>The existing sidebar components are already large. <strong>Mitigation:</strong> place all new feed rendering, sorting, and query orchestration in focused child files/hooks; touched legacy components must not gain another independent data path.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> Project Board task detail tab ordering; comment loading, editing, deletion, mention rendering, and counts; attachment upload, progress, preview, download, deletion, and counts. Backend routes, models, migrations, notifications, S3 keys, and other PM surfaces remain unchanged.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li>The previous <code>comment_id</code> design is the wrong model for this request because it intentionally removes comment uploads from the Attachments library. <strong>Recommendation:</strong> keep one task attachment collection and render it in two views.</li>
+        <li>Using the activity log would appear simpler, but clearing that log would erase the conversation view while the comments and files still exist. <strong>Recommendation:</strong> merge the canonical records in the frontend.</li>
+        <li>Drag-and-drop alone excludes keyboard users. <strong>Recommendation:</strong> the Comments tab gets both a drop target and a labeled file picker.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <article class="task-card">
+        <h3>T1: Shared Task Conversation State</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add PM task comment/attachment query keys; move comment queries/mutations and attachment queries/mutations behind focused React Query hooks; maintain one typed upload queue with progress and failure state; add a pure utility that builds the stable chronological comment/attachment feed.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/lib/queryClient.ts</code>, <code>frontend/src/hooks/queries/usePmTaskComments.ts</code>, <code>frontend/src/hooks/queries/usePmTaskAttachments.ts</code>, <code>frontend/src/components/pm/pmTaskFeed.utils.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>None</dd></div>
+          <div><dt>Verify</dt><dd><code>npm --prefix frontend run build</code>; inspect that no component calls PM comment/attachment API functions directly after T2.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: Comments-First Sidebar Feed</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Reorder tabs to Details, Comments, Attachments; render comments and task attachments in one chronological Comments feed; add the shared drag/drop and accessible file-picker path; display pending progress and failures; keep attachment preview/download/delete actions and both tab counts synchronized.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/components/pm/TaskDetailPanel.tsx</code>, <code>frontend/src/components/pm/CommentsSection.tsx</code>, <code>frontend/src/components/pm/AttachmentsSection.tsx</code>, <code>frontend/src/components/pm/PmTaskFeed.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>Manual: open <code>/admin/pm/:projectId</code>, open a real task, confirm tab order, upload from both tabs, and verify the same pending/completed/deleted file state in both views.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: Feed Regression Coverage And Acceptance Handoff</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add synthetic Vitest/Testing Library coverage for stable mixed ordering, pending upload placement/progress/failure, file drop and picker behavior, completed attachment synchronization, and deletion. Re-check Alloro Docs parity. During execution, generate the required <code>test.html</code> and <code>test-results.json</code> behavioral checklist.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/components/pm/PmTaskFeed.test.tsx</code>; execution-time acceptance files in this plan folder</dd></div>
+          <div><dt>Depends on</dt><dd>T1, T2</dd></div>
+          <div><dt>Verify</dt><dd><code>npm --prefix frontend run test -- PmTaskFeed.test.tsx</code>, <code>npx tsc --noEmit</code>, <code>npm --prefix frontend run build</code>, <code>npm run check:all</code>.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" checked disabled> Tabs render in the order Details, Comments, Attachments; Details remains the default.</li>
+        <li><input type="checkbox" checked disabled> Comments renders real comments and real task attachments in stable ascending chronological order.</li>
+        <li><input type="checkbox" checked disabled> Uploading from either Comments or Attachments immediately creates one pending feed item with visible progress in both surfaces.</li>
+        <li><input type="checkbox" checked disabled> Successful uploads replace the pending row, appear in the Attachments library, and increment only the attachment count.</li>
+        <li><input type="checkbox" checked disabled> Failed uploads remain visibly failed, do not appear completed, and do not increment the attachment count.</li>
+        <li><input type="checkbox" checked disabled> Comments supports both drag-and-drop and a keyboard-accessible labeled file picker.</li>
+        <li><input type="checkbox" checked disabled> Preview, download, and server-authorized delete behavior still works; a successful delete removes the file from both tabs.</li>
+        <li><input type="checkbox" checked disabled> Comment author controls, editing, deletion, mentions, markdown safety, and comment-only count remain unchanged.</li>
+        <li><input type="checkbox" checked disabled> No backend file, migration, notification behavior, S3 key, dependency, or file-policy change is introduced.</li>
+        <li><input type="checkbox" checked disabled> <code>npm --prefix frontend run test -- PmTaskFeed.test.tsx</code> passes.</li>
+        <li><input type="checkbox" checked disabled> <code>npx tsc --noEmit</code> passes with no errors caused by this work.</li>
+        <li><input type="checkbox" checked disabled> <code>npm --prefix frontend run build</code> passes.</li>
+        <li><input type="checkbox" checked disabled> <code>npm run check:all</code> is reviewed and introduces no new Constitution violations.</li>
+        <li><input type="checkbox" checked disabled> Manual acceptance on <code>/admin/pm/:projectId</code> was explicitly waived by the user for the direct <code>dev/dave</code> merge; it was not run and is not claimed as passed.</li>
+        <li><input type="checkbox" checked disabled> Alloro Docs parity is re-checked and explicitly recorded as unnecessary because no matching Project Board documentation surface exists.</li>
+        <li><input type="checkbox" checked disabled> <code>test-results.json</code> rolls up to Passed through six explicit written waivers before <code>-d</code>.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-07-16</h3>
+        <p><strong>Change:</strong> Moved the approved plan into a separate execution worktree based on the current <code>dev/dave</code> branch and marked execution in progress. The feature scope is unchanged.</p>
+        <p><strong>Reason:</strong> Execution setup: the user requested a separate worktree and explicitly approved execution.</p>
+        <p><strong>Updated Done criteria:</strong> none.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 2 - 2026-07-16</h3>
+        <p><strong>Change:</strong> Recorded completed automated verification, marked the plan Completed, and closed all six browser acceptance items as explicit waived failures.</p>
+        <p><strong>Reason:</strong> User QA: the user explicitly waived testing and requested a direct merge to <code>dev/dave</code>. The browser checks and four unrelated full-suite ranking-copy failures are not presented as passes.</p>
+        <p><strong>Updated Done criteria:</strong> Browser acceptance is accepted through written user waivers. Focused feed tests, root TypeScript, frontend build, lint review, strict Constitution checks, diff checks, and docs-parity inspection remain the verified gates.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

@@ -2,6 +2,27 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.167] - July 2026
+
+### Project Board comments include the task attachment timeline
+
+The Project Board task sidebar now puts Comments before Attachments and shows task-level file activity in the same chronological conversation as comments. Files can be dropped or selected from either tab, and one shared state tracks upload progress, failures, completed files, deletion, and attachment counts across both views. Built on `plans/07162026-project-board-comment-attachment-feed`; focused feed tests, root TypeScript, the frontend production build, lint review, strict Constitution checks, and diff checks pass. The full frontend suite still has four unrelated ranking-copy failures. All six browser acceptance checks were explicitly waived by the user for the direct local `dev/dave` merge and are recorded as waived failures rather than passes. This change is not pushed or deployed.
+
+**Key Changes:**
+- **Comments-first task flow.** Sidebar tabs now read Details, Comments, Attachments while Details remains the default view and each count keeps its original meaning.
+- **One chronological conversation.** Existing comments and task attachments are merged by their real creation timestamps without creating synthetic comments or a second file relationship.
+- **Shared upload tracking.** Uploads started from either tab immediately show the same pending progress or failed state in both surfaces, then resolve to one completed task attachment.
+- **Comments file input.** Comments supports both drag-and-drop and a labeled keyboard-accessible multi-file picker.
+- **Existing actions preserved.** Attachment preview, download, server-authorized delete, comment edit/delete, mentions, and safe markdown remain on their existing API contracts.
+- **No backend or schema change.** The feature reuses the existing PM comment and task-attachment endpoints, storage policy, and database records.
+- **Docs parity.** Checked `alloro-docs`; no matching Project Board documentation surface exists, so no docs edit was required.
+
+**Commits:**
+- `frontend/src/hooks/queries/usePmTaskComments.ts`, `usePmTaskAttachments.ts`, and `frontend/src/lib/queryClient.ts` — shared React Query server state, mutations, and one upload-progress queue.
+- `frontend/src/components/pm/TaskDetailPanel.tsx`, `CommentsSection.tsx`, `AttachmentsSection.tsx`, `PmTaskFeed.tsx`, and `pmTaskFeed.utils.ts` — comments-first tabs, chronological mixed feed, cross-tab file state, and preserved attachment actions.
+- `frontend/src/components/pm/PmTaskFeed.test.tsx` — focused ordering, upload-entry, progress, failure, completion, and deletion coverage.
+- `plans/07162026-project-board-comment-attachment-feed/` — completed spec and acceptance record with six explicit browser waivers.
+
 ## [0.0.166] - July 2026
 
 ### Consistent Alloro transactional emails

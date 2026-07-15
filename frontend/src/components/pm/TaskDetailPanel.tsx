@@ -1,10 +1,11 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Sparkles, Trash2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type { PmTask } from "../../types/pm";
 import { usePmStore } from "../../stores/pmStore";
-import { fetchPmUsers } from "../../api/pm";
+import { usePmTaskAttachments } from "../../hooks/queries/usePmTaskAttachments";
+import { usePmTaskComments } from "../../hooks/queries/usePmTaskComments";
 import { formatDeadline, endOfDayPST } from "../../utils/pmDateFormat";
 import { PriorityTriangle } from "./PriorityTriangle";
 import { RichTextEditor } from "./RichTextEditor";
@@ -32,6 +33,9 @@ interface TaskDetailPanelProps {
 }
 
 export function TaskDetailPanel({ task, onClose, isBacklog }: TaskDetailPanelProps) {
+  const taskId = task?.id ?? null;
+  const commentState = usePmTaskComments(taskId);
+  const attachmentState = usePmTaskAttachments(taskId);
   const updateTask = usePmStore((s) => s.updateTask);
   const assignTask = usePmStore((s) => s.assignTask);
   const deleteTask = usePmStore((s) => s.deleteTask);
@@ -43,10 +47,7 @@ export function TaskDetailPanel({ task, onClose, isBacklog }: TaskDetailPanelPro
   const [deadline, setDeadline] = useState("");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [assignedTo, setAssignedTo] = useState<number | null>(null);
-  const [users, setUsers] = useState<Array<{ id: number; display_name: string; email: string }>>([]);
   const [activeTab, setActiveTab] = useState<TabId>("details");
-  const [attachmentCount, setAttachmentCount] = useState(0);
-  const [commentCount, setCommentCount] = useState(0);
   const titleRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -60,10 +61,6 @@ export function TaskDetailPanel({ task, onClose, isBacklog }: TaskDetailPanelPro
       setActiveTab("details");
     }
   }, [task]);
-
-  useEffect(() => {
-    fetchPmUsers().then(setUsers).catch(() => {});
-  }, []);
 
   // Celebration: when this task's column changes into a Done column while the
   // panel is open, fire a burst. Only on transition, never on initial mount.
@@ -90,10 +87,6 @@ export function TaskDetailPanel({ task, onClose, isBacklog }: TaskDetailPanelPro
     window.addEventListener("keydown", handleEsc);
     return () => window.removeEventListener("keydown", handleEsc);
   }, [onClose]);
-
-  // Stable callbacks so the section-level count effects don't churn.
-  const handleAttachmentCount = useCallback((n: number) => setAttachmentCount(n), []);
-  const handleCommentCount = useCallback((n: number) => setCommentCount(n), []);
 
   if (!task) return null;
 
@@ -147,7 +140,10 @@ export function TaskDetailPanel({ task, onClose, isBacklog }: TaskDetailPanelPro
 
   const assigneeOptions: Array<{ value: number | null; label: string }> = [
     { value: null, label: "Unassigned" },
-    ...users.map((u) => ({ value: u.id as number | null, label: u.display_name })),
+    ...commentState.users.map((u) => ({
+      value: u.id as number | null,
+      label: u.display_name,
+    })),
   ];
 
   return (
@@ -213,8 +209,16 @@ export function TaskDetailPanel({ task, onClose, isBacklog }: TaskDetailPanelPro
               <PmTabs
                 tabs={[
                   { id: "details", label: "Details" },
-                  { id: "attachments", label: "Attachments", count: attachmentCount },
-                  { id: "comments", label: "Comments", count: commentCount },
+                  {
+                    id: "comments",
+                    label: "Comments",
+                    count: commentState.comments.length,
+                  },
+                  {
+                    id: "attachments",
+                    label: "Attachments",
+                    count: attachmentState.attachments.length,
+                  },
                 ]}
                 activeId={activeTab}
                 onChange={(id) => setActiveTab(id as TabId)}
@@ -372,20 +376,22 @@ export function TaskDetailPanel({ task, onClose, isBacklog }: TaskDetailPanelPro
                 </div>
               </div>
 
+              {/* COMMENTS */}
+              <div className={activeTab === "comments" ? "" : "hidden"}>
+                <CommentsSection
+                  taskId={task.id}
+                  taskCreatedBy={task.created_by}
+                  commentState={commentState}
+                  attachmentState={attachmentState}
+                />
+              </div>
+
               {/* ATTACHMENTS */}
               <div className={activeTab === "attachments" ? "" : "hidden"}>
                 <AttachmentsSection
                   taskId={task.id}
                   taskCreatedBy={task.created_by}
-                  onCountChange={handleAttachmentCount}
-                />
-              </div>
-
-              {/* COMMENTS */}
-              <div className={activeTab === "comments" ? "" : "hidden"}>
-                <CommentsSection
-                  taskId={task.id}
-                  onCountChange={handleCommentCount}
+                  attachmentState={attachmentState}
                 />
               </div>
             </div>

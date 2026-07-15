@@ -195,6 +195,13 @@ export const QUERY_KEYS = {
     ["admin", "support", "ticket", ticketId] as const,
   adminSupportAssignees: ["admin", "support", "assignees"] as const,
 
+  // Admin — project board task conversation
+  pmUsers: ["admin", "pm", "users"] as const,
+  pmTaskComments: (taskId: string | null) =>
+    ["admin", "pm", "tasks", taskId, "comments"] as const,
+  pmTaskAttachments: (taskId: string | null) =>
+    ["admin", "pm", "tasks", taskId, "attachments"] as const,
+
   // Admin — website detail
   adminWebsiteDetail: (uuid: string) =>
     ["admin", "website-detail", uuid] as const,
