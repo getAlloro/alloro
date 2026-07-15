@@ -43,11 +43,13 @@ import {
   SEO_SCHEMA_TARGET_TYPE,
 } from "../controllers/admin-websites/feature-services/service.get-found-write";
 
-const NEW_SCHEMA = {
-  "@type": "Dentist",
-  name: "Bright Smiles Dental",
-  description: "Family dental care in Austin, TX.",
-};
+const NEW_SCHEMA = [
+  {
+    "@type": "Dentist",
+    name: "Bright Smiles Dental",
+    description: "Family dental care in Austin, TX.",
+  },
+];
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const ctx = () => ({ pageDrafts: new Map() }) as any;
@@ -73,17 +75,58 @@ beforeEach(() => {
 });
 
 describe("executeUpdatePageSeoSchema — schema write handler", () => {
-  it("writes seo_data.schema_json (merged with existing seo_data) and marks executed", async () => {
+  it("writes seo_data.schema_json as an ARRAY (merged with existing seo_data) and marks executed", async () => {
     const store = seedStore();
     await executeUpdatePageSeoSchema(
       { id: "r1", target_id: "page-1", target_meta: JSON.stringify({ schema_json: NEW_SCHEMA }) },
       ctx(),
     );
     const written = parseSeo(store.get("draft-1")!.seo_data);
-    expect(written.schema_json.name).toBe(NEW_SCHEMA.name);
-    expect(written.meta_title).toBe("keep-me");
+    expect(Array.isArray(written.schema_json)).toBe(true);
+    expect(written.schema_json[0].name).toBe(NEW_SCHEMA[0].name);
+    expect(written.meta_title).toBe("keep-me"); // sibling seo_data key preserved
     expect((AiCommandRecommendationModel.updateById as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith(
       "r1",
+      expect.objectContaining({ status: "executed" }),
+    );
+  });
+
+  it("fails a non-array (bare object) schema_json and writes nothing", async () => {
+    seedStore();
+    await executeUpdatePageSeoSchema(
+      {
+        id: "r1b",
+        target_id: "page-1",
+        target_meta: JSON.stringify({ schema_json: { "@type": "Dentist", name: "Bright Smiles Dental" } }),
+      },
+      ctx(),
+    );
+    expect((AiCommandRecommendationModel.updateById as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith(
+      "r1b",
+      expect.objectContaining({ status: "failed" }),
+    );
+    expect(PageModel.updateSeoDataById).not.toHaveBeenCalled();
+  });
+
+  it("SUCCEEDS when an identifier `name` looks like a claim but descriptive fields are clean", async () => {
+    const store = seedStore();
+    await executeUpdatePageSeoSchema(
+      {
+        id: "r1c",
+        target_id: "page-1",
+        target_meta: JSON.stringify({
+          schema_json: [
+            { "@type": "Dentist", name: "Pain-Free Dental Studio", description: "Family dental care in Austin, TX." },
+          ],
+        }),
+      },
+      ctx(),
+    );
+    const written = parseSeo(store.get("draft-1")!.seo_data);
+    expect(Array.isArray(written.schema_json)).toBe(true);
+    expect(written.schema_json[0].name).toBe("Pain-Free Dental Studio");
+    expect((AiCommandRecommendationModel.updateById as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith(
+      "r1c",
       expect.objectContaining({ status: "executed" }),
     );
   });
@@ -94,7 +137,7 @@ describe("executeUpdatePageSeoSchema — schema write handler", () => {
       {
         id: "r2",
         target_id: "page-1",
-        target_meta: JSON.stringify({ schema_json: { "@type": "Dentist", name: "X", description: "We will get you to rank #1 on Google." } }),
+        target_meta: JSON.stringify({ schema_json: [{ "@type": "Dentist", name: "X", description: "We will get you to rank #1 on Google." }] }),
       },
       ctx(),
     );
@@ -121,7 +164,7 @@ describe("executeUpdatePageSeoSchema — schema write handler", () => {
 });
 
 describe("collectSchemaCopy — honesty-gate input selection", () => {
-  it("collects only descriptive free-text values, skipping structural keys", () => {
+  it("collects only descriptive CLAIM text, skipping structural AND identifier keys", () => {
     const copy = collectSchemaCopy({
       "@type": "Dentist",
       name: "Bright Smiles",
@@ -130,9 +173,9 @@ describe("collectSchemaCopy — honesty-gate input selection", () => {
       description: "Gentle family dentistry.",
       areaServed: { "@type": "City", name: "Austin" },
     });
-    expect(copy).toContain("Bright Smiles");
     expect(copy).toContain("Gentle family dentistry.");
-    expect(copy).toContain("Austin"); // nested descriptive `name`
+    expect(copy).not.toContain("Bright Smiles"); // `name` is an identifier, not a claim — not scanned
+    expect(copy).not.toContain("Austin"); // nested `name` identifier — not scanned
     expect(copy).not.toContain("https://example.com");
     expect(copy).not.toContain("+1-512-555-0100");
   });
@@ -152,7 +195,8 @@ describe("buildSeoSchemaRecommendationRow — human-approved wiring", () => {
     expect(row.target_type).toBe(SEO_SCHEMA_TARGET_TYPE);
     expect(row.target_id).toBe("pg1");
     const meta = JSON.parse(row.target_meta as string);
-    expect(meta.schema_json.name).toBe(NEW_SCHEMA.name);
+    expect(Array.isArray(meta.schema_json)).toBe(true);
+    expect(meta.schema_json[0].name).toBe(NEW_SCHEMA[0].name);
     expect(meta.page_path).toBe("/services");
     // No status set -> DB default 'pending'; not pre-approved. executeBatch only
     // runs status='approved' rows, so a human must approve first (no new autonomy).

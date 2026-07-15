@@ -23,11 +23,13 @@ export interface SeoSchemaRecommendationInput {
   pageId: string;
   pagePath: string;
   /**
-   * Owner-approved, fact-sourced schema.org object to write to
-   * `seo_data.schema_json`. Only claims the practice genuinely holds — the
-   * execute handler re-checks it through the honesty gate before writing.
+   * Owner-approved, fact-sourced ARRAY of schema.org JSON-LD objects to write to
+   * `seo_data.schema_json` (the shape the whole codebase reads — consumers call
+   * `.some(...)` and guard with `Array.isArray`). Only claims the practice
+   * genuinely holds — the execute handler re-checks it through the honesty gate
+   * before writing.
    */
-  schemaJson: Record<string, unknown>;
+  schemaJson: Record<string, unknown>[];
   /** Owner-facing rationale (e.g. built from the get-found missing-field set). */
   recommendation: string;
   sortOrder: number;

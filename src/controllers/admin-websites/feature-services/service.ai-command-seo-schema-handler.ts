@@ -31,17 +31,19 @@ import {
 } from "../feature-utils/util.ai-command-shared";
 
 /**
- * Descriptive schema.org keys whose values are owner-facing free text. Only these
+ * Descriptive schema.org keys whose values are owner-facing CLAIM text. Only these
  * are scanned by the honesty gate; structural/identifier keys (@type, url,
  * telephone, serviceType, …) can't carry a rank claim and would false-positive
  * the GBP reply validator's medical/outcome heuristics.
+ *
+ * `name`/`alternateName` are deliberately EXCLUDED: they are pure identifiers, not
+ * claims Alloro is making. A real practice named "Pain-Free Dental Studio" would
+ * otherwise trip the GBP safety heuristics and block an owner-approved write.
  */
 const SCHEMA_DESCRIPTIVE_KEYS = new Set([
-  "name",
   "description",
   "slogan",
   "disambiguatingDescription",
-  "alternateName",
   "keywords",
   "headline",
   "text",
@@ -82,16 +84,18 @@ export async function executeUpdatePageSeoSchema(
   }
 
   const schemaJson = meta?.schema_json;
-  const schemaIsObject =
-    !!schemaJson &&
-    typeof schemaJson === "object" &&
-    (Array.isArray(schemaJson) ? schemaJson.length > 0 : Object.keys(schemaJson).length > 0);
-  if (!schemaIsObject) {
+  // The whole codebase reads `seo_data.schema_json` as an ARRAY of JSON-LD
+  // objects (consumers call `.some(...)` / guard with `Array.isArray`). Require
+  // a non-empty array; a bare object (or empty) fails the recommendation and
+  // writes nothing — writing a single object would crash the panel scorer and
+  // silently disable the enrichment reader.
+  const schemaIsValidArray = Array.isArray(schemaJson) && schemaJson.length > 0;
+  if (!schemaIsValidArray) {
     await AiCommandRecommendationModel.updateById(rec.id, {
       status: "failed",
       execution_result: JSON.stringify({
         success: false,
-        error: "A non-empty schema_json object is required in target_meta.",
+        error: "A non-empty schema_json array (of JSON-LD objects) is required in target_meta.",
       }),
     });
     return;
