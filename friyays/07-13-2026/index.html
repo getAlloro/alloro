@@ -23,7 +23,8 @@
             This edition tracks organization-owned PMS parsing, configurable default
             formulas, the first dedicated DentalEMR calculation path, an internal
             Admin OS document-import and editing upgrade, and a verified Journey Insights
-            signal for completed Alloro SEO work.
+            signal for completed Alloro SEO work. It also records a leadgen
+            tracking-integrity correction that is merged locally but not yet deployed.
           </p>
         </div>
         <aside class="hero-panel" aria-label="Release state summary">
@@ -31,7 +32,7 @@
           <div class="status-stack">
             <span class="tag good">Deployed</span>
             <span class="tag">2 client workflows</span>
-            <span class="tag">2 admin/operator updates</span>
+            <span class="tag">3 admin/operator updates</span>
             <span class="tag warn">Some UI checks waived</span>
           </div>
         </aside>
@@ -89,6 +90,19 @@
             <div class="meta">
               <span class="tag">Internal Alloro tooling</span>
               <span class="tag warn">Live UI checks waived</span>
+            </div>
+          </article>
+          <article class="highlight-card">
+            <h3>Leadgen reporting separates proof from inference</h3>
+            <p>
+              Internal leadgen analytics now keep persisted account links separate from
+              email or domain matches, require audit-backed report activity, and retain
+              historical unaudited rows as clearly marked evidence instead of deleting or
+              presenting them as verified engagement.
+            </p>
+            <div class="meta">
+              <span class="tag">Merged locally</span>
+              <span class="tag warn">Code promotion pending</span>
             </div>
           </article>
         </div>
@@ -166,6 +180,21 @@
                   Jo's copy review was waived for the dev merge and remains recommended
                   before production. See
                   <code>plans/07152026-journey-insights-alloro-actions/test-results.json</code>.
+                </td>
+              </tr>
+              <tr>
+                <td>Leadgen analytics</td>
+                <td>Audit-bound tracking, honest submission labels, and strict-empty cleanup</td>
+                <td>Internal Alloro operators and leadgen reporting</td>
+                <td>Merged locally; cleanup completed in local, dev, and production; code not yet pushed or deployed</td>
+                <td>No</td>
+                <td>
+                  Automated backend, frontend, timer, build, and convention gates pass.
+                  The positive focused-browser timer integration was explicitly waived
+                  and remains recommended before production code promotion. Fifteen
+                  strict-empty rows were removed from each target with recovery backups;
+                  historical invalid activity was retained and classified. See
+                  <code>plans/07152026-leadgen-tracking-integrity-cleanup/test-results.json</code>.
                 </td>
               </tr>
             </tbody>

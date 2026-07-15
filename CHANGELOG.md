@@ -2,6 +2,26 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.165] - July 2026
+
+### Leadgen tracking integrity and honest admin submissions
+
+Leadgen analytics now distinguishes persisted account relationships from derived email or domain hints, requires audit-backed report progression, and measures one-minute report engagement from focused and visible time instead of page-mount time. Empty session shells were removed from local, dev, and production with verified recovery backups, while historical unaudited activity was retained and clearly classified. Built on `plans/07152026-leadgen-tracking-integrity-cleanup`; the code is committed and merged into the local `dev/dave` and leadgen `main` checkouts, but has not been pushed or deployed. Automated backend, frontend, timer, build, and convention gates pass. The positive focused-browser timer integration is an explicit user-authorized waiver and is not presented as a pass.
+
+**Key Changes:**
+- **Audit-bound event integrity.** JSON and beacon ingestion share boundary validation, session/event writes are transactional, audit identity is write-once, and every report-surface event requires a real audit. One-minute engagement also requires prior results visibility.
+- **Real engagement timing.** The leadgen client rotates idle sessions after 30 minutes, safely adopts direct-audit sessions, retries transient tracking failures in order, records dedup state only after success, and counts report time only while visible and focused.
+- **Honest admin analytics.** The submissions list returns one row per event-backed session, keeps persisted links separate from neutral match hints, shows abandonment independently, and labels unaudited report history as “Unverified report activity.”
+- **Safe data cleanup.** Exactly 15 strict-empty rows were backed up and removed from each of local, dev, and production. All three now retain 236 event-backed sessions; the seven unaudited report sessions and four false one-minute sessions remain as classified history. Dev and production health checks pass.
+- **No schema change.** The correction uses the existing leadgen session, event, audit, user, and organization structures.
+
+**Commits:**
+- `src/controllers/leadgen-tracking/`, `src/validation/leadgenTracking.schemas.ts`, `src/routes/leadgenTracking.ts`, and focused backend tests — transactional public ingestion and semantic audit enforcement.
+- `src/models/LeadgenSessionModel.ts` and `src/controllers/admin-leadgen/feature-services/service.funnel-aggregator.ts` — unique integrity-aware list, stats, and funnel queries.
+- `frontend/src/components/Admin/leadgen/` and `frontend/src/types/leadgen.ts` — honest row, stage, match, abandonment, and detail-timeline rendering with focused tests.
+- The separate `alloro-leadgen-tool` commit — visit TTL, audit adoption, reliable tracking queue, paywall success gating, and focused/visible report timer with deterministic tests.
+- `plans/07152026-leadgen-tracking-integrity-cleanup/` — completed spec and acceptance record with nine passes and one explicit browser-integration waiver.
+
 ## [0.0.164] - July 2026
 
 ### Journey Insights shows completed Alloro SEO work

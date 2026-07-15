@@ -7,9 +7,10 @@
  * `results_viewed` therefore contributes to every earlier bucket too,
  * which is what a funnel should actually show.
  *
- * Max stage is derived from `leadgen_events` via a single derived-table
- * JOIN so we never run one query per session. Sessions with zero events
- * (only the `landed` upsert) fall back to ordinal 0.
+ * Max stage is derived from `leadgen_events` in one grouped query so we never
+ * run one query per session. Sessions with zero events are excluded, and
+ * audit-less report events collapse to landing rather than inflating report
+ * engagement.
  *
  * The `abandoned` row is terminal and orthogonal — it counts sessions
  * where `abandoned=true AND completed=false`, i.e. sessions that
@@ -55,31 +56,27 @@ const FUNNEL_STAGES: FinalStage[] = [
   "stage_viewed_2",
   "stage_viewed_4",
   "stage_viewed_5",
-  "results_viewed",
-  "report_engaged_1min",
   "email_gate_shown",
   "email_submitted",
+  "results_viewed",
+  "report_engaged_1min",
   "account_created",
 ];
 
-/**
- * Builds the SQL fragment that maps `leadgen_events.event_name` to its
- * ordinal. Generated from `STAGE_ORDER` so adding a stage to the
- * ordinal map automatically flows through.
- *
- * NOTE: `abandoned` (ordinal 99) is deliberately excluded — it's a
- * terminal flag, not a progression marker. Including it would cause a
- * session that merely abandoned (without reaching any real funnel
- * stage) to have max_ordinal=99 and therefore contribute to EVERY
- * cumulative bucket, including `account_created`. The terminal
- * abandoned counter lives in its own branch driven by `s.abandoned`.
- */
-function buildOrdinalCase(): string {
-  const lines = (Object.entries(STAGE_ORDER) as Array<[FinalStage, number]>)
-    .filter(([name]) => name !== "abandoned")
-    .map(([name, ord]) => `WHEN event_name = '${name}' THEN ${ord}`)
-    .join(" ");
-  return `CASE ${lines} ELSE 0 END`;
+function groupFirstEventTimings(
+  rows: Array<{ session_id: string; event_name: FinalStage; first_at: Date }>
+): Map<string, Map<FinalStage, number>> {
+  const firstByStage = new Map<string, Map<FinalStage, number>>();
+  for (const row of rows) {
+    const timestamp = new Date(row.first_at).getTime();
+    if (!Number.isFinite(timestamp)) continue;
+    const perSession = firstByStage.get(row.session_id) ?? new Map();
+    firstByStage.set(row.session_id, perSession);
+    if (STAGE_ORDER[row.event_name] !== undefined) {
+      perSession.set(row.event_name, timestamp);
+    }
+  }
+  return firstByStage;
 }
 
 /**
@@ -91,16 +88,12 @@ export async function aggregateFunnel(filters: {
   from?: string;
   to?: string;
 }): Promise<FunnelStageRow[]> {
-  const ordinalCase = buildOrdinalCase();
-
   // --------------------------------------------------------------------
   // Count query: one row per session with its max reached ordinal.
-  // Sessions with no events default to 0 (`landed`) because the upsert
-  // itself represents "landed". SQL lives in
+  // Sessions with no events are excluded. SQL and integrity filtering live in
   // LeadgenSessionModel.findSessionMaxOrdinalRows.
   // --------------------------------------------------------------------
   const sessionRows = await LeadgenSessionModel.findSessionMaxOrdinalRows(
-    ordinalCase,
     filters.from,
     filters.to
   );
@@ -144,21 +137,7 @@ export async function aggregateFunnel(filters: {
     filters.to
   );
 
-  // session_id -> event_name -> first_at(ms)
-  const firstByStage = new Map<string, Map<FinalStage, number>>();
-  for (const row of firstEventRows) {
-    const t = new Date(row.first_at).getTime();
-    if (!Number.isFinite(t)) continue;
-    let perSession = firstByStage.get(row.session_id);
-    if (!perSession) {
-      perSession = new Map();
-      firstByStage.set(row.session_id, perSession);
-    }
-    // Only track stages we care about (skip legacy stage_viewed_3 etc.)
-    if (STAGE_ORDER[row.event_name] !== undefined) {
-      perSession.set(row.event_name, t);
-    }
-  }
+  const firstByStage = groupFirstEventTimings(firstEventRows);
 
   // --------------------------------------------------------------------
   // Build the output rows.

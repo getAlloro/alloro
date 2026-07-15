@@ -11,7 +11,13 @@
  * short-circuit the abandonment (see `shouldSetAbandoned`).
  */
 
-import { STAGE_ORDER, FinalStage } from "../../../models/LeadgenSessionModel";
+import {
+  STAGE_ORDER,
+  FinalStage,
+  REPORT_SURFACE_EVENT_NAMES,
+} from "../../../models/LeadgenSessionModel";
+
+export { REPORT_SURFACE_EVENT_NAMES };
 
 /**
  * Non-stage interaction events that enrich the timeline but are NOT part
@@ -29,6 +35,17 @@ const NON_STAGE_EVENTS = new Set<string>([
   "email_field_blurred_empty",
   "audit_retried",
 ]);
+
+/**
+ * Events that prove the client reached the report surface. A real audit must
+ * already be attached before any of these can be accepted. Keep this set as
+ * the shared semantic boundary for ingestion and admin integrity reporting.
+ */
+const REPORT_SURFACE_EVENTS = new Set<string>(REPORT_SURFACE_EVENT_NAMES);
+
+export function isReportSurfaceEvent(eventName: string): boolean {
+  return REPORT_SURFACE_EVENTS.has(eventName);
+}
 
 /**
  * Is `event` a progression-stage event (eligible for dedup + ordering
@@ -76,7 +93,8 @@ export type StageEventDecision =
  */
 export function shouldRecordStageEvent(
   incoming: FinalStage,
-  session: { final_stage: FinalStage }
+  session: { final_stage: FinalStage },
+  hasRecordedStage = incoming === session.final_stage
 ): StageEventDecision {
   if (!isProgressionStage(incoming)) {
     return { allow: false, reason: "not_a_stage" };
@@ -92,7 +110,7 @@ export function shouldRecordStageEvent(
     return { allow: true };
   }
 
-  if (incoming === session.final_stage) {
+  if (hasRecordedStage) {
     return { allow: false, reason: "duplicate" };
   }
   if (incomingOrd < currentOrd) {

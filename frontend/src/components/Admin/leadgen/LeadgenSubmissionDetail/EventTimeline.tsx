@@ -1,9 +1,10 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { Activity } from "lucide-react";
 import type { LeadgenEvent } from "../../../../types/leadgen";
-import { STAGE_TONE, STAGE_CLASSES } from "../LeadgenSubmissionsTable";
+import { STAGE_CLASSES, STAGE_TONE } from "../leadgenSubmissionDisplay.utils";
 import {
   EVENT_ICONS,
+  buildStepDurations,
   eventLabel,
   formatAbsolute,
   formatTimeOnly,
@@ -11,28 +12,16 @@ import {
   formatGapShort,
 } from "../leadgenSubmissionDetail.utils";
 
+export type EventTimelineProps = {
+  events: LeadgenEvent[];
+  hasAudit: boolean;
+};
+
 export default function EventTimeline({
   events,
-}: {
-  events: LeadgenEvent[];
-  anchorIso?: string;
-}) {
-  // For every event we compute "time spent on this step" = gap from THIS
-  // event to the NEXT event. The last event has no next, so we show
-  // "current" there (latest known pipeline state). Pre-computed into an
-  // array so the map below stays readable.
-  const stepDurations: string[] = events.map((ev, i) => {
-    const next = i < events.length - 1 ? events[i + 1] : null;
-    if (!next) return "current";
-    try {
-      const ms =
-        new Date(next.created_at).getTime() -
-        new Date(ev.created_at).getTime();
-      return formatGapShort(ms);
-    } catch {
-      return "—";
-    }
-  });
+  hasAudit,
+}: EventTimelineProps) {
+  const stepDurations = buildStepDurations(events);
 
   return (
     <section>
@@ -63,9 +52,12 @@ export default function EventTimeline({
               const Icon = EVENT_ICONS[ev.event_name] ?? Activity;
               // CTA events have no funnel tone — fall back to gray.
               const tone =
-                (STAGE_TONE as Record<string, "green" | "blue" | "red" | "amber" | "gray">)[
-                  ev.event_name
-                ] ?? "gray";
+                (
+                  STAGE_TONE as Record<
+                    string,
+                    "green" | "blue" | "red" | "amber" | "gray"
+                  >
+                )[ev.event_name] ?? "gray";
               const toneClass = STAGE_CLASSES[tone];
 
               // Gap pill sits on the connector line ABOVE this item, showing
@@ -114,7 +106,7 @@ export default function EventTimeline({
                   </span>
                   <div className="flex items-start justify-between gap-3">
                     <p className="text-sm font-medium text-gray-800">
-                      {eventLabel(ev.event_name)}
+                      {eventLabel(ev.event_name, hasAudit)}
                     </p>
                     <div className="flex flex-col items-end shrink-0 leading-tight">
                       <span

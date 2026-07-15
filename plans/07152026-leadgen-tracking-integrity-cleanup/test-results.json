@@ -1,0 +1,163 @@
+{
+  "plan": "plans/07152026-leadgen-tracking-integrity-cleanup",
+  "generatedAt": "2026-07-16",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "T1",
+      "title": "Event ingestion enforces audit-bound transactional progression",
+      "surface": "api",
+      "precondition": "Isolated Alloro backend running on localhost:3100 against local appdb.",
+      "steps": [
+        "Run the focused backend ingestion, validation, and admin-integrity tests.",
+        "POST the audited landed through report_engaged_1min sequence to /api/leadgen/event.",
+        "POST report_engaged_1min without audit_id and inspect the database for a partial session."
+      ],
+      "expected": "Valid audited events return 200 and persist in order; unaudited report engagement returns 400 audit_id_required and creates no session shell.",
+      "status": "pass",
+      "evidence": "25/25 focused backend tests passed. Live port-3100 sequence returned five 200 responses; invalid engagement returned 400 audit_id_required and invalidSessions=0.",
+      "notes": "Synthetic sessions were deleted after verification.",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Leadgen session identity, retry, and paywall contracts hold",
+      "surface": "cli",
+      "precondition": "Leadgen-client worktree dependencies installed.",
+      "steps": [
+        "Run the leadgen Vitest suite.",
+        "Verify direct-audit adoption/fallback, 30-minute idle rotation, ordered retry, success-only dedup, and failed-paywall behavior."
+      ],
+      "expected": "All session/audit and paywall contract tests pass.",
+      "status": "pass",
+      "evidence": "14/14 leadgen-client tests passed, including TTL, audit propagation, retry/dedup, timer, and paywall cases.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "Focused and visible report time fires exactly once at 60 active seconds",
+      "surface": "ui",
+      "precondition": "Isolated leadgen client on localhost:3002, completed audit link, and a browser that completes the Framer Motion input-to-dashboard transition while focused.",
+      "steps": [
+        "Open a completed direct audit link and keep the report focused and visible for 60 active seconds.",
+        "Confirm exactly one report_engaged_1min event with the same audit_id and measured duration fields.",
+        "Repeat with the page hidden or unfocused for more than 60 wall-clock seconds and confirm no engagement event fires until active time reaches 60 seconds."
+      ],
+      "expected": "Background time is excluded; one audited engagement event fires after 60 focused, visible seconds.",
+      "status": "fail",
+      "evidence": "Negative runtime case passed: the isolated direct-audit page produced no engagement after more than 60 seconds unfocused. Pure timer tests passed and the live API accepted the measured audited event payload.",
+      "notes": "The in-app browser did not complete the existing Framer Motion transition into DashboardStage, so the positive browser-integrated timer run was not claimed from partial evidence.",
+      "waiver": "User-authorized on 2026-07-16 for this finalization only. Risk accepted because the deterministic focus/visibility timer tests pass, the unfocused runtime negative case produced no engagement after more than 60 seconds, and the live API accepted and persisted the measured audit-bound event sequence. Re-run the focused browser integration before production promotion of the code."
+    },
+    {
+      "id": "T4",
+      "title": "Admin read model returns one honest row per event-backed session",
+      "surface": "cli",
+      "precondition": "Local cleanup complete and synthetic verification rows removed.",
+      "steps": [
+        "Run countForAdminList and findForAdminList against local appdb.",
+        "Compare row count with unique session IDs and inspect data-quality classifications.",
+        "Run stats and funnel aggregation."
+      ],
+      "expected": "236 rows map to 236 unique IDs; empty rows are absent; seven unaudited report rows are flagged; invalid report activity does not inflate valid report funnel counts.",
+      "status": "pass",
+      "evidence": "List total=236, rows=236, unique=236; quality report_without_audit=7 and valid=229. Stats total_sessions=236. Funnel report stages are 5 gate views, 2 submissions, 1 results view, and 1 valid one-minute engagement.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T5",
+      "title": "Admin rows and timeline use honest labels",
+      "surface": "ui",
+      "precondition": "Frontend focused test harness available.",
+      "steps": [
+        "Render derived email/domain matches, persisted links, abandoned rows, valid report engagement, and unaudited historical report activity.",
+        "Inspect table-row and detail-timeline output."
+      ],
+      "expected": "Derived matches remain neutral hints; only persisted state shows account linkage; unaudited report history says Unverified report activity; valid engagement says Report Visible for 1+ Min.",
+      "status": "pass",
+      "evidence": "18/18 focused frontend tests passed across row, display utility, timeline, and detail utility fixtures.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T6",
+      "title": "Strict-empty local sessions are backed up and removed safely",
+      "surface": "cli",
+      "precondition": "Target asserts DB_HOST=localhost, DB_PORT=5433, database=appdb.",
+      "steps": [
+        "Export the exact candidate IDs and timestamps to a permission-restricted temporary file.",
+        "Lock and compare the candidate set, then delete transactionally using the same predicate and RETURNING.",
+        "Remove synthetic test sessions and re-run protected counts."
+      ],
+      "expected": "Exactly 15 strict-empty rows are deleted, zero remain, and event-backed and historical-invalid sessions are retained.",
+      "status": "pass",
+      "evidence": "Backup /var/tmp/alloro-leadgen-empty-sessions-20260715.json mode=600 contains 15 rows. Transaction deleted 15; strictEmpty=0; total event-backed sessions=236; report_without_audit=7 and unaudited one-minute=4 remained stable.",
+      "notes": "No dev or production database was touched.",
+      "waiver": ""
+    },
+    {
+      "id": "T7",
+      "title": "Cross-repository automated gates pass",
+      "surface": "cli",
+      "precondition": "Both isolated worktrees installed.",
+      "steps": [
+        "Run Alloro focused and full tests, type-check, backend build, frontend build, and check:all.",
+        "Run leadgen tests, type-check, and production build.",
+        "Run git diff --check in both worktrees."
+      ],
+      "expected": "All gates pass with no new errors.",
+      "status": "pass",
+      "evidence": "Alloro full suite 472/472; focused backend 25/25; frontend focused 18/18; type-check/builds/check:all passed. Leadgen 14/14; type-check and build passed. Known baseline build/convention warnings only.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T7-DOCS",
+      "title": "Alloro Docs parity decision is recorded",
+      "surface": "none",
+      "precondition": "Inspect the separate alloro-docs checkout without changing its unrelated dirty files.",
+      "steps": [],
+      "expected": "No docs change is required when no matching internal leadgen-admin documentation exists.",
+      "status": "pass",
+      "evidence": "Alloro Docs was checked; it has no matching Leadgen Submissions admin surface. No documentation files were changed.",
+      "notes": "Internal super-admin analytics only.",
+      "waiver": ""
+    },
+    {
+      "id": "T8-DEV",
+      "title": "Dev strict-empty sessions are backed up and removed safely",
+      "surface": "cli",
+      "precondition": "Revision 6 explicitly approved; alloro-dev resolves to the verified dev RDS target; live candidate count=15 and hash=8c92914edaa03f99b8342ccb49c95d4a.",
+      "steps": [
+        "Re-run the strict-empty count and candidate hash in a read-only transaction.",
+        "Create and verify a full-row mode-600 backup on the dev server.",
+        "Lock and delete the candidates transactionally with the complete predicate and RETURNING.",
+        "Verify total/event-backed=236, strict-empty=0, report-without-audit=7, unaudited one-minute=4, unchanged conversions, and healthy database connectivity."
+      ],
+      "expected": "Exactly 15 reviewed dev rows are removed and every protected count remains unchanged.",
+      "status": "pass",
+      "evidence": "Preflight total=251, event-backed=236, strict-empty=15, candidate hash=8c92914edaa03f99b8342ccb49c95d4a. Backup parsed as 15 full rows with the same hash and mode 600. Guarded transaction returned deleted=15. Independent post-check: total=236, event-backed=236, strict-empty=0, report-without-audit=7, unaudited one-minute=4, conversions=0. https://dev.getalloro.com/api/health/db returned healthy.",
+      "notes": "Recovery backup remains on the dev server at /var/tmp/alloro-leadgen-strict-empty-20260716-dev.jsonl.",
+      "waiver": ""
+    },
+    {
+      "id": "T8-PROD",
+      "title": "Production strict-empty sessions are backed up and removed safely",
+      "surface": "cli",
+      "precondition": "Revision 6 explicitly approved and T8-DEV passed; alloro-app resolves to the verified production RDS target; live candidate count=15 and hash=8c92914edaa03f99b8342ccb49c95d4a.",
+      "steps": [
+        "Re-run the strict-empty count and candidate hash in a read-only transaction.",
+        "Create and verify a separate full-row mode-600 backup on the production server.",
+        "Lock and delete the candidates transactionally with the complete predicate and RETURNING.",
+        "Verify total/event-backed=236, strict-empty=0, report-without-audit=7, unaudited one-minute=4, unchanged conversions, and healthy database connectivity."
+      ],
+      "expected": "Exactly 15 reviewed production rows are removed and every protected count remains unchanged.",
+      "status": "pass",
+      "evidence": "After T8-DEV passed, production preflight returned total=251, event-backed=236, strict-empty=15, candidate hash=8c92914edaa03f99b8342ccb49c95d4a. Backup parsed as 15 full rows with the same hash and mode 600. Guarded transaction returned deleted=15. Independent post-check: total=236, event-backed=236, strict-empty=0, report-without-audit=7, unaudited one-minute=4, conversions=0. https://app.getalloro.com/api/health/db returned healthy.",
+      "notes": "Recovery backup remains on the production server at /var/tmp/alloro-leadgen-strict-empty-20260716-production.jsonl.",
+      "waiver": ""
+    }
+  ]
+}
