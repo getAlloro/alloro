@@ -8,6 +8,7 @@
 
 import { executeProoflineAgent } from "../controllers/agents/feature-services/service.proofline-executor";
 import { executeRankingAgent } from "../controllers/agents/feature-services/service.ranking-executor";
+import { executeNapConsistencyAgent } from "./nap-consistency/executor";
 
 export interface AgentHandler {
   displayName: string;
@@ -29,6 +30,15 @@ const registry: Record<string, AgentHandler> = {
     description: "Competitive ranking analysis — discovers competitors, scores, and generates LLM analysis for all onboarded locations.",
     handler: async () => {
       const result = await executeRankingAgent();
+      return { summary: result.summary as unknown as Record<string, unknown> };
+    },
+  },
+  nap_consistency: {
+    displayName: "Citations & NAP Consistency Monitor",
+    description:
+      "Recurring NAP-consistency check across external listings for all onboarded locations — observe + flag conflicts to fix, never a rank promise. Seeded DISABLED; enable to set live (incurs SerpApi cost).",
+    handler: async () => {
+      const result = await executeNapConsistencyAgent();
       return { summary: result.summary as unknown as Record<string, unknown> };
     },
   },

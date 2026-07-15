@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Alloro Funnel Engine — A4: Citations & NAP Consistency Monitor</title>
+<style>
+  :root{
+    --bg:#ffffff; --ink:#111214; --muted:#5b5e63; --line:#e3e4e7; --card:#fafafa;
+    --good:#1f7a3d; --warn:#8a6d1e; --stop:#9a2b25; --chip:#f0f0f1;
+    --mono:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{--bg:#131417;--ink:#ecedef;--muted:#a2a5ab;--line:#2a2c31;--card:#1a1c20;--chip:#22242a;}
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.55;font-size:16px;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:860px;margin:0 auto;padding:0 24px 96px}
+  .hero{min-height:56vh;display:flex;flex-direction:column;justify-content:center;padding:64px 0 40px;border-bottom:1px solid var(--line)}
+  .pill{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--chip);width:max-content}
+  .pill .dot{width:8px;height:8px;border-radius:50%;background:var(--warn)}
+  h1{font-size:38px;line-height:1.12;letter-spacing:-.02em;margin:20px 0 10px;text-wrap:balance}
+  .sub{font-size:18px;color:var(--muted);max-width:62ch}
+  .meta{margin-top:26px;font-size:13px;color:var(--muted);font-family:var(--mono)}
+  .meta b{color:var(--ink);font-weight:600}
+  section{padding:40px 0;border-bottom:1px solid var(--line)}
+  h2{font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0 0 18px;font-weight:700}
+  h3{font-size:19px;margin:26px 0 8px;letter-spacing:-.01em}
+  p{margin:0 0 14px}
+  ul{margin:0 0 14px;padding-left:22px}
+  li{margin:6px 0}
+  strong{font-weight:650}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin:14px 0}
+  code{font-family:var(--mono);font-size:.86em;background:var(--chip);padding:1px 6px;border-radius:5px}
+  .tier{display:inline-block;font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.06em;padding:2px 8px;border-radius:5px;border:1px solid var(--warn);color:var(--warn);vertical-align:middle}
+  .guard{border-left:3px solid var(--stop);padding:10px 0 10px 16px;margin:14px 0}
+  .guard b{color:var(--stop)}
+  .reuse{border-left:3px solid var(--good);padding:10px 0 10px 16px;margin:14px 0}
+  .reuse b{color:var(--good)}
+  ol.tasks{counter-reset:t;list-style:none;padding-left:0}
+  ol.tasks>li{counter-increment:t;position:relative;padding:14px 0 14px 44px;border-top:1px solid var(--line)}
+  ol.tasks>li:before{content:counter(t);position:absolute;left:0;top:12px;width:28px;height:28px;border:1px solid var(--line);border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:13px;font-weight:700}
+  .done li{list-style:none}
+  .done li:before{content:"\2610\00a0\00a0";font-family:var(--mono);color:var(--muted)}
+  .rev h3{font-family:var(--mono);font-size:14px;margin:18px 0 6px}
+  a{color:var(--ink)}
+  @media(max-width:560px){h1{font-size:30px}.hero{min-height:auto;padding:44px 0 28px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <span class="pill"><span class="dot"></span>In Progress &middot; Rev 2</span>
+    <h1>A4 — Citations &amp; NAP Consistency Monitor</h1>
+    <p class="sub">Get-found, in-lane. The measurement (does the practice's Name/Address/Phone match across the web?) already exists but runs only once, on-demand — the EMT taking vitals. A4 adds the <strong>hospital monitor</strong>: a recurring scheduled agent that runs the existing NAP measurement per onboarded location and records the result over time. Reuses the vitals kit; adds the schedule + persistence.</p>
+    <div class="meta">
+      <div><b>Plan:</b> 07152026-nap-consistency-monitor &nbsp;&middot;&nbsp; <b>Funnel:</b> Stage A (get found), item A4 &nbsp;&middot;&nbsp; <b>Pioneer/guideline:</b> Darren Shaw (Whitespark, 2010) — citation management; accurate NAP is a Google requirement</div>
+      <div><b>Lane:</b> Corey+Claude spec &rarr; sandbox build + adversary &rarr; PR to <code>dev/dave</code> for Dave</div>
+      <div><b>Evidence:</b> <span class="tier">DIRECTIONAL · HYGIENE</span> — NAP consistency is a recognized practice; its <em>ranking magnitude</em> is graded LORE (MENU). Monitor + flag to fix; never a rank promise, never a lore number as fact.</div>
+    </div>
+  </header>
+
+  <section>
+    <h2>Why</h2>
+    <p>When a practice's Name/Address/Phone is inconsistent across Google, directories (Yelp, Healthgrades, Zocdoc…), and its own site, it confuses both search engines and customers. Fixing that is the citation-management discipline <strong>Darren Shaw / Whitespark</strong> pioneered, and accurate NAP is required by Google's own Business Profile guidelines. It is a <em>hygiene</em> lever — real and recommended, but its ranking impact is honestly <span class="tier">LORE</span> (the "+16%"-style numbers are caged as lore in the graded menu, never stated as fact).</p>
+    <p><strong>The gap (verified this session):</strong> the NAP measurement exists and works — a live simulation flagged a stale phone and a moved address, and correctly ignored a name-formatting variation. But it runs <strong>only on-demand</strong> (the admin audit route). The recurring schedules for customers are only <code>proofline</code> (daily) and <code>ranking</code> (15 days) — <strong>there is no ongoing NAP monitor.</strong> Vitals are taken at intake; the patient is never put on the monitor. A4 puts them on the monitor.</p>
+    <p><strong>The acceptance bar (Corey, 2026-07-15): meet or exceed the proven example.</strong> For NAP/citations the proven example is the citation-management category — <strong>Whitespark, BrightLocal, Yext</strong> — whose core capability is exactly this: <em>ongoing</em> monitoring of NAP consistency across sources with specific conflicts flagged. A4 meets that bar (recurring monitor + the exact source/field that disagrees). Alloro's edge, and the reason this isn't a me-too: the monitor is one organ of the <strong>owned end-to-end connection engine</strong> — Alloro hosts the site and manages the GBP, so the same consistency check feeds surfaces Alloro actually controls, not a standalone report the owner has to act on alone. And it carries the honesty cap the incumbents don't state: no rank promise. <em>If this lever ever fails to meet that bar, per Corey it becomes the focus.</em></p>
+  </section>
+
+  <section>
+    <h2>What — in scope (the monitor, reusing the measurement)</h2>
+    <div class="reuse">
+      <p><b>Reuse first (verified against code this session). No new NAP comparison logic.</b></p>
+      <ul>
+        <li><b>The vitals kit</b> — <code>compareExternalIdentity</code> (per-field NAP comparison, fuzzy address/phone/name), <code>collectExternalEntitySources</code> (SerpApi + directory discovery), <code>entitySignalScoring</code> (the external-consistency scoring). Reused as-is; A4 does not re-implement matching.</li>
+        <li><b>The schedule + agent pattern</b> — the <code>schedules</code> table + <code>scheduler.processor</code> (60s dispatcher) + <code>scheduleExec.processor</code> → <code>getAgentHandler(agent_key)</code> from <code>services/agentRegistry</code> (verified shape: <code>{ displayName, description, handler: () =&gt; Promise&lt;{ summary }&gt; }</code>, iterating onboarded locations like <code>proofline</code>/<code>ranking</code>).</li>
+        <li><b>The audit entry</b> — <code>aiSeoAuditService</code> (<code>createOrganizationAuditRun</code> / <code>executeAuditRun</code>) for the per-location run.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>The monitor</h3>
+      <ul>
+        <li><strong>New scheduled agent</strong> — register <code>agent_key: "nap_consistency"</code> in <code>agentRegistry</code> + seed a <code>schedules</code> row (<code>interval_days: 14</code>, aligned with ranking's cadence to keep SerpApi cost modest). <b>Enabled flag honored</b> — ships toggleable (can seed disabled until Corey sets it live).</li>
+        <li><strong>Per-location NAP run</strong> — for each onboarded location, run the existing NAP measurement (the vitals kit) and compute the consistency result (consistent / conflicting per source, per field). Failures are isolated per location (one bad location never fails the batch).</li>
+        <li><strong>Time-series persistence</strong> — record a snapshot per (location, run) into a new additive table <code>nap_consistency_observation</code> (org/location, run_date, sources_checked, consistent_count, conflict_count, conflicts JSON [source, field, values], observed_at). The monitor's chart — a log over time, so a customer/operator can see NAP drift and fixes.</li>
+      </ul>
+      <p><strong>Build decision to resolve at implementation (noted, not hand-waved):</strong> run the <em>focused</em> NAP measurement per location (lighter, cheaper) vs. trigger the <em>full</em> <code>executeAuditRun</code> and extract the NAP slice (more reuse, heavier/costlier per run). Recommendation: the focused NAP run to control SerpApi cost; confirmed against the code at build time.</p>
+    </div>
+    <h2 style="margin-top:34px">What — explicitly NOT in A4</h2>
+    <ul>
+      <li><strong>No new NAP matching logic</strong> — the comparison is reused, not rebuilt.</li>
+      <li><strong>No rank promise, no lore-as-fact</strong> — never "fixing NAP raises your rank by X"; the honest claim is "your listings are consistent / here are the N that disagree, worth fixing."</li>
+      <li><strong>No customer-facing dashboard</strong> in this slice — persist + operator-visible first; the display is a follow-on.</li>
+      <li><strong>No auto-fix / no writing to directories</strong> — observe + flag only (writing NAP to external directories is out of lane / a separate future decision).</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Context</h2>
+    <p><strong>Source of truth:</strong> the funnel map (item A4); the graded menu (NAP evidence = DIRECTIONAL hygiene, ranking-magnitude LORE); the verified reuse targets above. The measurement's correctness was demonstrated live this session (old-phone + moved-address caught; name-variation ignored).</p>
+    <p><strong>Constitution:</strong> backend <code>&sect;6.1</code> — the agent handler is a focused service in the worker/agent layer (mirror the <code>proofline</code>/<code>ranking</code> executors + the <code>ai-seo-audit</code> service pattern); location-scoped, tenant-safe. Migration is additive (new table + a schedule seed). Precise <code>&sect;N.M</code> at the <code>alloro-engineer</code> pass; load-bearing Article = data-validity/honesty (observe-only, no fabricated conflict, no rank claim).</p>
+  </section>
+
+  <section>
+    <h2>Constraints</h2>
+    <div class="guard">
+      <p><b>Honesty (Value #6 + the LORE cap).</b> Report NAP <b>consistency and specific conflicts to fix</b> — a data-hygiene/trust signal, never a rank promise and never a lore percentage stated as fact. A flagged conflict is "worth double-checking," not "confirmed error" (directory scraping is noisy — matches the existing scorer's own posture).</p>
+    </div>
+    <div class="guard">
+      <p><b>Anti-fabrication.</b> Persist only real comparison results (keep the source + the two values that disagreed). Never infer a conflict the comparison didn't find; never invent a source.</p>
+    </div>
+    <div class="guard">
+      <p><b>Sandbox-safety + cost.</b> Migration additive + reversible (tested <code>down</code>). The run hits <b>SerpApi</b> (an external read) — no Stripe/email/human side effect, but a per-run API cost, so cadence (14 days) is the cost knob and the schedule ships toggleable. No writes to any external listing. Prove DB paths with a rolled-back transaction in the sandbox.</p>
+    </div>
+    <ul>
+      <li><strong>Per-location failure isolation</strong> — one location's failure (no website, SerpApi error) is logged + skipped, never aborts the batch.</li>
+      <li><strong>Edge cases:</strong> location with no canonical NAP baseline → skip (nothing to compare); no external sources found → record "0 sources checked" honestly (not a false all-consistent); SerpApi unconfigured/over quota → skip the run, log it, never fabricate; a conflict that's really scraping noise → carried as "worth double-checking," never a hard error.</li>
+      <li><strong>Idempotency</strong> — one snapshot per (location, run_date).</li>
+      <li><strong>Lane:</strong> Corey+Claude author; build+adversary in the sandbox; PR to <code>dev/dave</code>; never push to <code>dev/dave</code>/<code>main</code> directly.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Risk</h2>
+    <ul>
+      <li><strong>Recurring SerpApi cost.</strong> Mitigation: 14-day cadence, toggleable schedule (seed disabled if Corey prefers), per-location isolation so a failure doesn't retry-storm.</li>
+      <li><strong>Directory-scraping noise → false conflicts.</strong> Mitigation: reuse the existing scorer's "worth double-checking, not confirmed" posture; never hard-fail on a possible mismatch.</li>
+      <li><strong>Lore hardening into a promise.</strong> Mitigation: honesty cap in the output shape + copy; tests assert no rank/guarantee/lore-number language.</li>
+      <li><strong>Heavy full-audit runs.</strong> Mitigation: prefer the focused NAP run over a full <code>executeAuditRun</code> per cadence.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Tasks</h2>
+    <ol class="tasks">
+      <li><strong>Migration</strong> — additive <code>nap_consistency_observation</code> table + reversible <code>down</code>; seed the <code>nap_consistency</code> schedule row (interval_days 14; enabled flag per Corey's cost call).</li>
+      <li><strong>Register the agent</strong> — a <code>nap_consistency</code> handler in <code>agentRegistry</code>, mirroring the <code>proofline</code>/<code>ranking</code> executors; iterates onboarded locations.</li>
+      <li><strong>Per-location NAP run</strong> — reuse the vitals kit to compute the consistency result; isolate per-location failures; honest empty/skip handling.</li>
+      <li><strong>Persist the snapshot</strong> — idempotent per (location, run_date), with the specific conflicts (source, field, values).</li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>Test / verification (how Dave proves it)</h2>
+    <ul>
+      <li>Handler unit test with an <b>injected fake NAP-source provider</b> (no SerpApi/network): sources with a stale phone + a moved address → snapshot records the exact conflicts; name-variation source → no false conflict.</li>
+      <li>Location with no baseline / no sources → honest skip / "0 sources checked", never a fabricated all-consistent.</li>
+      <li>Per-location failure isolated — one throwing location doesn't abort the batch.</li>
+      <li>Persistence idempotent — same (location, run_date) twice → one row.</li>
+      <li>Output/copy carries no rank/guarantee/lore-number claim (assert).</li>
+      <li>Migration up+down clean (rolled-back sandbox proof); disabled schedule is not dispatched.</li>
+      <li><code>npm run check:all</code> clean; <code>npm test</code> green (Node 22).</li>
+      <li><strong>Post-merge smoke-test (Dave/dev):</strong> one real scheduled run against onboarded locations; confirm honest snapshots land.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Done</h2>
+    <ul class="done">
+      <li>Additive <code>nap_consistency_observation</code> table + reversible down; a <code>nap_consistency</code> schedule seeded (toggleable per the cost call).</li>
+      <li>A registered <code>nap_consistency</code> agent runs the reused NAP measurement per onboarded location, isolates failures, and persists an idempotent time-series snapshot with the specific conflicts.</li>
+      <li>Honest handling of no-baseline / no-sources; no fabricated conflicts; no rank/guarantee/lore claim (test-proven).</li>
+      <li>Meets the proven-example bar: ongoing NAP-consistency monitoring with specific conflicts flagged (the Whitespark/BrightLocal/Yext capability), inside Alloro's owned connection engine.</li>
+      <li>Test section passes; <code>npm run check:all</code> clean; <code>npm test</code> green; a fresh adversary (<code>alloro-proof</code>) ran and its findings are fixed; <code>&sect;N.M</code> confirmed at the <code>alloro-engineer</code> pass.</li>
+      <li>Opened as a PR to <code>dev/dave</code> with this spec linked. (Customer-facing display + focused-vs-full-run tuning are noted follow-ons.)</li>
+    </ul>
+  </section>
+
+  <section id="revision-log">
+    <h2>Revision Log</h2>
+    <article class="rev">
+      <h3>Rev 1 &mdash; 2026-07-15</h3>
+      <p><strong>Change:</strong> Initial spec. Reframed A4 from "build NAP measurement" to "build the ongoing monitor" after verifying (end-to-end trace + a live simulation) that the NAP measurement already exists and works, but runs only on-demand — no recurring monitor exists (only <code>proofline</code> + <code>ranking</code> are scheduled). Reuses the measurement; adds the schedule + time-series persistence. Evidence grounded: Whitespark/Darren Shaw citation pioneer + Google NAP guideline; ranking-magnitude capped LORE. Graded against the proven examples (Whitespark/BrightLocal/Yext) per Corey's meet-or-exceed bar.</p>
+      <p><strong>Reason:</strong> Funnel map item A4; Corey's "EMT vitals vs hospital monitor" framing; "measure twice, cut once" — grounding prevented building a measurement twin.</p>
+      <p><strong>Updated Done criteria:</strong> initial A4 set (the monitor).</p>
+    </article>
+    <article class="rev">
+      <h3>Rev 2 &mdash; 2026-07-15</h3>
+      <p><strong>Change:</strong> Built + adversary-passed. The adversary confirmed the honesty-critical claims hold (summarizer counts only real <code>conflicting</code> — parity with the production scorer; no fabrication; no rank claim) and idempotency matches. It found one real low-severity issue: an org with more than one <code>google_connection</code> would yield duplicate targets (double SerpApi cost + over-counted summary), inherited from the ranking-executor pattern. <b>Fixed</b> with a testable pure helper <code>dedupeTargetsByLocation</code> (first occurrence per locationId wins) + a regression test.</p>
+      <p><strong>Reason:</strong> Adversary (alloro-proof) SUSPECTED duplicate-targets → double cost; fixed at the root (dedupe the provider) per fix-the-system.</p>
+      <p><strong>Updated Done criteria:</strong> targets deduped by locationId (test-proven); no double SerpApi run / over-count when an org has &gt;1 connection.</p>
+    </article>
+  </section>
+
+</div>
+</body>
+</html>
