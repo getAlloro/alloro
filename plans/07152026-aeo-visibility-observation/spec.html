@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Alloro Funnel Engine — A3: AI-Answer Visibility (AEO) Observation</title>
+<style>
+  :root{
+    --bg:#ffffff; --ink:#111214; --muted:#5b5e63; --line:#e3e4e7; --card:#fafafa;
+    --good:#1f7a3d; --warn:#8a6d1e; --stop:#9a2b25; --chip:#f0f0f1;
+    --mono:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{--bg:#131417;--ink:#ecedef;--muted:#a2a5ab;--line:#2a2c31;--card:#1a1c20;--chip:#22242a;}
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.55;font-size:16px;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:860px;margin:0 auto;padding:0 24px 96px}
+  .hero{min-height:56vh;display:flex;flex-direction:column;justify-content:center;padding:64px 0 40px;border-bottom:1px solid var(--line)}
+  .pill{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--chip);width:max-content}
+  .pill .dot{width:8px;height:8px;border-radius:50%;background:var(--warn)}
+  h1{font-size:38px;line-height:1.12;letter-spacing:-.02em;margin:20px 0 10px;text-wrap:balance}
+  .sub{font-size:18px;color:var(--muted);max-width:62ch}
+  .meta{margin-top:26px;font-size:13px;color:var(--muted);font-family:var(--mono)}
+  .meta b{color:var(--ink);font-weight:600}
+  section{padding:40px 0;border-bottom:1px solid var(--line)}
+  h2{font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0 0 18px;font-weight:700}
+  h3{font-size:19px;margin:26px 0 8px;letter-spacing:-.01em}
+  p{margin:0 0 14px}
+  ul{margin:0 0 14px;padding-left:22px}
+  li{margin:6px 0}
+  strong{font-weight:650}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin:14px 0}
+  code{font-family:var(--mono);font-size:.86em;background:var(--chip);padding:1px 6px;border-radius:5px}
+  .tier{display:inline-block;font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.06em;padding:2px 8px;border-radius:5px;border:1px solid var(--stop);color:var(--stop);vertical-align:middle}
+  .guard{border-left:3px solid var(--stop);padding:10px 0 10px 16px;margin:14px 0}
+  .guard b{color:var(--stop)}
+  .reuse{border-left:3px solid var(--good);padding:10px 0 10px 16px;margin:14px 0}
+  .reuse b{color:var(--good)}
+  ol.tasks{counter-reset:t;list-style:none;padding-left:0}
+  ol.tasks>li{counter-increment:t;position:relative;padding:14px 0 14px 44px;border-top:1px solid var(--line)}
+  ol.tasks>li:before{content:counter(t);position:absolute;left:0;top:12px;width:28px;height:28px;border:1px solid var(--line);border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:13px;font-weight:700}
+  .done li{list-style:none}
+  .done li:before{content:"\2610\00a0\00a0";font-family:var(--mono);color:var(--muted)}
+  .rev h3{font-family:var(--mono);font-size:14px;margin:18px 0 6px}
+  a{color:var(--ink)}
+  @media(max-width:560px){h1{font-size:30px}.hero{min-height:auto;padding:44px 0 28px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <span class="pill"><span class="dot"></span>In Progress &middot; Rev 2</span>
+    <h1>A3 — AI-Answer Visibility (AEO) Observation</h1>
+    <p class="sub">Get-found, in-lane. A multi-engine <em>observation log</em>: run a practice's category+geo prompt set against AI answer engines on a cadence and record whether the practice is <strong>mentioned/cited</strong> — per engine, over time. Observe-only. Never a rank, never a guarantee. Built as a system (engine-adapter interface), Gemini live first.</p>
+    <div class="meta">
+      <div><b>Plan:</b> 07152026-aeo-visibility-observation &nbsp;&middot;&nbsp; <b>Funnel:</b> Stage A (get found), item A3 &nbsp;&middot;&nbsp; <b>Science (do not re-derive):</b> alloro-artifacts/research/aeo-measurement-spec.md + specs/aeo-build-spec.md</div>
+      <div><b>Lane:</b> Corey+Claude spec &rarr; sandbox build + adversary &rarr; PR to <code>dev/dave</code> for Dave</div>
+      <div><b>Evidence:</b> <span class="tier">🔴 EMERGING · MEASUREMENT-ONLY</span> — rank inside AI answers is &lt;1/100 repeatable; local AI ~1–7% of query volume. Observe, never promise.</div>
+    </div>
+  </header>
+
+  <section>
+    <h2>Why</h2>
+    <p>A growing share of "who's a good [x] near me" now happens inside AI answers. Alloro is <strong>totally blind</strong> to that surface today (verified: <code>connect-lever-audit.md</code> — grep AEO/answer-engine/perplexity/chatgpt = 0 code). A3 ends that blindness the only honest way: <strong>observe</strong> whether the practice is in the set of businesses the AI names, per engine, over time. It never claims a rank or a placement.</p>
+    <p><strong>Feasibility de-risked live (2026-07-15):</strong> a grounded Gemini query ("good endodontists in Austin") named real, specific practices (McGuire Endodontics, Edge Endodontics), returned <code>groundingMetadata</code> with the live search queries + citation sources. So grounded Gemini is a real, representative-enough observation surface — labeled a proxy, not "what your customers see."</p>
+  </section>
+
+  <section>
+    <h2>What — in scope (the SYSTEM, not one engine)</h2>
+    <div class="reuse">
+      <p><b>Reuse first (verified against code + the existing science spec).</b></p>
+      <ul>
+        <li><b>The method is already specced</b> — <code>research/aeo-measurement-spec.md</code> §4 (prompt-set runner → observation log, engine adapters, honesty flags). Build to it; do not re-derive.</li>
+        <li><b>Audit-service shape</b> — mirror <code>src/services/ai-seo-audit/auditTargetExecutionService.ts</code> + <code>auditPersistenceService.ts</code> ("build targets → execute against an external source → persist"; run/target/result models, tenant-scoped <code>QueryContext</code>). Same shape.</li>
+        <li><b>Gemini client pattern</b> — <code>src/controllers/admin-os/feature-services/service.os-llm.ts</code> (the <code>@google/genai</code> seam + the <b>injected fake-provider</b> test pattern). The Gemini adapter reuses this so it is testable without a live key.</li>
+        <li><b>Practice identity</b> — <code>PracticeFactModel</code> / existing location data for the practice name/domain/GBP the detector matches on. No new source.</li>
+        <li><b>Category + geo</b> — the schema-type allowlist (<code>util.schema-business-type.ts</code>) + location data already give category + city.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>The system</h3>
+      <ul>
+        <li><strong>Engine-adapter interface</strong> — <code>AiVisibilityEngineAdapter.query(prompt, identity) → { mentioned, cited, cited_source, position, capture_method, raw_excerpt }</code>. One interface; each engine is a pluggable adapter carrying a mandatory <code>capture_method</code> flag (<code>api_grounded | api_proxy | serp_scrape</code>). Adding an engine = write one adapter, never a rebuild.</li>
+        <li><strong>Prompt-set builder</strong> — from category+geo, a small fixed set: generic ("best [category] in [city]") + one contextualized variant (per the Clovion finding). Curated + stored, not "everything".</li>
+        <li><strong>Appearance detector (deterministic)</strong> — does the practice name/domain/GBP appear in the answer text OR the grounding-source titles? Record <code>mentioned</code>, <code>cited</code>, <code>cited_source</code>, <code>position</code> (stored raw, <b>never surfaced as "rank"</b>), <code>raw_excerpt</code>. Keep the raw answer (anti-fabrication).</li>
+        <li><strong>Observation log</strong> — net-new table <code>ai_visibility_observation</code> (org/location, prompt, engine, capture_method, mentioned, cited, cited_source, position, raw_excerpt, observed_at). Idempotent insert per (location, prompt, engine, run-date). A log, never a score.</li>
+        <li><strong>Runner</strong> — for a location, run the prompt set against every <em>configured</em> adapter, detect, persist. Callable now; the weekly scheduled cadence rides the existing scheduled-job pattern (thin follow-on).</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>The engines</h3>
+      <ul>
+        <li><strong>Gemini (grounded) — LIVE + tested.</strong> Uses the <code>googleSearch</code> tool (confirmed in <code>@google/genai</code> 1.43; de-risk run named real practices + returned citations). <code>capture_method: api_grounded</code>. Citations come back as Google redirect URLs → the detector reads <code>groundingChunks[].web.title</code> for the source; citation-source capture is therefore <em>partial</em> (flagged honestly).</li>
+        <li><strong>Perplexity Sonar + Google AI Overview (SerpApi) — WRITTEN, KEY-GATED, NOT live-verified.</strong> Real adapters conforming to the interface, but each <b>activates only when its API key env var is present</b> and is flagged "needs a live smoke-test on first key." The runner skips an adapter with no key, so nothing unverified fires. This is the "wire both, one key away" option (Corey, 2026-07-15) — the system supports them now; procurement + a smoke-test turn them on, on their own cadence.</li>
+      </ul>
+    </div>
+    <h2 style="margin-top:34px">What — explicitly NOT in A3</h2>
+    <ul>
+      <li><strong>No rank number, ever.</strong> Rank inside AI answers is &lt;1/100 repeatable. No "your AI rank #3".</li>
+      <li><strong>No derived score yet.</strong> Ship the raw observation log first; a score is derived only once real per-engine time-series exists (measurement spec §3).</li>
+      <li><strong>No customer-facing surface</strong> in this slice — operator/admin-first.</li>
+      <li><strong>No guarantee / placement promise</strong> (Value #6). No premium AEO tier. Perplexity/SerpApi are not claimed as working until smoke-tested with a key.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Context</h2>
+    <p><strong>Source of truth:</strong> the funnel map (item A3) + <code>research/aeo-measurement-spec.md</code> (method + honesty caps, binding) + <code>specs/aeo-build-spec.md</code> (the optimization fundamentals — already built; AEO rides SEO+reviews). Evidence tier <span class="tier">🔴 EMERGING</span>: a measurement wedge to <em>watch the wave</em>, not a proven revenue lever.</p>
+    <p><strong>Constitution:</strong> backend <code>&sect;6.1</code> — mirror <code>src/controllers/gbp-automation/</code> (controller + <code>feature-services/</code> + <code>feature-utils/</code>) with location-scoped RBAC / <code>clientContext</code>; reuse the <code>ai-seo-audit</code> target-execution + persistence pattern (tenant-scoped <code>QueryContext</code>). Migration is additive (a new table). Precise <code>&sect;N.M</code> per file at the <code>alloro-engineer</code> pass; the load-bearing Article is data-validity/honesty (observe-only, capture-method-flagged, no fabrication).</p>
+  </section>
+
+  <section>
+    <h2>Constraints</h2>
+    <div class="guard">
+      <p><b>Honesty caps (binding, from the AEO specs + Value #6).</b> Observe <b>mention/citation, never rank</b> · <b>per-engine, never one collapsed number</b> · every reading carries the <b>churn caveat</b> (40–60% of AI-cited domains vanish month-to-month) · every reading carries a mandatory <b>capture_method</b> and an API reading is labeled a <b>proxy</b> ("an API sample, not the exact answer a customer sees") · <b>never a KPI Alloro moves, never a guarantee</b>. The output is an observation, framed as a weather report.</p>
+    </div>
+    <div class="guard">
+      <p><b>Anti-fabrication.</b> Record only what the engine actually returned (keep <code>raw_excerpt</code>). Never infer a mention that isn't in the text/citations. <code>position</code> is stored raw for analysis but NEVER rendered as a rank.</p>
+    </div>
+    <div class="guard">
+      <p><b>Sandbox-safety (this build writes).</b> The migration is <b>additive</b> (new table) + <b>reversible</b> (tested <code>down</code>). The Gemini call is a read-only external query (no human/wallet side effect beyond trivial API cost); no Stripe/email/webhook. Perplexity/SerpApi adapters are dormant without keys. Prove DB paths with a rolled-back transaction in the sandbox.</p>
+    </div>
+    <ul>
+      <li><strong>Untested external adapters are key-gated + flagged</strong> — Perplexity/SerpApi ship only as code, run only with a key, and carry a "needs live smoke-test" marker; the runner skips them when unconfigured.</li>
+      <li><strong>Not a twin of the LLM audit</strong> — the <code>GBPAnalysis.md</code> pillar scores the practice's own signals; A3 observes external AI answers. Different job.</li>
+      <li><strong>Edge cases:</strong> engine returns no answer / times out → record nothing (or a null observation), never a fabricated miss; practice name ambiguous (common word) → require domain/GBP corroboration before marking <code>cited</code>; grounded Gemini returns redirect URLs → read <code>web.title</code>, flag citation-source capture partial; no location category/geo → skip (can't build a prompt).</li>
+      <li><strong>Lane:</strong> Corey+Claude author; build+adversary in the sandbox; PR to <code>dev/dave</code>; Dave reviews+merges. Never push to <code>dev/dave</code>/<code>main</code> directly.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Risk</h2>
+    <ul>
+      <li><strong>API ≠ UI.</strong> A grounded-Gemini reading is not the exact Google AI Overview a user sees. Mitigation: label every reading <code>capture_method</code> + proxy caption; never claim "what your customers see."</li>
+      <li><strong>Low surface / emerging.</strong> Local AI is ~1–7% of queries. Mitigation: frame as watch-the-wave observation, not a headline lever; no over-claim in any copy.</li>
+      <li><strong>Untested Perplexity/SerpApi adapters.</strong> Mitigation: key-gated + skip-when-unconfigured + "needs smoke-test" flag; only Gemini is verified end-to-end in this PR.</li>
+      <li><strong>Directional hardening into a promise.</strong> Mitigation: the honesty caps are enforced in the output shape (no rank field surfaced; churn caveat attached); tests assert no rank/guarantee language.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Tasks</h2>
+    <ol class="tasks">
+      <li><strong>Migration</strong> — additive <code>ai_visibility_observation</code> table + tested reversible <code>down</code>.</li>
+      <li><strong>Engine-adapter interface + registry</strong> — the one interface + <code>capture_method</code> flag; a registry that lists only configured adapters (key present).</li>
+      <li><strong>Gemini adapter (live)</strong> — grounded <code>googleSearch</code> query via the <code>os-llm</code> seam pattern + an injected fake for tests; <code>capture_method: api_grounded</code>.</li>
+      <li><strong>Perplexity + SerpApi adapters (key-gated, flagged)</strong> — interface-conforming; skip when no key; marked "needs live smoke-test."</li>
+      <li><strong>Prompt-set builder + appearance detector</strong> — category+geo prompts; deterministic name/domain/GBP match over answer text + grounding-source titles.</li>
+      <li><strong>Persistence + runner</strong> — idempotent per (location, prompt, engine, run-date); runner executes configured adapters, detects, persists. (Scheduled cadence = thin follow-on.)</li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>Test / verification (how Dave proves it)</h2>
+    <ul>
+      <li>Adapter interface + detector unit tests with a <b>fake Gemini provider</b> (no network): a fixture answer naming the practice → <code>mentioned:true</code>; not naming it → <code>mentioned:false</code>; practice domain in a grounding title → <code>cited:true</code>; ambiguous name without domain corroboration → not <code>cited</code>.</li>
+      <li>Runner skips an adapter with no key (Perplexity/SerpApi dormant) — assert only Gemini runs by default.</li>
+      <li>Persistence is idempotent — same (location, prompt, engine, run-date) inserted twice → one row.</li>
+      <li>Output carries <code>capture_method</code> on every observation; assert no field is ever labeled/rendered as "rank"; assert no rank/guarantee string in any operator copy.</li>
+      <li>Migration up+down runs clean on the sandbox (rolled-back transaction proof).</li>
+      <li><code>npm run check:all</code> clean; <code>npm test</code> green (Node 22).</li>
+      <li><strong>Post-merge smoke-test (Dave/dev):</strong> one live grounded-Gemini run against a real onboarded location; confirm an honest observation row lands.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Done</h2>
+    <ul class="done">
+      <li>Additive <code>ai_visibility_observation</code> table + reversible down migration.</li>
+      <li>Engine-adapter interface + registry; Gemini grounded adapter LIVE + tested (fake provider); Perplexity/SerpApi adapters written, key-gated, flagged unverified.</li>
+      <li>Prompt-set builder + deterministic appearance detector; runner persists idempotent observations with mandatory <code>capture_method</code>.</li>
+      <li>No rank field surfaced; no guarantee/placement language (test-proven); every reading proxy-labeled + churn-caveated.</li>
+      <li>Test section passes; <code>npm run check:all</code> clean; <code>npm test</code> green; a fresh adversary (<code>alloro-proof</code>) ran and its findings are fixed; <code>&sect;N.M</code> confirmed at the <code>alloro-engineer</code> pass.</li>
+      <li>Opened as a PR to <code>dev/dave</code> with this spec linked. (Perplexity/SerpApi live-verification + scheduled cadence are noted follow-ons.)</li>
+    </ul>
+  </section>
+
+  <section id="revision-log">
+    <h2>Revision Log</h2>
+    <article class="rev">
+      <h3>Rev 1 &mdash; 2026-07-15</h3>
+      <p><strong>Change:</strong> Initial spec — A3 multi-engine AEO observation system, built from the existing <code>aeo-measurement-spec.md</code> science (not re-derived). Grounded-Gemini feasibility de-risked live (named real practices + citations). Multi-engine architecture per Corey's "fix the system, not the instance" + "wire both"; Gemini live, Perplexity/SerpApi key-gated.</p>
+      <p><strong>Reason:</strong> Funnel map item A3; Corey staked AEO in scope (Gemini reachable) + system-not-instance.</p>
+      <p><strong>Updated Done criteria:</strong> initial A3 set.</p>
+    </article>
+    <article class="rev">
+      <h3>Rev 2 &mdash; 2026-07-15</h3>
+      <p><strong>Change:</strong> Fixed after the build's fresh-adversary pass. (1) <b>Anti-fabrication (adversary CRITICAL/HIGH):</b> the detector used substring matching, so a competitor's lookalike name ("Smile Dental" inside "Smile Dental Group") or lookalike domain ("smiledental.com" inside "bestsmiledental.com") produced a fabricated <code>mentioned</code>/<code>cited</code> — the exact failure the honesty cap forbids. Replaced with boundary-aware matching: a name match is rejected when followed by another capitalized token (a longer, different business name); <code>cited</code> now requires the practice's own hostname (equality or real-subdomain via a "." label boundary) in a CITATION SOURCE only — never a substring, never a domain in prose. Conservative by design (prefers a missed positive over a fabricated one). Added the adversary's inputs as regression tests. (2) <b>Honest reporting:</b> the runner now separates <code>enginesRun</code> (recorded ≥1) from <code>failedEngines</code> (configured but every reading failed) from <code>skippedEngines</code> (no key) — a totally-failed engine is no longer reported as a real run.</p>
+      <p><strong>Reason:</strong> Adversary (alloro-proof) BROKE-IT on lookalike-name/domain fabrication + reporting integrity.</p>
+      <p><strong>Updated Done criteria:</strong> detector matching is boundary-aware — no competitor lookalike produces a positive (test-proven); runner reports ran / failed / skipped distinctly.</p>
+    </article>
+  </section>
+
+</div>
+</body>
+</html>
