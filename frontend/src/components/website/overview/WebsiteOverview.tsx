@@ -651,7 +651,7 @@ export function WebsiteOverview({
             />
             <ModalStat
               label="All time"
-              value={fmt(stats?.allCount ?? 0)}
+              value={fmt(stats?.verifiedCount ?? 0)}
               tip="Total verified leads ever received from your website forms."
             />
             <ModalStat
