@@ -22,7 +22,8 @@
             Coverage window: Monday, July 13, 2026 through Sunday, July 19, 2026.
             This edition tracks organization-owned PMS parsing, configurable default
             formulas, the first dedicated DentalEMR calculation path, and an internal
-            Admin OS document-import and editing upgrade.
+            Admin OS document-import and editing upgrade. It also records a leadgen
+            tracking-integrity correction that is implemented locally but not yet deployed.
           </p>
         </div>
         <aside class="hero-panel" aria-label="Release state summary">
@@ -30,7 +31,7 @@
           <div class="status-stack">
             <span class="tag good">Deployed</span>
             <span class="tag">1 client workflow</span>
-            <span class="tag">2 admin/operator updates</span>
+            <span class="tag">3 admin/operator updates</span>
             <span class="tag warn">Some UI checks waived</span>
           </div>
         </aside>
@@ -88,6 +89,19 @@
             <div class="meta">
               <span class="tag">Internal Alloro tooling</span>
               <span class="tag warn">Live UI checks waived</span>
+            </div>
+          </article>
+          <article class="highlight-card">
+            <h3>Leadgen reporting separates proof from inference</h3>
+            <p>
+              Internal leadgen analytics now keep persisted account links separate from
+              email or domain matches, require audit-backed report activity, and retain
+              historical unaudited rows as clearly marked evidence instead of deleting or
+              presenting them as verified engagement.
+            </p>
+            <div class="meta">
+              <span class="tag">Implemented locally</span>
+              <span class="tag warn">Code promotion pending</span>
             </div>
           </article>
         </div>
@@ -150,6 +164,21 @@
                   explicitly waived; no live UI pass is claimed. Admin OS is absent from
                   client-facing Alloro Docs, so docs parity is N/A. See
                   <code>plans/07102026-admin-os-import-rendering-fidelity/test-results.json</code>.
+                </td>
+              </tr>
+              <tr>
+                <td>Leadgen analytics</td>
+                <td>Audit-bound tracking, honest submission labels, and strict-empty cleanup</td>
+                <td>Internal Alloro operators and leadgen reporting</td>
+                <td>Implemented locally; cleanup completed in local, dev, and production; code not yet deployed</td>
+                <td>No</td>
+                <td>
+                  Automated backend, frontend, timer, build, and convention gates pass.
+                  The positive focused-browser timer integration was explicitly waived
+                  and remains recommended before production code promotion. Fifteen
+                  strict-empty rows were removed from each target with recovery backups;
+                  historical invalid activity was retained and classified. See
+                  <code>plans/07152026-leadgen-tracking-integrity-cleanup/test-results.json</code>.
                 </td>
               </tr>
             </tbody>
