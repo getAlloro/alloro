@@ -44,6 +44,7 @@ import {
   executeUpdatePostMeta,
   executeUpdatePagePath,
 } from "./service.ai-command-execute-handlers";
+import { executeUpdatePageSeoSchema } from "./service.ai-command-seo-schema-handler";
 
 function createExecutionContext(opts?: { projectId?: string; batchId?: string }): ExecutionContext {
   return {
@@ -68,6 +69,7 @@ const EXECUTION_PHASE_ORDER: Record<string, number> = {
   delete_redirect: 7,    // Redirect deletes
   update_post_meta: 8,   // Post metadata updates
   update_page_path: 9,   // Page path updates
+  page_seo_schema: 10,   // seo_data.schema_json write — shares the page's pinned draft
   page_section: 10,      // HTML edits last
   layout: 10,
   post: 10,
@@ -173,6 +175,7 @@ async function executeRecommendation(rec: any, ctx: ExecutionContext): Promise<v
   if (rec.target_type === "update_menu") return executeUpdateMenu(rec, ctx);
   if (rec.target_type === "update_post_meta") return executeUpdatePostMeta(rec);
   if (rec.target_type === "update_page_path") return executeUpdatePagePath(rec);
+  if (rec.target_type === "page_seo_schema") return executeUpdatePageSeoSchema(rec, ctx);
 
   // Always use the latest HTML from DB — previous recommendations in this
   // batch may have already modified the same target. For page sections this
