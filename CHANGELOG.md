@@ -2,6 +2,26 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.162] - July 2026
+
+### Journey Insights shows completed Alloro SEO work
+
+Patient Journey Insights now connects a completed Alloro action to the metric it is intended to influence. When bulk SEO regeneration successfully changes Google search titles or descriptions, the Google Visibility details show a temporary plain-English "Alloro did this" note beside Google clicks and click-through rate. The note says what changed, when it completed, and when the 30-day measurement window ends without claiming that Alloro caused an improvement. Built on `plans/07152026-journey-insights-alloro-actions`; focused tests, TypeScript, builds, strict conventions, `check:all`, 471 backend tests, and desktop/mobile browser acceptance passed. Jo's copy review was explicitly waived by Dave for the dev merge and remains recommended before production promotion.
+
+**Key Changes:**
+- **Durable action history.** Added an additive, reversible `metric_action_events` table with tenant, project, source, metric, timestamp, visibility-window, count, and metadata fields. Source uniqueness keeps worker retries idempotent, and historical SEO jobs are intentionally not backfilled.
+- **Truthful SEO trigger.** The bulk SEO worker records one action only after at least one changed title or description is successfully persisted. Unchanged and fully failed jobs create no action; partial jobs count only successful changes.
+- **Metric-linked client signal.** The tenant-scoped Patient Journey response returns only the latest eligible CTR action. Google Visibility details now show Google clicks, click-through rate, and the compact action note for its active 30-day window.
+- **Responsive verification.** One Endodontics was checked at desktop and 390px mobile widths. The selected July action rendered without overflow, and the previous month correctly omitted it.
+- **Docs parity.** Alloro Docs restores the current three-gate Patient Journey guide, month navigation, click-open Google Visibility details, CTR, and the temporary action-note behavior.
+
+**Commits:**
+- `src/database/migrations/20260715000000_create_metric_action_events.ts`, `src/models/MetricActionModel.ts`, and `src/services/MetricActionService.ts` - durable action storage, tenant-scoped reads, and plain-English action contract.
+- `src/workers/processors/seoBulkGenerate.processor.ts` and focused tests - persisted-change detection, one-action aggregation, idempotency, and bounded retry isolation.
+- `src/controllers/patient-journey/` and `frontend/src/components/dashboard/patient-journey/` - API attachment, clicks/CTR detail metrics, and the responsive client note.
+- `plans/07152026-journey-insights-alloro-actions/` - completed spec, migration parity artifacts, acceptance results, and browser evidence.
+- `alloro-docs` Patient Journey page, replica, navigation, and changelog - separate-repository documentation parity.
+
 ## [0.0.161] - July 2026
 
 ### Admin OS import fidelity, multi-file drop, and editor parity
