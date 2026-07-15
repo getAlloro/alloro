@@ -4,6 +4,7 @@ import {
   normalizeSource,
   hostOf,
   classifyReferrerHost,
+  classifyExternalReferer,
 } from "../controllers/websiteContact/websiteContact-utils/sourceAttribution";
 
 describe("normalizeSource", () => {
@@ -121,5 +122,71 @@ describe("deriveSubmissionSource", () => {
   it("returns null for an unparseable/hostless referer (never guesses)", () => {
     expect(deriveSubmissionSource({ referer: "javascript:void(0)" })).toBeNull();
     expect(deriveSubmissionSource({ referer: "not a url" })).toBeNull();
+  });
+
+  // ── first-touch landing referrer (the real entry channel for organic/referral)
+  it("classifies the first-touch landing referrer when there is no explicit label", () => {
+    expect(
+      deriveSubmissionSource({
+        firstTouchReferer: "https://www.google.com/",
+        projectHosts: ownHosts,
+      }),
+    ).toBe("google");
+  });
+
+  it("first-touch landing referrer beats the (internal) submit referer", () => {
+    expect(
+      deriveSubmissionSource({
+        firstTouchReferer: "https://www.google.com/",
+        referer: "https://drpavan.sites.getalloro.com/contact",
+        projectHosts: ownHosts,
+      }),
+    ).toBe("google");
+  });
+
+  it("an explicit utm label still beats the first-touch referrer", () => {
+    expect(
+      deriveSubmissionSource({
+        utmSource: "newsletter",
+        firstTouchReferer: "https://www.google.com/",
+        projectHosts: ownHosts,
+      }),
+    ).toBe("newsletter");
+  });
+
+  it("an INTERNAL first-touch referrer is skipped, falling to the submit referer", () => {
+    expect(
+      deriveSubmissionSource({
+        firstTouchReferer: "https://drpavan.sites.getalloro.com/home",
+        referer: "https://www.facebook.com/",
+        projectHosts: ownHosts,
+      }),
+    ).toBe("facebook");
+  });
+
+  it("an unparseable first-touch referrer is skipped (never guesses)", () => {
+    expect(
+      deriveSubmissionSource({
+        firstTouchReferer: "not a url",
+        projectHosts: ownHosts,
+      }),
+    ).toBeNull();
+  });
+});
+
+describe("classifyExternalReferer", () => {
+  const own = ["drpavan.sites.getalloro.com", "drpavanendo.com"];
+  it("classifies an external referer host", () => {
+    expect(classifyExternalReferer("https://www.google.com/x", own)).toBe("google");
+  });
+  it("returns null for an internal (own-host) referer", () => {
+    expect(
+      classifyExternalReferer("https://drpavanendo.com/book", own),
+    ).toBeNull();
+  });
+  it("returns null for missing/unparseable referers", () => {
+    expect(classifyExternalReferer(null, own)).toBeNull();
+    expect(classifyExternalReferer("", own)).toBeNull();
+    expect(classifyExternalReferer("not a url", own)).toBeNull();
   });
 });

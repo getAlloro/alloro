@@ -59,12 +59,39 @@ export function classifyReferrerHost(host: string): string {
   return "referral";
 }
 
+/**
+ * Classify a referer URL into an honest external channel, or null. Returns null
+ * when the referer is missing, unparseable, or INTERNAL to the site (one of the
+ * project's own hosts) — internal navigation is not a source. Keeps ALL host
+ * classification server-side (one source of truth), so the frontend only has to
+ * forward a raw referer, never re-implement channel logic.
+ */
+export function classifyExternalReferer(
+  referer: string | null | undefined,
+  ownedHosts: string[] = [],
+): string | null {
+  if (!referer || !referer.trim()) return null;
+  const host = hostOf(referer);
+  if (!host) return null;
+  const owned = ownedHosts
+    .filter(Boolean)
+    .map((h) => h.toLowerCase().replace(/^www\./, ""));
+  if (owned.some((h) => host === h || host.endsWith("." + h))) return null;
+  return classifyReferrerHost(host);
+}
+
 export interface SourceSignals {
-  /** Frontend-captured first-touch entry source (primary). */
+  /** Frontend-captured first-touch entry source label (primary, if the frontend
+   *  already resolved one). Normalized + used directly. */
   bodySource?: string | null;
   /** Explicit utm_source, if the entry link carried one (also first-touch). */
   utmSource?: string | null;
-  /** The submit request's Referer header (weak cross-site fallback only). */
+  /** The RAW referrer of the visitor's FIRST touch (the landing page), forwarded
+   *  by the frontend. Classified server-side; internal/empty → skipped. This is
+   *  the real entry channel for organic/referral traffic. */
+  firstTouchReferer?: string | null;
+  /** The submit request's Referer header (weak cross-site fallback only — it is
+   *  usually the practice's own form page, i.e. internal → null). */
   referer?: string | null;
   /** The site's own domains — an internal referer is NOT a source. */
   projectHosts?: string[];
@@ -72,13 +99,15 @@ export interface SourceSignals {
 
 /**
  * Derive the honest source channel of a submission, or null when unknown.
- * Precedence: frontend first-touch (bodySource / utmSource) → cross-site
- * Referer → null. Never guesses.
+ * Precedence: explicit first-touch label (bodySource / utmSource) → the
+ * classified first-touch landing referrer → the classified submit Referer →
+ * null. Never guesses.
  */
 export function deriveSubmissionSource(signals: SourceSignals): string | null {
-  const { bodySource, utmSource, referer, projectHosts = [] } = signals;
+  const { bodySource, utmSource, firstTouchReferer, referer, projectHosts = [] } =
+    signals;
 
-  // 1. Frontend-captured first-touch source wins — the real entry channel.
+  // 1. An explicit first-touch label wins — the real entry channel.
   //    Try body then utm; a junk value that fails normalization falls through
   //    to the next signal instead of shadowing it (don't lose a good utm_source
   //    because bodySource was garbage).
@@ -89,17 +118,12 @@ export function deriveSubmissionSource(signals: SourceSignals): string | null {
     }
   }
 
-  // 2. Fallback: the submit Referer, but ONLY if it's a cross-site referral
-  //    straight to the form. No first-touch + no usable referer → unknown (null).
-  if (!referer || !referer.trim()) return null;
-  const host = hostOf(referer);
-  if (!host) return null;
+  // 2. The visitor's first-touch landing referrer, classified server-side.
+  //    Internal/empty/unparseable → skip to the weak submit-Referer fallback.
+  const firstTouch = classifyExternalReferer(firstTouchReferer, projectHosts);
+  if (firstTouch) return firstTouch;
 
-  // The site's own pages are internal navigation, not a source.
-  const owned = projectHosts
-    .filter(Boolean)
-    .map((h) => h.toLowerCase().replace(/^www\./, ""));
-  if (owned.some((h) => host === h || host.endsWith("." + h))) return null;
-
-  return classifyReferrerHost(host);
+  // 3. Weak fallback: the submit Referer (usually the internal form page → null).
+  //    No usable signal anywhere → unknown (null), never a guess.
+  return classifyExternalReferer(referer, projectHosts);
 }

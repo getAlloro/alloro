@@ -437,6 +437,10 @@ export async function handleFormSubmission(req: Request, res: Response): Promise
       bodySource: typeof req.body.source === "string" ? req.body.source : null,
       utmSource:
         typeof req.body.utm_source === "string" ? req.body.utm_source : null,
+      firstTouchReferer:
+        typeof req.body.first_touch_referrer === "string"
+          ? req.body.first_touch_referrer
+          : null,
       referer:
         typeof req.headers.referer === "string" ? req.headers.referer : null,
       projectHosts,
