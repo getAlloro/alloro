@@ -2,6 +2,26 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.163] - July 2026
+
+### Project Board add items from Mine and People
+
+Admins can now add tasks directly from the cross-project Project Board workload views. The To Do and In Progress columns on Mine and People show add controls, require a project before creation, lock the target column to the clicked lane, and assign the created task to the current admin or selected person so it remains visible after refresh. Built on `plans/07152026-project-board-add-items`; focused component tests, frontend build, root TypeScript, `check:all`, browser QA, and acceptance artifacts pass.
+
+**Key Changes:**
+- **Assigned-board creation.** Mine and People boards expose add controls for To Do and In Progress only; Done remains read-only for creation.
+- **Required project attachment.** Cross-project creates must select a project and use that project's real To Do or In Progress column id.
+- **Assignment-safe create.** Mine tasks attach to the signed-in admin, and People tasks attach to the selected assignee using the existing PM task create payload.
+- **Browser-found fixes.** The modal now cache-busts project reads, resolves the current user through the shared auth token path, and closes immediately after a successful create before background refresh work.
+- **No schema change.** The work reuses the existing PM task API and `assigned_to` field.
+- **Docs parity.** Checked `alloro-docs`; no matching customer-facing Projects/PM project-board documentation exists, so no docs edit was required.
+
+**Commits:**
+- `frontend/src/components/pm/CreateTaskModal.tsx`, `AssigneeTabView.tsx`, and `MeKanbanBoard.tsx` — assigned-board add controls, required project selection, locked columns, assignee payload, and post-create refresh.
+- `frontend/src/api/pm.ts`, `frontend/src/api/index.ts`, `frontend/src/utils/currentUser.ts`, and `frontend/src/utils/jwt.ts` — cache-busted PM modal fetches and centralized current-user token decoding.
+- `frontend/src/components/pm/*test.tsx`, `frontend/src/utils/currentUser.test.ts`, `frontend/src/utils/jwt.test.ts`, and `frontend/src/api/index.test.ts` — focused regression coverage for the modal, board controls, auth fallback, and JWT decoding.
+- `plans/07152026-project-board-add-items/` — completed spec, passing acceptance artifact, and browser QA screenshot evidence.
+
 ## [0.0.162] - July 2026
 
 ### Remove retired AI Data Insights admin workflow

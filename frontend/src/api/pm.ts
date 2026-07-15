@@ -59,15 +59,29 @@ function assertPmEnvelope<T extends object>(res: unknown): asserts res is T {
 
 // --- Projects ---
 
+type PmFetchOptions = {
+  cacheBust?: boolean;
+};
+
+function withCacheBust(path: string, options?: PmFetchOptions): string {
+  if (!options?.cacheBust) return path;
+  const separator = path.includes("?") ? "&" : "?";
+  return `${path}${separator}_=${Date.now()}`;
+}
+
 export async function fetchProjects(
-  status: string = "active"
+  status: string = "active",
+  options?: PmFetchOptions
 ): Promise<PmProject[]> {
-  const res = await apiGet({ path: `/pm/projects?status=${status}` });
+  const res = await apiGet({ path: withCacheBust(`/pm/projects?status=${status}`, options) });
   return unwrapPmEnvelope(res);
 }
 
-export async function fetchProject(id: string): Promise<PmProjectDetail> {
-  const res = await apiGet({ path: `/pm/projects/${id}` });
+export async function fetchProject(
+  id: string,
+  options?: PmFetchOptions
+): Promise<PmProjectDetail> {
+  const res = await apiGet({ path: withCacheBust(`/pm/projects/${id}`, options) });
   return unwrapPmEnvelope(res);
 }
 

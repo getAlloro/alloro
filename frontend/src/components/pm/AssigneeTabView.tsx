@@ -15,13 +15,19 @@ import {
 import type { PmMyStats, PmMyTask, PmMyTasksResponse, PmUser, PmVelocityData } from "../../types/pm";
 import { showErrorToast } from "../../lib/toast";
 import { usePmStore } from "../../stores/pmStore";
+import { getCurrentUserId } from "../../utils/currentUser";
 import { BulkActionBar } from "../ui/DesignSystem";
-import { MeKanbanBoard } from "./MeKanbanBoard";
+import { CreateTaskModal } from "./CreateTaskModal";
+import { MeKanbanBoard, type MeKanbanAddColumn } from "./MeKanbanBoard";
 import { NotificationCard } from "./NotificationCard";
 import { TaskDetailPanel } from "./TaskDetailPanel";
 import type { TaskContextAction } from "./TaskCard";
 
 const RANGES = ["7d", "4w", "3m"] as const;
+const CREATE_COLUMN_LABELS: Record<MeKanbanAddColumn, "To Do" | "In Progress"> = {
+  todo: "To Do",
+  in_progress: "In Progress",
+};
 const SEVERITY_COLORS: Record<string, string> = {
   green: "#3D8B40",
   amber: "#D4920A",
@@ -106,6 +112,7 @@ export function AssigneeTabView({
   const [highlightedTaskId, setHighlightedTaskId] = useState<string | null>(null);
   const [selectedTask, setSelectedTask] = useState<PmMyTask | null>(null);
   const [bulkDeleteCount, setBulkDeleteCount] = useState<number | null>(null);
+  const [createColumn, setCreateColumn] = useState<MeKanbanAddColumn | null>(null);
   const [filters, setFilters] = useState<AssigneeFilters>({
     projectId: "all",
     priority: "all",
@@ -119,6 +126,8 @@ export function AssigneeTabView({
   const selectedUser = users.find((user) => user.id === userId) ?? null;
   const isMe = !showUserPicker;
   const label = isMe ? "Mine" : selectedUser?.display_name ?? "Assignee";
+  const createAssigneeId = isMe ? getCurrentUserId() : userId;
+  const createColumnName = createColumn ? CREATE_COLUMN_LABELS[createColumn] : undefined;
 
   useEffect(() => {
     clearMeTaskSelection();
@@ -242,6 +251,7 @@ export function AssigneeTabView({
         <MeKanbanBoard
           tasks={filteredTasks}
           onRefresh={loadData}
+          onAddTask={setCreateColumn}
           highlightedTaskId={highlightedTaskId}
           onCardClick={(task) => setSelectedTask(task)}
           selectedTaskIds={meSelectedTaskIds}
@@ -252,6 +262,14 @@ export function AssigneeTabView({
       )}
 
       <TaskDetailPanel task={selectedTask} onClose={() => { setSelectedTask(null); loadData(); }} />
+      <CreateTaskModal
+        isOpen={createColumn !== null}
+        onClose={() => setCreateColumn(null)}
+        lockedColumnName={createColumnName}
+        requireProjectSelection
+        requiredAssigneeId={createAssigneeId}
+        onCreated={loadData}
+      />
       <AssigneeBulkDeleteConfirm count={bulkDeleteCount} onCancel={() => setBulkDeleteCount(null)} onConfirm={handleBulkDelete} />
 
       {selectionCount > 0 && (

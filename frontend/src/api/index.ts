@@ -84,6 +84,17 @@ export function isPilotSession(): boolean {
   );
 }
 
+function readCookie(name: string): string | null {
+  if (typeof document === "undefined") return null;
+  const prefix = `${name}=`;
+  const value = document.cookie
+    .split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(prefix))
+    ?.slice(prefix.length);
+  return value ? decodeURIComponent(value) : null;
+}
+
 export function getAuthToken(): string | null {
   if (typeof window === "undefined") return null;
   const embeddedPilotToken = getEmbeddedPilotSession()?.token;
@@ -92,7 +103,7 @@ export function getAuthToken(): string | null {
   if (isPilotSession()) {
     return window.sessionStorage.getItem("token");
   }
-  return getPriorityItem("auth_token") || getPriorityItem("token");
+  return getPriorityItem("auth_token") || getPriorityItem("token") || readCookie("auth_token");
 }
 
 export function setAuthSession({
