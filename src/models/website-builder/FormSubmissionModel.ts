@@ -26,6 +26,11 @@ export interface IFormSubmission {
   submitted_at: Date;
   is_read: boolean;
   sender_ip?: string;
+  /**
+   * The channel a raised hand came through (referrer / UTM-derived at submit).
+   * Null when unknown or internal — never a guessed channel (Value #6).
+   */
+  source?: string | null;
   content_hash?: string;
   is_flagged?: boolean;
   flag_reason?: string;
