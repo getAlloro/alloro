@@ -20,6 +20,10 @@ import { generateToken } from "../auth-otp/feature-services/service.jwt-manageme
 import { generateSixDigitCode } from "../auth-otp/feature-services/service.otp-generation";
 import { buildAuthCookieOptions } from "../auth-otp/feature-utils/util.cookie-config";
 import { sendEmail } from "../../emails/emailService";
+import {
+  buildPasswordResetEmail,
+  buildVerificationCodeEmail,
+} from "../../emails/templates/AccountEmailTemplates";
 import { linkAccountCreation } from "../leadgen-tracking/feature-services/service.account-linking";
 import logger from "../../lib/logger";
 
@@ -100,15 +104,7 @@ export async function register(req: Request, res: Response) {
     const emailResult = await sendEmail({
       category: "auth",
       subject: "Verify your Alloro account",
-      body: `
-        <div style="font-family: sans-serif; padding: 20px; max-width: 600px;">
-          <h2 style="color: #1a1a1a;">Verify your email</h2>
-          <p style="color: #4a5568; font-size: 16px;">Enter this code to verify your Alloro account:</p>
-          <h1 style="letter-spacing: 5px; background: #f4f4f4; padding: 10px; display: inline-block; border-radius: 5px;">${code}</h1>
-          <p style="color: #718096; font-size: 14px;">This code will expire in 10 minutes.</p>
-          <p style="color: #718096; font-size: 14px;">If you didn't create an account, please ignore this email.</p>
-        </div>
-      `,
+      body: buildVerificationCodeEmail({ code }),
       recipients: [normalizedEmail],
     });
     if (!emailResult.success) {
@@ -322,15 +318,7 @@ export async function resendVerification(req: Request, res: Response) {
     const emailResult = await sendEmail({
       category: "auth",
       subject: "Verify your Alloro account",
-      body: `
-        <div style="font-family: sans-serif; padding: 20px; max-width: 600px;">
-          <h2 style="color: #1a1a1a;">Verify your email</h2>
-          <p style="color: #4a5568; font-size: 16px;">Enter this code to verify your Alloro account:</p>
-          <h1 style="letter-spacing: 5px; background: #f4f4f4; padding: 10px; display: inline-block; border-radius: 5px;">${code}</h1>
-          <p style="color: #718096; font-size: 14px;">This code will expire in 10 minutes.</p>
-          <p style="color: #718096; font-size: 14px;">If you didn't create an account, please ignore this email.</p>
-        </div>
-      `,
+      body: buildVerificationCodeEmail({ code }),
       recipients: [normalizedEmail],
     });
     if (!emailResult.success) {
@@ -385,15 +373,7 @@ export async function forgotPassword(req: Request, res: Response) {
     const emailResult = await sendEmail({
       category: "auth",
       subject: "Reset your Alloro password",
-      body: `
-        <div style="font-family: sans-serif; padding: 20px; max-width: 600px;">
-          <h2 style="color: #1a1a1a;">Reset your password</h2>
-          <p style="color: #4a5568; font-size: 16px;">Enter this code to reset your Alloro password:</p>
-          <h1 style="letter-spacing: 5px; background: #f4f4f4; padding: 10px; display: inline-block; border-radius: 5px;">${code}</h1>
-          <p style="color: #718096; font-size: 14px;">This code will expire in 30 minutes.</p>
-          <p style="color: #718096; font-size: 14px;">If you didn't request a password reset, please ignore this email.</p>
-        </div>
-      `,
+      body: buildPasswordResetEmail({ code }),
       recipients: [normalizedEmail],
     });
     if (!emailResult.success) {

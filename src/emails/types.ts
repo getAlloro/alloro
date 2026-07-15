@@ -47,8 +47,8 @@ export interface SendEmailOptions {
   preheader?: string;
   /**
    * Bypass the email interceptor and send live in every environment.
-   * Reserved for OTP login codes so the requester always receives their
-   * code on dev/local/CI. Do not set this on any other email path.
+   * Reserved for explicitly requested transport verification from the admin
+   * Email Logs tool. Normal transactional email must remain interceptable.
    */
   allowLiveSend?: boolean;
   /**
@@ -128,7 +128,7 @@ export interface UserNotificationData {
   message: string;
   actionUrl?: string;
   actionLabel?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 // Email template metadata

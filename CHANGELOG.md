@@ -2,6 +2,26 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.166] - July 2026
+
+### Consistent Alloro transactional emails
+
+Alloro's account, authentication, billing, notification, and transport-test emails now share one branded responsive shell. Headings use the serif display stack, body copy uses the sans stack, codes and temporary passwords stay monospace, and calls to action use Alloro orange instead of the legacy blue treatment. Built on `plans/07162026-transactional-email-brand-consistency`; 495 tests, TypeScript, builds, lint, strict conventions, semantic template checks, 14 responsive screenshots, and 11 controlled inbox QA sends pass. The QA envelopes were intercepted to `dave@getalloro.com` only. This work is merged into local `dev/dave` but has not been pushed or deployed.
+
+**Key Changes:**
+- **One email shell.** Invitation, verification, password-reset, temporary-password, billing, system-notification, and transport-test messages now use the shared Alloro logo, spacing, navy/orange palette, typography, footer, and responsive canvas.
+- **Purposeful typography.** Spectral with Georgia/Times fallbacks is reserved for headings; Plus Jakarta Sans with safe system fallbacks handles body copy; security codes and generated passwords use a monospace stack.
+- **Shared account builders.** Initial and resend invitation/verification paths now use the same pure HTML builders, preventing those variants from drifting apart.
+- **Safer dynamic content.** Changed templates escape organization, role, user, billing, notification, metadata, and transport values before rendering.
+- **Real inbox QA without customer mail.** Eleven synthetic variants were accepted by Mailgun after the interceptor proved the machine was non-live, rewrote the final recipient to Dave only, and stripped CC/BCC.
+- **Docs parity.** No Alloro Docs update was needed because this changes outbound email presentation, not dashboard behavior, controls, navigation, or guidance.
+
+**Commits:**
+- `src/emails/templates/base.ts`, `AccountEmailTemplates.ts`, `BillingEmailTemplates.ts`, and `SystemTestEmail.ts` — shared visual system and pure transactional builders.
+- Account, auth, billing, settings, notification, and admin email call sites — shared-builder adoption with existing delivery behavior preserved.
+- `src/__tests__/email-template-branding.test.ts` — brand, escaping, variant, behavior, and legacy-blue regression coverage.
+- `plans/07162026-transactional-email-brand-consistency/` — completed spec, passing acceptance record, and narrow/desktop visual evidence.
+
 ## [0.0.165] - July 2026
 
 ### Leadgen tracking integrity and honest admin submissions

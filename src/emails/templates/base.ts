@@ -18,6 +18,12 @@ export const BRAND_COLORS = {
   border: "#e2e8f0",
 };
 
+export const EMAIL_FONT_STACKS = {
+  display: "Spectral, Georgia, 'Times New Roman', serif",
+  body: "'Plus Jakarta Sans', 'Segoe UI', Arial, sans-serif",
+  code: "'SFMono-Regular', Consolas, 'Liberation Mono', monospace",
+};
+
 export const LOGO_URL = "https://app.getalloro.com/logo.png";
 // Use explicit APP_URL environment variable, fallback to production URL by default
 export const APP_URL =
@@ -76,6 +82,13 @@ export function wrapInBaseTemplate(
       margin: 0 !important;
       padding: 0 !important;
       width: 100% !important;
+      font-family: ${EMAIL_FONT_STACKS.body};
+    }
+    h1, h2, h3, .display-font {
+      font-family: ${EMAIL_FONT_STACKS.display};
+    }
+    code, .code-font {
+      font-family: ${EMAIL_FONT_STACKS.code};
     }
     /* Custom styles */
     .button {
@@ -87,6 +100,7 @@ export function wrapInBaseTemplate(
       border-radius: 8px;
       font-weight: 600;
       font-size: 14px;
+      font-family: ${EMAIL_FONT_STACKS.body};
     }
     .button:hover {
       background-color: #c55a47;
@@ -101,6 +115,7 @@ export function wrapInBaseTemplate(
       border-radius: 8px;
       font-weight: 600;
       font-size: 14px;
+      font-family: ${EMAIL_FONT_STACKS.body};
     }
     .highlight {
       color: ${BRAND_COLORS.orange};
@@ -137,13 +152,13 @@ export function wrapInBaseTemplate(
 </head>
 <body style="margin: 0; padding: 0; background-color: ${
     BRAND_COLORS.lightGray
-  }; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  }; font-family: ${EMAIL_FONT_STACKS.body};">
   <!-- Preheader text (hidden) -->
   ${
     preheader
       ? `
   <div style="display: none; max-height: 0; overflow: hidden; mso-hide: all;">
-    ${preheader}
+    ${escapeHtml(preheader)}
   </div>
   <div style="display: none; max-height: 0; overflow: hidden; mso-hide: all;">
     &nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;
@@ -176,7 +191,7 @@ export function wrapInBaseTemplate(
                 BRAND_COLORS.white
               }; border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
                 <tr>
-                  <td class="content" style="padding: 40px;">
+                  <td class="content" style="padding: 40px; font-family: ${EMAIL_FONT_STACKS.body};">
                     ${content}
                   </td>
                 </tr>
@@ -228,8 +243,8 @@ export function wrapInBaseTemplate(
  */
 export function createButton(text: string, url: string): string {
   return `
-    <a href="${url}" class="button" style="display: inline-block; padding: 14px 28px; background-color: ${BRAND_COLORS.orange}; color: ${BRAND_COLORS.white}; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 14px;">
-      ${text}
+    <a href="${escapeHtml(url)}" class="button" style="display: inline-block; padding: 14px 28px; background-color: ${BRAND_COLORS.orange}; color: ${BRAND_COLORS.white}; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 14px; font-family: ${EMAIL_FONT_STACKS.body};">
+      ${escapeHtml(text)}
     </a>
   `;
 }
@@ -239,8 +254,8 @@ export function createButton(text: string, url: string): string {
  */
 export function createSecondaryButton(text: string, url: string): string {
   return `
-    <a href="${url}" class="secondary-button" style="display: inline-block; padding: 12px 24px; background-color: transparent; color: ${BRAND_COLORS.navy}; text-decoration: none; border: 2px solid ${BRAND_COLORS.border}; border-radius: 8px; font-weight: 600; font-size: 14px;">
-      ${text}
+    <a href="${escapeHtml(url)}" class="secondary-button" style="display: inline-block; padding: 12px 24px; background-color: transparent; color: ${BRAND_COLORS.navy}; text-decoration: none; border: 2px solid ${BRAND_COLORS.border}; border-radius: 8px; font-weight: 600; font-size: 14px; font-family: ${EMAIL_FONT_STACKS.body};">
+      ${escapeHtml(text)}
     </a>
   `;
 }
@@ -287,7 +302,7 @@ export function createTag(
 
   return `
     <span style="display: inline-block; padding: 4px 10px; background-color: ${bg}; color: ${textColor}; border-radius: 4px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
-      ${text}
+      ${escapeHtml(text)}
     </span>
   `;
 }
@@ -311,7 +326,40 @@ export function createDivider(): string {
  * Create highlighted text
  */
 export function highlight(text: string): string {
-  return `<span style="color: ${BRAND_COLORS.orange}; font-weight: 600;">${text}</span>`;
+  return `<span style="color: ${BRAND_COLORS.orange}; font-weight: 600;">${escapeHtml(text)}</span>`;
+}
+
+/**
+ * Escape plain text before inserting it into email HTML or an attribute value.
+ */
+export function escapeHtml(value: string): string {
+  const htmlEntities: Record<string, string> = {
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  };
+
+  return value.replace(/[&<>"']/g, (character) => htmlEntities[character]);
+}
+
+/**
+ * Create the consistent high-contrast treatment for verification codes and
+ * temporary passwords.
+ */
+export function createCodeCard(label: string, value: string): string {
+  return createCard(
+    `
+      <p style="margin: 0 0 8px; color: ${BRAND_COLORS.mediumGray}; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;">
+        ${escapeHtml(label)}
+      </p>
+      <p class="code-font" style="margin: 0; color: ${BRAND_COLORS.navy}; font-family: ${EMAIL_FONT_STACKS.code}; font-size: 26px; font-weight: 700; letter-spacing: 0.16em; line-height: 1.35; overflow-wrap: anywhere;">
+        ${escapeHtml(value)}
+      </p>
+    `,
+    { backgroundColor: BRAND_COLORS.lightGray }
+  );
 }
 
 /**

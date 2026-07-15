@@ -19,7 +19,9 @@ import {
   createTag,
   createDivider,
   BRAND_COLORS,
+  EMAIL_FONT_STACKS,
   APP_URL,
+  escapeHtml,
 } from "./base";
 
 // Notification type configurations
@@ -92,7 +94,7 @@ export function buildUserNotificationContent(
       </div>
       <h1 style="margin: 0 0 8px 0; font-size: 24px; font-weight: 700; color: ${
         BRAND_COLORS.navy
-      };">
+      }; font-family: ${EMAIL_FONT_STACKS.display};">
         ${escapeHtml(data.title)}
       </h1>
     </div>
@@ -135,12 +137,12 @@ ${escapeHtml(data.message)}
             <span style="font-size: 12px; color: ${
               BRAND_COLORS.mediumGray
             }; text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px;">
-              ${formatMetadataKey(key)}
+              ${escapeHtml(formatMetadataKey(key))}
             </span>
             <p style="margin: 4px 0 0 0; font-size: 14px; font-weight: 600; color: ${
               BRAND_COLORS.navy
             };">
-              ${formatMetadataValue(value)}
+              ${escapeHtml(formatMetadataValue(value))}
             </p>
           </td>
         </tr>
@@ -186,20 +188,6 @@ ${escapeHtml(data.message)}
 }
 
 /**
- * Escape HTML special characters
- */
-function escapeHtml(text: string): string {
-  const htmlEntities: Record<string, string> = {
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#39;",
-  };
-  return text.replace(/[&<>"']/g, (char) => htmlEntities[char] || char);
-}
-
-/**
  * Format metadata key for display (snake_case to Title Case)
  */
 function formatMetadataKey(key: string): string {
@@ -212,7 +200,7 @@ function formatMetadataKey(key: string): string {
 /**
  * Format metadata value for display
  */
-function formatMetadataValue(value: any): string {
+function formatMetadataValue(value: unknown): string {
   if (typeof value === "number") {
     return value.toLocaleString();
   }
