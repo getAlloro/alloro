@@ -18,7 +18,7 @@ export type PendingSupportDraft = {
   id: string;
   type: SupportTicketType;
   sourceUrl: string;
-  screenshotFile: File;
+  screenshotFile?: File;
   consoleLogFile?: File;
   clipboardStatus: SupportScreenshotClipboardStatus;
   createdAt: number;

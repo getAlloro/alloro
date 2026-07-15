@@ -4,7 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 import type { SupportTicketType } from "../../api/support";
-import { useSupportQuickAction } from "../../contexts/SupportQuickActionContext";
+import {
+  type PendingSupportDraft,
+  useSupportQuickAction,
+} from "../../contexts/SupportQuickActionContext";
 import { createSupportConsoleLogFile } from "../../utils/supportConsoleLogs";
 import { captureSupportScreenshot } from "../../utils/supportScreenshot";
 import { SupportLauncherButton } from "./SupportLauncherButton";
@@ -94,7 +97,16 @@ export function GlobalSupportAction() {
     try {
       await new Promise((resolve) => window.setTimeout(resolve, 180));
       const sourceUrl = window.location.href;
-      const screenshot = await captureSupportScreenshot();
+      let screenshot: Awaited<
+        ReturnType<typeof captureSupportScreenshot>
+      > | null = null;
+      let didScreenshotFail = false;
+
+      try {
+        screenshot = await captureSupportScreenshot();
+      } catch {
+        didScreenshotFail = true;
+      }
 
       // Order matters: the screenshot is captured with the current view (incl.
       // any open modal/overlay) intact, THEN we dismiss those overlays so the
@@ -105,29 +117,33 @@ export function GlobalSupportAction() {
 
       const consoleLogFile = createSupportConsoleLogFile(sourceUrl);
       const draftId = buildDraftId();
-      const draft = {
+      const draft: PendingSupportDraft = {
         id: draftId,
         type,
         sourceUrl,
-        screenshotFile: screenshot.file,
         consoleLogFile,
-        clipboardStatus: screenshot.clipboardStatus,
+        clipboardStatus: screenshot?.clipboardStatus ?? "unavailable",
         createdAt: Date.now(),
+        ...(screenshot ? { screenshotFile: screenshot.file } : {}),
       };
 
       setPendingDraft(draft);
 
-      if (screenshot.clipboardStatus === "copied") {
+      if (screenshot?.clipboardStatus === "copied") {
         toast.success("Screenshot captured and copied");
-      } else {
+      } else if (screenshot) {
         toast.success("Screenshot captured and attached");
+      } else if (didScreenshotFail) {
+        toast.success("Bug report opened without a screenshot");
+      } else {
+        toast.success("Bug report ready");
       }
 
       navigate(`/help?newTicket=${type}`, {
         state: { supportDraft: draft },
       });
     } catch {
-      toast.error("We couldn't capture this screen. Try again in a moment.");
+      toast.error("We couldn't start the bug report. Try again in a moment.");
     } finally {
       setCapturingType(null);
     }
