@@ -4,7 +4,6 @@ import { Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { createPortal } from "react-dom";
 import {
-  CheckSquare,
   Cpu,
   FileText,
   Database,
@@ -29,7 +28,6 @@ import { useSidebar } from "./SidebarContext";
 export type AdminNavKey =
   | "mission-control"
   | "apps"
-  | "action-items"
   | "agent-outputs"
   | "ai-pms-automation"
   | "practice-ranking"
@@ -68,7 +66,6 @@ const DONE_FOR_YOU_ITEMS: NavItem[] = [
 const TOP_ITEMS: NavItem[] = [
   { key: "mission-control", label: "Mission Control", icon: Radar },
   { key: "apps", label: "Apps", icon: Blocks },
-  { key: "action-items", label: "Action Items Hub", icon: CheckSquare },
 ];
 
 const BOTTOM_ITEMS: NavItem[] = [

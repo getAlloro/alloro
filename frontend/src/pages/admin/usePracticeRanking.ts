@@ -11,7 +11,6 @@ import type {
   RankingJob,
   BatchStatus,
   RankingResult,
-  RankingTask,
   BatchGroup,
   MonthGroup,
 } from "./practiceRanking.types";
@@ -33,9 +32,6 @@ export function usePracticeRanking() {
   const [jobResults, setJobResults] = useState<Record<number, RankingResult>>(
     {}
   );
-  const [rankingTasks, setRankingTasks] = useState<
-    Record<number, RankingTask[]>
-  >({});
   const [loadingResults, setLoadingResults] = useState<number | null>(null);
   const [pollingJobs, setPollingJobs] = useState<Set<number>>(new Set());
   const [pollingBatches, setPollingBatches] = useState<Set<string>>(new Set());
@@ -339,29 +335,10 @@ export function usePracticeRanking() {
       const data = await response.json();
       setJobResults((prev) => ({ ...prev, [jobId]: data.ranking }));
 
-      fetchRankingTasks(jobId);
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : "An error occurred");
     } finally {
       setLoadingResults(null);
-    }
-  };
-
-  const fetchRankingTasks = async (practiceRankingId: number) => {
-    try {
-      const response = await adminFetch(
-        `/api/practice-ranking/tasks?practiceRankingId=${practiceRankingId}`,
-      );
-
-      if (!response.ok) {
-        logger.error("Failed to fetch ranking tasks");
-        return;
-      }
-
-      const data = await response.json();
-      setRankingTasks((prev) => ({ ...prev, [practiceRankingId]: data.tasks }));
-    } catch (error) {
-      logger.error("Error fetching ranking tasks:", error);
     }
   };
 
@@ -612,7 +589,6 @@ export function usePracticeRanking() {
     expandedJobId,
     expandedBatches,
     jobResults,
-    rankingTasks,
     loadingResults,
     deletingJob,
     deletingBatch,

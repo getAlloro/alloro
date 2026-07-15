@@ -66,6 +66,10 @@ export const Notifications: React.FC = () => {
 
   // Get navigation path based on notification type
   const getNotificationPath = (notification: Notification) => {
+    if (notification.type === "task") {
+      return "/dashboard";
+    }
+
     const actionPath = notification.metadata?.actionPath;
     if (typeof actionPath === "string" && actionPath.startsWith("/")) {
       return actionPath;
@@ -74,8 +78,6 @@ export const Notifications: React.FC = () => {
     switch (notification.type) {
       case "pms":
         return "/pmsStatistics";
-      case "task":
-        return "/tasks";
       case "agent":
         return "/dashboard";
       case "ranking":

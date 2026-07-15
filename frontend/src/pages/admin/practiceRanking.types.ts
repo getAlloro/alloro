@@ -207,30 +207,6 @@ export interface RankingResult {
   } | null;
 }
 
-// Ranking Task from the tasks endpoint
-export interface RankingTask {
-  id: number;
-  title: string;
-  description: string;
-  status: string;
-  category: string;
-  agentType: string;
-  isApproved: boolean;
-  dueDate: string | null;
-  createdAt: string;
-  updatedAt: string;
-  completedAt: string | null;
-  metadata: {
-    practiceRankingId: number | null;
-    gbpLocationId: string | null;
-    gbpLocationName: string | null;
-    priority: string | null;
-    impact: string | null;
-    effort: string | null;
-    timeline: string | null;
-  };
-}
-
 // Group structure for display - flat batch list
 export interface BatchGroup {
   batchId: string;

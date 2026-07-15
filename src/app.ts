@@ -32,7 +32,6 @@ import gbpAutomationRoutes from "./routes/gbpAutomation";
 import patientJourneyRoutes from "./routes/patient-journey";
 import { getDatabaseHealth } from "./models/DatabaseHealthModel";
 import clarityRoutes from "./routes/clarity";
-import taskRoutes from "./routes/tasks";
 import authRoutes from "./routes/auth";
 import otpRoutes from "./routes/auth-otp";
 import authSsoRoutes from "./routes/auth-sso";
@@ -210,7 +209,6 @@ app.use("/api/gbp", gbpRoutes);
 app.use("/api/gbp-automation", gbpAutomationRoutes);
 app.use("/api/patient-journey", patientJourneyRoutes);
 app.use("/api/clarity", clarityRoutes);
-app.use("/api/tasks", taskRoutes);
 // Google SSO admin login (plans/07052026-google-sso-admin-and-user-login).
 // MUST be mounted BEFORE /api/auth (authRoutes): the GBP router also defines a
 // vestigial `/google/callback` (routes/auth.ts:17) that would otherwise swallow

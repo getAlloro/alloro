@@ -84,7 +84,6 @@ export interface MailgunMessage {
 }
 
 export interface AdminNotificationData {
-  newActionItems?: number;
   practiceRankingsCompleted?: Array<{
     practiceName: string;
     locationName: string;
@@ -143,7 +142,7 @@ export interface EmailTemplate {
 export const EMAIL_TEMPLATES: Record<string, EmailTemplate> = {
   ADMIN_NOTIFICATION: {
     name: "AdminSendNotification",
-    description: "Notify admins of new action items, completed rankings, etc.",
+    description: "Notify admins of completed rankings and agent results",
     requiredFields: ["summary"],
   },
   ADMIN_ERROR: {

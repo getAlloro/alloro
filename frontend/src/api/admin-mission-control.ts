@@ -69,7 +69,6 @@ export type MissionControlOrganization = {
   hasGbpConnection: boolean;
   websiteStatus: string | null;
   activeIntegrations: ActiveIntegration[];
-  pendingTaskCount: number;
   unreadNotificationCount: number;
   latestPms: {
     id: number;

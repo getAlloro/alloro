@@ -10,7 +10,6 @@ import { ArrowLeft, RefreshCw, Globe, FileCode, Archive } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { Badge } from "../../components/ui/DesignSystem";
 import { OrgLocationSelector } from "../../components/Admin/org/OrgLocationSelector";
-import { OrgTasksTab } from "../../components/Admin/org/OrgTasksTab";
 import { OrgPmsTab } from "../../components/Admin/org/OrgPmsTab";
 import { OrgAgentOutputsTab } from "../../components/Admin/org/OrgAgentOutputsTab";
 import { OrgRankingsTab } from "../../components/Admin/org/OrgRankingsTab";
@@ -68,7 +67,7 @@ export default function OrganizationDetail() {
   const activeAgentTab = (
     activeSection === "agent" && isOrganizationDetailAgentTabKey(rawTab)
       ? rawTab
-      : "tasks"
+      : "notifications"
   ) as OrganizationDetailAgentTabKey;
   const activeWebsiteTab = (
     activeSection === "website" && isOrganizationDetailWebsiteTabKey(rawTab)
@@ -110,6 +109,15 @@ export default function OrganizationDetail() {
   useEffect(() => {
     if (rawSection === "agent" && rawTab === "gbpAutomation") {
       setSearchParams({ section: "gbpAutomation" });
+    }
+  }, [rawSection, rawTab, setSearchParams]);
+
+  useEffect(() => {
+    if (rawSection === "agent" && rawTab === "tasks") {
+      setSearchParams(
+        { section: "agent", tab: "notifications" },
+        { replace: true },
+      );
     }
   }, [rawSection, rawTab, setSearchParams]);
 
@@ -356,12 +364,6 @@ export default function OrganizationDetail() {
 
               {/* Agent Tab Content */}
               <div className="rounded-2xl border border-gray-200 bg-white p-6">
-                {activeAgentTab === "tasks" && (
-                  <OrgTasksTab
-                    organizationId={orgId}
-                    locationId={selectedLocation?.id ?? null}
-                  />
-                )}
                 {activeAgentTab === "notifications" && (
                   <OrgNotificationsTab
                     organizationId={orgId}
@@ -445,5 +447,5 @@ function getSubmenuSection(
 function getDefaultTab(section: OrganizationDetailSubmenuSectionKey): string {
   if (section === "website") return "pages";
   if (section === "gbpAutomation") return "reviews";
-  return "tasks";
+  return "notifications";
 }

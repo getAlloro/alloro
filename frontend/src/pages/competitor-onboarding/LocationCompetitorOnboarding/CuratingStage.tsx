@@ -465,7 +465,7 @@ export function CuratingStage({
           </h3>
           <p className="text-sm text-white/70 font-medium mt-1">
             {isReselectMode
-              ? "This reruns the ranking only. It does not create tasks."
+              ? "This refreshes the ranking snapshot only. Monthly insights keep their normal schedule."
               : "Lock your list and start the analysis. You can re-run on the 1st & 15th of each month."}
           </p>
         </div>

@@ -4,7 +4,7 @@
  * Standalone monthly GBP Copy Optimizer execution for all onboarded clients —
  * decoupled from HTTP context. Owns webhook-config validation, account
  * fetching/filtering (GBP-configured only), the per-client dedupe + run +
- * persist + task-creation loop, and result aggregation.
+ * persist loop and result aggregation.
  *
  * The HTTP handler (AgentsController.runGbpOptimizer) stays thin: it forwards
  * the request body and shapes the returned { status, body }.
@@ -18,7 +18,6 @@ import { log, logError } from "../feature-utils/agentLogger";
 import { getPreviousMonthRange } from "../feature-utils/dateHelpers";
 import { COPY_COMPANION_WEBHOOK } from "./service.webhook-orchestrator";
 import { processGBPOptimizerAgent } from "./service.agent-orchestrator";
-import { createTasksFromCopyRecommendations } from "./service.task-creator";
 
 export interface GbpOptimizerRunResult {
   status: number;
@@ -204,14 +203,6 @@ export async function runGbpOptimizerForAllAccounts(
           updated_at: new Date(),
         });
         log(`[CLIENT] ✓ Agent result saved (ID: ${resultId})`);
-
-        // Create tasks from recommendations
-        await createTasksFromCopyRecommendations(
-          result.output,
-          googleAccountId,
-          organizationId,
-          locationId,
-        );
 
         results.push({
           googleAccountId,

@@ -44,7 +44,8 @@ export const PMSUploadBanner: React.FC<PMSUploadBannerProps> = ({
             </h3>
             <p className="text-green-700 text-sm mt-1">
               Upload your first {copy.dataNameLower} to start receiving
-              personalized insights and action items for your {labels.orgNoun}.
+              personalized insights and recommendations for your{" "}
+              {labels.orgNoun}.
             </p>
           </div>
         </div>

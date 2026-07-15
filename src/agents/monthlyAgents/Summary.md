@@ -292,7 +292,7 @@ Respond with ONE valid JSON object matching SummaryV2OutputSchema:
         "mechanism": "Search engines use citation consistency as a trust signal for local ranking. When NAP data conflicts, the algorithm cannot confidently attribute reviews and calls to one entity, which suppresses local pack visibility."
       },
       "cta": {
-        "primary": { "label": "Open task", "action_url": "/tasks/[id]" }
+        "primary": { "label": "View Practice Hub", "action_url": "/dashboard" }
       },
       "due_at": "2026-05-12"
     }

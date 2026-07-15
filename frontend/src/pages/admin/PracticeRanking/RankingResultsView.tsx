@@ -1,7 +1,6 @@
 import { motion } from "framer-motion";
 import {
   TrendingUp,
-  Play,
   RefreshCw,
   MapPin,
   Star,
@@ -22,19 +21,17 @@ import {
   staggerContainer,
   cardVariants,
 } from "../../../lib/animations";
-import type { RankingResult, RankingTask } from "../practiceRanking.types";
+import type { RankingResult } from "../practiceRanking.types";
 
 // Admin Results View - Technical Details
 export function RankingResultsView({
   result,
   onRefreshCompetitors,
   refreshingCompetitors,
-  rankingTasks,
 }: {
   result: RankingResult;
   onRefreshCompetitors?: () => void;
   refreshingCompetitors?: boolean;
-  rankingTasks?: Record<number, RankingTask[]>;
 }) {
   const factors = result.rankingFactors;
   const competitors =
@@ -210,67 +207,6 @@ export function RankingResultsView({
           </p>
         </motion.div>
       )}
-
-      {/* Action Plans Card */}
-      {rankingTasks &&
-        rankingTasks[result.id] &&
-        rankingTasks[result.id].length > 0 && (
-          <motion.div
-            className="rounded-xl border border-green-200 bg-green-50 p-4"
-            variants={cardVariants}
-          >
-            <h4 className="mb-3 font-semibold text-green-900 flex items-center gap-2">
-              <Zap className="h-5 w-5" />
-              Action Plans ({rankingTasks[result.id].length})
-            </h4>
-            <div className="space-y-3">
-              {rankingTasks[result.id].map((task) => (
-                <div
-                  key={task.id}
-                  className="flex items-start justify-between gap-4 rounded-xl border border-green-100 bg-white p-3"
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h5 className="font-medium text-gray-900">
-                        {task.title}
-                      </h5>
-                      {task.metadata?.priority && (
-                        <Badge
-                          variant={
-                            task.metadata.priority === "1" ||
-                            task.metadata.priority === "high"
-                              ? "danger"
-                              : task.metadata.priority === "2" ||
-                                  task.metadata.priority === "medium"
-                                ? "warning"
-                                : "default"
-                          }
-                        >
-                          Priority {task.metadata.priority}
-                        </Badge>
-                      )}
-                      {task.metadata?.impact && (
-                        <Badge variant="info">{task.metadata.impact} impact</Badge>
-                      )}
-                    </div>
-                    {task.description && (
-                      <p className="mt-1 text-sm text-gray-600 whitespace-pre-wrap">
-                        {task.description}
-                      </p>
-                    )}
-                  </div>
-                  <a
-                    href={`/admin/action-items?taskId=${task.id}`}
-                    className="shrink-0 flex items-center gap-1.5 rounded-xl bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700 transition-colors"
-                  >
-                    <Play className="h-3.5 w-3.5" />
-                    Start Task
-                  </a>
-                </div>
-              ))}
-            </div>
-          </motion.div>
-        )}
 
       {/* Ranking Factors Breakdown */}
       {(() => {

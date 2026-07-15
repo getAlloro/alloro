@@ -9,6 +9,7 @@ import { coerceBoolean } from "../pms-utils/pms-validator.util";
 import { PAGE_SIZE, PmsStatus } from "../pms-utils/pms-constants";
 import { computeInsightsStale } from "../pms-utils/pms-insights-freshness.util";
 import logger from "../../../lib/logger";
+import { normalizeAutomationStatusDetail } from "../../../utils/pms/pmsAutomationStatus";
 
 /**
  * Resolve whether displayed insights are stale relative to PMS data for a
@@ -167,10 +168,11 @@ export async function listJobsPaginated(
     let automationStatusDetail = null;
     if (job.automation_status_detail) {
       try {
-        automationStatusDetail =
+        const detail =
           typeof job.automation_status_detail === "string"
             ? JSON.parse(job.automation_status_detail)
             : job.automation_status_detail;
+        automationStatusDetail = normalizeAutomationStatusDetail(detail);
       } catch (e) {
         logger.warn(
           `Failed to parse automation_status_detail for job ${job.id}`

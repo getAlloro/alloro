@@ -4,7 +4,6 @@ import {
   AdminLayout,
   PMSAutomationCards,
 } from "../components/Admin";
-import { ActionItemsHub } from "@/components/Admin/org/ActionItemsHub";
 import { AdminGuard } from "@/components/Admin/shell/AdminGuard";
 import AppLogs from "./admin/AppLogs";
 import EmailLogs from "./admin/EmailLogs";
@@ -87,7 +86,10 @@ function AdminWithLayout() {
         <Route path="apps" element={<AdminApps />} />
         <Route path="apps/:appKey" element={<AdminApps />} />
         <Route path="ai-pms-automation" element={<PMSAutomationCards />} />
-        <Route path="action-items" element={<ActionItemsHub />} />
+        <Route
+          path="action-items"
+          element={<Navigate to="/admin/mission-control" replace />}
+        />
         <Route path="agent-outputs" element={<AgentOutputsList />} />
         <Route
           path="ai-data-insights/*"

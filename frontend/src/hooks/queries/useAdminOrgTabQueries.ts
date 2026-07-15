@@ -1,6 +1,6 @@
 /**
  * TanStack Query hooks for admin org detail sub-tabs:
- *   OrgTasksTab, OrgNotificationsTab, OrgRankingsTab, OrgPmsTab, OrgAgentOutputsTab
+ *   OrgNotificationsTab, OrgRankingsTab, OrgPmsTab, OrgAgentOutputsTab
  */
 
 import { useCallback } from "react";
@@ -9,7 +9,6 @@ import { queryClient, QUERY_KEYS } from "../../lib/queryClient";
 
 // ─── API imports ─────────────────────────────────────────────────
 import { adminFetch } from "../../api";
-import { fetchAllTasks } from "../../api/tasks";
 import {
   fetchAdminNotifications,
   type Notification,
@@ -21,68 +20,7 @@ import {
   type PmsKeyDataResponse,
 } from "../../api/pms";
 import { fetchAgentOutputs } from "../../api/agentOutputs";
-import type {
-  ActionItem,
-  FetchActionItemsRequest,
-} from "../../types/tasks";
 import type { AgentOutput, AgentOutputType } from "../../types/agentOutputs";
-
-// =====================================================================
-// ORG TASKS
-// =====================================================================
-
-interface OrgTasksParams {
-  organizationId: number;
-  locationId?: number | null;
-  statusFilter?: string;
-  categoryFilter?: string;
-  page?: number;
-  pageSize?: number;
-}
-
-export function useAdminOrgTasks({
-  organizationId,
-  locationId,
-  statusFilter = "all",
-  categoryFilter = "all",
-  page = 1,
-  pageSize = 50,
-}: OrgTasksParams) {
-  const params: Record<string, unknown> = {
-    locationId,
-    statusFilter,
-    categoryFilter,
-    page,
-  };
-  const queryKey = QUERY_KEYS.adminOrgTasks(organizationId, params);
-
-  return useQuery<{ tasks: ActionItem[]; total: number }>({
-    queryKey,
-    queryFn: async () => {
-      const filters: FetchActionItemsRequest = {
-        organization_id: organizationId,
-        location_id: locationId ?? undefined,
-        status:
-          statusFilter !== "all"
-            ? (statusFilter as "complete" | "pending" | "in_progress" | "archived")
-            : undefined,
-        category:
-          categoryFilter !== "all"
-            ? (categoryFilter as "ALLORO" | "USER")
-            : undefined,
-        limit: pageSize,
-        offset: (page - 1) * pageSize,
-      };
-      const response = await fetchAllTasks(filters);
-      if (!response.success) throw new Error("Failed to load tasks");
-      return { tasks: response.tasks, total: response.total };
-    },
-    initialData: () =>
-      queryClient.getQueryData<{ tasks: ActionItem[]; total: number }>(queryKey),
-    initialDataUpdatedAt: () =>
-      queryClient.getQueryState(queryKey)?.dataUpdatedAt,
-  });
-}
 
 // =====================================================================
 // ORG NOTIFICATIONS
@@ -285,17 +223,6 @@ export function useAdminOrgAgentOutputs({
 // =====================================================================
 // INVALIDATION HOOKS
 // =====================================================================
-
-export function useInvalidateAdminOrgTasks() {
-  const qc = useQueryClient();
-  return {
-    invalidateForOrg: useCallback(
-      (orgId: number) =>
-        qc.invalidateQueries({ queryKey: QUERY_KEYS.adminOrgTasksAll(orgId) }),
-      [qc],
-    ),
-  };
-}
 
 export function useInvalidateAdminOrgNotifications() {
   const qc = useQueryClient();

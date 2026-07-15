@@ -12,7 +12,6 @@
  * - DELETE /batch/:batchId - Delete all rankings in a batch
  * - POST /refresh-competitors - Invalidate competitor cache
  * - GET /latest - Get latest rankings for all locations (client dashboard)
- * - GET /tasks - Get approved ranking tasks
  *
  * v2 Curated Competitor Lists (location-scoped, client-facing, RBAC-gated):
  * - GET    /locations/:locationId/competitors
@@ -51,7 +50,6 @@ router.get("/accounts", controller.listAccounts);
 router.get("/latest", controller.getLatestRankings);
 router.get("/in-flight", controller.getInFlightRanking);
 router.get("/history", controller.getRankingHistory);
-router.get("/tasks", controller.getRankingTasks);
 
 // Retry
 router.post("/retry/:id", controller.retryRanking);

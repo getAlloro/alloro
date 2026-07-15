@@ -160,7 +160,6 @@ export function OrgNotificationsTab({
               className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-alloro-orange/50"
             >
               <option value="system">System</option>
-              <option value="task">Task</option>
               <option value="pms">PMS</option>
               <option value="agent">Agent</option>
               <option value="ranking">Ranking</option>
