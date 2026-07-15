@@ -5,13 +5,12 @@
  * author/uploader" (UI hides edit/delete controls; the server still
  * enforces the real authorization check).
  *
- * Uses getPriorityItem("auth_token") so pilot-mode (sessionStorage) and
- * normal-mode (localStorage) sessions both resolve to the current user.
+ * Uses the shared auth-token resolver so pilot mode, normal storage-backed
+ * sessions, and shared-cookie sessions stay centralized in the API client.
  */
-import { getPriorityItem } from "../hooks/useLocalStorage";
+import { getAuthToken } from "../api";
 import { decodeJwtUserId } from "./jwt";
 
 export function getCurrentUserId(): number | null {
-  const token = getPriorityItem("auth_token") || getPriorityItem("token");
-  return decodeJwtUserId(token);
+  return decodeJwtUserId(getAuthToken());
 }

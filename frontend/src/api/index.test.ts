@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { storeRefreshedToken } from "./index";
+import { getAuthToken, storeRefreshedToken } from "./index";
 
 // A JWT is header.payload.signature; only the payload matters here. The nonce
 // lets two tokens for the same user differ, so "was it written" is observable.
@@ -12,6 +12,7 @@ describe("storeRefreshedToken — identity-safe sliding refresh", () => {
   beforeEach(() => {
     window.localStorage.clear();
     window.sessionStorage.clear();
+    document.cookie = "auth_token=; path=/; max-age=0";
   });
 
   it("persists a same-identity refresh (extends the session)", () => {
@@ -55,5 +56,17 @@ describe("storeRefreshedToken — identity-safe sliding refresh", () => {
     window.sessionStorage.setItem("token", current);
     storeRefreshedToken({ "x-session-refresh": makeToken(99, "new") });
     expect(window.sessionStorage.getItem("token")).toBe(current);
+  });
+
+  it("reads the shared auth cookie when normal storage has not been mirrored yet", () => {
+    const cookieToken = makeToken(77, "cookie");
+    document.cookie = `auth_token=${cookieToken}`;
+    expect(getAuthToken()).toBe(cookieToken);
+  });
+
+  it("does not read the shared auth cookie during pilot mode", () => {
+    document.cookie = `auth_token=${makeToken(77, "cookie")}`;
+    window.sessionStorage.setItem("pilot_mode", "true");
+    expect(getAuthToken()).toBeNull();
   });
 });

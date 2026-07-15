@@ -17,6 +17,11 @@ describe("decodeJwtUserId", () => {
     expect(decodeJwtUserId(makeToken({ user_id: 9 }))).toBe(9);
   });
 
+  it("accepts numeric string identity claims", () => {
+    expect(decodeJwtUserId(makeToken({ userId: "76" }))).toBe(76);
+    expect(decodeJwtUserId(makeToken({ sub: "77" }))).toBe(77);
+  });
+
   it("decodes a real (unpadded) base64url payload", () => {
     const unpadded = `h.${b64url({ userId: 4210 }).replace(/=+$/, "")}.s`;
     expect(decodeJwtUserId(unpadded)).toBe(4210);
@@ -24,7 +29,7 @@ describe("decodeJwtUserId", () => {
 
   it("returns null for a non-numeric or missing id", () => {
     expect(decodeJwtUserId(makeToken({ email: "x@y.com" }))).toBeNull();
-    expect(decodeJwtUserId(makeToken({ userId: "76" }))).toBeNull();
+    expect(decodeJwtUserId(makeToken({ userId: "user-76" }))).toBeNull();
   });
 
   it("returns null for malformed or empty tokens", () => {
