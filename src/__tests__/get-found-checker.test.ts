@@ -75,6 +75,11 @@ describe("honesty lint — GbpContentSafetyService.validateGeneratedCopy", () =>
     "This structured data will rank for every one of your services.",
     "We guarantee first page placement.",
     "Posting weekly is a freshness signal that boosts your ranking.",
+    "We will help you rank higher on Google.",
+    "We can help you outrank your competitors.",
+    "Get you to page one of results.",
+    "We'll dominate local search for you.",
+    "Be #1 on Google, guaranteed.",
   ];
 
   it.each(rejected)("REJECTS ranking/placement/visibility copy: %s", (copy) => {
@@ -89,6 +94,8 @@ describe("honesty lint — GbpContentSafetyService.validateGeneratedCopy", () =>
     "Complete structured data helps search and AI readers understand your services.",
     "We will add your hours, address, and social profiles to the page.",
     "Answer the question directly at the top of the page.",
+    "We make no google ranking promises.",
+    "Structured data does not guarantee a higher ranking.",
   ];
 
   it.each(honest)("PASSES honest copy (no false positive): %s", (copy) => {
