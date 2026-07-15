@@ -1,6 +1,6 @@
 /**
  * TanStack Query hooks for standalone admin pages:
- *   AIDataInsightsList, AIDataInsightsDetail, AgentOutputsList, ActionItemsHub
+ *   AIDataInsightsList, AIDataInsightsDetail, AgentOutputsList
  */
 
 import { useCallback } from "react";
@@ -9,16 +9,11 @@ import { queryClient, QUERY_KEYS } from "../../lib/queryClient";
 
 // ─── API imports ─────────────────────────────────────────────────
 import { adminFetch } from "../../api";
-import { fetchAllTasks } from "../../api/tasks";
 import {
   fetchAgentOutputs,
   fetchOrganizations,
   fetchAgentTypes,
 } from "../../api/agentOutputs";
-import type {
-  ActionItemsResponse,
-  FetchActionItemsRequest,
-} from "../../types/tasks";
 import type {
   AgentOutput,
   FetchAgentOutputsRequest,
@@ -173,42 +168,6 @@ export function useAdminAgentOutputTypesList() {
 }
 
 // =====================================================================
-// ACTION ITEMS HUB (STANDALONE PAGE)
-// =====================================================================
-
-export function useAdminActionItems(filters: FetchActionItemsRequest) {
-  const queryKey = QUERY_KEYS.adminActionItems(filters as Record<string, unknown>);
-
-  return useQuery<ActionItemsResponse>({
-    queryKey,
-    queryFn: () => fetchAllTasks(filters),
-    refetchInterval: 3000, // 3-second silent auto-refresh
-    refetchIntervalInBackground: false,
-    initialData: () =>
-      queryClient.getQueryData<ActionItemsResponse>(queryKey),
-    initialDataUpdatedAt: () =>
-      queryClient.getQueryState(queryKey)?.dataUpdatedAt,
-  });
-}
-
-export function useAdminActionItemOrgs() {
-  const queryKey = QUERY_KEYS.adminActionItemOrgs;
-
-  return useQuery<{ id: number; name: string }[]>({
-    queryKey,
-    queryFn: async () => {
-      const response = await fetchOrganizations();
-      return response.organizations;
-    },
-    staleTime: 10 * 60 * 1000,
-    initialData: () =>
-      queryClient.getQueryData<{ id: number; name: string }[]>(queryKey),
-    initialDataUpdatedAt: () =>
-      queryClient.getQueryState(queryKey)?.dataUpdatedAt,
-  });
-}
-
-// =====================================================================
 // INVALIDATION HOOKS
 // =====================================================================
 
@@ -235,17 +194,6 @@ export function useInvalidateAdminAgentOutputs() {
     invalidateAll: useCallback(
       () =>
         qc.invalidateQueries({ queryKey: QUERY_KEYS.adminAgentOutputsAll }),
-      [qc],
-    ),
-  };
-}
-
-export function useInvalidateAdminActionItems() {
-  const qc = useQueryClient();
-  return {
-    invalidateAll: useCallback(
-      () =>
-        qc.invalidateQueries({ queryKey: QUERY_KEYS.adminActionItemsAll }),
       [qc],
     ),
   };

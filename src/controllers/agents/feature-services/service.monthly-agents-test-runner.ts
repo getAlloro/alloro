@@ -6,7 +6,7 @@
  *
  * Owns the full test pipeline: data fetch (GBP + aggregated PMS), the four
  * webhook agent calls (Summary, Referral Engine, Opportunity, CRO Optimizer),
- * and simulated task creation.
+ * and returns their outputs for inspection.
  *
  * The HTTP handler (AgentsController.runMonthlyAgentsTest) stays thin: it
  * forwards the request body and shapes the returned { status, body }.
@@ -41,7 +41,6 @@ import {
   buildOpportunityPayload,
   buildCroOptimizerPayload,
 } from "./service.agent-input-builder";
-import { simulateTaskCreation } from "./service.task-creator";
 
 export interface MonthlyAgentsTestInput {
   // Values originate from req.body (untyped); kept `any` to preserve the
@@ -326,14 +325,6 @@ export async function runMonthlyAgentsTest(
     }
     log(`[TEST-CRO] ✓ CRO Optimizer completed`);
 
-    // === SIMULATE TASK CREATION (NO DB INSERTS) ===
-    log(`[TEST-TASKS] Simulating task creation (NO database writes)...`);
-    const tasksToBeCreated = simulateTaskCreation({
-      opportunityOutput,
-      croOptimizerOutput,
-      referralEngineOutput,
-    });
-
     const duration = Date.now() - startTime;
 
     log("\n" + "=".repeat(70));
@@ -341,15 +332,6 @@ export async function runMonthlyAgentsTest(
     log(`  - NO data was persisted to database`);
     log(`  - NO emails were sent`);
     log(`  - NO notifications were created`);
-    log(
-      `  - Opportunity tasks (simulated): ${tasksToBeCreated.from_opportunity.length}`,
-    );
-    log(
-      `  - CRO Optimizer tasks (simulated): ${tasksToBeCreated.from_cro_optimizer.length}`,
-    );
-    log(
-      `  - Referral Engine tasks (simulated): ${tasksToBeCreated.from_referral_engine.alloro.length} ALLORO, ${tasksToBeCreated.from_referral_engine.user.length} USER`,
-    );
     log(`  - Duration: ${duration}ms (${(duration / 1000).toFixed(1)}s)`);
     log("=".repeat(70) + "\n");
 
@@ -359,7 +341,7 @@ export async function runMonthlyAgentsTest(
         success: true,
         duration: `${duration}ms`,
         testMode: true,
-        note: "This was a TEST run - no data was persisted, no emails sent, no tasks created",
+        note: "This was a TEST run - no data was persisted and no emails were sent",
         agents: {
           summary: {
             input: summaryPayload,
@@ -378,7 +360,6 @@ export async function runMonthlyAgentsTest(
             output: croOptimizerOutput,
           },
         },
-        tasksToBeCreated,
       },
     };
   } catch (error: any) {

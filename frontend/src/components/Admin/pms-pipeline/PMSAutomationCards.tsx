@@ -202,15 +202,13 @@ export function PMSAutomationCards() {
             const isAutomationExpanded = expandedAutomationJobIds.has(job.id);
             const isPending = job.status === "pending";
             // Pipeline data only exists once monthly_agents has produced
-            // agent_results rows. Show the button when the run reached
-            // task_creation/complete, or when monthly_agents itself is at
-            // least processing (RE/Summary outputs may already be persisted).
+            // agent_results rows. Show the button while monthly agents are
+            // processing or after the supported insight pipeline completes.
             const automationCurrentStep =
               job.automation_status_detail?.currentStep;
             const showPipelineButton =
               hasAutomationStatus &&
-              (automationCurrentStep === "task_creation" ||
-                automationCurrentStep === "complete" ||
+              (automationCurrentStep === "complete" ||
                 automationCurrentStep === "monthly_agents");
 
             return (

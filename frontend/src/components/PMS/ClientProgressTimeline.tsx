@@ -53,7 +53,7 @@ function buildClientSteps(copy: PmsCopy): ClientStep[] {
       description:
         "Alloro is analyzing your data to generate actionable insights",
       icon: Sparkles,
-      backendSteps: ["monthly_agents", "task_creation", "complete"],
+      backendSteps: ["monthly_agents", "complete"],
     },
   ];
 }

@@ -4,7 +4,7 @@
  * Runs gap analysis via Claude (replaces the former n8n → Gemini webhook).
  * Takes the same payload shape the pipeline already builds, calls
  * service.llm-runner, then delegates persistence to the existing
- * webhook-handler helpers (archiveAndCreateTasks, saveLlmAnalysis).
+ * webhook-handler persistence helper (saveLlmAnalysis).
  */
 
 import { runAgent } from "../../../agents/service.llm-runner";
@@ -389,8 +389,7 @@ function buildLeanRankingInput(
 /**
  * Run the ranking gap analysis via Claude and persist results.
  *
- * On success: saves llm_analysis, archives old tasks, creates new tasks,
- * marks ranking as completed.
+ * On success: saves llm_analysis and marks ranking as completed.
  *
  * On failure: marks ranking as completed without AI insights (graceful).
  */
@@ -451,10 +450,9 @@ export async function runRankingAnalysis(
     // Ensure practice_ranking_id is set correctly
     llmAnalysis.practice_ranking_id = rankingId;
 
-    // Save LLM analysis and mark completed.
-    // Note: ranking no longer creates its own USER tasks. Summary v2 is the
-    // sole writer of category="USER" tasks; it consumes top_recommendations
-    // via additional_data.ranking_recommendations on the next monthly run.
+    // Save LLM analysis and mark completed. Summary consumes
+    // top_recommendations through additional_data.ranking_recommendations on
+    // the next monthly run.
     await llmWebhookHandler.saveLlmAnalysis(rankingId, llmAnalysis);
 
     _log(`[RANKING] [${rankingId}] LLM analysis saved successfully`);

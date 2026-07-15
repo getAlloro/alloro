@@ -10,14 +10,13 @@
  * - Response formatting
  * - Error handling
  *
- * 10 endpoints:
+ * 9 endpoints:
  * - POST /proofline-run          - Daily proofline agent for all clients
  * - POST /monthly-agents-run     - Monthly agents for a specific account
  * - POST /monthly-agents-run-test - Test endpoint (no DB writes)
  * - POST /gbp-optimizer-run      - Monthly GBP Copy Optimizer for all clients
  * - POST /ranking-run            - Automated practice ranking agent
  * - POST /guardian-governance-agents-run - Monthly Guardian & Governance agents
- * - POST /process-all            - DEPRECATED: use /proofline-run
  * - GET  /latest/:googleAccountId - Latest agent outputs for dashboard
  * - GET  /getLatestReferralEngineOutput/:googleAccountId - Latest Referral Engine output
  * - GET  /health                 - Health check
@@ -26,9 +25,6 @@
 import { Request, Response } from "express";
 
 import { log, logError } from "./feature-utils/agentLogger";
-import {
-  processClient,
-} from "./feature-services/service.agent-orchestrator";
 import {
   PROOFLINE_WEBHOOK,
   SUMMARY_WEBHOOK,
@@ -46,7 +42,6 @@ import { runMonthlyAgentsForAccount } from "./feature-services/service.monthly-a
 import { runMonthlyAgentsTest as runMonthlyAgentsTestService } from "./feature-services/service.monthly-agents-test-runner";
 import { runGbpOptimizerForAllAccounts } from "./feature-services/service.gbp-optimizer-runner";
 import { AgentResultModel } from "../../models/AgentResultModel";
-import { GoogleConnectionModel } from "../../models/GoogleConnectionModel";
 import { PmsJobModel } from "../../models/PmsJobModel";
 
 // =====================================================================
@@ -243,108 +238,6 @@ export async function runGuardianGovernance(
       success: false,
       error: "GUARDIAN_GOVERNANCE_RUN_ERROR",
       message: error?.message || "Failed to run guardian/governance agents",
-      duration: `${duration}ms`,
-    });
-  }
-}
-
-// =====================================================================
-// POST /process-all (DEPRECATED)
-// =====================================================================
-
-export async function processAllDeprecated(
-  req: Request,
-  res: Response,
-): Promise<any> {
-  const startTime = Date.now();
-  const { referenceDate } = req.body || {};
-
-  log("\n" + "=".repeat(70));
-  log("POST /api/agents/process-all - STARTING");
-  log("=".repeat(70));
-  if (referenceDate) log(`Reference Date: ${referenceDate}`);
-  log(`Timestamp: ${new Date().toISOString()}`);
-  log(`Max retries per client: 3`);
-
-  try {
-    // Fetch all onboarded Google accounts (join with organizations for name/domain)
-    log("\n[SETUP] Fetching all onboarded Google accounts...");
-    const accounts = await GoogleConnectionModel.findOnboardedConnectionsWithOrganization();
-
-    if (!accounts || accounts.length === 0) {
-      log("[SETUP] No onboarded accounts found");
-      return res.json({
-        success: true,
-        message: "No accounts to process",
-        processed: 0,
-        results: [],
-      });
-    }
-
-    log(`[SETUP] Found ${accounts.length} account(s) to process`);
-
-    // Process each client sequentially with retry mechanism
-    const results: any[] = [];
-    let totalRetries = 0;
-
-    for (const account of accounts) {
-      const result = await processClient(account, referenceDate);
-
-      // Track retry statistics
-      if (result.attempts && result.attempts > 1) {
-        totalRetries += result.attempts - 1;
-        log(
-          `[STATS] Client ${account.domain_name} required ${result.attempts} attempt(s)`,
-        );
-      }
-
-      results.push({
-        googleAccountId: account.id,
-        domain: account.domain_name,
-        ...result,
-      });
-
-      // Stop on first error after all retries exhausted
-      if (!result.success) {
-        log(
-          `\n[ERROR] ❌ Stopping processing - ${account.domain_name} failed after ${result.attempts} attempts`,
-        );
-        throw new Error(
-          `Processing failed for ${account.domain_name} after ${result.attempts} attempts: ${result.error}`,
-        );
-      }
-    }
-
-    const duration = Date.now() - startTime;
-    const successfulClients = results.filter((r) => r.success).length;
-
-    log("\n" + "=".repeat(70));
-    log(`[COMPLETE] ✓ All clients processed successfully`);
-    log(`  - Total clients: ${accounts.length}`);
-    log(`  - Successful: ${successfulClients}`);
-    log(`  - Total retries: ${totalRetries}`);
-    log(`  - Duration: ${duration}ms (${(duration / 1000).toFixed(1)}s)`);
-    log("=".repeat(70) + "\n");
-
-    return res.json({
-      success: true,
-      message: `Processed ${accounts.length} account(s) successfully`,
-      processed: accounts.length,
-      successful: successfulClients,
-      totalRetries,
-      duration: `${duration}ms`,
-      results,
-    });
-  } catch (error: any) {
-    logError("process-all", error);
-    const duration = Date.now() - startTime;
-    log(`\n[FAILED] ❌ Processing failed after ${duration}ms`);
-    log("=".repeat(70) + "\n");
-
-    return res.status(500).json({
-      success: false,
-      error: "PROCESSING_ERROR",
-      message: error?.message || "Failed to process agents",
       duration: `${duration}ms`,
     });
   }

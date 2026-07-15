@@ -1,54 +1,20 @@
 import { useQuery } from "@tanstack/react-query";
-import { fetchClientTasks } from "../../api/tasks";
+import { fetchLatestSummaryOutput } from "../../api/agentSummary";
 import { QUERY_KEYS } from "../../lib/queryClient";
-import type { ActionItem } from "../../types/tasks";
+import type {
+  LatestSummaryAgentOutput,
+  SummaryDomainSummary,
+  SummarySupportingMetric,
+  SummaryTopAction,
+} from "../../types/agentSummary";
 
-export type TopActionSupportingMetric = {
-  label: string;
-  value: string;
-  sub?: string;
-  source_field: string;
-};
-
-export type DomainSummary = {
-  domain:
-    | "review"
-    | "gbp"
-    | "ranking"
-    | "form-submission"
-    | "pms-data-quality"
-    | "referral";
-  heading: string;
-  summary: string;
-  detail: string;
-  supporting_metrics?: TopActionSupportingMetric[];
-};
-
-export type TopActionCtaButton = {
-  label: string;
-  action_url: string;
-};
-
-export type TopAction = {
-  title: string;
-  urgency: "high" | "medium" | "low";
-  priority_score: number;
-  domain: DomainSummary["domain"];
-  rationale: string;
-  highlights?: string[];
-  supporting_metrics: TopActionSupportingMetric[];
-  outcome: { deliverables: string; mechanism: string };
-  cta: { primary: TopActionCtaButton; secondary?: TopActionCtaButton };
-  due_at?: string;
-  stage?: "findable" | "choosable" | "bookable" | "memorable";
-  execution_state?: "built" | "read-only" | "handoff";
-  generic?: boolean;
-};
+export type TopActionSupportingMetric = SummarySupportingMetric;
+export type DomainSummary = SummaryDomainSummary;
+export type TopAction = SummaryTopAction;
 
 export type ResolvedTopAction = TopAction & {
-  taskId: number;
+  resultId: number;
   createdAt: string;
-  dueDate?: string;
   domain_summaries?: DomainSummary[];
 };
 
@@ -123,8 +89,8 @@ function parseDomainSummary(value: unknown): DomainSummary | null {
   };
 }
 
-function parseTopAction(task: ActionItem): ResolvedTopAction | null {
-  let raw: unknown = task.metadata;
+function parseSummaryResults(value: unknown): Record<string, unknown> | null {
+  let raw = value;
   if (typeof raw === "string") {
     try {
       raw = JSON.parse(raw);
@@ -132,11 +98,15 @@ function parseTopAction(task: ActionItem): ResolvedTopAction | null {
       return null;
     }
   }
-  if (!isRecord(raw)) return null;
+  return isRecord(raw) ? raw : null;
+}
 
-  const action = raw as Partial<TopAction>;
+function parseTopAction(value: unknown): TopAction | null {
+  if (!isRecord(value)) return null;
+  const action = value as Partial<TopAction>;
   if (
     typeof action.title !== "string" ||
+    typeof action.rationale !== "string" ||
     typeof action.priority_score !== "number" ||
     !action.outcome ||
     !action.cta ||
@@ -144,18 +114,7 @@ function parseTopAction(task: ActionItem): ResolvedTopAction | null {
   ) {
     return null;
   }
-  const summaries = Array.isArray(raw.domain_summaries)
-    ? raw.domain_summaries
-        .map(parseDomainSummary)
-        .filter((summary): summary is DomainSummary => summary !== null)
-    : [];
-  return {
-    ...(action as TopAction),
-    taskId: task.id,
-    createdAt: task.created_at,
-    dueDate: task.due_date,
-    ...(summaries.length > 0 ? { domain_summaries: summaries } : {}),
-  };
+  return action as TopAction;
 }
 
 function isGroundedChoosableSummary(summary: DomainSummary): boolean {
@@ -166,30 +125,34 @@ function isGroundedChoosableSummary(summary: DomainSummary): boolean {
   return REQUIRED_CHOOSABLE_SOURCES.every((source) => sources.has(source));
 }
 
-function compareNewestTask(left: ActionItem, right: ActionItem): number {
-  const dateDifference =
-    new Date(right.created_at).getTime() - new Date(left.created_at).getTime();
-  return dateDifference !== 0 ? dateDifference : right.id - left.id;
-}
-
 export function selectSummaryDashboardData(
-  tasks: ActionItem[]
+  latestSummary: LatestSummaryAgentOutput | null,
 ): SummaryDashboardSelection {
-  const summaryTasks = tasks.filter(
-    (task) => (task.agent_type as unknown as string) === "SUMMARY"
-  );
-  const parsedActions = summaryTasks
+  if (!latestSummary) return EMPTY_SELECTION;
+  const output = parseSummaryResults(latestSummary.results);
+  if (!output) return EMPTY_SELECTION;
+  const parsedActions = (Array.isArray(output.top_actions) ? output.top_actions : [])
     .map(parseTopAction)
-    .filter((action): action is ResolvedTopAction => action !== null);
-  const topAction =
+    .filter((action): action is TopAction => action !== null);
+  const selectedAction =
     [...parsedActions].sort(
       (left, right) => right.priority_score - left.priority_score
     )[0] ?? null;
-
-  const newestTask = [...summaryTasks].sort(compareNewestTask)[0];
-  const newestSummary = newestTask ? parseTopAction(newestTask) : null;
+  const summaries = (Array.isArray(output.domain_summaries)
+    ? output.domain_summaries
+    : [])
+    .map(parseDomainSummary)
+    .filter((summary): summary is DomainSummary => summary !== null);
+  const topAction = selectedAction
+    ? {
+        ...selectedAction,
+        resultId: latestSummary.resultId,
+        createdAt: latestSummary.lastUpdated,
+        ...(summaries.length > 0 ? { domain_summaries: summaries } : {}),
+      }
+    : null;
   const latestChoosableSummary =
-    newestSummary?.domain_summaries?.find(isGroundedChoosableSummary) ?? null;
+    summaries.find(isGroundedChoosableSummary) ?? null;
   return { topAction, latestChoosableSummary };
 }
 
@@ -197,12 +160,8 @@ async function fetchSummaryDashboardSelection(
   orgId: number,
   locationId: number | null
 ): Promise<SummaryDashboardSelection> {
-  const response = await fetchClientTasks(orgId, locationId);
-  if (!response?.success || !response.tasks) return EMPTY_SELECTION;
-  return selectSummaryDashboardData([
-    ...response.tasks.ALLORO,
-    ...response.tasks.USER,
-  ]);
+  const latestSummary = await fetchLatestSummaryOutput(orgId, locationId);
+  return selectSummaryDashboardData(latestSummary);
 }
 
 export function useTopAction(

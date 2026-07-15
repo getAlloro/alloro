@@ -4,7 +4,7 @@
  * Standalone monthly-agents execution for a single account — decoupled from
  * HTTP context. Owns the full orchestration: validation, account fetch,
  * archived guard, location resolution, month range, OAuth, the monthly agents
- * call, raw-data persistence, notifications, task counting, admin email, and
+ * call, raw-data persistence, notifications, admin email, and
  * PMS automation-status transitions.
  *
  * The HTTP handler (AgentsController.runMonthlyAgents) stays thin: it forwards
@@ -26,7 +26,6 @@ import {
 import { resolveLocationId } from "../../../utils/locationResolver";
 import { GoogleConnectionModel } from "../../../models/GoogleConnectionModel";
 import { GoogleDataStoreModel } from "../../../models/GoogleDataStoreModel";
-import { TaskModel } from "../../../models/TaskModel";
 import { log, logError } from "../feature-utils/agentLogger";
 import { getPreviousMonthRange } from "../feature-utils/dateHelpers";
 import { processMonthlyAgents } from "./service.agent-orchestrator";
@@ -204,21 +203,12 @@ export async function runMonthlyAgentsForAccount(
     await GoogleDataStoreModel.insertRaw(monthlyResult.rawData);
     log(`[CLIENT] ✓ Raw GBP data saved`);
 
-    // Mark all agents complete and move to task creation
+    // Mark all agents complete while finalizing the supported insight output.
     await updatePmsStatus(
       "referral_engine",
-      "All agents completed, creating tasks...",
+      "All agents completed. Finalizing insights...",
       "referral_engine",
     );
-
-    // Update status: Task creation
-    if (pmsJobId) {
-      await updateAutomationStatus(pmsJobId, {
-        step: "task_creation",
-        stepStatus: "processing",
-        customMessage: "Creating tasks from agent recommendations...",
-      });
-    }
 
     // Create notification for completed monthly agents (also sends user email)
     try {
@@ -246,36 +236,10 @@ export async function runMonthlyAgentsForAccount(
 
     const duration = Date.now() - startTime;
 
-    // Count tasks created from database for this domain created during this run
-    const tasksCreated = {
-      user: 0,
-      alloro: 0,
-      total: 0,
-    };
-
-    try {
-      const recentTasks = await TaskModel.findCategoriesByOrgSince(
-        account.organization_id,
-        new Date(startTime),
-      );
-
-      tasksCreated.total = recentTasks.length;
-      tasksCreated.user = recentTasks.filter(
-        (t: any) => t.category === "USER",
-      ).length;
-      tasksCreated.alloro = recentTasks.filter(
-        (t: any) => t.category === "ALLORO",
-      ).length;
-    } catch (e) {
-      log(`[CLIENT] Could not count tasks: ${e}`);
-    }
-
-    // Send admin email notification about monthly agent completion (after tasksCreated is populated)
+    // Send admin email notification about monthly agent completion.
     try {
       await notifyAdminsMonthlyAgentComplete(
         account.practice_name || account.domain_name || "Unknown",
-        { summaryId, referralEngineId, opportunityId, croOptimizerId },
-        tasksCreated,
       );
       log(`[CLIENT] ✓ Admin email sent for monthly agents completion`);
     } catch (adminEmailError: any) {
@@ -288,7 +252,6 @@ export async function runMonthlyAgentsForAccount(
     // Complete the PMS automation status
     if (pmsJobId) {
       const automationSummary: AutomationSummary = {
-        tasksCreated,
         agentResults: {
           summary: { success: true, resultId: summaryId },
           referral_engine: { success: true, resultId: referralEngineId },
@@ -308,9 +271,6 @@ export async function runMonthlyAgentsForAccount(
     log(`  - Referral Engine ID: ${referralEngineId}`);
     log(`  - Opportunity ID: ${opportunityId}`);
     log(`  - CRO Optimizer ID: ${croOptimizerId}`);
-    log(
-      `  - Tasks created: ${tasksCreated.total} (${tasksCreated.user} USER, ${tasksCreated.alloro} ALLORO)`,
-    );
     log(`  - Duration: ${duration}ms (${(duration / 1000).toFixed(1)}s)`);
     log("=".repeat(70) + "\n");
 

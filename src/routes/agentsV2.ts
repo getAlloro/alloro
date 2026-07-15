@@ -11,7 +11,6 @@
  * - POST /gbp-optimizer-run                - [DISABLED 2026-04-12] Monthly GBP Copy Optimizer
  * - POST /ranking-run                      - Automated practice ranking agent
  * - POST /guardian-governance-agents-run    - [DISABLED 2026-04-12] Monthly Guardian & Governance agents
- * - POST /process-all                      - DEPRECATED: use /proofline-run
  * - GET  /latest/:googleAccountId          - Latest agent outputs for dashboard
  * - GET  /getLatestReferralEngineOutput/:googleAccountId - Latest Referral Engine output
  * - GET  /health                           - Health check
@@ -39,8 +38,7 @@ router.get(
 );
 router.get("/health", controller.healthCheck);
 
-// Test & deprecated
+// Test
 router.post("/monthly-agents-run-test", controller.runMonthlyAgentsTest);
-router.post("/process-all", controller.processAllDeprecated);
 
 export default router;

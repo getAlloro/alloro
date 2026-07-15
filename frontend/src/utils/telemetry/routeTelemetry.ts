@@ -30,11 +30,6 @@ const ROUTE_TELEMETRY: Record<string, RouteTelemetryDescriptor> = {
     surface: "local_rankings",
     pageLabel: "Local Rankings",
   },
-  "/tasks": {
-    routeTemplate: "/tasks",
-    surface: "tasks",
-    pageLabel: "Tasks",
-  },
   "/dfy/website": {
     routeTemplate: "/dfy/website",
     surface: "website",
