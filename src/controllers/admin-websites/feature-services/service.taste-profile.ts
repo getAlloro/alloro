@@ -372,11 +372,15 @@ export function buildCandidatesFromExtractors(
   );
 
   // Practice facts — verbatim source_excerpt IS the receipt; the GBP/page field
-  // plus the excerpt form the clickable-back source reference.
-  const practice_facts: SourcedCandidate[] = (bundle.practiceFacts ?? []).map((f) => ({
-    value: f.fact_text,
-    source: `${f.source_field}: "${f.source_excerpt.slice(0, 80)}"`,
-  }));
+  // plus the excerpt form the clickable-back source reference. A fact whose
+  // excerpt is empty/whitespace has no receipt, so it is dropped here rather
+  // than built into a hollow `page_content: ""` source.
+  const practice_facts: SourcedCandidate[] = (bundle.practiceFacts ?? [])
+    .filter((f) => (f.source_excerpt ?? "").trim().length > 0)
+    .map((f) => ({
+      value: f.fact_text,
+      source: `${f.source_field}: "${f.source_excerpt.slice(0, 80)}"`,
+    }));
 
   return {
     business_name: bundle.businessName,

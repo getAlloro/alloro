@@ -193,6 +193,54 @@ describe("enforceHonesty / isRealSource", () => {
     expect(isRealSource(null)).toBe(false);
     expect(isRealSource(undefined)).toBe(false);
   });
+
+  it("rejects hollow placeholder tokens and empty-payload labeled sources", () => {
+    // Placeholder tokens a caller might pass in lieu of a real receipt.
+    for (const hollow of ["-", "...", "todo", "SOURCE", "0", "xxx"]) {
+      expect(isRealSource(hollow)).toBe(false);
+    }
+    // A labeled source whose payload after the field label is empty.
+    expect(isRealSource('page_content: ""')).toBe(false);
+    expect(isRealSource("page_content:   ")).toBe(false);
+    // A labeled source with a real payload still passes.
+    expect(isRealSource('page_content: "oral appliance"')).toBe(true);
+  });
+
+  it("BLOCKS map / No.1 / spelled-metric / dollars promises (FIX #1)", () => {
+    for (const leak of [
+      "we will get you to the top of the map",
+      "first on the map pack",
+      "No. 1 dentist in the county",
+      "number 1 dentist",
+      "10 times more calls",
+      "doubled my patient count",
+      "brought in dozens of new patients",
+      "saved me 500 dollars",
+      "five hundred dollars",
+    ]) {
+      expect(enforceHonesty(leak).ok, leak).toBe(false);
+    }
+  });
+
+  it("PASSES honest sourced review sentiment about ranking (FIX #2)", () => {
+    for (const honest of [
+      "top-ranked by patients",
+      "ranked among the best by patients",
+      "Our whole family ranks them highly",
+    ]) {
+      expect(enforceHonesty(honest).ok, honest).toBe(true);
+    }
+    // But an explicit competitive placement claim still blocks.
+    expect(enforceHonesty("ranked #1 in the county").ok).toBe(false);
+    expect(enforceHonesty("No. 1 in town").ok).toBe(false);
+  });
+
+  it("lets honest disclaimers through via the negation guard", () => {
+    expect(enforceHonesty("We make no google ranking promises.").ok).toBe(true);
+    expect(
+      enforceHonesty("Structured data does not guarantee a higher ranking.").ok
+    ).toBe(true);
+  });
 });
 
 describe("buildCandidatesFromExtractors — wire-together + source resolution", () => {
@@ -259,6 +307,30 @@ describe("buildCandidatesFromExtractors — wire-together + source resolution", 
     // unique_strength has no per-item review source → dropped, not fabricated.
     expect(profile.unique_strength).toBeNull();
     expect(audit.dropped.some((d) => d.field === "unique_strength")).toBe(true);
+  });
+
+  it("drops a practice fact whose source excerpt is empty (FIX #3)", () => {
+    const candidates = buildCandidatesFromExtractors({
+      ...bundle,
+      practiceFacts: [
+        {
+          fact_text: "Has an empty excerpt",
+          source_field: "page_content",
+          source_excerpt: "   ",
+        },
+        {
+          fact_text: "Offers oral appliance therapy",
+          source_field: "page_content",
+          source_excerpt: "we provide oral appliance therapy",
+        },
+      ],
+    });
+    // The empty-excerpt fact is dropped at the adapter, never built into a
+    // hollow `page_content: ""` source.
+    expect(candidates.practice_facts).toHaveLength(1);
+    const { profile } = composeTasteProfile(candidates);
+    expect(profile.practice_facts).toHaveLength(1);
+    expect(profile.practice_facts[0].value).toBe("Offers oral appliance therapy");
   });
 
   it("drops a review claim that resolves to no real review", () => {
