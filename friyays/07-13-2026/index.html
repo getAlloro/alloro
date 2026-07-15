@@ -24,14 +24,15 @@
             formulas, the first dedicated DentalEMR calculation path, an internal
             Admin OS document-import and editing upgrade, and a verified Journey Insights
             signal for completed Alloro SEO work. It also records a leadgen
-            tracking-integrity correction that is merged locally but not yet deployed.
+            tracking-integrity correction and a consistent Alloro transactional-email
+            design that are merged locally but not yet deployed.
           </p>
         </div>
         <aside class="hero-panel" aria-label="Release state summary">
           <p class="eyebrow">07-13-2026 edition</p>
           <div class="status-stack">
             <span class="tag good">Deployed</span>
-            <span class="tag">2 client workflows</span>
+            <span class="tag">3 client workflows</span>
             <span class="tag">3 admin/operator updates</span>
             <span class="tag warn">Some UI checks waived</span>
           </div>
@@ -64,6 +65,19 @@
             <div class="meta">
               <span class="tag good">Fixture reconciled</span>
               <span class="tag">Deterministic parser</span>
+            </div>
+          </article>
+          <article class="highlight-card">
+            <h3>Emails now look and read like Alloro</h3>
+            <p>
+              Invitations, account codes, password messages, billing updates, and system
+              notifications now share the same responsive Alloro layout. Serif headings,
+              clear sans-serif body copy, orange actions, and readable code blocks make
+              important messages easier to recognize and scan.
+            </p>
+            <div class="meta">
+              <span class="tag good">User-verified inbox QA</span>
+              <span class="tag">Local dev/dave merge</span>
             </div>
           </article>
         </div>
@@ -117,6 +131,19 @@
               <tr><th>Bucket</th><th>Feature</th><th>Audience</th><th>State</th><th>Email?</th><th>Notes</th></tr>
             </thead>
             <tbody>
+              <tr>
+                <td>Customer communications</td>
+                <td>Consistent Alloro transactional email design</td>
+                <td>Invited users, account holders, and billing contacts</td>
+                <td>Committed and merged into local dev/dave; not pushed or deployed</td>
+                <td>Drafted</td>
+                <td>
+                  All six acceptance checks pass. Eleven invitation, code, password,
+                  billing, lifecycle, notification, and transport-test variants were
+                  accepted by Mailgun and routed only to Dave for inbox QA. See
+                  <code>plans/07162026-transactional-email-brand-consistency/test-results.json</code>.
+                </td>
+              </tr>
               <tr>
                 <td>Client dashboard</td>
                 <td>Organization-owned PMS parsing + DentalEMR formula</td>

@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Transactional Email Brand Consistency Spec</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); margin-top: 12px; }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; text-transform: uppercase; }
+    .status-card { border-color: var(--ink) !important; }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 840px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; }
+    h2 { font-size: 1.35rem; }
+    h3 { font-size: 1rem; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    .task-card dl { display: grid; gap: 10px; margin-bottom: 0; }
+    .task-card dd { font-weight: 500; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill">Completed</span>
+      </div>
+      <h1>Transactional email brand consistency</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/07162026-transactional-email-brand-consistency</dd></div>
+        <div><dt>Worktree</dt><dd>codex/transactional-email-brand-consistency</dd></div>
+        <div><dt>Size</dt><dd>Large</dd></div>
+        <div><dt>Risk</dt><dd>Level 2</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>Alloro-owned transactional emails currently use multiple unrelated layouts. Invitations use a blue CTA, auth and billing messages are raw HTML, and the transport test email has no shared shell. The support emails are the closest branded analog, but the typography still does not match Alloro's serif-display and sans-body system.</p>
+      <p>The result is a fragmented customer experience across account creation, verification, password recovery, billing, notifications, and internal transport checks.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Move every in-scope Alloro transactional email onto one code-owned HTML system built from <code>src/emails/templates/base.ts</code>. Headings use <code>Spectral, Georgia, "Times New Roman", serif</code>; body copy uses <code>"Plus Jakarta Sans", "Segoe UI", Arial, sans-serif</code>; verification codes and temporary passwords use a monospace stack. The layout keeps the existing Alloro navy, orange, white, and light-gray palette, with the orange CTA used consistently.</p>
+      <p>Done means all listed messages render the shared logo, canvas, content card, typography, spacing, CTA, and footer; dynamic content is HTML-escaped; behavioral delivery contracts are unchanged; and automated rendering assertions cover the variants.</p>
+    </section>
+
+    <section class="spec-card" id="scope-ledger">
+      <h2>Scope Ledger</h2>
+      <div class="split-grid">
+        <div>
+          <h3>In scope</h3>
+          <ul>
+            <li>Invitation and invitation resend.</li>
+            <li>Registration verification and verification resend.</li>
+            <li>Password-reset code and admin-issued temporary password.</li>
+            <li>Billing quantity and location-lifecycle notices.</li>
+            <li>User-facing system/task notifications.</li>
+            <li>Admin email-transport test message.</li>
+            <li>Shared layout, typography, escaping helpers, and semantic rendering tests.</li>
+            <li>Correct the stale <code>allowLiveSend</code> type comment without changing behavior.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Out of scope</h3>
+          <ul>
+            <li>Email provider, queueing, interception, retry, recipient, subject, expiry, code generation, or URL behavior.</li>
+            <li>Database-backed editable templates or the separate dirty email-manager worktree.</li>
+            <li>Client-branded website forms and newsletters.</li>
+            <li>Lead-generation report emails and the internal worker-watchdog alert.</li>
+            <li>Admin Email Logs UI changes, schema changes, deployment, and production sends.</li>
+            <li>The uncommitted project-board comment-email work in the source checkout.</li>
+          </ul>
+        </div>
+      </div>
+      <p><strong>System of record:</strong> TypeScript builders in <code>src/emails/templates/</code>. No template content moves into the database.</p>
+      <p><strong>Open questions:</strong> None. The user selected serif headings and sans-serif body copy.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant files</h3>
+      <ul>
+        <li><code>src/emails/templates/base.ts</code> — shared logo, colors, 600px canvas, content card, footer, buttons, cards, and tags.</li>
+        <li><code>src/controllers/support/support-services/SupportEmailService.ts</code> — closest current branded visual analog; its website-resolved message is the reference shown in the screenshots.</li>
+        <li><code>src/controllers/auth-password/AuthPasswordController.ts</code> — registration verification, verification resend, and reset-code send paths.</li>
+        <li><code>src/controllers/settings/feature-services/service.user-management.ts</code> — initial and resent organization invitations.</li>
+        <li><code>src/controllers/admin-organizations/feature-services/AdminUserPasswordService.ts</code> and <code>feature-utils/adminEmailTemplates.ts</code> — admin-issued temporary-password path and its current local builder.</li>
+        <li><code>src/controllers/billing/feature-utils/billingEmails.ts</code> — subscription-quantity and location-lifecycle messages.</li>
+        <li><code>src/controllers/admin-email-logs/AdminEmailLogsController.ts</code> — transport test-send message.</li>
+        <li><code>src/emails/templates/UserSendNotification.ts</code> and <code>src/emails/types.ts</code> — user/system notification builder and metadata contract.</li>
+        <li><code>src/emails/index.ts</code> — public email-template exports.</li>
+      </ul>
+      <h3>Patterns and constitution articles</h3>
+      <ul>
+        <li><strong>§6.1:</strong> backend feature code continues to follow the controller/service organization used by <code>src/controllers/gbp-automation/</code>; controllers remain orchestration only.</li>
+        <li><strong>§6.2 and §7.1:</strong> reusable email rendering belongs in <code>src/emails/</code>, while existing services keep recipient lookup and send orchestration.</li>
+        <li><strong>§1.1, §2.1, and §2.4:</strong> new template files are named by domain, remain pure, and avoid growing already-large controllers.</li>
+        <li><strong>§4.2, §4.3, and §4.4:</strong> centralize brand/font tokens and shared markup without adding a dependency or a parallel template abstraction.</li>
+        <li><strong>§4.5 and §5.2:</strong> replace notification metadata <code>any</code> with <code>unknown</code> and escape untrusted values before inserting them into HTML.</li>
+        <li><strong>§20.1–§20.5:</strong> add synthetic, executable rendering tests and produce the required acceptance artifacts during execution.</li>
+      </ul>
+      <p><strong>Reference analog:</strong> <code>src/controllers/support/support-services/SupportEmailService.ts</code> using <code>src/emails/templates/base.ts</code>. New builders must preserve this table-based, inline-style, code-owned approach.</p>
+    </section>
+
+    <section class="spec-card" id="design-contract">
+      <h2>Design Contract</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Typography</h3>
+          <ul>
+            <li>Headings: <code>Spectral, Georgia, "Times New Roman", serif</code>.</li>
+            <li>Body: <code>"Plus Jakarta Sans", "Segoe UI", Arial, sans-serif</code>.</li>
+            <li>Codes/passwords: <code>"SFMono-Regular", Consolas, "Liberation Mono", monospace</code>.</li>
+            <li>No external font download is required; fallbacks must look intentional.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Layout and color</h3>
+          <ul>
+            <li>600px responsive email canvas with logo, white content card, and restrained footer.</li>
+            <li>Navy headings, dark-gray body, light-gray page background, orange CTA.</li>
+            <li>Verification and password values render in a dedicated high-contrast code card.</li>
+            <li>No blue CTA or unrelated one-off color tokens in in-scope messages.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Keep HTML email-safe: presentation tables, inline critical styles, conservative CSS, responsive spacing.</li>
+            <li>Keep each existing category, subject, recipient, code/expiry rule, URL destination, logging path, and best-effort failure behavior.</li>
+            <li>Escape organization names, roles, user names, locations, metadata keys/values, recipients shown in HTML, and other dynamic copy.</li>
+            <li>Use synthetic values in tests and acceptance previews.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must not</h3>
+          <ul>
+            <li>Add dependencies, a rich-text editor, a template table, migrations, or a second rendering system.</li>
+            <li>Change <code>sendEmail</code>, Mailgun/n8n selection, non-production interception, or <code>allowLiveSend</code> behavior.</li>
+            <li>Mix in copy rewrites unrelated to clarity or accessibility.</li>
+            <li>Modify the source checkout's unrelated dirty files.</li>
+          </ul>
+        </div>
+      </div>
+      <p><strong>Docs impact:</strong> None. This changes outbound HTML only; it does not change dashboard controls, labels, permissions, navigation, or user guidance in Alloro Docs.</p>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 2 — Concern</p>
+      <h3>Risks and mitigations</h3>
+      <ul>
+        <li><strong>Shared-shell blast radius:</strong> typography changes also affect existing base-wrapped support, checkup, inquiry, admin, and notification messages. <strong>Mitigation:</strong> change only shared typography/layout tokens, render representative existing messages, and avoid copy or delivery changes.</li>
+        <li><strong>Email-client variance:</strong> web fonts and head CSS are not uniformly supported. <strong>Mitigation:</strong> use inline critical styles, table layout, and deliberate Georgia/Segoe UI/Arial fallbacks; do not depend on remote font loading.</li>
+        <li><strong>HTML injection:</strong> several current templates interpolate organization, role, location, recipient, and metadata values directly. <strong>Mitigation:</strong> central escaping plus hostile-input tests; this is a must-fix §5.2 requirement.</li>
+        <li><strong>Auth delivery regression:</strong> template cleanup could accidentally alter a security-sensitive send path. <strong>Mitigation:</strong> pure builders only; preserve subjects, recipients, codes, expiry windows, and interception behavior exactly.</li>
+        <li><strong>Concurrent local work:</strong> the source checkout contains uncommitted project-board email work, and another email-manager worktree overlaps these files. <strong>Mitigation:</strong> execute only in this clean worktree; rebase and rerun the full email suite before integration.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> every consumer of <code>wrapInBaseTemplate</code>, <code>createButton</code>, and shared brand tokens, including support, checkup, inquiry, admin, and user-notification emails. Direct call-site wiring also affects auth registration/resend/reset, settings invitations, admin temporary passwords, billing services, location lifecycle services, and the admin transport test endpoint.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li>Do not revive the database-backed email-manager approach for this visual consistency fix. It adds schema, runtime editing, permissions, and fallback behavior to a problem that the existing code-owned template layer already solves.</li>
+        <li>Do not force client-site form/newsletter emails into the Alloro product shell. Those messages represent the dental practice, not the Alloro application.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <p><strong>Dependency chain:</strong> T1 first; T2, T3, and T4 can run in parallel in separate file boundaries; T5 runs after they integrate.</p>
+
+      <article class="task-card">
+        <h3>T1: Shared email design and safety primitives</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add named display/body/code font stacks, apply serif headings and sans body to the shared shell, keep responsive table markup, and expose one HTML-escaping path for plain text and attribute values. Ensure shared CTA/card/footer styling stays navy/orange and does not depend on remote fonts.</dd></div>
+          <div><dt>Files</dt><dd><code>src/emails/templates/base.ts</code>, <code>src/emails/index.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>None</dd></div>
+          <div><dt>Verify</dt><dd>Focused base-template assertions for logo, serif heading rule, sans body rule, monospace code token, orange CTA, responsive shell, and escaped preheader/button values.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: Account and authentication email builders</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Create pure shared builders for organization invitations, verification codes, reset codes, and admin-issued temporary passwords. Wire initial/resend flows to the same builder so their HTML cannot drift. Delete the controller-local temporary-password template after its only consumer moves.</dd></div>
+          <div><dt>Files</dt><dd><code>src/emails/templates/AccountEmailTemplates.ts</code> (new), <code>src/controllers/auth-password/AuthPasswordController.ts</code>, <code>src/controllers/settings/feature-services/service.user-management.ts</code>, <code>src/controllers/admin-organizations/feature-services/AdminUserPasswordService.ts</code>, <code>src/controllers/admin-organizations/feature-utils/adminEmailTemplates.ts</code> (delete)</dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>Render each variant with normal and hostile synthetic values; assert identical invitation HTML for initial/resend inputs, visible code/expiry copy, correct CTA URLs, shared shell, and escaped dynamic fields.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: Billing and transport-test email builders</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Move billing quantity/lifecycle markup and the admin transport-test markup into pure email-layer builders. Keep controller/service code responsible only for data preparation and sending. Preserve all current business wording and send behavior while using shared summary cards and typography.</dd></div>
+          <div><dt>Files</dt><dd><code>src/emails/templates/BillingEmailTemplates.ts</code> (new), <code>src/emails/templates/SystemTestEmail.ts</code> (new), <code>src/controllers/billing/feature-utils/billingEmails.ts</code>, <code>src/controllers/admin-email-logs/AdminEmailLogsController.ts</code>, <code>src/emails/index.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>Render add/remove and every lifecycle state plus the transport message; assert totals/copy remain correct, dynamic values are escaped, and the shared shell replaces raw HTML.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: User and system notification hardening</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Apply the shared typography contract to the existing notification template, escape metadata keys and formatted values, escape dynamic CTA label/URL through shared helpers, replace metadata <code>any</code> with <code>unknown</code>, and correct the stale <code>allowLiveSend</code> documentation to describe the actual reserved bypass without changing runtime behavior.</dd></div>
+          <div><dt>Files</dt><dd><code>src/emails/templates/UserSendNotification.ts</code>, <code>src/emails/types.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>Render all notification types with strings, numbers, booleans, dates, nulls, and hostile HTML; assert readable formatting, no raw injected markup, and no TypeScript <code>any</code> in the changed contract.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T5: Cross-template regression and visual acceptance</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add a focused semantic rendering suite covering all in-scope variants and representative existing support/checkup templates. Generate <code>test.html</code> and <code>test-results.json</code> during execution. Render synthetic previews at narrow and desktop widths; any live delivery check is limited to a Dave-controlled inbox and must preserve non-production interception.</dd></div>
+          <div><dt>Files</dt><dd><code>src/__tests__/email-template-branding.test.ts</code> (new), <code>plans/07162026-transactional-email-brand-consistency/test.html</code> (execution artifact), <code>plans/07162026-transactional-email-brand-consistency/test-results.json</code> (execution artifact)</dd></div>
+          <div><dt>Depends on</dt><dd>T2, T3, T4</dd></div>
+          <div><dt>Verify</dt><dd><code>npm test -- src/__tests__/email-template-branding.test.ts</code>, <code>npx tsc --noEmit</code>, <code>npm run build</code>, <code>npm run check:all</code>, then <code>npm test</code>. Manual: inspect rendered email previews at approximately 320px and 600px and record evidence in <code>test-results.json</code>.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="test-plan">
+      <h2>Test Plan</h2>
+      <ul>
+        <li><strong>Semantic shell:</strong> doctype, logo, shared page/card/footer, navy/orange tokens, serif heading stack, sans body stack, and no legacy blue CTA.</li>
+        <li><strong>Variants:</strong> invite initial/resend; verify initial/resend; password reset; temporary password; billing add/remove and four lifecycle states; five notification types; system transport test.</li>
+        <li><strong>Content contracts:</strong> existing subjects, expiration text, action URLs, billing calculations, notification actions, and transport details stay intact.</li>
+        <li><strong>Security:</strong> values containing <code>&lt;script&gt;</code>, quotes, ampersands, and attribute-breaking strings render as text, never executable markup.</li>
+        <li><strong>Responsive visual:</strong> no horizontal overflow at narrow width, readable spacing, visible CTA, and intentional serif/sans fallback rendering.</li>
+        <li><strong>Regression:</strong> representative support and checkup emails still render correctly after the shared-base change.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" checked disabled> Every in-scope message uses the shared Alloro shell and orange CTA treatment.</li>
+        <li><input type="checkbox" checked disabled> Headings use the serif stack; body copy uses the sans stack; codes/passwords use monospace.</li>
+        <li><input type="checkbox" checked disabled> Invitation initial/resend and verification initial/resend share their respective pure builders.</li>
+        <li><input type="checkbox" checked disabled> Dynamic content in changed templates is HTML-escaped and hostile-input tests pass.</li>
+        <li><input type="checkbox" checked disabled> Subjects, recipients, URLs, code/expiry rules, categories, provider selection, and interception behavior are unchanged.</li>
+        <li><input type="checkbox" checked disabled> <code>npm test -- src/__tests__/email-template-branding.test.ts</code> passes.</li>
+        <li><input type="checkbox" checked disabled> <code>npx tsc --noEmit</code> and <code>npm run build</code> pass with no errors caused by this work.</li>
+        <li><input type="checkbox" checked disabled> <code>npm run check:all</code> passes or every pre-existing finding is classified with its Code Constitution article.</li>
+        <li><input type="checkbox" checked disabled> Full <code>npm test</code> passes or all pre-existing failures are documented.</li>
+        <li><input type="checkbox" checked disabled> Narrow and desktop previews are recorded in <code>test-results.json</code>, which rolls up to <code>Passed</code> before finalization.</li>
+        <li><input type="checkbox" checked disabled> The branch is rebased onto current <code>dev/dave</code> and the email suite is rerun before integration because concurrent email work exists.</li>
+        <li><input type="checkbox" checked disabled> Alloro Docs parity is explicitly marked not applicable because no dashboard UI or guidance changes.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-07-16</h3>
+        <p><strong>Change:</strong> Updated the plan status to In Progress.</p>
+        <p><strong>Reason:</strong> Execution start: the user approved the plan and requested implementation.</p>
+        <p><strong>Updated Done criteria:</strong> none.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 2 - 2026-07-16</h3>
+        <p><strong>Change:</strong> Marked all planned tasks and Done criteria complete after implementation, automated verification, responsive visual inspection, and a clean rebase onto current dev/dave.</p>
+        <p><strong>Reason:</strong> Execution completion: T1–T5 are implemented and <code>test-results.json</code> rolls up to Passed.</p>
+        <p><strong>Updated Done criteria:</strong> none.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>
