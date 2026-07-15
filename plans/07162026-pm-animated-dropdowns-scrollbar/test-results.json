@@ -1,0 +1,121 @@
+{
+  "plan": "plans/07162026-pm-animated-dropdowns-scrollbar",
+  "generatedAt": "2026-07-16",
+  "status": "In Progress",
+  "items": [
+    {
+      "id": "T1",
+      "title": "Animated dropdown interaction contract",
+      "surface": "cli",
+      "precondition": "Install frontend dependencies.",
+      "steps": [
+        "Run cd frontend && npm test -- src/components/pm/AnimatedSelect.test.tsx.",
+        "Run cd frontend && npx tsc --noEmit.",
+        "Run cd frontend && npm run build."
+      ],
+      "expected": "Pointer and keyboard selection, focus, dismissal, disabled state, ARIA state, generic values, TypeScript, and production build all pass.",
+      "status": "pass",
+      "evidence": "2026-07-16: AnimatedSelect.test.tsx passed 5/5; TypeScript passed; Vite production build passed.",
+      "notes": "The full frontend suite passed 151/155. Four unchanged rankingsDashboard.utils.test.ts assertions failed and are unrelated to this PM patch.",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Backlog project and priority dropdowns",
+      "surface": "ui",
+      "precondition": "Authenticated admin session with Project Management backlog data.",
+      "steps": [
+        "Open /admin/pm?view=backlog at desktop width.",
+        "Open the project dropdown and select a project.",
+        "Open the priority dropdown and select a priority.",
+        "Repeat at a narrow viewport and toggle Overdue and Unassigned."
+      ],
+      "expected": "Both menus animate, remain unclipped, show the current choice, and preserve project, priority, Overdue, and Unassigned filtering.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "Assignee user and task filters",
+      "surface": "ui",
+      "precondition": "Authenticated admin session with at least two PM users and assigned tasks.",
+      "steps": [
+        "Open /admin/pm?view=assignee&userId={id}.",
+        "Switch the main assignee dropdown to another user.",
+        "Change the project and priority dropdowns.",
+        "Toggle Overdue and switch 7d, 4w, and 3m ranges.",
+        "Open /admin/pm?view=me and confirm the signed-in user still resolves."
+      ],
+      "expected": "All three menus animate and remain unclipped; assignee IDs remain numeric; URL, filters, Overdue, and range controls retain their behavior.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T3R",
+      "title": "Task Detail assignee regression",
+      "surface": "ui",
+      "precondition": "Authenticated admin session with a PM task that can be opened.",
+      "steps": [
+        "Open a task detail panel.",
+        "Open Assigned To and choose another assignee.",
+        "Close and reopen the dropdown."
+      ],
+      "expected": "The shared animated dropdown opens, selects, closes, restores focus, and displays the current assignee.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T4",
+      "title": "PM notification and option-list scrollbars",
+      "surface": "ui",
+      "precondition": "Authenticated PM view with enough notifications and dropdown options to overflow.",
+      "steps": [
+        "Open /admin/pm?view=me and scroll the Notifications card.",
+        "Open a dropdown with enough options to scroll.",
+        "Hover both scrollbar thumbs and inspect content spacing."
+      ],
+      "expected": "Scrollbars are thin with transparent tracks, use PM theme colors, become clearer on hover, and do not cover row or option content.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T5",
+      "title": "Theme, focus, and reduced-motion behavior",
+      "surface": "ui",
+      "precondition": "Ability to switch PM light/dark themes and emulate prefers-reduced-motion.",
+      "steps": [
+        "Inspect each changed dropdown in PM dark theme and light theme.",
+        "Use Tab and arrow keys and confirm the focus ring and highlighted option remain visible.",
+        "Enable reduced motion and reopen each dropdown."
+      ],
+      "expected": "Text and focus remain readable in both themes, and reduced motion removes nonessential animation without hiding open/closed state changes.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T6",
+      "title": "Alloro Docs parity check",
+      "surface": "cli",
+      "precondition": "Alloro Docs checkout is available.",
+      "steps": [
+        "Search Alloro Docs for Project Management, PM dashboard, Global Backlog, and Assignee View documentation surfaces.",
+        "Confirm unrelated existing docs edits remain untouched."
+      ],
+      "expected": "No matching PM documentation surface exists, so this UI polish requires no docs change.",
+      "status": "pass",
+      "evidence": "2026-07-16: repository search returned no matching PM documentation surface; existing PracticeHubReplica.tsx and practice-hub.ts edits were left untouched.",
+      "notes": "",
+      "waiver": ""
+    }
+  ]
+}
