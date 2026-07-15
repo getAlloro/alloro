@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PM Animated Dropdowns and Scrollbar Polish Spec</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; margin-top: 12px; background: var(--soft); }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; text-transform: uppercase; }
+    .status-card { border-color: var(--ink) !important; }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 900px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; }
+    h2 { font-size: 1.35rem; }
+    h3 { font-size: 1rem; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; overflow-wrap: anywhere; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    .inventory { width: 100%; border-collapse: collapse; margin-top: 12px; }
+    .inventory th, .inventory td { padding: 10px; border: 1px solid var(--line); text-align: left; vertical-align: top; }
+    .inventory th { background: var(--soft); font-size: 0.78rem; text-transform: uppercase; }
+    .callout { border-left: 3px solid var(--ink); padding: 12px 14px; background: var(--soft); }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+      .inventory { display: block; overflow-x: auto; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill">In Progress</span>
+      </div>
+      <h1>PM Animated Dropdowns and Scrollbar Polish</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>In Progress</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/07162026-pm-animated-dropdowns-scrollbar</dd></div>
+        <div><dt>Size</dt><dd>Medium</dd></div>
+        <div><dt>Risk</dt><dd>Level 2</dd></div>
+        <div><dt>Branch</dt><dd>codex/pm-animated-dropdowns-scrollbar</dd></div>
+        <div><dt>Worktree</dt><dd>/Users/rustinedave/Desktop/alloro-worktrees/pm-animated-dropdowns-scrollbar</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>The PM Backlog and Assignee views still render browser-native HTML select menus, which break the visual language of the animated dark PM interface. The notification card also exposes a thick native scrollbar that dominates the compact list instead of supporting it.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Replace all five native select controls on the pictured Backlog and Assignee views with the PM animated dropdown, harden that shared dropdown for accessible keyboard use, and add a thin PM-scoped scrollbar to notification and dropdown lists. Existing filter values, task queries, navigation, and API behavior remain unchanged.</p>
+      <p class="callout"><strong>Scope boundary:</strong> “all dropdowns” means the five controls on the two pictured views. The eight native selects in secondary PM modals and task utilities are recorded as adjacent work and are not part of this plan.</p>
+    </section>
+
+    <section class="spec-card" id="scope-ledger">
+      <h2>Scope Ledger</h2>
+      <div class="split-grid">
+        <div><h3>Objective</h3><p>Make the pictured PM dropdowns animated and make the notification scrollbar visually restrained.</p></div>
+        <div><h3>Intended User</h3><p>Internal Alloro admins using Project Management.</p></div>
+        <div><h3>Surface</h3><p><code>/admin/pm?view=backlog</code>, <code>/admin/pm?view=assignee</code>, and <code>/admin/pm?view=me</code>.</p></div>
+        <div><h3>System of Record</h3><p>Existing PM component state and existing PM API responses; no data contract changes.</p></div>
+      </div>
+      <h3>In Scope</h3>
+      <ul>
+        <li>Backlog project and priority filters.</li>
+        <li>Assignee user, project, and priority selectors.</li>
+        <li>Shared PM animated-select accessibility, sizing, disabled, placement, and scrollbar behavior required by those five controls.</li>
+        <li>Notification list scrollbar styling.</li>
+        <li>Regression coverage for the existing Task Detail consumer of the shared dropdown.</li>
+      </ul>
+      <h3>Adjacent / Backlog</h3>
+      <ul>
+        <li>Module-wide conversion of the eight native selects in <code>ActivityModal.tsx</code>, <code>BacklogProjectGroup.tsx</code>, <code>CreateTaskModal.tsx</code>, and <code>CrossProjectAISynthModal.tsx</code>.</li>
+      </ul>
+      <h3>Open Questions</h3>
+      <p>None. The screenshots, code inventory, and existing PM dropdown establish the visual and behavioral contract.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Current Dropdown Inventory</h3>
+      <table class="inventory">
+        <thead><tr><th>View</th><th>Control</th><th>Current owner</th><th>Required value type</th></tr></thead>
+        <tbody>
+          <tr><td>Backlog</td><td>Project filter</td><td><code>BacklogTabView.tsx</code></td><td><code>string</code></td></tr>
+          <tr><td>Backlog</td><td>Priority filter</td><td><code>BacklogTabView.tsx</code></td><td><code>string</code></td></tr>
+          <tr><td>Assignee</td><td>User picker</td><td><code>AssigneeTabView.tsx</code></td><td><code>number</code></td></tr>
+          <tr><td>Assignee</td><td>Project filter</td><td><code>AssigneeTabView.tsx</code></td><td><code>string</code></td></tr>
+          <tr><td>Assignee</td><td>Priority filter</td><td><code>AssigneeTabView.tsx</code></td><td><code>string</code></td></tr>
+        </tbody>
+      </table>
+
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>frontend/src/components/pm/AnimatedSelect.tsx</code> - existing PM-specific Framer Motion dropdown; currently used only by Task Detail and missing the full accessibility and configuration contract required for wider reuse.</li>
+        <li><code>frontend/src/components/pm/TaskDetailPanel.tsx</code> - existing consumer that must continue working without behavior or styling regression.</li>
+        <li><code>frontend/src/components/pm/BacklogTabView.tsx</code> - owns the two Backlog native filters and is already near the single-purpose file target.</li>
+        <li><code>frontend/src/components/pm/AssigneeTabView.tsx</code> - owns the user picker and two filters; touched controls should move into focused sibling components instead of adding more JSX here.</li>
+        <li><code>frontend/src/components/pm/NotificationCard.tsx</code> - owns the compact notification list and its unstyled <code>overflow-y-auto</code> container.</li>
+        <li><code>frontend/src/index.css</code> - correct home for a PM-scoped reusable scrollbar class backed by existing PM theme variables.</li>
+        <li><code>frontend/src/components/Admin/os/library/OsFilterSelect.tsx</code> - closest accessible listbox analog for <code>aria-haspopup</code>, <code>aria-expanded</code>, listbox/option roles, and selected-state semantics.</li>
+      </ul>
+
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li>Keep the dropdown inside <code>frontend/src/components/pm/</code> under Code Constitution §12.2 and §12.3.</li>
+        <li>Reuse one genuinely identical dropdown abstraction instead of creating view-specific copies, per §4.3.</li>
+        <li>Use existing Framer Motion and React utilities; add no dependency, per §4.4.</li>
+        <li>Keep exported props/types explicit and free of <code>any</code>, per §17.2.</li>
+        <li>Keep touched components within their size tier and extract focused child controls instead of growing page containers, per §2.1, §2.4, §13.1, §13.2, and §13.3.</li>
+        <li>No API, React Query, or backend changes are needed. The §12.1 frontend triad remains untouched because this is UI-state presentation only.</li>
+      </ul>
+      <p><strong>Reference file:</strong> <code>frontend/src/components/pm/AnimatedSelect.tsx</code> - visual and theme analog. <code>frontend/src/components/Admin/os/library/OsFilterSelect.tsx</code> supplies the closest accessible listbox semantics.</p>
+
+      <h3>Documentation Parity</h3>
+      <p>A live search of <code>/Users/rustinedave/Desktop/alloro-docs</code> found no Project Management documentation page or replica. No docs file is planned. Execution must re-check this before completion and state the no-op explicitly.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Remove native <code>&lt;select&gt;</code> elements from the pictured Backlog and Assignee view controls.</li>
+            <li>Preserve exact filter values, default values, URL behavior, and callback types.</li>
+            <li>Support string, number, and null values in the shared PM dropdown without coercion bugs.</li>
+            <li>Expose accessible labels, <code>aria-haspopup</code>, <code>aria-expanded</code>, listbox/option roles, selected state, visible focus, and keyboard navigation.</li>
+            <li>Support Escape, Enter, Arrow Up, Arrow Down, Home, End, outside click, disabled trigger state, and skipped disabled options.</li>
+            <li>Respect <code>prefers-reduced-motion</code> while retaining the normal open/close animation.</li>
+            <li>Support compact and regular trigger sizes and explicit top/bottom placement so menus remain usable near scroll boundaries.</li>
+            <li>Use PM theme tokens in dark and light mode.</li>
+            <li>Use a PM-scoped thin scrollbar with a transparent track, muted thumb, and orange hover state in Firefox and WebKit browsers.</li>
+            <li>Preserve the existing Task Detail dropdown behavior after the shared component changes.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>Add a dropdown library or another state system.</li>
+            <li>Change PM API calls, backend routes, database state, filter rules, or task behavior.</li>
+            <li>Modify the global <code>.scrollbar-thin</code> class; that would affect unrelated surfaces.</li>
+            <li>Introduce a second PM animated dropdown abstraction.</li>
+            <li>Add inline hardcoded colors for the new dropdown or scrollbar behavior.</li>
+            <li>Refactor unrelated notification loading/error behavior during this visual task.</li>
+            <li>Claim every PM native select has been removed; eight secondary-flow controls remain outside this plan.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Secondary PM modals and per-task utility selectors.</li>
+        <li>Notification content, polling, mark-read, delete, click-through, or API changes.</li>
+        <li>Backend, database, migrations, permissions, and deployment configuration.</li>
+        <li>A new Alloro Docs Project Management page.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 2 - Concern</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li>Replacing native controls can regress accessibility and keyboard behavior. <strong>Mitigation:</strong> harden the shared dropdown first, mirror the accessible OS listbox analog, and cover the interaction contract with focused tests.</li>
+        <li>Absolute dropdown menus can be clipped by page or card overflow. <strong>Mitigation:</strong> add explicit top/bottom placement, keep menu widths configurable, and verify every pictured control at desktop and narrow viewport sizes.</li>
+        <li>Changing the shared dropdown can break Task Detail, its only current consumer. <strong>Mitigation:</strong> retain generic value behavior and add a Task Detail regression check to automated and manual verification.</li>
+        <li>Broad CSS scrollbar changes could alter unrelated screens. <strong>Mitigation:</strong> add a new <code>.pm-scrollbar</code> class and apply it only to the PM dropdown option list and notification list.</li>
+        <li><code>BacklogTabView.tsx</code> is near the single-purpose target and <code>AssigneeTabView.tsx</code> already contains several child controls. <strong>Mitigation:</strong> extract only the touched filter/picker components into focused sibling files; do not add more embedded components.</li>
+        <li>The phrase “all dropdowns” could be overclaimed while secondary PM selectors remain native. <strong>Mitigation:</strong> scope acceptance to the two pictured views and record the remaining eight controls as adjacent work.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> Backlog filtering, Assignee user/project/priority filtering, Task Detail assignment dropdown, PM dark/light theme tokens, and notification list presentation. There is no API, backend, database, auth, or tenant-data blast radius.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li>A module-wide replacement is not part of this plan. It would pull in four additional PM flows, including a 733-line AI synthesis modal, and turn a focused polish pass into a structural refactor. Recommended path: finish and verify the pictured views first, then open a separate plan for the secondary-flow sweep if it remains valuable.</li>
+        <li>A custom dropdown without full keyboard and ARIA behavior is worse than the native select it replaces. Accessibility hardening is a prerequisite, not optional polish.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <p><strong>Dependency chain:</strong> T1 is sequential. T2, T3, and T4 are independent after T1 and may run in parallel with strict file boundaries. Integration verification runs after all four tasks.</p>
+
+      <article class="task-card">
+        <h3>T1: Accessible PM Animated Select Foundation</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Expand the existing PM animated dropdown contract for exported typed props, accessible listbox semantics, keyboard navigation, disabled states, compact/regular sizing, configurable menu placement, reduced-motion handling, and PM-scoped option-list scrolling. Add focused component tests for mouse, keyboard, focus, disabled, and selection behavior. Add the scoped scrollbar class without changing global scrollbar utilities.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/components/pm/AnimatedSelect.tsx</code>, <code>frontend/src/components/pm/AnimatedSelect.test.tsx</code>, <code>frontend/src/index.css</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>cd frontend &amp;&amp; npm test -- src/components/pm/AnimatedSelect.test.tsx</code></dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: Backlog Animated Filters</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Extract the Backlog filter bar into a focused component and replace its project and priority native selects with compact PM animated selects. Preserve “All projects,” “All priorities,” overdue, and unassigned behavior exactly.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/components/pm/BacklogTabView.tsx</code>, <code>frontend/src/components/pm/BacklogFilters.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>Manual: <code>/admin/pm?view=backlog</code> project/priority selection updates the grouped task list and both menus remain visible at narrow and desktop widths.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: Assignee Animated Selectors</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Extract the touched Assignee user picker and filter bar into focused sibling components. Replace the user, project, and priority native selects with typed animated selects while preserving numeric user IDs, “All” filter values, URL-selected users, and current filtering behavior.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/components/pm/AssigneeTabView.tsx</code>, <code>frontend/src/components/pm/AssigneePicker.tsx</code>, <code>frontend/src/components/pm/AssigneeFiltersBar.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>Manual: <code>/admin/pm?view=assignee&amp;userId={id}</code> switches assignees and filters without string/number mismatches; <code>/admin/pm?view=me</code> still resolves the logged-in user.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: Notification Scrollbar Polish</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Apply the PM-scoped scrollbar to the compact notification list, keep the existing 220px list height and content behavior, and ensure the thumb is thin, unobtrusive, theme-aware, and clearer on hover.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/components/pm/NotificationCard.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>Manual: <code>/admin/pm?view=me</code> with enough notifications to overflow; verify Firefox/WebKit styling and no row-content overlap.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" checked disabled> <code>rg -n '&lt;select' frontend/src/components/pm/BacklogTabView.tsx frontend/src/components/pm/BacklogFilters.tsx frontend/src/components/pm/AssigneeTabView.tsx frontend/src/components/pm/AssigneePicker.tsx frontend/src/components/pm/AssigneeFiltersBar.tsx</code> returns no native select controls.</li>
+        <li><input type="checkbox" checked disabled> <code>cd frontend &amp;&amp; npm test -- src/components/pm/AnimatedSelect.test.tsx</code> passes.</li>
+        <li><input type="checkbox" checked disabled> <code>cd frontend &amp;&amp; npx tsc --noEmit</code> passes with zero errors caused by this work.</li>
+        <li><input type="checkbox" checked disabled> <code>cd frontend &amp;&amp; npm run build</code> passes.</li>
+        <li><input type="checkbox" checked disabled> <code>npm run check:all</code> passes or reports only verified pre-existing advisory findings; every new finding is fixed and cited by §N.M.</li>
+        <li><input type="checkbox" checked disabled> Automated: click, Arrow Up/Down, Home/End, Enter, Escape, outside-click dismissal, disabled state, ARIA state, and generic value selection are covered.</li>
+        <li><input type="checkbox" disabled> Manual: Backlog project and priority dropdowns animate, remain unclipped, and filter correctly.</li>
+        <li><input type="checkbox" disabled> Manual: Assignee user, project, and priority dropdowns animate, remain unclipped, and preserve numeric user selection.</li>
+        <li><input type="checkbox" disabled> Manual: Task Detail assignment dropdown still opens, selects, closes, and displays the current assignee.</li>
+        <li><input type="checkbox" disabled> Manual: notification and dropdown option-list scrollbars are thin, transparent-track, theme-aware, and do not cover content.</li>
+        <li><input type="checkbox" disabled> Manual: PM light and dark themes both retain readable contrast and visible focus rings.</li>
+        <li><input type="checkbox" disabled> Manual: reduced-motion preference removes nonessential dropdown motion without hiding state changes.</li>
+        <li><input type="checkbox" checked disabled> Docs parity is re-checked; no Alloro Docs change is required because no Project Management documentation surface exists.</li>
+        <li><input type="checkbox" checked disabled> Execution generates <code>test.html</code> and <code>test-results.json</code> under this plan and records honest acceptance results per §20.5.</li>
+        <li><input type="checkbox" checked disabled> No files from the dirty main checkout or the eight parked secondary PM selectors are modified.</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

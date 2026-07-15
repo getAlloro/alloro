@@ -1,19 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Filter, Inbox, Loader2 } from "lucide-react";
+import { Inbox, Loader2 } from "lucide-react";
 import { fetchBacklogTasks, fetchPmUsers } from "../../api/pm";
 import type { PmBacklogProjectGroup, PmMyTask, PmUser } from "../../types/pm";
 import { showErrorToast } from "../../lib/toast";
 import { TaskDetailPanel } from "./TaskDetailPanel";
 import { BacklogProjectGroup } from "./BacklogProjectGroup";
+import { BacklogFilters, type BacklogFiltersValue } from "./BacklogFilters";
 
-type BacklogFilters = {
-  projectId: string;
-  priority: string;
-  overdueOnly: boolean;
-  unassignedOnly: boolean;
-};
-
-const DEFAULT_FILTERS: BacklogFilters = {
+const DEFAULT_FILTERS: BacklogFiltersValue = {
   projectId: "all",
   priority: "all",
   overdueOnly: false,
@@ -24,7 +18,7 @@ function isOverdue(task: PmMyTask): boolean {
   return !!task.deadline && !task.completed_at && new Date(task.deadline) < new Date();
 }
 
-function filteredTaskList(tasks: PmMyTask[], filters: BacklogFilters): PmMyTask[] {
+function filteredTaskList(tasks: PmMyTask[], filters: BacklogFiltersValue): PmMyTask[] {
   return tasks.filter((task) => {
     if (filters.priority !== "all" && task.priority !== filters.priority) return false;
     if (filters.overdueOnly && !isOverdue(task)) return false;
@@ -36,7 +30,7 @@ function filteredTaskList(tasks: PmMyTask[], filters: BacklogFilters): PmMyTask[
 export function BacklogTabView() {
   const [groups, setGroups] = useState<PmBacklogProjectGroup[]>([]);
   const [users, setUsers] = useState<PmUser[]>([]);
-  const [filters, setFilters] = useState<BacklogFilters>(DEFAULT_FILTERS);
+  const [filters, setFilters] = useState<BacklogFiltersValue>(DEFAULT_FILTERS);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [selectedTask, setSelectedTask] = useState<PmMyTask | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -155,39 +149,5 @@ export function BacklogTabView() {
 
       <TaskDetailPanel task={selectedTask} onClose={() => { setSelectedTask(null); loadData(); }} isBacklog />
     </div>
-  );
-}
-
-function BacklogFilters({ filters, groups, onChange }: {
-  filters: BacklogFilters;
-  groups: PmBacklogProjectGroup[];
-  onChange: (filters: BacklogFilters) => void;
-}) {
-  return (
-    <div className="flex flex-wrap items-center gap-2 rounded-[14px] p-3" style={{ backgroundColor: "var(--color-pm-bg-secondary)", border: "1px solid var(--color-pm-border)" }}>
-      <Filter className="h-4 w-4" strokeWidth={1.5} style={{ color: "var(--color-pm-text-muted)" }} />
-      <select value={filters.projectId} onChange={(event) => onChange({ ...filters, projectId: event.target.value })} className="rounded-lg px-2.5 py-1.5 text-[12px] outline-none" style={{ backgroundColor: "var(--color-pm-bg-primary)", color: "var(--color-pm-text-primary)", border: "1px solid var(--color-pm-border)" }}>
-        <option value="all">All projects</option>
-        {groups.map((group) => <option key={group.project_id} value={group.project_id}>{group.project_name}</option>)}
-      </select>
-      <select value={filters.priority} onChange={(event) => onChange({ ...filters, priority: event.target.value })} className="rounded-lg px-2.5 py-1.5 text-[12px] outline-none" style={{ backgroundColor: "var(--color-pm-bg-primary)", color: "var(--color-pm-text-primary)", border: "1px solid var(--color-pm-border)" }}>
-        <option value="all">All priorities</option>
-        {["P1", "P2", "P3", "P4", "P5"].map((priority) => <option key={priority} value={priority}>{priority}</option>)}
-      </select>
-      <FilterButton active={filters.overdueOnly} onClick={() => onChange({ ...filters, overdueOnly: !filters.overdueOnly })}>Overdue</FilterButton>
-      <FilterButton active={filters.unassignedOnly} onClick={() => onChange({ ...filters, unassignedOnly: !filters.unassignedOnly })}>Unassigned</FilterButton>
-    </div>
-  );
-}
-
-function FilterButton({ active, onClick, children }: {
-  active: boolean;
-  onClick: () => void;
-  children: string;
-}) {
-  return (
-    <button type="button" onClick={onClick} className="rounded-lg px-2.5 py-1.5 text-[12px] font-medium" style={{ backgroundColor: active ? "var(--color-pm-accent-subtle2)" : "var(--color-pm-bg-primary)", color: active ? "#D66853" : "var(--color-pm-text-muted)", border: "1px solid var(--color-pm-border)" }}>
-      {children}
-    </button>
   );
 }
