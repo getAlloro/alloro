@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GSC Content Loop Hardening Spec</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; margin-top: 12px; background: var(--soft); }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 840px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; }
+    h2 { font-size: 1.35rem; }
+    h3 { font-size: 1rem; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-completed">Completed</span>
+      </div>
+      <h1>GSC Content Loop Hardening</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/07142026-gsc-content-loop-hardening</dd></div>
+        <div><dt>Size</dt><dd>Medium</dd></div>
+        <div><dt>Risk</dt><dd>Level 3</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>PR 151 connects real Google Search Console queries to SEO target-query generation, but the current implementation is not safe to merge. It breaks the existing hermetic SEO test, exposes raw public search text at system-prompt priority, sends that context to every SEO section despite a GEO-only contract, and can force a niche page to choose an unrelated sitewide query.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Keep the real-demand feature, but make the trust and section boundaries deterministic. Normalize and cap GSC query text, serialize it as untrusted data in the GEO user message only, preserve content-based inference when no listed query is relevant, make optional GSC lookup failures fall back without breaking existing generation, and add hermetic tests for aggregation, isolation, failure, and adversarial inputs.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>src/controllers/admin-websites/feature-services/service.gsc-performance.ts</code> — owns the existing 90-day GSC aggregation and PR 151's new <code>getTopQueriesByProject()</code> read.</li>
+        <li><code>src/controllers/admin-websites/feature-services/service.seo-generation.ts</code> — assembles single-section, generate-all, and bulk shared context. It is already 782 lines, close to the §2.4 hard ceiling, so this fix must not add another responsibility here.</li>
+        <li><code>src/controllers/admin-websites/feature-utils/util.seo-section-runner.ts</code> — builds system/user prompts and runs all six SEO sections. PR 151 currently appends GSC data to the cached system prefix for every section.</li>
+        <li><code>src/agents/websiteAgents/SeoGeneration.geo-layer.md</code> — defines target-query selection and needs an explicit fallback when none of the measured queries fits the current page.</li>
+        <li><code>src/__tests__/service.seo-generation.test.ts</code> — current hermetic generation suite; it times out because the new GSC model dependency is not mocked.</li>
+        <li><code>src/workers/processors/seoBulkGenerate.processor.ts</code> — consumer of <code>fetchSharedContext()</code> and <code>generateAllWithSharedContext()</code>; it should inherit the fix without changes.</li>
+        <li><code>claude/gsc-content-loop</code> — existing PR 151 head. It is one unique commit while current <code>dev/dave</code> is 12 commits ahead; GitHub reports a clean merge, but final tests must exercise the combined result rather than the stale head alone.</li>
+      </ul>
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li><strong>§6.1:</strong> mirror <code>src/controllers/gbp-automation/</code>: services coordinate model reads; pure prompt helpers stay in <code>feature-utils/</code>; callers keep one stable contract.</li>
+        <li><strong>§6.3:</strong> place the new pure formatter under <code>src/controllers/admin-websites/feature-utils/</code> with the existing <code>util.&lt;feature&gt;.ts</code> naming convention.</li>
+        <li><strong>§5.2:</strong> public search text is untrusted input and must be normalized, bounded, and represented as data rather than instructions.</li>
+        <li><strong>§20.1, §20.2, §20.4:</strong> service and utility behavior must have synthetic Vitest coverage for happy paths, empty data, failures, isolation, and adversarial values.</li>
+      </ul>
+      <p><strong>Reference files:</strong> <code>src/controllers/minds/feature-services/service.minds-comparison.ts</code> — puts untrusted scraped content in the user message and labels it data-only; <code>src/controllers/admin-websites/feature-utils/util.identity-context.ts</code> — stable import surface over small cohesive prompt-context helpers.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>GSC demand appears only in the <code>geo_layer</code> user message; it never enters <code>cachedSystemBlocks</code> or another section's user message.</li>
+            <li>Normalize control whitespace, trim and length-cap query strings, cap the query count, and serialize the payload as structured data (§5.2, §4.2).</li>
+            <li>Keep the system prefix stable for caching and preserve every existing non-GSC prompt field.</li>
+            <li>A missing or failed optional GSC lookup must log project context through Pino and continue with content inference (§3.1, §3.2, §9.1).</li>
+            <li>Non-GEO single-section generation must not perform the GSC read.</li>
+            <li>GSC reads remain in <code>GscDataModel</code> through the existing service path (§7.1, §7.4).</li>
+            <li>Use only synthetic data in tests (§20.4).</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>Do not retain raw GSC strings in a system-priority block, even with stronger wording.</li>
+            <li>Do not add to the already 782-line SEO generation service without offsetting extraction (§2.4).</li>
+            <li>Do not change ranking, click, impression, or average-position calculations.</li>
+            <li>Do not change output schemas, API response shapes, auto-apply behavior, or worker job semantics.</li>
+            <li>Do not add a dependency, migration, frontend change, or Alloro Docs change.</li>
+            <li>Do not run a live client generation or auto-apply during execution without a separate explicit authorization.</li>
+            <li>Do not force-push or rewrite PR 151 history; fixes and the plan land as additive commits on the existing PR branch only after the execution and publish gates.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Page-specific GSC query/page joins or a new GSC ingestion schema.</li>
+        <li>SEO quality redesign outside target-query selection.</li>
+        <li>Changes to the GSC dashboard, integration flow, frontend, or production data.</li>
+        <li>Refactoring pre-existing controller and worker Constitution debt not introduced by PR 151.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 3 — the input is public search text, the destination is an LLM prompt, and GEO output can be auto-applied to client content.</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><strong>Prompt injection or prompt-shape breakout.</strong> <strong>Mitigation:</strong> normalize and bound query text, serialize it as data in the GEO user message, label it untrusted, and test quotes, newlines, markup, and instruction-like strings.</li>
+        <li><strong>Meta/schema contamination.</strong> <strong>Mitigation:</strong> enforce <code>section === "geo_layer"</code> in code and assert that every other captured prompt lacks the demand block.</li>
+        <li><strong>Irrelevant sitewide query forced onto a niche page.</strong> <strong>Mitigation:</strong> the prompt must allow content inference when zero measured queries genuinely fit.</li>
+        <li><strong>Optional GSC context breaks existing generation.</strong> <strong>Mitigation:</strong> a logged fail-open boundary returns no demand context; existing generation then follows its pre-PR fallback.</li>
+        <li><strong>Near-ceiling service grows further.</strong> <strong>Mitigation:</strong> extract pure demand formatting to a focused <code>feature-utils</code> module and keep <code>service.seo-generation.ts</code> net-flat or smaller.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> page and post single-section generation; page and post Generate All; the project-wide SEO bulk worker; the six section prompts assembled by <code>util.seo-section-runner.ts</code>; the GSC data read used only by the new SEO demand helper. The GSC dashboard endpoint, frontend, database schema, ranking agents, Summary agent, and unrelated client agent runs remain unchanged.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li><strong>Option A — recommended:</strong> normalized structured data in the GEO user message only. This creates a real trust and section boundary and matches the existing untrusted-content analog.</li>
+        <li><strong>Option B — rejected:</strong> keep the demand block in the cached system prefix and add escaping/stronger instructions. This still grants public search text system priority and still exposes it to non-GEO sections.</li>
+        <li>Live agent generation is not required to prove isolation; mocked prompt capture is deterministic and cheaper. A dev generation with <code>apply_geo_content: false</code> is a separate acceptance step only after explicit authorization.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <article class="task-card">
+        <h3>T1: Bounded untrusted GSC demand formatter</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Create a pure utility and type for GSC demand prompt data. Normalize control whitespace, trim and cap each query, cap the list, preserve measured numeric fields, serialize the rows as structured data, label the block untrusted/data-only, and return an empty string for zero usable rows.</dd></div>
+          <div><dt>Files</dt><dd>new <code>src/controllers/admin-websites/feature-utils/util.seo-gsc-demand.ts</code>; new <code>src/__tests__/util.seo-gsc-demand.test.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>npx vitest run src/__tests__/util.seo-gsc-demand.test.ts</code>; include quotes, newlines, tabs, markup, instruction-like text, overlong values, empty values, and list caps.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: GEO-only routing and resilient GSC lookup</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Remove GSC data from <code>buildSystemPromptParts()</code>; append the formatted block only while building the <code>geo_layer</code> user message. Skip the GSC lookup for non-GEO single-section requests. Preserve one project-level fetch for Generate All and bulk shared context. When the optional lookup fails, log the project ID and fall back to an empty demand list without blocking generation.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/admin-websites/feature-services/service.gsc-performance.ts</code>; <code>src/controllers/admin-websites/feature-services/service.seo-generation.ts</code>; <code>src/controllers/admin-websites/feature-utils/util.seo-section-runner.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>Captured prompts prove the demand block exists only in GEO user content, never in system blocks or non-GEO messages; a rejected model read logs and falls back; non-GEO single-section calls do not invoke the lookup.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: No-relevant-query prompt fallback</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Clarify that measured queries are preferred only when at least one genuinely matches the current page. If none matches, infer the target from real page content exactly as the no-data path does. Never choose a merely least-wrong query and never invent demand metrics.</dd></div>
+          <div><dt>Files</dt><dd><code>src/agents/websiteAgents/SeoGeneration.geo-layer.md</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Static prompt assertion covers present-and-relevant, present-but-irrelevant, and absent-demand cases.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: Hermetic service and prompt-contract coverage</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Mock the new GSC seam in the existing SEO generation suite so no database is reached. Add focused coverage for 90-day aggregation, empty data, lookup failure, GEO-only delivery, non-GEO lookup omission, unchanged output shape, and the fallback prompt contract.</dd></div>
+          <div><dt>Files</dt><dd><code>src/__tests__/service.seo-generation.test.ts</code>; new <code>src/__tests__/service.gsc-performance.test.ts</code>; T1 utility test</dd></div>
+          <div><dt>Depends on</dt><dd>T1, T2, T3</dd></div>
+          <div><dt>Verify</dt><dd><code>npx vitest run src/__tests__/service.gsc-performance.test.ts src/__tests__/util.seo-gsc-demand.test.ts src/__tests__/service.seo-generation.test.ts</code> completes without a database connection or network request.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T5: Verification and acceptance record</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Run build, Constitution, lint, targeted, and full-test gates; generate the Layer 2 acceptance artifacts. Record live dev generation as pending unless separately authorized. If authorized later, use one GSC-connected and one no-data project with <code>apply_geo_content: false</code> and inspect outputs without auto-applying content.</dd></div>
+          <div><dt>Files</dt><dd>new <code>plans/07142026-gsc-content-loop-hardening/test.html</code>; new <code>plans/07142026-gsc-content-loop-hardening/test-results.json</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1, T2, T3, T4</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code>; <code>npm run build</code>; scoped ESLint; <code>npm run check:conventions --strict</code>; <code>npm run check:all</code>; targeted tests; full backend suite; <code>git diff --check</code>.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" checked disabled> Existing SEO-generation tests are hermetic and pass without a DB connection.</li>
+        <li><input type="checkbox" checked disabled> New GSC aggregation tests cover versioned rows, empty data, 90-day bounds, ordering, and lookup failure.</li>
+        <li><input type="checkbox" checked disabled> Adversarial query strings are normalized, bounded, structured, and kept out of system-priority prompts.</li>
+        <li><input type="checkbox" checked disabled> Only <code>geo_layer</code> receives GSC demand; critical, high-impact, significant, moderate, and negligible sections do not.</li>
+        <li><input type="checkbox" checked disabled> Non-GEO single-section generation performs no GSC lookup.</li>
+        <li><input type="checkbox" checked disabled> Missing or unavailable GSC demand preserves pre-PR content inference and does not fail generation.</li>
+        <li><input type="checkbox" checked disabled> The prompt explicitly falls back when measured queries exist but none is relevant to the page.</li>
+        <li><input type="checkbox" checked disabled> API response shapes, output schemas, auto-apply semantics, GSC calculations, and bulk-worker behavior remain unchanged.</li>
+        <li><input type="checkbox" checked disabled> <code>service.seo-generation.ts</code> remains below 800 lines and does not gain a new formatting responsibility (§2.4).</li>
+        <li><input type="checkbox" checked disabled> <code>npx tsc --noEmit</code>, backend build, scoped lint, strict conventions, <code>check:all</code>, targeted tests, and full backend tests pass with no new failures.</li>
+        <li><input type="checkbox" checked disabled> The same verification passes against PR 151 combined with the latest <code>dev/dave</code>, not only against its older isolated head.</li>
+        <li><input type="checkbox" checked disabled> Layer 2 acceptance artifacts exist and honestly record any live dev generation as authorized, passed, pending, or waived (§20.5).</li>
+        <li><input type="checkbox" checked disabled> No migration, frontend, Alloro Docs, production write, client-content auto-apply, deployment, push, or merge occurred during execution without its explicit gate.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-07-14</h3>
+        <p><strong>Change:</strong> Started execution on a dedicated local branch from PR 151's reviewed head.</p>
+        <p><strong>Reason:</strong> Execution deviation: none; this records the required transition from pending to active work.</p>
+        <p><strong>Updated Done criteria:</strong> none.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 2 - 2026-07-14</h3>
+        <p><strong>Change:</strong> Completed isolated and latest-dev combined verification, recorded the pre-existing frontend lint baseline, and waived pre-merge live dev generation.</p>
+        <p><strong>Reason:</strong> User QA: current dev does not contain this PR's code, so a live dev generation would test the wrong implementation. The combined synthetic tree passed the backend build, full test suite, strict Constitution checks, and backend lint.</p>
+        <p><strong>Updated Done criteria:</strong> none; post-merge dev generation remains a deployment-stage validation.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 3 - 2026-07-14</h3>
+        <p><strong>Change:</strong> Re-ran compatibility after <code>dev/dave</code> advanced through PR 153 and recorded its patient-journey test baseline.</p>
+        <p><strong>Reason:</strong> User QA: the newest base and the PR 151 combined tree both have the same 13 patient-journey timeouts. PR 151 remains clean and mergeable, but the base branch itself is not fully green.</p>
+        <p><strong>Updated Done criteria:</strong> none; the acceptance contract remains no failure caused by PR 151, with unrelated base failures explicitly identified.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

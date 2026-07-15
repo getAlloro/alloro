@@ -25,6 +25,11 @@ type RawPmsMonthEntry = {
   production_total?: number | string;
 };
 
+type ParserMetadata = {
+  referral_count_semantics?: unknown;
+  source_referral_count_semantics?: unknown;
+};
+
 type AggregatedMonthData = {
   month: string;
   selfReferrals: number;
@@ -33,6 +38,7 @@ type AggregatedMonthData = {
   productionTotal: number;
   actualProductionTotal: number;
   attributedProductionTotal: number;
+  reconcileSourceReferralTotal: boolean;
   timestamp: string | Date;
   sources: RawPmsSource[];
 };
@@ -106,6 +112,56 @@ const ensureArray = <T>(value: unknown): T[] => {
     return value as T[];
   }
   return [];
+};
+
+const parseResponseLogObject = (
+  responseLog: unknown,
+): Record<string, unknown> | null => {
+  if (responseLog === null || responseLog === undefined) {
+    return null;
+  }
+
+  let candidate: unknown = responseLog;
+  if (typeof candidate === "string") {
+    try {
+      candidate = JSON.parse(candidate);
+    } catch {
+      return null;
+    }
+  }
+
+  return typeof candidate === "object" &&
+    candidate !== null &&
+    !Array.isArray(candidate)
+    ? (candidate as Record<string, unknown>)
+    : null;
+};
+
+/**
+ * Whether a job's monthly total can be reconciled against the sum of its
+ * source rows. Some PMS exports count distinct patients globally for the
+ * monthly total and distinctly again within each source. That declared pair
+ * is intentionally non-additive; all legacy and unknown metadata remains
+ * additive so the existing quality check stays unchanged by default.
+ */
+export const shouldReconcileSourceReferralTotal = (
+  responseLog: unknown,
+): boolean => {
+  const container = parseResponseLogObject(responseLog);
+  const rawMetadata = container?.parser_metadata;
+  if (
+    typeof rawMetadata !== "object" ||
+    rawMetadata === null ||
+    Array.isArray(rawMetadata)
+  ) {
+    return true;
+  }
+
+  const metadata = rawMetadata as ParserMetadata;
+  return !(
+    metadata.referral_count_semantics === "unique_patient_global" &&
+    metadata.source_referral_count_semantics === "unique_patient_per_source"
+  );
 };
 
 /**
@@ -316,6 +372,8 @@ export async function aggregatePmsData(
   // Process jobs to build month map (keeping only latest data per month)
   for (const job of approvedJobs) {
     const entries = extractMonthEntriesFromResponse(job.response_log);
+    const reconcileSourceReferralTotal =
+      shouldReconcileSourceReferralTotal(job.response_log);
     const actualProductionByMonth = await recoverActualProductionByMonth(
       job,
       mappingCache
@@ -371,6 +429,7 @@ export async function aggregatePmsData(
           productionTotal: entryActualProductionTotal,
           actualProductionTotal: entryActualProductionTotal,
           attributedProductionTotal: entryAttributedProductionTotal,
+          reconcileSourceReferralTotal,
           timestamp: jobTimestamp,
           sources: ensureArray<RawPmsSource>(entry.sources),
         });
@@ -435,7 +494,10 @@ export async function aggregatePmsData(
     );
   }
   for (const monthData of months) {
-    if (monthData.totalReferrals <= 0) {
+    if (
+      monthData.totalReferrals <= 0 ||
+      !monthData.reconcileSourceReferralTotal
+    ) {
       continue;
     }
 

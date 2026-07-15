@@ -1,0 +1,98 @@
+{
+  "plan": "plans/07132026-pr149-findable-hardening",
+  "generatedAt": "2026-07-13",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "T1",
+      "title": "Dashboard copy preserves each search-position band",
+      "surface": "cli",
+      "precondition": "PR 149 hardening changes are present in the worktree",
+      "steps": [
+        "Run npm test -- src/components/dashboard/rankingsDashboard.utils.test.ts from frontend/"
+      ],
+      "expected": "Positions 1, 2-3, 4-20, not-in-top-20, and unavailable produce distinct truthful owner-facing copy",
+      "status": "pass",
+      "evidence": "Vitest: 1 file passed, 6 tests passed",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Output guardrail preserves top-three framing",
+      "surface": "cli",
+      "precondition": "PR 149 hardening changes are present in the worktree",
+      "steps": [
+        "Run npm test -- src/__tests__/service.ranking-output-guardrails.test.ts"
+      ],
+      "expected": "Positions 2 and 3 retain protective top-three language while position 4 is normalized",
+      "status": "pass",
+      "evidence": "Included in backend targeted run: 2 files passed, 5 tests passed",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "LLM prompt keeps ranking bands mutually exclusive",
+      "surface": "cli",
+      "precondition": "PR 149 hardening changes are present in the worktree",
+      "steps": [
+        "Run npm test -- src/__tests__/service.ranking-llm.test.ts"
+      ],
+      "expected": "Positions 4-20 target the top three, only outside-top-20 targets entry into the top 20, and unavailable stays pending",
+      "status": "pass",
+      "evidence": "Included in backend targeted run: 2 files passed, 5 tests passed",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T4",
+      "title": "Repository regression gates pass",
+      "surface": "cli",
+      "precondition": "Dependencies are installed",
+      "steps": [
+        "Run backend and frontend production builds",
+        "Run full backend and frontend Vitest suites",
+        "Run npm run check:conventions -- --strict",
+        "Run scoped lint on every changed source and test file"
+      ],
+      "expected": "No build, test, strict-convention, or changed-file lint errors",
+      "status": "pass",
+      "evidence": "Backend build passed; frontend build passed; backend 343/343 tests; frontend 70/70 tests; strict conventions passed; changed-file lint passed",
+      "notes": "Repository-wide frontend lint still has 3 unrelated pre-existing errors outside this PR's files.",
+      "waiver": ""
+    },
+    {
+      "id": "T5",
+      "title": "Constitution cleanup preserves ranking behavior",
+      "surface": "cli",
+      "precondition": "Rev 1 cleanup changes are present in the worktree",
+      "steps": [
+        "Run both renamed backend contract suites",
+        "Run the frontend ranking utility suite",
+        "Run scoped lint and the strict Constitution checker"
+      ],
+      "expected": "Named rank thresholds and mirrored test filenames introduce no behavior, type, lint, or Constitution regression",
+      "status": "pass",
+      "evidence": "Backend targeted suites: 5/5; frontend ranking suite: 6/6; backend build passed; frontend build passed; full backend: 343/343; full frontend: 70/70; strict Constitution check passed; changed-file lint passed",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T6",
+      "title": "Local Rankings overview renders through the running PR frontend",
+      "surface": "ui",
+      "precondition": "Local backend is running and the PR frontend is served on an isolated port",
+      "steps": [
+        "Open the isolated PR frontend in the browser",
+        "Enter a client dashboard through the normal admin Pilot flow",
+        "Open Local Rankings and inspect the overview card"
+      ],
+      "expected": "The owner-facing overview renders a real Local Search position and recommended action without composite-rank or contradictory band language",
+      "status": "fail",
+      "evidence": "The automated browser reached the local PR frontend previously, but no authenticated admin session was available; a later retry could not attach the in-app browser webview.",
+      "notes": "The deterministic frontend helper suite covers #1, #2-3, #4-20, not-in-top-20, and unavailable states.",
+      "waiver": "User explicitly authorized waiving local browser acceptance on 2026-07-14 so PR 149 can merge to dev/dave; validate the dashboard on dev after deployment."
+    }
+  ]
+}

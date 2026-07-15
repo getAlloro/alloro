@@ -1,0 +1,104 @@
+{
+  "plan": "plans/07142026-choosable-summary-hardening",
+  "generatedAt": "2026-07-14",
+  "status": "In Progress",
+  "items": [
+    {
+      "id": "A1",
+      "title": "Dashboard metrics enforce tenant and location scope",
+      "surface": "api",
+      "precondition": "Hermetic Express app with synthetic organization and location fixtures",
+      "steps": [
+        "1. Request GET /api/dashboard/metrics with an authenticated organization and a foreign locationId",
+        "2. Request the same endpoint with an accessible locationId and a forged organization_id query value",
+        "3. Request the endpoint without locationId"
+      ],
+      "expected": "Foreign location is denied with the canonical envelope; forged organization_id is ignored; missing location receives the typed 400 response",
+      "status": "pass",
+      "evidence": "src/__tests__/dashboard-metrics.smoke.test.ts — 3/3 passed; full backend suite 356/356 passed",
+      "notes": "No live database or tenant data was used.",
+      "waiver": ""
+    },
+    {
+      "id": "A2",
+      "title": "Choosable metrics use only finalized active competitor sets",
+      "surface": "cli",
+      "precondition": "Synthetic location, onboarding, review, and competitor fixtures",
+      "steps": [
+        "1. Exercise missing and cross-organization locations",
+        "2. Exercise pending, curating, finalized-empty, and finalized-ready competitor states",
+        "3. Exercise a model failure and the 550 versus 100/1,000 median/leader edge case"
+      ],
+      "expected": "Not-ready, unavailable, median standing, and true review leadership remain distinct and correctly typed",
+      "status": "pass",
+      "evidence": "src/__tests__/choosable-metrics.test.ts — 7/7 passed; oldest discovery timestamp and 550-vs-1,000 semantics asserted",
+      "notes": "No agent run or external query occurred.",
+      "waiver": ""
+    },
+    {
+      "id": "A3",
+      "title": "Summary comparison evidence rejects fabricated or contradictory copy",
+      "surface": "cli",
+      "precondition": "Synthetic Summary v2 output and dashboard metrics dictionary",
+      "steps": [
+        "1. Validate grounded new output and a legacy output without domain evidence",
+        "2. Substitute an invented competitor, count, and source field",
+        "3. Try false leadership, wrong median wording, and evidence from a not-ready source"
+      ],
+      "expected": "Grounded and compatible legacy output pass; every fabricated or contradictory comparison fails closed",
+      "status": "pass",
+      "evidence": "src/__tests__/summary-v2-validators.test.ts — 8/8 passed, including the numeric-versus-string regression found during this pass",
+      "notes": "The test pass exposed and verified the fix for nonnumeric evidence values coercing to zero.",
+      "waiver": ""
+    },
+    {
+      "id": "A4",
+      "title": "Practice Hub uses only the newest grounded Summary comparison",
+      "surface": "ui",
+      "precondition": "Synthetic Summary tasks and mocked dashboard contexts under jsdom",
+      "steps": [
+        "1. Keep an older high-priority Summary for the one-thing hero while supplying a newer grounded Summary",
+        "2. Supply a newer legacy Summary without evidence while an older grounded comparison exists",
+        "3. Render grounded, loading, error, empty, and onboarding states"
+      ],
+      "expected": "Hero priority stays unchanged; comparison comes only from the newest Summary; no stale fallback or false comparison renders; no CTA is present",
+      "status": "pass",
+      "evidence": "frontend/src/hooks/queries/useTopAction.test.tsx — 3/3; ChoosableComparisonStrip.test.tsx — 5/5; full frontend suite 72/72 passed",
+      "notes": "Scoped frontend ESLint passed with zero errors or warnings.",
+      "waiver": ""
+    },
+    {
+      "id": "A5",
+      "title": "Alloro Docs matches the new Practice Hub strip",
+      "surface": "ui",
+      "precondition": "Alloro Docs running locally at http://127.0.0.1:4175/docs/practice-hub",
+      "steps": [
+        "1. Open the Practice Hub documentation",
+        "2. Inspect the replica below the one-thing banner",
+        "3. Confirm the comparison copy, absence of a CTA, and step/hotspot order"
+      ],
+      "expected": "The static replica shows one compact local-review comparison as step 5 and the stat tiles continue as steps 6–9",
+      "status": "pass",
+      "evidence": "Alloro Docs build passed; browser DOM and full-page visual inspection completed on 2026-07-14",
+      "notes": "The docs replica is static and does not claim that every customer already has new Summary evidence.",
+      "waiver": ""
+    },
+    {
+      "id": "A6",
+      "title": "Fresh generated Summary appears on the real client Practice Hub",
+      "surface": "ui",
+      "precondition": "PR code deployed to dev, a safe dev backend, and explicit authorization to generate a new location-scoped Summary for One Endodontics",
+      "steps": [
+        "1. Open /admin on dev and Pilot into One Endodontics",
+        "2. Generate or select a new Summary produced after this contract is deployed",
+        "3. Open the Practice Hub and inspect the local review comparison",
+        "4. Confirm the copy matches the persisted Summary evidence and the newest generation"
+      ],
+      "expected": "A grounded comparison appears only for the newly generated Summary; legacy summaries continue to show no strip",
+      "status": "pending",
+      "evidence": "Not run: the isolated worktree has no runtime .env or backend listener, and agent reruns/deployment remain outside the authorized test scope.",
+      "notes": "This must remain pending until dev deployment and explicit Summary-rerun authorization. It is not a code-test failure.",
+      "waiver": ""
+    }
+  ]
+}

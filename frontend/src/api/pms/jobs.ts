@@ -57,11 +57,11 @@ export async function uploadPMSData(
     const formData = new FormData();
     formData.append("csvFile", request.file);
     formData.append("domain", request.domain);
-    if (request.pmsType) {
-      formData.append("pmsType", request.pmsType);
-    }
     if (request.locationId) {
       formData.append("locationId", String(request.locationId));
+    }
+    if (request.targetMonth) {
+      formData.append("targetMonth", request.targetMonth);
     }
     if (request.monthlyDataOverride?.length) {
       formData.append("entryType", "file_with_edits");

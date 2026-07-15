@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { Plus, Upload } from "lucide-react";
 import { useCreateOsDocument } from "../../../../hooks/queries/useAdminOsDocumentMutations";
 import { OsModalShell } from "../shared/OsModalShell";
-import { OsImportModal } from "../import/OsImportModal";
 
 /**
  * Library toolbar (P3 T2, P6 T4): New document (title prompt → POST → straight
@@ -82,15 +81,18 @@ function OsNewDocumentModal({
   );
 }
 
-export function OsLibraryToolbar() {
+export type OsLibraryToolbarProps = {
+  onImport: () => void;
+};
+
+export function OsLibraryToolbar({ onImport }: OsLibraryToolbarProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isImportOpen, setIsImportOpen] = useState(false);
 
   return (
     <div className="flex items-center gap-2">
       <button
         type="button"
-        onClick={() => setIsImportOpen(true)}
+        onClick={onImport}
         className="inline-flex items-center gap-1.5 rounded-[9px] border border-line-medium bg-alloro-surface px-3 py-2 text-sm font-medium text-gray-600 transition-colors duration-150 hover:border-alloro-orange/60 hover:text-alloro-textDark"
       >
         <Upload className="h-4 w-4" strokeWidth={1.5} />
@@ -107,10 +109,6 @@ export function OsLibraryToolbar() {
       <OsNewDocumentModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-      />
-      <OsImportModal
-        isOpen={isImportOpen}
-        onClose={() => setIsImportOpen(false)}
       />
     </div>
   );

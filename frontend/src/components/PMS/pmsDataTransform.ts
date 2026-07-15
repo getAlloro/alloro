@@ -31,11 +31,13 @@ export interface MonthEntryForm {
  * FALLBACK: If inferred_referral_type is missing, defaults to "self"
  */
 export function transformBackendToUI(
-  normalizedMonths: MonthEntryForm[]
+  normalizedMonths: MonthEntryForm[],
 ): MonthBucket[] {
   return normalizedMonths.map((monthEntry, monthIdx) => ({
     id: Date.now() + monthIdx,
     month: monthEntry.month,
+    authoritativeTotalReferrals: monthEntry.total_referrals,
+    referralTotalMode: "authoritative",
     rows: monthEntry.sources.map((source, srcIdx) => ({
       id: Date.now() + srcIdx,
       source: source.name,
@@ -63,19 +65,23 @@ export function transformUIToBackend(months: MonthBucket[]): MonthEntryForm[] {
       month: monthBucket.month,
       self_referrals: selfRows.reduce(
         (sum, r) => sum + (Number(r.referrals) || 0),
-        0
+        0,
       ),
       doctor_referrals: doctorRows.reduce(
         (sum, r) => sum + (Number(r.referrals) || 0),
-        0
+        0,
       ),
-      total_referrals: monthBucket.rows.reduce(
-        (sum, r) => sum + (Number(r.referrals) || 0),
-        0
-      ),
+      total_referrals:
+        monthBucket.referralTotalMode === "authoritative" &&
+        typeof monthBucket.authoritativeTotalReferrals === "number"
+          ? monthBucket.authoritativeTotalReferrals
+          : monthBucket.rows.reduce(
+              (sum, r) => sum + (Number(r.referrals) || 0),
+              0,
+            ),
       production_total: monthBucket.rows.reduce(
         (sum, r) => sum + (Number(r.production) || 0),
-        0
+        0,
       ),
       sources: monthBucket.rows.map((row) => ({
         name: row.source,
@@ -91,7 +97,10 @@ export function transformUIToBackend(months: MonthBucket[]): MonthEntryForm[] {
  * Calculate totals for a set of rows
  * Used for real-time summary card updates
  */
-export function calculateTotals(rows: SourceRow[]): MonthSummary {
+export function calculateTotals(
+  rows: SourceRow[],
+  authoritativeTotalReferrals?: number,
+): MonthSummary {
   const selfReferrals = rows
     .filter((r) => r.type === "self")
     .reduce((s, r) => s + (Number(r.referrals) || 0), 0);
@@ -102,14 +111,26 @@ export function calculateTotals(rows: SourceRow[]): MonthSummary {
 
   const productionTotal = rows.reduce(
     (s, r) => s + (Number(r.production) || 0),
-    0
+    0,
   );
 
   return {
     selfReferrals,
     doctorReferrals,
-    totalReferrals: selfReferrals + doctorReferrals,
+    totalReferrals:
+      authoritativeTotalReferrals ?? selfReferrals + doctorReferrals,
     productionTotal,
+  };
+}
+
+export function invalidateAuthoritativeReferralTotal(
+  monthBucket: MonthBucket,
+): MonthBucket {
+  if (monthBucket.referralTotalMode !== "authoritative") return monthBucket;
+  return {
+    ...monthBucket,
+    authoritativeTotalReferrals: undefined,
+    referralTotalMode: "derived",
   };
 }
 

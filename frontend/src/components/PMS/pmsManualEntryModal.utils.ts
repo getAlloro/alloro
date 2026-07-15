@@ -15,7 +15,9 @@ import type {
 
 export const ALORO_ORANGE = "#C9765E";
 export const ALORO_ORANGE_DARK = "#D66853";
-export type PmsUploadPreviewData = NonNullable<PmsUploadPreviewResponse["data"]>;
+export type PmsUploadPreviewData = NonNullable<
+  PmsUploadPreviewResponse["data"]
+>;
 
 /**
  * State-machine CSV/TSV parser for the mapping-preview path.
@@ -35,7 +37,7 @@ export type PmsUploadPreviewData = NonNullable<PmsUploadPreviewResponse["data"]>
  * `Fredericksburg February 2026 - Raw Data.csv` (515 rows, 11 cols).
  */
 export const parseTabularToRows = (
-  raw: string
+  raw: string,
 ): { headers: string[]; rows: Record<string, unknown>[] } => {
   if (!raw.trim()) return { headers: [], rows: [] };
 
@@ -125,11 +127,13 @@ export const formatMonthList = (months: string[]): string => {
 };
 
 export const monthlyRollupToBuckets = (
-  rows: Array<MonthlyRollupMonth | ManualMonthEntry>
+  rows: Array<MonthlyRollupMonth | ManualMonthEntry>,
 ): MonthBucket[] => {
   return rows.map((m, i) => ({
     id: Date.now() + i,
     month: m.month,
+    authoritativeTotalReferrals: m.total_referrals,
+    referralTotalMode: "authoritative",
     rows: m.sources.map((s, j) => ({
       id: Date.now() + i * 1000 + j,
       source: s.name,

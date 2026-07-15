@@ -27,6 +27,8 @@ import {
   type SeoSection,
 } from "../feature-utils/util.seo-section-runner";
 import { deriveCanonicalPath } from "../feature-utils/util.canonical-path";
+import type { GscTopQuery } from "../feature-utils/util.seo-gsc-demand";
+import { getTopQueriesByProject } from "./service.gsc-performance";
 import logger from "../../../lib/logger";
 
 const MODEL = "claude-sonnet-5";
@@ -150,12 +152,14 @@ export async function generateSeoForSection(
     post_title,
   } = body;
 
-  // Fetch business data, practice facts, and mind skill context in parallel
-  const [businessData, practiceFactsBlock, creatorContext, validatorContext] = await Promise.all([
+  // Only GEO generation consumes Search Console demand. Other single-section
+  // runs avoid the optional lookup entirely.
+  const [businessData, practiceFactsBlock, creatorContext, validatorContext, gscTopQueries] = await Promise.all([
     fetchBusinessData(projectId, location_context),
     fetchPracticeFactsBlock(entityId, entityType),
     fetchMindSkillCreator(),
     fetchMindSkillValidator(),
+    section === "geo_layer" ? getTopQueriesByProject(projectId) : [],
   ]);
 
   if (!businessData) {
@@ -175,7 +179,7 @@ export async function generateSeoForSection(
     all_page_descriptions,
     page_path,
     post_title,
-  }, projectId, entityId, practiceFactsBlock);
+  }, projectId, entityId, practiceFactsBlock, gscTopQueries);
 
   // Canonical is never LLM-authored: derive it from the entity's real
   // serving path and overwrite whatever the model produced (the prompt no
@@ -235,12 +239,14 @@ export async function generateAllSeoSections(
 ): Promise<{ results: Array<{ section: string; generated: Record<string, unknown>; insight: string }> }> {
   const { location_context, apply_geo_content, ...rest } = body;
 
-  // Single fetch for all shared context
-  const [businessData, practiceFactsBlock, creatorContext, validatorContext] = await Promise.all([
+  // Single fetch for all shared context (incl. this site's real GSC top
+  // queries — [] when the project has no Search Console data)
+  const [businessData, practiceFactsBlock, creatorContext, validatorContext, gscTopQueries] = await Promise.all([
     fetchBusinessData(projectId, location_context),
     fetchPracticeFactsBlock(entityId, entityType),
     fetchMindSkillCreator(),
     fetchMindSkillValidator(),
+    getTopQueriesByProject(projectId),
   ]);
 
   if (!businessData) {
@@ -257,7 +263,8 @@ export async function generateAllSeoSections(
     rest,
     projectId,
     entityId,
-    practiceFactsBlock
+    practiceFactsBlock,
+    gscTopQueries
   );
 
   await overrideCanonicalOnResults(results, entityId, entityType);
@@ -385,16 +392,20 @@ export interface SharedSeoContext {
   businessData: Record<string, unknown>;
   creatorContext: string;
   validatorContext: string;
+  // This site's real GSC top queries, fetched ONCE per project for the whole
+  // bulk job (stable across every page/post). [] when there is no GSC data.
+  gscTopQueries: GscTopQuery[];
 }
 
 export async function fetchSharedContext(
   projectId: string,
   locationContext?: string | null
 ): Promise<SharedSeoContext> {
-  const [businessData, creatorContext, validatorContext] = await Promise.all([
+  const [businessData, creatorContext, validatorContext, gscTopQueries] = await Promise.all([
     fetchBusinessData(projectId, locationContext || null),
     fetchMindSkillCreator(),
     fetchMindSkillValidator(),
+    getTopQueriesByProject(projectId),
   ]);
 
   if (!businessData) {
@@ -403,7 +414,7 @@ export async function fetchSharedContext(
     );
   }
 
-  return { businessData, creatorContext, validatorContext };
+  return { businessData, creatorContext, validatorContext, gscTopQueries };
 }
 
 /**
@@ -445,7 +456,8 @@ export async function generateAllWithSharedContext(
     data,
     projectId,
     entityId,
-    practiceFactsBlock
+    practiceFactsBlock,
+    ctx.gscTopQueries
   );
 
   if (entityId) {

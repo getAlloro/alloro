@@ -1,0 +1,84 @@
+{
+  "plan": "plans/07142026-pr-153-merge-conflict-fixes",
+  "generatedAt": "2026-07-14",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "T1",
+      "title": "PR branch merges current dev/dave without unresolved conflicts",
+      "surface": "cli",
+      "precondition": "Worktree is /Users/rustinedave/Desktop/alloro-pr153-fix on codex/pr153-fix after merging origin/dev/dave into the PR branch.",
+      "steps": [
+        "1. Run git merge origin/dev/dave from the PR branch.",
+        "2. Resolve the known conflict files.",
+        "3. Run git diff --check."
+      ],
+      "expected": "No unresolved merge conflicts remain and whitespace checks pass.",
+      "status": "pass",
+      "evidence": "git merge origin/dev/dave completed after resolving the five conflict files; git diff --check exited 0.",
+      "notes": "Resolved dashboard/ranking/Summary conflicts by preserving current dev/dave guarded contracts.",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Choosable metrics remain behind the guarded service path",
+      "surface": "cli",
+      "precondition": "Dashboard metrics conflict resolution is applied.",
+      "steps": [
+        "1. Search dashboard metrics utilities for buildChoosableMetrics, LocationCompetitorModel, and medianOf.",
+        "2. Confirm service.dashboard-metrics.ts uses ChoosableMetricsService.build."
+      ],
+      "expected": "The stale utility helper is gone and the org/location-guarded service remains the only dashboard assembly path.",
+      "status": "pass",
+      "evidence": "rg found no stale helper in sectionBuilders.ts; service.dashboard-metrics.ts imports and calls ChoosableMetricsService.build.",
+      "notes": "Protects Constitution §5.5 and §11.7 tenant isolation.",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "Type checks and targeted backend tests pass",
+      "surface": "cli",
+      "precondition": "Dependencies installed with npm ci in the clean worktree.",
+      "steps": [
+        "1. Run npx tsc --noEmit.",
+        "2. Run the focused Vitest set for review replies, ranking guardrails, Summary validators, Choosable metrics, and dashboard metrics."
+      ],
+      "expected": "TypeScript exits 0 and the focused test set passes.",
+      "status": "pass",
+      "evidence": "npx tsc --noEmit exited 0; focused Vitest reported 5 files passed and 24 tests passed.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T4",
+      "title": "Frontend build and touched frontend tests pass",
+      "surface": "cli",
+      "precondition": "frontend/node_modules installed with npm ci.",
+      "steps": [
+        "1. Run npm --prefix frontend run lint -- --quiet.",
+        "2. Run npm --prefix frontend run test -- src/components/Admin/os/search/OsCommandPalette.test.tsx.",
+        "3. Run cd frontend && npm run build."
+      ],
+      "expected": "Frontend lint has no errors, touched tests pass, and production build completes.",
+      "status": "pass",
+      "evidence": "frontend eslint --quiet exited 0; OsCommandPalette.test.tsx reported 3 tests passed; frontend build exited 0.",
+      "notes": "Build still prints existing Vite chunk/eval warnings.",
+      "waiver": ""
+    },
+    {
+      "id": "T5",
+      "title": "Code Constitution gate has no blocking failures",
+      "surface": "cli",
+      "precondition": "All code fixes are applied.",
+      "steps": [
+        "1. Run npm run check:all.",
+        "2. Review backend strict convention output, lint output, frontend lint output, and depcruise output."
+      ],
+      "expected": "No blocking convention, lint, or dependency-cruiser errors remain.",
+      "status": "pass",
+      "evidence": "npm run check:all exited 0; frontend lint reported 0 errors after fixes; depcruise reported 0 errors and 38 warnings.",
+      "notes": "Existing advisory findings remain: §17.4 dangerouslySetInnerHTML, §17.5 token reads in tests, §10.2 raw DB use in integration tests, §11.7 heuristic tenant-scope list, and baseline lint/dependency warnings.",
+      "waiver": ""
+    }
+  ]
+}

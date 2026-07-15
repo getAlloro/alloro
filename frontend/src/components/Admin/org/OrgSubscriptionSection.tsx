@@ -16,7 +16,7 @@ import {
   XCircle,
   ChevronRight,
 } from "lucide-react";
-import { toast } from "react-hot-toast";
+import { toast } from "../../../lib/toast";
 import { useConfirm } from "../../ui/ConfirmModal";
 import {
   adminCreateProject,
@@ -24,13 +24,19 @@ import {
   adminLockoutOrganization,
   adminUnlockOrganization,
   adminUpdateOrganizationType,
+  adminUpdateOrganizationPmsType,
   adminGetBillingDetails,
   type AdminOrganizationDetail,
   type AdminBillingDetails,
+  type PmsParserAssignment,
 } from "../../../api/admin-organizations";
 import { fetchWebsites, linkWebsiteToOrganization } from "../../../api/websites";
 import { isAxiosError } from "../../../api";
 import { getErrorMessage } from "../../../lib/errorMessage";
+import {
+  getPmsParserAssignmentFromSelectValue,
+  getPmsParserSelectValue,
+} from "./pmsParserAssignment.utils";
 
 interface OrgSubscriptionSectionProps {
   org: AdminOrganizationDetail;
@@ -48,6 +54,8 @@ export function OrgSubscriptionSection({
   const [isRemovingPayment, setIsRemovingPayment] = useState(false);
   const [isLockoutLoading, setIsLockoutLoading] = useState(false);
   const [isSavingType, setIsSavingType] = useState(false);
+  const [isSavingPmsType, setIsSavingPmsType] = useState(false);
+  const [pmsTypeError, setPmsTypeError] = useState<string | null>(null);
   const [billingDetails, setBillingDetails] = useState<AdminBillingDetails | null>(null);
   const [showInvoices, setShowInvoices] = useState(false);
 
@@ -240,6 +248,44 @@ export function OrgSubscriptionSection({
     }
   };
 
+  const handleSetPmsType = async (pmsType: PmsParserAssignment) => {
+    const isDentalEmr = pmsType === "dentalemr";
+    const label = isDentalEmr
+      ? "DentalEMR"
+      : "Default (configurable formula)";
+    const confirmed = await confirm({
+      title: `Set PMS parser to "${label}"?`,
+      message:
+        isDentalEmr
+          ? "Future PMS uploads and pasted data will use DentalEMR parsing. Existing PMS data will not be reprocessed."
+          : "Future PMS uploads and pasted data will use the configurable default formula. Existing PMS data will not be reprocessed.",
+      confirmLabel: isDentalEmr ? "Use DentalEMR" : "Use Default",
+      variant: "danger",
+    });
+    if (!confirmed) return;
+
+    setPmsTypeError(null);
+    setIsSavingPmsType(true);
+    try {
+      const result = await adminUpdateOrganizationPmsType(orgId, pmsType);
+      toast.success(result.message);
+      try {
+        await onRefresh();
+      } catch {
+        setPmsTypeError(
+          "The parser was updated, but the organization details could not be refreshed. Reload this page to confirm the current setting."
+        );
+      }
+    } catch (error: unknown) {
+      const message =
+        getErrorMessage(error) || "Failed to update the PMS parser";
+      setPmsTypeError(message);
+      toast.error(message);
+    } finally {
+      setIsSavingPmsType(false);
+    }
+  };
+
   // Derive billing status for display
   const billingStatusBadge = (() => {
     if (org.subscription_status === "inactive")
@@ -277,7 +323,7 @@ export function OrgSubscriptionSection({
         </div>
 
         <div className="px-5 py-4">
-          <div className="grid grid-cols-3 gap-6">
+          <div className="grid grid-cols-2 gap-6 lg:grid-cols-4">
             {/* Type */}
             <div>
               <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Type</div>
@@ -296,6 +342,50 @@ export function OrgSubscriptionSection({
                 </select>
                 {isSavingType && <Loader2 className="h-3 w-3 animate-spin text-gray-400" />}
               </div>
+            </div>
+
+            {/* PMS Parser */}
+            <div>
+              <label
+                htmlFor="organization-pms-parser"
+                className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-gray-400"
+              >
+                PMS Parser
+              </label>
+              <div className="flex items-center gap-2">
+                <select
+                  id="organization-pms-parser"
+                  disabled={isSavingPmsType}
+                  value={getPmsParserSelectValue(org.pms_type)}
+                  onChange={(event) => {
+                    void handleSetPmsType(
+                      getPmsParserAssignmentFromSelectValue(event.target.value),
+                    );
+                  }}
+                  aria-describedby={
+                    pmsTypeError ? "organization-pms-parser-error" : undefined
+                  }
+                  className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-alloro-orange/50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <option value="">Default (configurable formula)</option>
+                  <option value="dentalemr">DentalEMR</option>
+                </select>
+                {isSavingPmsType && (
+                  <Loader2
+                    aria-label="Saving PMS parser"
+                    className="h-3 w-3 animate-spin text-gray-400"
+                  />
+                )}
+              </div>
+              {pmsTypeError && (
+                <p
+                  id="organization-pms-parser-error"
+                  role="alert"
+                  className="mt-2 text-xs font-medium text-red-600"
+                >
+                  {pmsTypeError}
+                </p>
+              )}
             </div>
 
             {/* Tier */}

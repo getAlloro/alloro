@@ -145,7 +145,7 @@ export default function OsDocumentEdit() {
   const isLoading = draftQuery.isLoading || detailQuery.isLoading;
 
   return (
-    <div className="mx-auto max-w-4xl pt-6">
+    <div className="mx-auto max-w-6xl pt-6">
       <OsEditHeader
         title={detailQuery.data?.document.title ?? ""}
         banner={

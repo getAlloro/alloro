@@ -1,0 +1,69 @@
+{
+  "plan": "plans/07142026-gsc-content-loop-hardening",
+  "generatedAt": "2026-07-14",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "T1",
+      "title": "Focused GSC formatter, lookup, and SEO routing contracts pass",
+      "surface": "cli",
+      "precondition": "PR 151 hardening branch with workspace dependencies available",
+      "steps": [
+        "Run npx vitest run src/__tests__/util.seo-gsc-demand.test.ts src/__tests__/service.gsc-performance.test.ts src/__tests__/service.seo-generation.test.ts"
+      ],
+      "expected": "All focused tests pass without a database or external network call",
+      "status": "pass",
+      "evidence": "2026-07-14: 3 test files passed; 15 tests passed in 142ms",
+      "notes": "Covers bounded JSON formatting, aggregation, empty/failure fallback, one-fetch behavior, GEO-only delivery, and cached-system exclusion.",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "TypeScript and Code Constitution structural gates pass",
+      "surface": "cli",
+      "precondition": "Implementation files present",
+      "steps": [
+        "Run npx tsc --noEmit",
+        "Run npm run check:conventions -- --strict"
+      ],
+      "expected": "TypeScript exits zero and no mechanized backend Constitution violation is introduced",
+      "status": "pass",
+      "evidence": "2026-07-14: TypeScript exit 0; strict Constitution check exit 0 with zero backend structural violations",
+      "notes": "Existing advisory findings are outside this PR's files and scope.",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "Full repository regression and lint pass",
+      "surface": "cli",
+      "precondition": "Implementation complete and focused checks green",
+      "steps": [
+        "Run npm test",
+        "Run npm run check:all",
+        "Run npm run build"
+      ],
+      "expected": "No failure caused by PR 151 or its hardening changes",
+      "status": "pass",
+      "evidence": "2026-07-14 isolated PR head: build exit 0 and 41 files/346 tests passed. Combined with dev/dave 14032e01: clean synthetic merge, build exit 0 and 59 files/452 tests passed. After dev/dave advanced to a7a6ac19 through PR 153, the combined tree still passed build, strict Constitution, and backend lint; its full suite had 13 patient-journey timeouts. The same patient-journey test file on unmodified dev/dave a7a6ac19 had the identical 13 timeouts, proving they are base failures rather than PR 151 regressions.",
+      "notes": "Frontend lint also reports three pre-existing errors in untouched files. PR 151 changes neither frontend nor patient-journey files. GitHub reports PR 151 clean and mergeable, but dev/dave is not currently a fully green base.",
+      "waiver": ""
+    },
+    {
+      "id": "T4",
+      "title": "Authorized dev agent generation validates real-data and fallback behavior",
+      "surface": "api",
+      "precondition": "Explicit user authorization; one GSC-connected dev project and one no-data dev project; apply_geo_content=false; no emails",
+      "steps": [
+        "Generate GEO output for a GSC-connected project without auto-apply",
+        "Confirm a genuinely relevant measured query is preferred and unrelated queries are ignored",
+        "Generate GEO output for a project with no GSC data without auto-apply",
+        "Confirm the target query is inferred from real page content and the output schema is unchanged"
+      ],
+      "expected": "Both paths complete without blocking generation, mutating page content, or sending email",
+      "status": "fail",
+      "evidence": "Not run pre-merge: dev/dave does not yet contain PR 151 or these fixes.",
+      "notes": "Running against the current dev deployment would validate the old implementation, not the reviewed combined tree.",
+      "waiver": "Deferred to post-merge dev validation. The merge gate is covered by hermetic prompt-contract tests, a fully green isolated PR suite, a fully green combined suite before the unrelated PR 153 base change, and differential proof that the current patient-journey failures already exist on dev/dave alone. Post-merge validation must keep apply_geo_content=false and send no emails."
+    }
+  ]
+}

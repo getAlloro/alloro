@@ -95,8 +95,16 @@ export type PmsUploadPreviewResponse = {
   data?: {
     originalFileName: string;
     recordsProcessed: number;
-    mappingSource: string;
-    headerSignature: string;
+    parserType: "default" | "dentalemr";
+    requiresSanitization: boolean;
+    countSemantics: {
+      referralCount: "additive" | "unique_patient_global";
+      sourceReferralCount: "additive" | "unique_patient_per_source";
+    };
+    selectedSheetNames: string[];
+    mappingSource?: string;
+    headerSignature?: string;
+    warnings: string[];
     monthlyRollup: ManualMonthEntry[];
     incomingMonths: string[];
     supersededMonths: Array<{
@@ -147,11 +155,15 @@ export async function previewPmsFileConflicts(
 
 export async function previewPmsUploadFile(
   file: File,
-  locationId: number
+  locationId: number,
+  targetMonth?: string | null,
 ): Promise<PmsUploadPreviewResponse> {
   const formData = new FormData();
   formData.append("csvFile", file);
   formData.append("locationId", String(locationId));
+  if (targetMonth) {
+    formData.append("targetMonth", targetMonth);
+  }
 
   return apiPost({
     path: "/pms/file-manager/upload-preview",

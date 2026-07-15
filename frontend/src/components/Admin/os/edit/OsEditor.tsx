@@ -6,7 +6,9 @@ import {
   getOsEditorMarkdown,
 } from "./osEditorExtensions";
 import { OsEditorToolbar } from "./OsEditorToolbar";
+import { OsTableFloatingMenu } from "./OsTableFloatingMenu";
 import { useOsImageUpload } from "../../../../hooks/useOsImageUpload";
+import { normalizeOsMarkdown } from "../shared/osMarkdown";
 
 /**
  * WYSIWYG editor over markdown storage (P3 T4, P6 T4): tiptap-markdown parses
@@ -33,7 +35,13 @@ const OS_EDITOR_PROSE_CLASSES = [
   "prose-blockquote:border-l-accent-soft-line prose-blockquote:text-gray-600",
   "prose-th:border prose-th:border-line-medium prose-th:bg-gray-50 prose-th:px-3 prose-th:py-1.5 prose-th:text-left prose-th:font-sans prose-th:text-[12px]",
   "prose-td:border prose-td:border-line-soft prose-td:px-3 prose-td:py-1.5 prose-td:text-[14px]",
-  "prose-table:w-full",
+  "[&_.tableWrapper]:max-w-full [&_.tableWrapper]:overflow-x-auto [&_.tableWrapper]:rounded-lg",
+  "[&_.tableWrapper]:[scrollbar-color:var(--color-alloro-orange)_transparent] [&_.tableWrapper]:[scrollbar-width:thin]",
+  "[&_.tableWrapper::-webkit-scrollbar]:h-2",
+  "[&_.tableWrapper::-webkit-scrollbar-thumb]:rounded-full [&_.tableWrapper::-webkit-scrollbar-thumb]:bg-alloro-orange",
+  "[&_.tableWrapper::-webkit-scrollbar-track]:rounded-full [&_.tableWrapper::-webkit-scrollbar-track]:bg-accent-soft",
+  "[&_.tableWrapper]:focus-within:ring-2 [&_.tableWrapper]:focus-within:ring-alloro-orange/30",
+  "[&_.tableWrapper>table]:w-full [&_.tableWrapper>table]:min-w-max",
   "prose-hr:border-line-medium",
   "min-h-[55vh] focus:outline-none",
 ].join(" ");
@@ -49,7 +57,9 @@ export function OsEditor({
   onChange: (markdown: string) => void;
   isEditable: boolean;
 }) {
-  const lastMarkdownRef = useRef(content);
+  const normalizedContent = normalizeOsMarkdown(content);
+  const lastMarkdownRef = useRef(normalizedContent);
+  const containerRef = useRef<HTMLDivElement>(null);
   // editorProps handlers are captured once by useEditor, so the live editor +
   // latest upload fn + editable flag are read through refs (no re-instantiation).
   const editorRef = useRef<Editor | null>(null);
@@ -79,7 +89,7 @@ export function OsEditor({
 
   const editor = useEditor({
     extensions: buildOsEditorExtensions(),
-    content,
+    content: normalizedContent,
     editable: isEditable,
     editorProps: {
       attributes: { class: OS_EDITOR_PROSE_CLASSES },
@@ -122,11 +132,11 @@ export function OsEditor({
   // without echoing an update back through onChange (spurious autosave).
   useEffect(() => {
     if (!editor) return;
-    if (content !== lastMarkdownRef.current) {
-      lastMarkdownRef.current = content;
-      editor.commands.setContent(content, { emitUpdate: false });
+    if (normalizedContent !== lastMarkdownRef.current) {
+      lastMarkdownRef.current = normalizedContent;
+      editor.commands.setContent(normalizedContent, { emitUpdate: false });
     }
-  }, [content, editor]);
+  }, [editor, normalizedContent]);
 
   useEffect(() => {
     if (!editor) return;
@@ -140,11 +150,19 @@ export function OsEditor({
   }
 
   return (
-    <div className="rounded-xl border border-line-medium bg-alloro-surface">
-      <OsEditorToolbar editor={editor} isEditable={isEditable} />
+    <div
+      ref={containerRef}
+      className="relative rounded-xl border border-line-medium bg-alloro-surface"
+    >
+      <OsEditorToolbar
+        editor={editor}
+        isEditable={isEditable}
+        onInsertImage={(files) => insertImages(editor, files)}
+      />
       <div className="px-4 py-5 sm:px-6">
         <EditorContent editor={editor} />
       </div>
+      <OsTableFloatingMenu editor={editor} containerRef={containerRef} />
     </div>
   );
 }

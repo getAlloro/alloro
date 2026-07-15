@@ -2,6 +2,8 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { ComponentPropsWithoutRef, ReactNode } from "react";
 import { osAssetSrc, slugifyOsHeading } from "../shared/osFormat";
+import { normalizeOsMarkdown, parseOsImageSource } from "../shared/osMarkdown";
+import { OsMarkdownTable } from "./OsMarkdownTable";
 
 /**
  * Rendered markdown for the reading column and version previews — the house
@@ -34,12 +36,14 @@ function heading(Tag: "h1" | "h2" | "h3" | "h4" | "h5" | "h6") {
 
 /** Image renderer: append the session token to OS asset-delivery URLs (T5). */
 function OsMarkdownImage({ src, alt, ...rest }: ComponentPropsWithoutRef<"img">) {
+  const image = parseOsImageSource(typeof src === "string" ? src : "");
   return (
     <img
-      src={osAssetSrc(typeof src === "string" ? src : undefined)}
-      alt={alt ?? ""}
-      loading="lazy"
       {...rest}
+      src={osAssetSrc(image.src)}
+      alt={alt ?? ""}
+      width={image.width}
+      loading="lazy"
     />
   );
 }
@@ -55,7 +59,6 @@ const OS_PROSE_CLASSES = [
   "prose-blockquote:border-l-accent-soft-line prose-blockquote:text-gray-600",
   "prose-th:border prose-th:border-line-medium prose-th:bg-gray-50 prose-th:px-3 prose-th:py-1.5 prose-th:text-left prose-th:font-sans prose-th:text-[12px]",
   "prose-td:border prose-td:border-line-soft prose-td:px-3 prose-td:py-1.5 prose-td:text-[14px]",
-  "prose-table:w-full",
   "prose-hr:border-line-medium",
   "prose-li:marker:text-gray-400",
 ].join(" ");
@@ -73,9 +76,10 @@ export function OsMarkdownBody({ markdown }: { markdown: string }) {
           h5: heading("h5"),
           h6: heading("h6"),
           img: OsMarkdownImage,
+          table: OsMarkdownTable,
         }}
       >
-        {markdown}
+        {normalizeOsMarkdown(markdown)}
       </ReactMarkdown>
     </div>
   );

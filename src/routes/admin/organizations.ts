@@ -1,10 +1,19 @@
 import express from "express";
+import { z } from "zod";
+import { PMS_PARSER_TYPES } from "../../config/pmsParserRegistry";
 import { authenticateToken } from "../../middleware/auth";
 import { superAdminMiddleware } from "../../middleware/superAdmin";
+import { validate } from "../../middleware/validate";
 import * as controller from "../../controllers/admin-organizations/AdminOrganizationsController";
 import * as BillingController from "../../controllers/billing/BillingController";
 
 const organizationsRoutes = express.Router();
+const organizationIdParamsSchema = z.object({
+  id: z.coerce.number().int().positive(),
+});
+const pmsTypeBodySchema = z.object({
+  pmsType: z.union([z.enum(PMS_PARSER_TYPES), z.null()]),
+});
 
 // POST /api/admin/organizations — Create organization with initial admin user
 organizationsRoutes.post(
@@ -97,6 +106,16 @@ organizationsRoutes.patch(
   authenticateToken,
   superAdminMiddleware,
   controller.updateOrganizationType
+);
+
+// PATCH /api/admin/organizations/:id/pms-type — Assign future PMS parsing behavior
+organizationsRoutes.patch(
+  "/:id/pms-type",
+  authenticateToken,
+  superAdminMiddleware,
+  validate(organizationIdParamsSchema, { target: "params", mode: "enforce" }),
+  validate(pmsTypeBodySchema, { mode: "enforce" }),
+  controller.updatePmsParserType
 );
 
 // PATCH /api/admin/organizations/:id/archive — Archive organization and connected operations

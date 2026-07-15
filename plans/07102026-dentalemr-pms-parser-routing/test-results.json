@@ -1,0 +1,144 @@
+{
+  "plan": "plans/07102026-dentalemr-pms-parser-routing",
+  "generatedAt": "2026-07-14",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "T1",
+      "title": "Organization-owned parser routing and persistence contracts",
+      "surface": "cli",
+      "precondition": "Feature worktree dependencies are available; no database migration is required for these synthetic tests.",
+      "steps": [
+        "Run the seven focused backend Vitest files for PMS type assignment, registry, router, default parser, DentalEMR parser, aggregation semantics, and migration shape.",
+        "Confirm supported and invalid PMS types, server-owned routing, default compatibility, parser metadata, and migration up/down behavior."
+      ],
+      "expected": "All focused backend contract tests pass without reading or mutating a live organization.",
+      "status": "pass",
+      "evidence": "2026-07-13: 7 test files passed; 26 tests passed.",
+      "notes": "The migration was verified statically and by unit test only; it was not executed against the active database.",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Four supplied DentalEMR exports reconcile exactly",
+      "surface": "cli",
+      "precondition": "The four user-supplied raw exports remain outside the repository in /Users/rustinedave/Desktop/untitled folder.",
+      "steps": [
+        "Run the DentalEMR file parser locally for Fredericksburg April/May and Sterling April/May with the requested target month.",
+        "Print aggregate values only and compare production, global unique referrals, per-source patient pairs, and Self totals with the spec targets."
+      ],
+      "expected": "Every location-month matches its expected aggregate values; Sterling May resolves from raw dates to 2026-05.",
+      "status": "pass",
+      "evidence": "Fredericksburg Apr: $197,042.90 / 156 / 158 / Self 8 and $6,301; Fredericksburg May: $183,942 / 171 / 180 / Self 17 and $3,344; Sterling Apr: $216,811.10 / 197 / 208 / Self 36 and $6,706; Sterling May: $192,668 / 165 / 181 / Self 35 and $7,824. Sterling XLSX selected both raw sheets and target-month scoping returned April.",
+      "notes": "No patient-level rows or names were printed, copied into tests, or added to git.",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "Batch-free paste progress and authoritative totals",
+      "surface": "cli",
+      "precondition": "Frontend test dependencies are available.",
+      "steps": [
+        "Run the focused PasteProgress, pastePipeline, pmsDataTransform, and usePmsManualEntryRows Vitest files.",
+        "Confirm one-shot parsing, truthful indeterminate/completed progress, authoritative totals, and edit invalidation behavior."
+      ],
+      "expected": "The focused frontend behavior suite passes with no former 50-row batching contract.",
+      "status": "pass",
+      "evidence": "2026-07-13: 4 test files passed; 11 tests passed.",
+      "notes": "Feature-scoped frontend ESLint also passed with zero errors.",
+      "waiver": ""
+    },
+    {
+      "id": "T4",
+      "title": "Full regression, architecture, and docs parity gates",
+      "surface": "cli",
+      "precondition": "App and Alloro Docs worktrees use their existing installed dependencies.",
+      "steps": [
+        "Run full backend and frontend Vitest suites.",
+        "Run backend and frontend production builds, strict Code Constitution checks, feature-scoped lint, diff checks, and the Alloro Docs production build."
+      ],
+      "expected": "No execution-caused test, build, type, lint, convention, docs, or whitespace failure remains.",
+      "status": "pass",
+      "evidence": "Backend 46 files/364 tests passed; frontend 20 files/75 tests passed; both app builds passed; strict conventions reported zero structural violations; changed backend/frontend files passed ESLint; Alloro Docs built successfully; both diffs passed git diff --check.",
+      "notes": "The repository-wide frontend lint still reports three pre-existing errors in untouched OS/settings files. The build also retains existing chunk-size warnings. Neither was introduced by this plan.",
+      "waiver": ""
+    },
+    {
+      "id": "T5",
+      "title": "Authenticated admin assignment and upload flow on dev",
+      "surface": "ui",
+      "precondition": "The branch and additive organizations.pms_type migration are deployed to dev; tester is signed in as a super admin and can Pilot into a dev/test organization.",
+      "steps": [
+        "Open /admin, select a dev/test organization, and switch PMS Parser between Default and DentalEMR.",
+        "Pilot into the organization, upload or paste a DentalEMR sample, and confirm the ready-state progress, table totals, and derived-total notice after editing."
+      ],
+      "expected": "The selected parser is enforced by organization state and the visible upload/paste behavior matches the tested contracts.",
+      "status": "fail",
+      "evidence": "2026-07-14: dev workflow 29321162841 successfully built and deployed merge 191085e8 to both dev targets, applied both PMS migrations, reloaded PM2, and passed both health checks. The authenticated UI steps were not run.",
+      "notes": "The deployment and migration gates passed. Authenticated dev UI validation remains waived and is still recommended before promotion to main.",
+      "waiver": "Accepted for the dev/dave code merge only. Running the migration from the active local environment would be unsafe; complete this check after the normal dev deployment applies the migration."
+    },
+    {
+      "id": "T6",
+      "title": "Nullable parser assignment and migration contracts",
+      "surface": "cli",
+      "precondition": "Feature worktree dependencies are available; no live database is required.",
+      "steps": [
+        "Run the focused admin PMS assignment, parser registry, and follow-up migration Vitest files.",
+        "Run backend TypeScript, focused ESLint, strict Code Constitution checks, and diff checks."
+      ],
+      "expected": "Null and legacy default assignments normalize to stored null, custom assignments remain intact, the migration drops the old default/not-null constraints in the safe order, and no structural violation is introduced.",
+      "status": "pass",
+      "evidence": "2026-07-13 execution integrity: 3 backend test files and 12 tests passed; backend TypeScript passed; focused ESLint had zero errors; strict convention check reported zero structural violations; app and docs diffs passed whitespace checks.",
+      "notes": "The migration was not applied to any database during this execution phase.",
+      "waiver": ""
+    },
+    {
+      "id": "T7",
+      "title": "Parser-owned formula visibility and stale-state protection",
+      "surface": "cli",
+      "precondition": "Frontend test dependencies are available.",
+      "steps": [
+        "Run the nullable selector, PMS manual-entry modal, and paste-pipeline Vitest files.",
+        "Run frontend TypeScript and focused ESLint for the changed admin and PMS files."
+      ],
+      "expected": "The configurable default option maps to null, DentalEMR remains explicit, default mappings can show Formula settings, custom parsers show neither the toggle nor drawer, and invalidated mapping responses cannot restore stale controls.",
+      "status": "pass",
+      "evidence": "2026-07-13 execution integrity: 3 frontend test files and 12 tests passed; frontend TypeScript passed; focused ESLint had zero errors and only pre-existing file-length warnings.",
+      "notes": "This is component and contract evidence; authenticated browser behavior remains pending.",
+      "waiver": ""
+    },
+    {
+      "id": "T8",
+      "title": "Authenticated default versus DentalEMR formula behavior",
+      "surface": "ui",
+      "precondition": "A local-safe Alloro environment is running at http://localhost:3000/admin with email sending disabled, the follow-up migration applied only to its local database, and a super-admin test session is available.",
+      "steps": [
+        "Open an organization in Admin and confirm PMS Parser is immediately right of Type with Default (configurable formula) selected for a null assignment.",
+        "Pilot into a default-parser test organization, paste recognized columns, and confirm Formula settings and its drawer are available.",
+        "Assign DentalEMR, Pilot again, test both paste and drag/drop previews, and confirm neither the formula toggle nor drawer appears.",
+        "Switch between parser results and confirm a late or stale mapping response cannot reopen the drawer."
+      ],
+      "expected": "Admin assignment and Referrals Hub behavior match the nullable/default and parser-owned formula contract without sending email.",
+      "status": "fail",
+      "evidence": "No authenticated browser session was run. Dev workflow 29321162841 succeeded on 2026-07-14, both migrations are applied with no pending migrations, and https://dev.getalloro.com/api/health/db returned healthy.",
+      "notes": "Post-deploy dev validation is still recommended before promotion to main.",
+      "waiver": "Dave explicitly waived this authenticated local UI check on 2026-07-14 for the requested dev/dave merge. No email was sent and no local database migration was run."
+    },
+    {
+      "id": "T9",
+      "title": "Rev 2 full regression and documentation build",
+      "surface": "cli",
+      "precondition": "The user approves the test/verification phase.",
+      "steps": [
+        "Run the full backend and frontend Vitest suites and production builds.",
+        "Run npm run check:all, feature-scoped lint, Alloro Docs build, and final diff checks."
+      ],
+      "expected": "No Rev 2 regression remains and the Referrals Hub parser/formula guidance builds successfully.",
+      "status": "fail",
+      "evidence": "Focused Rev 2 backend/frontend tests, TypeScript checks, ESLint, strict conventions, and diff checks passed. Dev workflow 29321162841 then passed backend/frontend production builds and both deployment health checks. The full test suites, npm run check:all, and Alloro Docs build were not rerun after Rev 2.",
+      "notes": "The CI production builds now have fresh Rev 2 evidence. The full test-suite and Docs-build portions remain covered only by the written waiver.",
+      "waiver": "Dave explicitly waived the Rev 2 full regression, production builds, and Alloro Docs build on 2026-07-14 for the requested dev/dave merge."
+    }
+  ]
+}

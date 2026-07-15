@@ -142,7 +142,6 @@ export function ReferralEngineDashboard(props: ReferralEngineDashboardProps) {
       const result = await uploadPMSData({
         domain,
         file,
-        pmsType: "auto-detect",
       });
 
       if (result.success) {

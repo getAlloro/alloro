@@ -58,12 +58,19 @@ export function PatientJourneyContextCards({
         : `#${rank.position} locally`
       : "Rank not available yet";
 
+  // FIX 4: the stored-row count is dropped here so it cannot contradict
+  // Google's all-time total (the aggregate lives on exactly one surface, GBP).
   const reviewStat =
     reviews.available && reviews.rating !== null
-      ? `${reviews.rating.toFixed(1)}★${reviews.count !== null ? ` · ${reviews.count} reviews` : ""}`
+      ? `${reviews.rating.toFixed(1)}★`
       : "Reviews not connected yet";
 
   const reviewLines: string[] = [];
+  // Lead with the Memorable card's caught insight + one move, when present.
+  if (reviews.card) {
+    reviewLines.push(reviews.card.headline);
+    reviewLines.push(reviews.card.action);
+  }
   if (reviews.available) {
     if (reviews.newThisMonth !== null) {
       reviewLines.push(`${reviews.newThisMonth} new reviews this month`);

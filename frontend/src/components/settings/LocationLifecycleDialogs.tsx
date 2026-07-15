@@ -12,7 +12,7 @@ import {
   reopenLocation,
   type Location,
 } from "../../api/locations";
-import { formatCents } from "./PlanLocationSummary";
+import { formatCents } from "./billingFormat";
 import { showErrorToast, showSuccessToast } from "../../lib/toast";
 import { logger } from "../../lib/logger";
 

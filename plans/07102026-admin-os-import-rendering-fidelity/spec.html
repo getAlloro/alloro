@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin OS Import Rendering Fidelity Spec</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; margin-top: 14px; background: var(--soft); }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 900px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; }
+    h2 { font-size: 1.35rem; }
+    h3 { font-size: 1rem; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    ul { padding-left: 22px; }
+    li + li { margin-top: 7px; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    .table-wrap { overflow-x: auto; margin-top: 14px; border: 1px solid var(--line); border-radius: 8px; }
+    table { width: 100%; min-width: 840px; border-collapse: collapse; font-size: 0.92rem; }
+    th, td { padding: 12px 14px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { background: var(--soft); font-size: 0.76rem; text-transform: uppercase; }
+    tr:last-child td { border-bottom: 0; }
+    .callout { border: 1px solid var(--ink); border-radius: 8px; padding: 16px; background: var(--soft); }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill">Completed</span>
+      </div>
+      <h1>Admin OS Import Rendering Fidelity</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/07102026-admin-os-import-rendering-fidelity</dd></div>
+        <div><dt>Size</dt><dd>Large</dd></div>
+        <div><dt>Risk</dt><dd>Level 2</dd></div>
+        <div><dt>Migration</dt><dd>None</dd></div>
+        <div><dt>Target</dt><dd>dev/dave</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>Admin OS accepts Word, Excel, PDF, and Markdown files, but the current PDF converter discards table geometry and embedded images before the Markdown renderer receives them. Wide GFM tables produced by DOCX/XLSX also lack a bounded horizontal-scroll treatment. The result is misleading: the upload succeeds and indexes, but the stored document no longer preserves the source's useful structure.</p>
+      <p>This plan is a focused fidelity follow-up to <code>plans/07042026-alloro-os-admin-port</code>. It does not rewrite that historical plan or expand OS into a second knowledge system.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Upgrade the existing import pipeline so supported formats preserve their semantic content in the Markdown system: headings, lists, basic tables, and renderable raster images. PDF conversion uses deterministic extraction first and a bounded Gemini page-layout fallback only when a page is low-text, table-heavy, or multi-column. Extracted images remain real assets stored through <code>OsAssetService</code>; Gemini never fabricates image URLs.</p>
+      <p><strong>Definition of correctly rendered:</strong> semantic fidelity and usable reading, not pixel-perfect cloning of an arbitrary office document. The original file remains the exact source artifact in S3.</p>
+
+      <div class="table-wrap" role="region" aria-label="Supported format contract" tabindex="0">
+        <table>
+          <thead>
+            <tr><th>Format</th><th>Required result</th><th>Known boundary</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>.docx</code></td><td>Headings, lists, basic GFM tables, and embedded PNG/JPEG/GIF/WebP images continue to round-trip.</td><td>Complex Word layout, floating shapes, and unsupported vector formats remain warnings.</td></tr>
+            <tr><td><code>.xlsx</code></td><td>Each sheet remains a GFM table; OOXML drawing relationships are used to extract embedded raster images and append them to the owning sheet in anchor order.</td><td>Cell styling, charts, macros, and exact drawing placement are not representable in Markdown.</td></tr>
+            <tr><td><code>.xls</code></td><td>Cell data remains a GFM table.</td><td>Legacy binary embedded-image extraction remains unsupported and must produce an honest warning, not silent loss.</td></tr>
+            <tr><td><code>.pdf</code></td><td>Text, headings, lists, tables, and embedded raster images are preserved page-by-page. Layout-heavy pages may use bounded Gemini vision with deterministic fallback.</td><td>PDF remains best-effort; unsupported/vector artwork and layout ambiguity produce visible import warnings.</td></tr>
+            <tr><td><code>.md</code>/<code>.markdown</code></td><td>Byte-preserving Markdown passthrough.</td><td>Relative sidecar files are not bundled; image references must already be reachable URLs or OS asset URLs.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Observed Failure</h3>
+      <ul>
+        <li><code>Alloro Rules Repository - Alloro Rules Repository.pdf</code> is a one-page Google Sheets export. Current conversion emits zero GFM table rows and flattens eight columns into sequential text.</li>
+        <li><code>Alloro_Tech_Stack_Reference (1).pdf</code> is five pages and contains one 1626x786 raster diagram plus three detectable tables. Current conversion emits zero images.</li>
+        <li>The installed <code>pdf-parse@2.4.5</code> already extracts the Tech Stack diagram, detects the document tables, renders page screenshots, and needs no new dependency. Its grid detector still misses the landscape Rules PDF, which establishes the need for a bounded layout fallback.</li>
+      </ul>
+
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>src/controllers/admin-os/feature-services/OsConversionService.ts</code> - converter dispatch, extracted-image persistence handoff, v1 write, and ingest enqueue.</li>
+        <li><code>src/controllers/admin-os/feature-services/conversion/pdfConverter.ts</code> - current text-only PDF converter and deterministic fallback to preserve.</li>
+        <li><code>src/controllers/admin-os/feature-services/conversion/xlsxConverter.ts</code> - current SheetJS-to-GFM table path.</li>
+        <li><code>src/controllers/admin-os/feature-services/conversion/docxConverter.ts</code> - working embedded-image placeholder analog.</li>
+        <li><code>src/controllers/admin-os/feature-services/OsAssetService.ts</code> - canonical <code>os.assets</code> and S3 persistence/rewrite path.</li>
+        <li><code>src/controllers/admin-os/feature-services/service.os-llm.ts</code> - the only Gemini provider seam; image-page transcription must live behind this interface.</li>
+        <li><code>src/config/osKnowledgeBase.ts</code> - named, startup-validated OS limits.</li>
+        <li><code>frontend/src/components/Admin/os/read/OsMarkdownBody.tsx</code> - React Markdown + remark-gfm reader.</li>
+        <li><code>frontend/src/components/Admin/os/edit/OsEditor.tsx</code> and <code>osEditorExtensions.ts</code> - TipTap Markdown editor; the installed table extension supports <code>.tableWrapper</code>, but its verified default is <code>renderWrapper: false</code>.</li>
+        <li><code>frontend/src/components/Admin/os/import/OsDropzone.tsx</code> - supported-format copy that currently overstates equivalent fidelity.</li>
+      </ul>
+
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li><strong>Backend reference - Constitution §6.1:</strong> <code>src/controllers/gbp-automation/</code> for thin orchestration, domain services, named utilities, typed errors, and Pino logging.</li>
+        <li><strong>Frontend reference - Constitution §12.1:</strong> the <code>frontend/src/api/</code> + React Query + feature-folder triad. This feature adds no API route, so frontend work stays presentational inside <code>components/Admin/os/</code>.</li>
+        <li><strong>Image reference:</strong> <code>docxConverter.ts</code> + <code>OsAssetService.embedExtractedImages()</code> for scheme-free placeholders, supported MIME validation, S3 upload, and Markdown URL rewrite.</li>
+        <li><strong>Scrollable-table visual reference:</strong> <code>frontend/src/components/dashboard/rankings/CompetitorComparisonTable.tsx</code> for a bounded thin scrollbar using existing Alloro tokens.</li>
+      </ul>
+
+      <h3>Constitution Articles</h3>
+      <p>Backend: §2.1-§2.4, §3.1-§3.4, §4.2, §4.4, §5.2-§5.3, §6.1-§6.3, §7.1, §9.1-§9.3, §20.1-§20.4, §21.1-§21.4. Frontend: §12.1-§12.4, §13.1-§13.3, §17.1-§17.5. Acceptance: §20.5.</p>
+
+      <h3>Repository State At Planning</h3>
+      <ul>
+        <li>App branch is <code>dev/dave</code>, two unrelated commits behind <code>origin/dev/dave</code>. The only task-owned change is this plan folder; an unrelated untracked <code>tmp/dentalemr_analysis.py</code> appeared during planning and must be preserved/excluded. Execution must fast-forward safely before code changes.</li>
+        <li>Alloro Docs has no Admin OS documentation surface and is one local commit ahead on <code>main</code>. No docs file is part of this plan because OS is an internal super-admin tool and intentionally absent from client-facing docs.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="scope-ledger">
+      <h2>Scope Ledger</h2>
+      <div class="split-grid">
+        <div><h3>Objective</h3><p>Preserve semantic tables/images in supported Admin OS imports and make wide tables usable.</p></div>
+        <div><h3>Intended User</h3><p>Internal Alloro super-admins.</p></div>
+        <div><h3>Surface</h3><p><code>/admin/os</code> upload modal, reader, and editor.</p></div>
+        <div><h3>System Of Record</h3><p><code>content_md</code>, <code>os.assets</code>, archived source object.</p></div>
+      </div>
+      <h3>Suggested Related Features</h3>
+      <ul>
+        <li><strong>Adjacent/backlog:</strong> an authenticated original-file preview/download surface. Useful for exact visual reference, but not required to repair semantic Markdown import.</li>
+        <li><strong>Adjacent/backlog:</strong> support for PPTX/CSV/HTML. Adding formats changes the allowlist and converter contract and needs a separate plan.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Use the existing <code>pdf-parse</code>, <code>pdfjs-dist</code>, <code>JSZip</code>, SheetJS, Gemini, S3, and Markdown stack. No new npm dependency without a spec revision (§4.4).</li>
+            <li>Keep converter orchestration split into single-purpose files rather than expanding <code>pdfConverter.ts</code> into a large parser (§2.1-§2.4).</li>
+            <li>Run deterministic extraction first. Vision is a bounded fallback and must degrade to readable text plus warnings when Gemini is missing, busy, or malformed (§3.1-§3.3).</li>
+            <li>Send page images to Gemini only through <code>service.os-llm.ts</code>; never log image bytes, base64, document text, credentials, or presigned URLs (§5.3, §9.3).</li>
+            <li>Persist extracted images through <code>OsAssetService</code>. Converters return placeholders and buffers; they do not write S3 or the DB directly (§7.1).</li>
+            <li>Use named, startup-validated page width/page count/image threshold limits in <code>osKnowledgeBase.ts</code> (§4.2, §5.6).</li>
+            <li>Keep the import job idempotent and preserve existing retry/failure behavior (§21.1-§21.4).</li>
+            <li>Give both read and edit tables bounded horizontal scrolling, visible keyboard focus, and preserved native table semantics.</li>
+            <li>Use synthetic committed fixtures only; the two supplied internal PDFs are manual acceptance inputs and must not enter Git (§20.4).</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>Do not promise pixel-perfect reproduction of arbitrary PDF/DOCX/XLSX layout.</li>
+            <li>Do not add a second asset store, direct public S3 URLs, raw HTML in Markdown, or data URLs in stored content.</li>
+            <li>Do not let Gemini invent source text, rows, image URLs, citations, or missing content. Malformed output falls back and warns.</li>
+            <li>Do not silently discard unsupported images or truncated layout work; record a specific import warning.</li>
+            <li>Do not change OS routes, schema, RAG indexing, chunking, version semantics, or client-facing dashboard surfaces. Rev 5 may delegate only the read-only OS asset prefix through the app-level guard to its existing route-specific JWT and super-admin middleware; do not broaden or weaken any other auth boundary.</li>
+            <li>Do not touch unrelated changes in <code>alloro-docs</code> or the two remote commits currently ahead of the local branch.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Pixel-perfect rendering, page-layout editing, charts as live data visualizations, macros, embedded video/audio, SVG/EMF/WMF execution, or sidecar-folder imports.</li>
+        <li>Embedded-image extraction from legacy binary <code>.xls</code>. The converter must preserve cell tables and warn honestly.</li>
+        <li>Reprocessing old imported documents automatically. Existing documents can be re-uploaded after the fix; a batch backfill needs a separate plan.</li>
+        <li>Alloro Docs parity changes. OS is internal super-admin-only and has no client docs entry; this check is recorded rather than skipped.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level: 2 - Concern.</strong> The change touches the conversion worker, sends selected page screenshots to the existing Gemini provider, writes extracted images to the existing AWS S3 bucket, and changes reader/editor presentation. It is additive and has no schema or auth change, but malformed AI output or unbounded page processing could corrupt content or amplify cost.</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><strong>AI transcription can omit or invent structure.</strong> <strong>Mitigation:</strong> deterministic extraction first; strict exact-transcription prompt; image-marker contract; Markdown validation; bounded retry; fallback to deterministic text and a persisted warning.</li>
+        <li><strong>Latency and Gemini cost can scale with page count.</strong> <strong>Mitigation:</strong> invoke vision only for low-text/table/layout/image-placement pages; render at a named width; process sequentially or with very small bounded concurrency; cap vision pages with an env-overridable limit and warn when exceeded.</li>
+        <li><strong>PDF images lack reliable MIME/position metadata.</strong> <strong>Mitigation:</strong> sniff PNG/JPEG/GIF/WebP signatures, reject unknown formats, use page-order markers when vision succeeds, and append unmatched extracted images to the correct page section with a warning.</li>
+        <li><strong>XLSX OOXML relationships vary by producer.</strong> <strong>Mitigation:</strong> support standard worksheet/drawing/media relationships, sort by anchor row/column, ignore unsafe paths, and fall back to table-only with a warning for unsupported packages.</li>
+        <li><strong>Live acceptance writes external state.</strong> <strong>Mitigation:</strong> automated tests mock S3/Gemini; the testing phase explicitly names the AWS/Gemini blast radius, uses test-prefixed documents, and removes documents, assets, and S3 objects after evidence is captured.</li>
+        <li><strong>Wide-table wrappers can break semantics or editor layout.</strong> <strong>Mitigation:</strong> keep the real <code>&lt;table&gt;</code>, add a focusable overflow region only around it, target TipTap's existing <code>.tableWrapper</code>, and test keyboard/overflow behavior.</li>
+        <li><strong>The app-level default-deny guard currently intercepts image requests before the OS asset route can read its query JWT.</strong> <strong>Mitigation:</strong> delegate only <code>/api/admin/os/assets/*</code> to the existing route-specific JWT verifier and super-admin middleware; test missing and invalid tokens and keep every other Admin OS path on header auth.</li>
+        <li><strong>Editor parity changes touch ProseMirror selection, deletion, and Markdown serialization.</strong> <strong>Mitigation:</strong> port only the final proven Alloro OS Rev 8/15/17-20 design, keep the plain table node (not the failed table node-view attempts), isolate image/delete logic in dedicated extensions and node views, and add model/round-trip/component regression tests.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> Admin OS import conversion, OS Gemini provider interface/fakes, OS config parsing/tests, OS asset placeholder and delivery flow, the app-level default-deny allowlist for one read-only path, the shared OS shell width, OS Library drop behavior, OS reader/editor tables, upload-format copy, and conversion/integration tests. No database table, route definition, RAG algorithm, version model, or client dashboard consumer changes.</p>
+      <h3>Pushback</h3>
+      <div class="callout">
+        <p><strong>Do not define success as lossless conversion.</strong> Markdown cannot represent every merged cell, floating object, chart, macro, or PDF drawing operation. The recommended contract is semantic fidelity plus visible warnings and retention of the original source object. Future exact visual preview belongs in the adjacent original-file preview feature.</p>
+      </div>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <p><strong>Execution waves:</strong> Wave 1 runs T1, T3, and T4 independently; Wave 2 runs T2 after T1; Wave 3 runs T5 after all implementation tasks. Because this is a Large plan with five tasks and more than ten files, execution should dispatch the independent Wave 1 groups to bounded sub-agents with strict file ownership, then integrate sequentially.</p>
+
+      <article class="task-card">
+        <h3>T1: Deterministic PDF structure and image extraction</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Replace manual text-only pdfjs orchestration with a thin <code>pdf-parse</code> adapter that returns per-page text, detected tables, embedded images, and optional screenshots. Add pure helpers for GFM table escaping, page/layout signals, PNG/JPEG/GIF/WebP signature detection, image placeholders, and deterministic fallback. Always destroy the parser in <code>finally</code>.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/admin-os/feature-services/conversion/pdfConverter.ts</code>; new <code>pdfParseAdapter.ts</code>; new <code>pdfConversionMarkdown.ts</code>; <code>src/controllers/admin-os/feature-utils/osConversionTypes.ts</code> if per-page types are shared</dd></div>
+          <div><dt>Depends on</dt><dd>None</dd></div>
+          <div><dt>Verify</dt><dd>Synthetic table/image PDFs produce page-ordered structures, real image buffers, valid MIME values, and deterministic text when no vision provider is used.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: Bounded Gemini PDF layout fallback</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add a provider-neutral <code>transcribeDocumentPageToMarkdown</code> method to <code>OsLlmProvider</code>, with Gemini inline PNG data in the real provider and deterministic output in the fake. Trigger it only for low-text, detected-table, tabular/multi-column, or image-placement pages. Require exact GFM, no fabrication, and stable <code>[[IMAGE_n]]</code> markers; replace markers with actual extracted-image placeholders. On missing/busy/malformed output, preserve deterministic content and record a page-specific warning. Add startup-validated page-width, image-threshold, and vision-page caps.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/admin-os/feature-services/service.os-llm.ts</code>; new <code>src/controllers/admin-os/feature-services/conversion/pdfVisionConverter.ts</code>; <code>src/controllers/admin-os/feature-services/conversion/pdfConverter.ts</code>; <code>src/config/osKnowledgeBase.ts</code>; <code>src/__tests__/os-foundation.test.ts</code>; <code>src/__tests__/os-ingest.test.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>Fake provider proves marker placement and table Markdown; throwing/busy/malformed providers prove readable fallback, bounded attempts, warnings, and no import failure.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: XLSX embedded-image extraction</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Keep SheetJS as the cell/table source. Use existing JSZip to read standard OOXML worksheet, drawing, relationship, anchor, and <code>xl/media</code> parts; validate internal paths; extract renderable raster images; and add them after the owning sheet table in anchor order. Preserve <code>.xls</code> table behavior and record an explicit legacy-image warning.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/admin-os/feature-services/conversion/xlsxConverter.ts</code>; new <code>xlsxImageExtractor.ts</code>; <code>src/controllers/admin-os/feature-utils/osConversionTypes.ts</code> only if shared metadata is needed</dd></div>
+          <div><dt>Depends on</dt><dd>None</dd></div>
+          <div><dt>Verify</dt><dd>A synthetic XLSX with two sheets and an anchored PNG produces both GFM tables plus one placeholder under the correct sheet; a plain XLS and malformed drawing relationship remain readable and warn.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: Accessible wide-table presentation and honest upload copy</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add a named React Markdown table component that wraps the semantic table in a focusable <code>overflow-x-auto</code> region with Alloro's thin scrollbar treatment and <code>min-w-max</code> table sizing. Enable TipTap's existing <code>renderWrapper</code> option and target the resulting <code>.tableWrapper</code> with the same bounded overflow behavior in the editor. Keep image auth rendering unchanged. Update upload copy to describe semantic conversion and PDF best-effort behavior without implying lossless parity.</dd></div>
+          <div><dt>Files</dt><dd>New <code>frontend/src/components/Admin/os/read/OsMarkdownTable.tsx</code>; <code>frontend/src/components/Admin/os/read/OsMarkdownBody.tsx</code>; <code>frontend/src/components/Admin/os/edit/OsEditor.tsx</code>; <code>frontend/src/components/Admin/os/edit/osEditorExtensions.ts</code>; <code>frontend/src/components/Admin/os/import/OsDropzone.tsx</code>; new <code>frontend/src/components/Admin/os/read/OsMarkdownBody.test.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>None</dd></div>
+          <div><dt>Verify</dt><dd>Frontend test asserts real table semantics, focusable overflow region, wide-table classes, existing authenticated image renderer, and copy. Manual keyboard scroll in read and edit views.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T5: Conversion regression and behavioral acceptance</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add synthetic, non-sensitive in-memory document builders that reproduce tabular PDF pages, a PDF with one embedded raster image, and an XLSX with one drawing image. Expand unit and DB-backed integration coverage through <code>OsConversionService</code> and mocked S3. During the separate testing gate, upload the two supplied PDFs through <code>http://localhost:3000/admin/os</code> or dev only after stating the AWS S3/Gemini blast radius; capture evidence; confirm exact table/image outcomes; and clean up all test state. Generate <code>test.html</code> and <code>test-results.json</code> with these items pending until that gate runs.</dd></div>
+          <div><dt>Files</dt><dd><code>src/__tests__/os-conversion.test.ts</code>; <code>src/integration-tests/os/p6-imports.itest.ts</code>; <code>plans/07102026-admin-os-import-rendering-fidelity/test.html</code>; <code>plans/07102026-admin-os-import-rendering-fidelity/test-results.json</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1, T2, T3, T4</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code>; <code>npm run check:all</code>; targeted backend Vitest; <code>npm run test:integration:os -- p6-imports.itest.ts</code>; <code>npm --prefix frontend run test -- OsMarkdownBody.test.tsx</code>; <code>npm run build</code>; <code>npm --prefix frontend run build</code>; manual Admin OS acceptance.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T6 (Rev 3): Library-level multi-file drag and drop</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Turn the full Library card into a native file-drop surface. When one or more files are dragged over it, show a clear bounded overlay and forward the complete batch once to the Library import handler. Keep the Import button path unchanged and ignore non-file drags so document/folder DnD remains intact. Rev 5 T7 owns the final direct-import behavior and supersedes Rev 3's temporary modal presentation.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/pages/admin/os/OsLibrary.tsx</code>; <code>frontend/src/components/Admin/os/library/OsLibraryToolbar.tsx</code>; new <code>frontend/src/components/Admin/os/library/OsLibraryFileDropSurface.tsx</code>; new <code>frontend/src/components/Admin/os/library/OsLibraryFileDropSurface.test.tsx</code>; new <code>frontend/src/components/Admin/os/library/useOsLibraryImport.ts</code>; <code>frontend/src/components/Admin/os/import/OsImportModal.tsx</code>; new <code>frontend/src/components/Admin/os/import/OsImportModal.test.tsx</code>; new <code>frontend/src/components/Admin/os/import/useOsImportBatch.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T5 implementation</dd></div>
+          <div><dt>Verify</dt><dd>Frontend tests prove two dropped files are forwarded together, the overlay clears, and non-file drags are ignored. T7 tests prove the Library handler submits the batch exactly once without opening the modal.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T7 (Rev 5): Wider OS shell and direct library-drop imports</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Increase the shared Admin OS shell from a 1200px cap to a 1600px cap so Library, document reader, editor, Chat, and Trash use the available desktop width. Keep the Import button modal, but make native file drops call the existing batch import mutation directly so dropped documents appear in the Library without opening the modal. Remove the dropped-file auto-submit contract from the modal and keep non-file document/folder dragging unchanged.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/pages/admin/os/OsShell.tsx</code>; <code>frontend/src/pages/admin/os/OsLibrary.tsx</code>; <code>frontend/src/components/Admin/os/library/useOsLibraryImport.ts</code>; new <code>frontend/src/components/Admin/os/library/useOsLibraryImport.test.tsx</code>; <code>frontend/src/components/Admin/os/import/OsImportModal.tsx</code>; <code>frontend/src/components/Admin/os/import/OsImportModal.test.tsx</code>; <code>frontend/src/components/Admin/os/import/useOsImportBatch.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T6</dd></div>
+          <div><dt>Verify</dt><dd>Frontend tests prove a dropped batch calls the existing import mutation once while the modal remains closed; manual inspection confirms the wider shared shell at <code>http://localhost:3000/admin/os</code> and that the Import button still opens the picker modal.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T8 (Rev 5): Authenticated OS asset delivery through the default-deny guard</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Delegate only the read-only <code>/api/admin/os/assets/*</code> prefix past the app-level header-only guard so the route's existing header-or-query JWT middleware and super-admin middleware can authenticate image requests. Keep all other Admin OS paths on the global Authorization-header gate and retain the short-lived S3 redirect.</dd></div>
+          <div><dt>Files</dt><dd><code>src/middleware/publicRoutes.ts</code>; new <code>src/__tests__/os-asset-auth.test.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>None</dd></div>
+          <div><dt>Verify</dt><dd>Middleware tests prove only the asset prefix reaches its route-specific auth without an Authorization header. A signed local request to a real extracted asset must return 302 and the target must return the stored PNG bytes; missing/invalid tokens must still fail.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T9 (Rev 6): Alloro OS editor interaction parity</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Port the final editor behavior from <code>/Users/rustinedave/Desktop/alloro-os</code>, specifically file-import plan Revs 8, 15, and 17-20. Keep the toolbar sticky below the Admin Hub's 104px sticky header stack; add the image insert action; use the final floating table-corner gear (not a table node view) with add/delete row and column plus delete-table actions; add a resizable image node with top-right two-step delete and bottom-right resize controls; intercept Backspace/Delete on selected images; select an image when Backspace reaches it across direct or nested block boundaries; clear an empty code block before joining backward; preserve image width through a <code>#w=N</code> Markdown fragment while rendering authenticated asset URLs correctly; and normalize block images that serialize directly against the following block.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/pages/admin/os/OsDocumentEdit.tsx</code>; <code>frontend/src/components/Admin/os/edit/OsEditor.tsx</code>; <code>OsEditorToolbar.tsx</code>; <code>osEditorExtensions.ts</code>; new dedicated toolbar pieces, <code>OsTableFloatingMenu.tsx</code>, <code>OsResizableImage.ts</code>, <code>OsResizableImageView.tsx</code>, <code>osBlockBackspace.ts</code>, and focused tests; <code>frontend/src/components/Admin/os/shared/osMarkdown.ts</code>; <code>frontend/src/components/Admin/os/read/OsMarkdownBody.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T4 and T8</dd></div>
+          <div><dt>Verify</dt><dd>Tests prove image-frontier position math, empty-code-block detection, width-fragment/auth URL rendering, glued-image normalization, sticky toolbar offset, image insertion control, semantic/full-width table retention, and the table-corner action menu. Manual: select/delete/resize an image, Backspace toward it from the following block, and add/delete table rows and columns.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="acceptance">
+      <h2>Behavioral Acceptance</h2>
+      <ul>
+        <li><strong>Rules PDF:</strong> the reader shows one eight-column GFM table with the five source rules; multiline descriptions/notes remain in their cells; the table scrolls horizontally without widening the reading card.</li>
+        <li><strong>Tech Stack PDF:</strong> the architecture diagram renders as a real OS asset; the document-owner, monthly-cost, and revision-history tables render as tables; headings and lists remain readable and page-ordered.</li>
+        <li><strong>XLSX:</strong> each sheet renders as a table and an embedded PNG appears under the correct sheet; legacy XLS remains table-only with a visible warning when image extraction is unavailable.</li>
+        <li><strong>DOCX/Markdown regression:</strong> current table/image behavior and Markdown passthrough remain unchanged.</li>
+        <li><strong>Failure mode:</strong> missing or failing Gemini never fails the import; deterministic content, actual extracted images, and page-specific warnings remain.</li>
+        <li><strong>Accessibility:</strong> wide tables are keyboard-focusable and horizontally scrollable in both reader and editor, while retaining native table markup.</li>
+        <li><strong>OS workspace width:</strong> the shared Library, reader, editor, Chat, and Trash shell uses up to 1600px on wide desktop screens while retaining its responsive gutters.</li>
+        <li><strong>Library drag and drop:</strong> dropping multiple supported files anywhere on the Library card starts one batch and adds the processing documents directly to the Library without opening the import modal; non-file document/folder dragging continues to work.</li>
+        <li><strong>Image delivery:</strong> stored <code>/api/admin/os/assets/{id}</code> Markdown images pass the app-level guard into the route-specific JWT and super-admin checks, then render from the short-lived S3 redirect.</li>
+        <li><strong>Editor parity:</strong> the toolbar stays visible below the Admin Hub header; a selected table exposes its gear at the table edge; images expose delete/resize edge controls and preserve width; Backspace never silently consumes the block above an image or empty code block.</li>
+        <li><strong>Cleanup:</strong> manual test documents, DB rows, asset rows, archived imports, and S3 objects are removed after evidence is captured.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" checked disabled> <code>npx tsc --noEmit</code> passes with zero errors caused by this work.</li>
+        <li><input type="checkbox" checked disabled> <code>npm run check:all</code> reports only classified pre-existing advisory baseline findings.</li>
+        <li><input type="checkbox" checked disabled> Targeted converter/provider tests pass, including deterministic fallback, hallucination guard, MIME validation, caps, and warnings.</li>
+        <li><input type="checkbox" checked disabled> OS P6 integration proves PDF/XLSX extracted images become <code>os.assets</code> rows and stored Markdown uses authenticated asset URLs.</li>
+        <li><input type="checkbox" checked disabled> Frontend tests, backend build, and frontend build pass.</li>
+        <li><input type="checkbox" checked disabled> Manual Rules PDF browser acceptance was explicitly waived by the user on 2026-07-14; no pass is claimed.</li>
+        <li><input type="checkbox" checked disabled> Manual Tech Stack PDF browser acceptance was explicitly waived by the user on 2026-07-14; no pass is claimed.</li>
+        <li><input type="checkbox" checked disabled> <code>test-results.json</code> rolls up to <code>Passed</code> through written failure waivers, without fabricating browser evidence (§20.5).</li>
+        <li><input type="checkbox" checked disabled> No new dependency, migration, route, secret logging, raw S3 URL, or unrelated refactor; the only auth-boundary change is the scoped asset-route delegation recorded in Rev 5.</li>
+        <li><input type="checkbox" checked disabled> Alloro Docs parity checked and recorded as N/A because Admin OS is intentionally internal and absent from client-facing docs.</li>
+        <li><input type="checkbox" checked disabled> The shared Admin OS shell uses a 1600px desktop cap without removing responsive gutters; live visual confirmation was waived.</li>
+        <li><input type="checkbox" checked disabled> Library-level drag and drop accepts multiple files in one automated batch and leaves the modal closed; live signed-in confirmation was waived.</li>
+        <li><input type="checkbox" checked disabled> A stored extracted PNG resolves through the authenticated OS asset route to valid image bytes; missing or invalid tokens remain blocked.</li>
+        <li><input type="checkbox" checked disabled> Editor parity is covered for sticky toolbar, table controls, image controls, Backspace behavior, width persistence, and Markdown normalization; live interaction confirmation was waived.</li>
+        <li><input type="checkbox" checked disabled> Manual acceptance cleanup was explicitly waived; existing local test documents and stored assets remain cleanup debt.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-07-10</h3>
+        <p><strong>Change:</strong> Added <code>osEditorExtensions.ts</code> to T4 and enabled TipTap's supported <code>renderWrapper</code> option before styling <code>.tableWrapper</code>.</p>
+        <p><strong>Reason:</strong> Execution deviation: the installed <code>@tiptap/extension-table</code> defaults <code>renderWrapper</code> to false, so the wrapper assumed during planning was not present in the current editor DOM.</p>
+        <p><strong>Updated Done criteria:</strong> Frontend tests must prove the wrapper option is enabled and editor tables use the bounded overflow treatment.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 2 - 2026-07-10</h3>
+        <p><strong>Change:</strong> T5 now generates synthetic PDF parser results and OOXML drawing workbooks in memory instead of committing new binary fixture files.</p>
+        <p><strong>Reason:</strong> Execution deviation: in-memory builders cover the same parser, hallucination, asset, and DB integration contracts while keeping internal source documents and opaque generated binaries out of Git.</p>
+        <p><strong>Updated Done criteria:</strong> Unit and P6 integration tests must prove PDF/XLSX image placeholder rewriting with mocked S3 and synthetic data.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 3 - 2026-07-10</h3>
+        <p><strong>Change:</strong> Added T6 for library-level drag and drop of one or many files, reusing the existing batch import mutation and modal rather than adding a parallel upload path.</p>
+        <p><strong>Reason:</strong> Scope addition: user QA showed that multi-file drag and drop was available only inside the Import modal, not on the empty or populated Library surface.</p>
+        <p><strong>Updated Done criteria:</strong> The Library card must show an accessible drag-over state, forward all dropped files as one batch exactly once, and leave document/folder DnD unchanged.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 4 - 2026-07-10</h3>
+        <p><strong>Change:</strong> Added <code>useOsLibraryImport.ts</code> and <code>useOsImportBatch.ts</code> to keep the Rev 3 state and effect logic outside the Library page and modal render functions.</p>
+        <p><strong>Reason:</strong> Execution deviation: focused ESLint showed the initial Rev 3 patch pushed both component functions beyond the configured 120-line warning threshold.</p>
+        <p><strong>Updated Done criteria:</strong> Focused frontend ESLint must pass without new component-length warnings, and each new hook must remain single-purpose and compact.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 5 - 2026-07-10</h3>
+        <p><strong>Change:</strong> Added T7 to widen the shared OS shell and make Library file drops import directly without the modal. Added T8 to let the read-only asset path reach its existing query-token JWT and super-admin checks through the app-level default-deny guard.</p>
+        <p><strong>Reason:</strong> User QA: wide screens remained cramped, dropped files opened an unnecessary modal, and the imported Tech Stack PNG existed in Markdown, the local database, and S3 but its browser request was intercepted with a 401 before the route-specific asset middleware ran.</p>
+        <p><strong>Updated Done criteria:</strong> All OS routes share the wider desktop cap; file drops add their processing documents directly to the Library exactly once; and an extracted PNG returns through authenticated asset delivery while missing or invalid tokens remain blocked.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 6 - 2026-07-10</h3>
+        <p><strong>Change:</strong> Added T9 to restore the final Alloro OS editor interaction contract from file-import plan Revs 8, 15, and 17-20: correctly-offset sticky toolbar, image insertion and edge controls, final non-node-view table-corner menu, intentional image deletion, safe Backspace behavior, image-width persistence, and Markdown normalization.</p>
+        <p><strong>Reason:</strong> User QA: the ported editor showed only the base toolbar and table, while the source repo's later editor refinements were not carried over. The user explicitly identified the sticky toolbar, table controls, image edge controls, and Backspace behavior as required parity.</p>
+        <p><strong>Updated Done criteria:</strong> The port must match the final source behavior and tests, must not reintroduce the failed narrow-table node-view designs from Revs 9/12-14, and must keep Markdown/authenticated asset storage compatible with the existing Admin OS backend.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 7 - 2026-07-14</h3>
+        <p><strong>Change:</strong> Finalized the plan with seven explicit acceptance waivers covering live browser table behavior, both supplied-PDF presentations, manual test-state cleanup, Library drag and drop, wide-shell presentation, and editor interactions. Corrected the Done contract to acknowledge the scoped asset-route auth delegation introduced in Rev 5.</p>
+        <p><strong>Reason:</strong> User QA: the user issued <code>waive -d commit and push</code>. Under Constitution §20.5, each unrun behavior is recorded as a waived failure rather than a fabricated pass. Automated tests and authenticated asset-byte verification remain the available evidence.</p>
+        <p><strong>Updated Done criteria:</strong> Finalization is accepted through written waivers. Live presentation and interaction checks are not claimed as passed, and existing local manual-test documents and stored assets remain explicit cleanup debt.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

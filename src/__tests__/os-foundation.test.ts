@@ -38,6 +38,9 @@ describe("osKnowledgeBase config (§5.6)", () => {
       importMaxFileMb: 25,
       importBatchMaxFiles: 20,
       pdfLowTextChars: 20,
+      pdfImageThreshold: 80,
+      pdfScreenshotWidth: 1600,
+      pdfVisionMaxPages: 10,
       assetUrlTtlSeconds: 300,
       lockTtlSeconds: 120,
     });
@@ -48,12 +51,18 @@ describe("osKnowledgeBase config (§5.6)", () => {
       OS_CHAT_MODEL: "gemini-alt",
       OS_RETRIEVAL_K: "5",
       OS_SIMILARITY_FLOOR: "0.45",
+      OS_PDF_IMAGE_THRESHOLD: "24",
+      OS_PDF_SCREENSHOT_WIDTH: "1200",
+      OS_PDF_VISION_MAX_PAGES: "4",
       OS_LOCK_TTL_SECONDS: "300",
     });
 
     expect(config.chatModel).toBe("gemini-alt");
     expect(config.retrievalK).toBe(5);
     expect(config.similarityFloor).toBe(0.45);
+    expect(config.pdfImageThreshold).toBe(24);
+    expect(config.pdfScreenshotWidth).toBe(1200);
+    expect(config.pdfVisionMaxPages).toBe(4);
     expect(config.lockTtlSeconds).toBe(300);
   });
 
@@ -67,6 +76,12 @@ describe("osKnowledgeBase config (§5.6)", () => {
     expect(() =>
       parseOsKnowledgeBaseConfig({ OS_LOCK_TTL_SECONDS: "abc" })
     ).toThrow(/OS_LOCK_TTL_SECONDS/);
+  });
+
+  it("throws on a zero PDF vision-page cap", () => {
+    expect(() =>
+      parseOsKnowledgeBaseConfig({ OS_PDF_VISION_MAX_PAGES: "0" })
+    ).toThrow(/OS_PDF_VISION_MAX_PAGES/);
   });
 
   it("throws on a similarity floor outside 0..1", () => {

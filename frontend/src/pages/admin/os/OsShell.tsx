@@ -32,7 +32,7 @@ export default function OsShell() {
 
   return (
     <div className="min-h-[calc(100vh-104px)] bg-gray-50">
-      <div className="mx-auto w-full max-w-[1200px] px-4 pt-7 sm:px-6 lg:px-8">
+      <div className="mx-auto w-full max-w-[1600px] px-4 pt-7 sm:px-6 lg:px-8">
         <nav
           aria-label="OS sections"
           className="flex items-center border-b border-gray-200"

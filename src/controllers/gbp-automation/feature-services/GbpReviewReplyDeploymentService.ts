@@ -95,8 +95,9 @@ export class GbpReviewReplyDeploymentService {
         locationId: item.location_id,
         workItemId: item.id,
         kind: "gbp_reply_published",
-        title: "GBP reply published",
-        message: "A Google review reply was published from Alloro.",
+        title: "Alloro replied to a review for you",
+        message:
+          "You approved it and Alloro posted your reply to a Google review. Alloro handles the writing and the posting, so you do not have to.",
       });
       return (await GbpWorkItemModel.findById(item.id))!;
     } catch (error) {

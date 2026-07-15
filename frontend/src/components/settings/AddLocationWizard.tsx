@@ -18,7 +18,7 @@ import {
   PropertySelectionModal,
   type PropertyItem,
 } from "./PropertySelectionModal";
-import { formatCents } from "./PlanLocationSummary";
+import { formatCents } from "./billingFormat";
 import { showErrorToast, showSuccessToast } from "../../lib/toast";
 import { logger } from "../../lib/logger";
 

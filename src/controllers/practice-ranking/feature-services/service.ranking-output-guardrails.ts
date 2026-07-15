@@ -6,6 +6,7 @@ type RankingRecommendation = {
   effort?: string;
   timeline?: string;
   expected_outcome?: string;
+  generic?: boolean;
 };
 
 type RankingGap = {
@@ -22,34 +23,45 @@ type RankingLlmGuardrailContext = {
 
 const WEBSITE_ACTION_PATTERN =
   /\b(website|web provider|page speed|pagespeed|site speed|speed up|load time|loading|core web vitals|lighthouse|performance score)\b/i;
+const LEADER_SEARCH_POSITION = 1;
+const TOP_THREE_SEARCH_POSITIONS = new Set([2, 3]);
 
+// Generic, data-less safety net. Each entry is flagged `generic: true` as a forward
+// contract: the cross-stage selector (Summary v2) is meant to de-prioritize a generic
+// candidate in favor of a specific, caught-unseen one from another stage. Wiring that
+// consumer is Chapter 7's job; today the flag is an honest passthrough (emitted, not
+// yet read). Copy is relief-first (leads with what is already working), never
+// deficit-framed. This should fire rarely; a specific LLM recommendation is the norm.
 const SAFE_RECOMMENDATION_BACKFILL: RankingRecommendation[] = [
   {
-    title: "Keep review momentum moving",
+    title: "Your reviews are already working for you",
     description:
-      "Ask every completed patient for a Google review so the lead over nearby practices keeps widening.",
+      "Recent reviews are helping patients choose you. Asking each happy patient for one keeps that trust growing.",
     impact: "high",
     effort: "low",
     timeline: "30 days",
-    expected_outcome: "More recent reviews and stronger local search trust signals.",
+    expected_outcome: "Fresh reviews that keep your local search trust signals strong.",
+    generic: true,
   },
   {
-    title: "Post to Google every week",
+    title: "Your Google profile is active, keep it fresh",
     description:
-      "Publish one useful Google post with a real practice photo each week to show the profile is active.",
+      "An active profile reassures patients before they call. One useful Google post a week keeps it looking cared-for.",
     impact: "medium",
     effort: "low",
     timeline: "30 days",
-    expected_outcome: "A more active Google profile without extra dashboard clutter.",
+    expected_outcome: "A profile that stays current without extra dashboard clutter.",
+    generic: true,
   },
   {
-    title: "Add fresh practice photos",
+    title: "Your photos make a strong first impression",
     description:
-      "Upload current office and team photos so patients see a more complete profile before they call.",
+      "Patients look at your photos before they call. A few current office and team photos keep that impression current.",
     impact: "medium",
     effort: "low",
     timeline: "2 weeks",
-    expected_outcome: "Better profile engagement and a stronger first impression.",
+    expected_outcome: "A complete profile that reassures patients at the first look.",
+    generic: true,
   },
 ];
 
@@ -119,7 +131,26 @@ function normalizeLeadProtectionLanguage(
   context: RankingLlmGuardrailContext,
 ): unknown {
   if (typeof value !== "string") return value;
-  if (context.searchPosition === 1) return value;
+  if (context.searchPosition === LEADER_SEARCH_POSITION) return value;
+
+  if (
+    context.searchPosition != null &&
+    TOP_THREE_SEARCH_POSITIONS.has(context.searchPosition)
+  ) {
+    return value
+      .replace(
+        /\bto protect and improve the position\b/gi,
+        "to widen the top-three standing",
+      )
+      .replace(
+        /\bprotect and improve the position\b/gi,
+        "widen the top-three standing",
+      )
+      .replace(/\bto protect the lead\b/gi, "to protect the top-three standing")
+      .replace(/\bprotect the lead\b/gi, "protect the top-three standing")
+      .replace(/\bprotecting the lead\b/gi, "protecting the top-three standing")
+      .replace(/\bprotect that lead\b/gi, "protect that top-three standing");
+  }
 
   return value
     .replace(/\bto protect and improve the position\b/gi, "to improve the position")

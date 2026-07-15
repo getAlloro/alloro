@@ -123,12 +123,24 @@ export interface PatientJourneyRankContext {
   available: boolean;
 }
 
+export interface MemorableCard {
+  rung: "reply_gap" | "velocity_drop";
+  stage: "memorable";
+  execution_state: "built" | "read-only";
+  generic: false;
+  headline: string;
+  action: string;
+  caught_number: number;
+  attribution_running_total: number | null;
+}
+
 export interface PatientJourneyReviewsContext {
   rating: number | null;
   count: number | null;
   newThisMonth: number | null;
   replyRatePct: number | null;
   available: boolean;
+  card: MemorableCard | null;
 }
 
 export interface PatientJourneyContext {
@@ -142,12 +154,21 @@ export interface PatientJourneyHeadline {
 }
 
 /** The `data` payload of `GET /api/patient-journey`. */
+export interface BookableCard {
+  stage: "bookable";
+  generic: false;
+  hook: string;
+  action: string;
+  caught_number: number;
+}
+
 export interface PatientJourney {
   location: PatientJourneyLocation;
   period: PatientJourneyPeriod;
   stages: PatientJourneyStage[];
   conversions: PatientJourneyConversion[];
   leakStageKey: string | null;
+  bookableCard: BookableCard | null;
   revenue: PatientJourneyRevenue;
   context: PatientJourneyContext;
   headline: PatientJourneyHeadline;

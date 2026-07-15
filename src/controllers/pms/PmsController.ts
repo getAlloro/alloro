@@ -4,7 +4,6 @@ import * as approvalService from "./pms-services/pms-approval.service";
 import * as automationService from "./pms-services/pms-automation.service";
 import * as dataService from "./pms-services/pms-data.service";
 import * as retryService from "./pms-services/pms-retry.service";
-import * as pasteParseService from "./pms-services/pms-paste-parse.service";
 import * as sanitizationService from "./pms-services/pms-paste-analysis.service";
 import { coerceBoolean, validateJobId } from "./pms-utils/pms-validator.util";
 import { tryParseMonthlyRollupPayload } from "./pms-utils/pms-mapping-validator.util";
@@ -32,7 +31,13 @@ function handleError(res: Response, error: any, operation: string): Response {
  */
 export async function uploadPmsData(req: Request, res: Response) {
   try {
-    const { domain, manualData, entryType, locationId: reqLocationId } = req.body;
+    const {
+      domain,
+      manualData,
+      entryType,
+      locationId: reqLocationId,
+      targetMonth,
+    } = req.body;
     const rbacReq = req as RBACRequest;
     const organizationId = rbacReq.organizationId ?? null;
     const actorUserId = rbacReq.userId ?? rbacReq.user?.userId ?? null;
@@ -95,7 +100,8 @@ export async function uploadPmsData(req: Request, res: Response) {
       organizationId,
       locationId,
       actorUserId,
-      overrideMonthlyRollup
+      overrideMonthlyRollup,
+      typeof targetMonth === "string" ? targetMonth : undefined
     );
 
     return res.json({
@@ -492,55 +498,6 @@ export async function getActiveAutomations(req: Request, res: Response) {
     return res.status(500).json({
       success: false,
       error: `Failed to fetch active automation jobs: ${error.message}`,
-    });
-  }
-}
-
-/**
- * POST /pms/parse-paste
- * Parse pasted spreadsheet/CSV text using AI (Haiku) and return structured data.
- * Stateless — no database writes. Used by the manual entry modal.
- */
-export async function parsePaste(req: Request, res: Response) {
-  try {
-    const { rawText, currentMonth } = req.body;
-
-    if (!rawText || typeof rawText !== "string") {
-      return res.status(400).json({
-        success: false,
-        error: "rawText is required and must be a string",
-      });
-    }
-
-    if (
-      !currentMonth ||
-      typeof currentMonth !== "string" ||
-      !/^\d{4}-\d{2}$/.test(currentMonth)
-    ) {
-      return res.status(400).json({
-        success: false,
-        error: "currentMonth is required in YYYY-MM format",
-      });
-    }
-
-    const rbacReq = req as RBACRequest;
-    const orgId = rbacReq.organizationId ?? undefined;
-
-    const result = await pasteParseService.parsePastedData(
-      rawText,
-      currentMonth,
-      orgId
-    );
-
-    return res.json({
-      success: true,
-      data: result,
-    });
-  } catch (error: any) {
-    logger.error({ err: error?.message || error }, "Error in /pms/parse-paste:");
-    return res.status(error.statusCode || 500).json({
-      success: false,
-      error: error?.message || "Failed to parse pasted data",
     });
   }
 }

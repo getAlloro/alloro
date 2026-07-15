@@ -234,11 +234,19 @@ export function WebsiteOverview({
   })();
 
   const leadWord = m.monthLeads === 1 ? "lead" : "leads";
+  // FIX 5.1: relief-first, never "turned N visitors into 0 leads". Lead with what
+  // is working (people are reaching the site) and name the Bookable step as the
+  // most fixable one. Does NOT claim Alloro auto-optimizes the site — that system
+  // is unbuilt (task #25); it honestly names the fixable step, not a done action.
   const insight = m.hasAnalytics
-    ? `Your website turned ${fmt(m.monthVisitors)} visitors into ${m.monthLeads} ${leadWord} this month.`
+    ? m.monthLeads > 0
+      ? `${fmt(m.monthVisitors)} people reached your site this month and ${m.monthLeads} asked to book. Across your funnel, the visit-to-booking step is where the most is slipping through.`
+      : `${fmt(m.monthVisitors)} people reached your site this month, so the top of your funnel is working. The drop-off is at the booking step, where those visits aren't turning into requests yet.`
     : `${m.monthLeads} ${leadWord} came in through your website forms this month. Connect web analytics to see how many visitors that took.`;
   const insightHighlights = m.hasAnalytics
-    ? [`${fmt(m.monthVisitors)} visitors`, `${m.monthLeads} ${leadWord}`]
+    ? m.monthLeads > 0
+      ? [`${fmt(m.monthVisitors)} people`, `${m.monthLeads} asked to book`]
+      : [`${fmt(m.monthVisitors)} people`, "booking step"]
     : [`${m.monthLeads} ${leadWord}`];
 
   // #14: the headline conversion is the LAST FULL MONTH's settled rate, not the
