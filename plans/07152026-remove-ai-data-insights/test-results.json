@@ -1,0 +1,67 @@
+{
+  "plan": "plans/07152026-remove-ai-data-insights",
+  "generatedAt": "2026-07-15",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "T1",
+      "title": "Old admin AI Data Insights URLs redirect to Mission Control",
+      "surface": "ui",
+      "precondition": "Run the app locally and sign in as a super-admin at /admin.",
+      "steps": [
+        "1. Navigate to /admin/ai-data-insights.",
+        "2. Navigate to /admin/ai-data-insights/guardian?month=2026-07."
+      ],
+      "expected": "Both URLs redirect to /admin/mission-control and do not render the retired AI Data Insights page.",
+      "status": "pass",
+      "evidence": "Browser: http://localhost:5174/admin/ai-data-insights redirected to http://localhost:5174/admin/mission-control and rendered Mission Control.",
+      "notes": "Visual test used this worktree's Vite server on 5174 proxying to this worktree's API on 3000. Direct 3000 browser origin required a separate sign-in session.",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Admin sidebar no longer shows Agent Enhancements",
+      "surface": "ui",
+      "precondition": "Run the app locally and sign in as a super-admin at /admin.",
+      "steps": [
+        "1. Open the admin sidebar.",
+        "2. Inspect the Agents navigation group in expanded and collapsed states."
+      ],
+      "expected": "The Agents group contains Agent Outputs, AI PMS Automation, Practice Ranking, and Minds. It does not show Agent Enhancements.",
+      "status": "pass",
+      "evidence": "Browser DOM: Agents nav links were /admin/agent-outputs, /admin/ai-pms-automation, /admin/practice-ranking, and /admin/minds; no ai-data-insights href or Agent Enhancements text.",
+      "notes": "Verified in the signed-in local admin browser session.",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "Admin agent-insights API route is gone",
+      "surface": "api",
+      "precondition": "Run the backend locally with a valid super-admin session token.",
+      "steps": [
+        "1. Send GET /api/admin/agent-insights/summary with a valid super-admin token.",
+        "2. Confirm the response body."
+      ],
+      "expected": "The request reaches the standard API 404 envelope with success false, data null, and error.code NOT_FOUND.",
+      "status": "pass",
+      "evidence": "Authenticated local token request: GET http://localhost:3000/api/admin/agent-insights/summary returned 404 with { success:false, data:null, error:{ code:\"NOT_FOUND\", message:\"API route not found.\", details:null } }.",
+      "notes": "Short-lived token was signed from the local JWT_SECRET for an existing @getalloro.com admin-domain user; no token or secret was printed.",
+      "waiver": ""
+    },
+    {
+      "id": "T4",
+      "title": "Guardian/Governance runner endpoint is gone",
+      "surface": "api",
+      "precondition": "Run the backend locally with valid auth for agent endpoints.",
+      "steps": [
+        "1. Send POST /api/agents/guardian-governance-agents-run.",
+        "2. Confirm the route is not handled by a Guardian/Governance runner."
+      ],
+      "expected": "The retired route is not mounted, and no Guardian/Governance job runs.",
+      "status": "pass",
+      "evidence": "curl -X POST http://localhost:3000/api/agents/guardian-governance-agents-run returned 404 with the standard NOT_FOUND envelope.",
+      "notes": "API was served by this worktree's backend on port 3000 with no worker running.",
+      "waiver": ""
+    }
+  ]
+}

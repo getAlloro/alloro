@@ -6,7 +6,6 @@ import { createPortal } from "react-dom";
 import {
   CheckSquare,
   Cpu,
-  LineChart,
   FileText,
   Database,
   Bot,
@@ -33,7 +32,6 @@ export type AdminNavKey =
   | "action-items"
   | "agent-outputs"
   | "ai-pms-automation"
-  | "ai-data-insights"
   | "practice-ranking"
   | "minds"
   | "leadgen-submissions"
@@ -54,7 +52,6 @@ interface NavItem {
 const AGENTS_GROUP_ITEMS: NavItem[] = [
   { key: "agent-outputs", label: "Agent Outputs", icon: Database },
   { key: "ai-pms-automation", label: "AI PMS Automation", icon: Cpu },
-  { key: "ai-data-insights", label: "Agent Enhancements", icon: LineChart },
   { key: "practice-ranking", label: "Practice Ranking", icon: TrendingUp },
   { key: "minds", label: "Minds", icon: Brain },
 ];

@@ -195,16 +195,6 @@ export const QUERY_KEYS = {
       includePilot,
       includeAdmin,
     ] as const,
-  adminInsightsSummary: (page: number, month: string) =>
-    ["admin", "insights-summary", page, month] as const,
-  adminInsightsSummaryAll: ["admin", "insights-summary"] as const,
-  adminInsightsRecommendations: (
-    agentType: string,
-    page: number,
-    month?: string | null,
-  ) => ["admin", "insights-recommendations", agentType, page, month] as const,
-  adminInsightsRecommendationsAll: (agentType: string) =>
-    ["admin", "insights-recommendations", agentType] as const,
   adminSupportTickets: (params?: Record<string, unknown>) =>
     ["admin", "support", "tickets", params] as const,
   adminSupportTicketsAll: ["admin", "support", "tickets"] as const,

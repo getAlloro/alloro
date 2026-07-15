@@ -307,36 +307,6 @@ export function buildCroOptimizerPayload(params: {
   };
 }
 
-// =====================================================================
-// GUARDIAN / GOVERNANCE
-// =====================================================================
-
-export function buildGuardianGovernancePayload(
-  agentUnderTest: string,
-  outputs: any[],
-  passedRecommendations?: any[],
-  rejectedRecommendations?: any[],
-): any {
-  return {
-    additional_data: {
-      agent_under_test: agentUnderTest,
-      outputs: outputs,
-      historical_context: {
-        passed_recommendations: passedRecommendations || [],
-        rejected_recommendations: rejectedRecommendations || [],
-        summary: {
-          total_passed: passedRecommendations?.length || 0,
-          total_rejected: rejectedRecommendations?.length || 0,
-        },
-      },
-    },
-  };
-}
-
-// =====================================================================
-// GBP COPY COMPANION
-// =====================================================================
-
 /**
  * Build payload for Copy Companion agent from GBP data
  */

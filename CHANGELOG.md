@@ -2,6 +2,25 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.162] - July 2026
+
+### Remove retired AI Data Insights admin workflow
+
+The retired admin AI Data Insights / Agent Enhancements workflow has been removed from the Admin Hub. Old AI Data Insights URLs now redirect to Mission Control, the sidebar no longer exposes the view, the `/api/admin/agent-insights` API surface is unmounted, and the dead Guardian/Governance runner code has been removed. Built on `plans/07152026-remove-ai-data-insights`; backend/frontend TypeScript, strict conventions, `check:all`, diff checks, authenticated API acceptance, and browser UI acceptance pass. Docs parity is N/A because the Alloro Docs repo has no matching references to the retired admin surface.
+
+**Key Changes:**
+- **Admin UI removal.** Removed the AI Data Insights list/detail pages, Agent Enhancements sidebar item, recommendation card, query hooks, cache keys, and frontend insight types.
+- **Safe old-route handling.** Direct visits to `/admin/ai-data-insights` and detail URLs redirect to `/admin/mission-control`.
+- **API removal.** Removed the `/api/admin/agent-insights` mount, route, controller domain, and related summary/recommendation helper code.
+- **Dead job cleanup.** Removed the disabled Guardian/Governance runner handler, webhook payload builder, validator/parser services, and stale model helpers that only supported that retired path.
+- **Plan-backed acceptance.** `test-results.json` passes with browser route/sidebar evidence and authenticated local API evidence for the removed admin route.
+
+**Commits:**
+- `frontend/src/pages/Admin.tsx`, `frontend/src/components/Admin/shell/AdminSidebar.tsx`, frontend admin pages/components/types/hooks/query cache — removed the retired admin view and redirected old URLs.
+- `src/app.ts`, `src/routes/adminAgentInsights.ts`, and `src/controllers/admin-agent-insights/` — unmounted and deleted the retired admin insights API domain.
+- `src/controllers/agents/`, `src/routes/agentsV2.ts`, `src/models/AgentRecommendationModel.ts`, and `src/models/AgentResultModel.ts` — removed Guardian/Governance runner glue and stale insight helpers.
+- `plans/07152026-remove-ai-data-insights/` — completed spec plus passing acceptance artifact.
+
 ## [0.0.161] - July 2026
 
 ### Admin OS import fidelity, multi-file drop, and editor parity

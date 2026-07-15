@@ -10,13 +10,12 @@
  * - Response formatting
  * - Error handling
  *
- * 10 endpoints:
+ * 9 endpoints:
  * - POST /proofline-run          - Daily proofline agent for all clients
  * - POST /monthly-agents-run     - Monthly agents for a specific account
  * - POST /monthly-agents-run-test - Test endpoint (no DB writes)
  * - POST /gbp-optimizer-run      - Monthly GBP Copy Optimizer for all clients
  * - POST /ranking-run            - Automated practice ranking agent
- * - POST /guardian-governance-agents-run - Monthly Guardian & Governance agents
  * - POST /process-all            - DEPRECATED: use /proofline-run
  * - GET  /latest/:googleAccountId - Latest agent outputs for dashboard
  * - GET  /getLatestReferralEngineOutput/:googleAccountId - Latest Referral Engine output
@@ -36,12 +35,9 @@ import {
   OPPORTUNITY_WEBHOOK,
   CRO_OPTIMIZER_WEBHOOK,
   COPY_COMPANION_WEBHOOK,
-  GUARDIAN_AGENT_WEBHOOK,
-  GOVERNANCE_AGENT_WEBHOOK,
 } from "./feature-services/service.webhook-orchestrator";
 import { executeProoflineAgent } from "./feature-services/service.proofline-executor";
 import { setupRankingBatches, processRankingWork } from "./feature-services/service.ranking-executor";
-import { runGuardianGovernanceAgents } from "./feature-services/service.governance-validator";
 import { runMonthlyAgentsForAccount } from "./feature-services/service.monthly-agents-runner";
 import { runMonthlyAgentsTest as runMonthlyAgentsTestService } from "./feature-services/service.monthly-agents-test-runner";
 import { runGbpOptimizerForAllAccounts } from "./feature-services/service.gbp-optimizer-runner";
@@ -164,87 +160,6 @@ export async function runRankingAgent(
   } catch (error: any) {
     logError("ranking-run", error);
     return res.status(500).json({ success: false, error: error.message });
-  }
-}
-
-// =====================================================================
-// POST /guardian-governance-agents-run
-// =====================================================================
-
-export async function runGuardianGovernance(
-  req: Request,
-  res: Response,
-): Promise<any> {
-  const startTime = Date.now();
-  const { month, referenceDate } = req.body || {};
-
-  log("\n" + "=".repeat(70));
-  log("POST /api/agents/guardian-governance-agents-run - STARTING");
-  log("=".repeat(70));
-  if (month) log(`Month: ${month}`);
-  if (referenceDate) log(`Reference Date: ${referenceDate}`);
-  log(`Timestamp: ${new Date().toISOString()}`);
-
-  try {
-    const result = await runGuardianGovernanceAgents(month, referenceDate);
-
-    if (result.skipped) {
-      return res.json({
-        success: true,
-        message: result.message,
-        skipped: true,
-        existingResultId: result.existingResultId,
-      });
-    }
-
-    if (result.processed === 0 && !result.guardianResultId) {
-      return res.json({
-        success: true,
-        message: result.message || "No agent results to process",
-        processed: 0,
-        guardianResultId: null,
-        governanceResultId: null,
-      });
-    }
-
-    const duration = Date.now() - startTime;
-
-    log("\n" + "=".repeat(70));
-    log(`[GUARDIAN-GOV] ✓ COMPLETED SUCCESSFULLY`);
-    log(`  - Total groups: ${result.groupsProcessed}`);
-    log(`  - Successful: ${result.successfulGroups}`);
-    log(`  - Failed: ${result.failedGroups}`);
-    log(`  - Guardian ID: ${result.guardianResultId}`);
-    log(`  - Governance ID: ${result.governanceResultId}`);
-    log(`  - Duration: ${duration}ms (${(duration / 1000).toFixed(1)}s)`);
-    log("=".repeat(70) + "\n");
-
-    return res.json({
-      success: true,
-      message: "Guardian and Governance agents completed",
-      guardianResultId: result.guardianResultId,
-      governanceResultId: result.governanceResultId,
-      groupsProcessed: result.groupsProcessed,
-      successfulGroups: result.successfulGroups,
-      failedGroups: result.failedGroups,
-      groupDetails: result.groupDetails,
-      duration: `${duration}ms`,
-    });
-  } catch (error: any) {
-    logError("guardian-governance-agents-run", error);
-    const duration = Date.now() - startTime;
-    log(
-      `\n[GUARDIAN-GOV] ❌ Guardian/Governance run failed after ${duration}ms`,
-    );
-    log(`  Error: ${error?.message || String(error)}`);
-    log("=".repeat(70) + "\n");
-
-    return res.status(500).json({
-      success: false,
-      error: "GUARDIAN_GOVERNANCE_RUN_ERROR",
-      message: error?.message || "Failed to run guardian/governance agents",
-      duration: `${duration}ms`,
-    });
   }
 }
 
@@ -537,8 +452,6 @@ export function healthCheck(_req: Request, res: Response): void {
       opportunity: !!OPPORTUNITY_WEBHOOK,
       cro_optimizer: !!CRO_OPTIMIZER_WEBHOOK,
       copy_companion: !!COPY_COMPANION_WEBHOOK,
-      guardian: !!GUARDIAN_AGENT_WEBHOOK,
-      governance: !!GOVERNANCE_AGENT_WEBHOOK,
     },
   });
 }
