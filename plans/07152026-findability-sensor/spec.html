@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Alloro Funnel Engine — A5 (slice 1): The Findability Sensor</title>
+<style>
+  :root{
+    --bg:#ffffff; --ink:#111214; --muted:#5b5e63; --line:#e3e4e7; --card:#fafafa;
+    --good:#1f7a3d; --warn:#8a6d1e; --stop:#9a2b25; --chip:#f0f0f1;
+    --mono:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{--bg:#131417;--ink:#ecedef;--muted:#a2a5ab;--line:#2a2c31;--card:#1a1c20;--chip:#22242a;}
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.55;font-size:16px;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:860px;margin:0 auto;padding:0 24px 96px}
+  .hero{min-height:56vh;display:flex;flex-direction:column;justify-content:center;padding:64px 0 40px;border-bottom:1px solid var(--line)}
+  .pill{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--chip);width:max-content}
+  .pill .dot{width:8px;height:8px;border-radius:50%;background:var(--warn)}
+  h1{font-size:38px;line-height:1.12;letter-spacing:-.02em;margin:20px 0 10px;text-wrap:balance}
+  .sub{font-size:18px;color:var(--muted);max-width:62ch}
+  .meta{margin-top:26px;font-size:13px;color:var(--muted);font-family:var(--mono)}
+  .meta b{color:var(--ink);font-weight:600}
+  section{padding:40px 0;border-bottom:1px solid var(--line)}
+  h2{font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0 0 18px;font-weight:700}
+  h3{font-size:19px;margin:26px 0 8px;letter-spacing:-.01em}
+  p{margin:0 0 14px}
+  ul{margin:0 0 14px;padding-left:22px}
+  li{margin:6px 0}
+  strong{font-weight:650}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin:14px 0}
+  code{font-family:var(--mono);font-size:.86em;background:var(--chip);padding:1px 6px;border-radius:5px}
+  .tier{display:inline-block;font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.06em;padding:2px 8px;border-radius:5px;border:1px solid var(--warn);color:var(--warn);vertical-align:middle}
+  .guard{border-left:3px solid var(--stop);padding:10px 0 10px 16px;margin:14px 0}
+  .guard b{color:var(--stop)}
+  .reuse{border-left:3px solid var(--good);padding:10px 0 10px 16px;margin:14px 0}
+  .reuse b{color:var(--good)}
+  .arc{border-left:3px solid var(--muted);padding:10px 0 10px 16px;margin:14px 0}
+  ol.tasks{counter-reset:t;list-style:none;padding-left:0}
+  ol.tasks>li{counter-increment:t;position:relative;padding:14px 0 14px 44px;border-top:1px solid var(--line)}
+  ol.tasks>li:before{content:counter(t);position:absolute;left:0;top:12px;width:28px;height:28px;border:1px solid var(--line);border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:13px;font-weight:700}
+  .done li{list-style:none}
+  .done li:before{content:"\2610\00a0\00a0";font-family:var(--mono);color:var(--muted)}
+  .rev h3{font-family:var(--mono);font-size:14px;margin:18px 0 6px}
+  a{color:var(--ink)}
+  @media(max-width:560px){h1{font-size:30px}.hero{min-height:auto;padding:44px 0 28px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <span class="pill"><span class="dot"></span>Pending Execution &middot; Rev 1</span>
+    <h1>A5 · Slice 1 — The Findability Sensor</h1>
+    <p class="sub">The honest instrument under the fuel gauge. Replace today's single, flickering rank point with stable, proximity-aware sampling of the <em>service</em> searches that bring new customers, across the practice's real area. Slice 1 of the scientist-loop engine (sensor → gauge → hypothesize → act → watch → learn). Not a grid the owner reads — the sampling is plumbing.</p>
+    <div class="meta">
+      <div><b>Plan:</b> 07152026-findability-sensor &nbsp;&middot;&nbsp; <b>Funnel:</b> Stage A (get found), item A5, slice 1 &nbsp;&middot;&nbsp; <b>Proven example:</b> Local Falcon (geo-grid) — meet the instrument, exceed the experience</div>
+      <div><b>Grounded (do not re-derive):</b> research/rank-geo-grid-mechanism.md · research/rank-findability-voc-and-fuel-gauge.md · strategy/self-proving-loop.md · proving-simulation-design.md (E2)</div>
+      <div><b>Evidence:</b> <span class="tier">DIRECTIONAL · MEASUREMENT</span> — a repeatable estimate, not truth-of-position; rank&rarr;revenue is lore. A mirror, never a #1 promise.</div>
+    </div>
+  </header>
+
+  <section>
+    <h2>Why</h2>
+    <p>The business is the owner's minivan, and Alloro handed them a <strong>broken fuel gauge</strong> for findability — so they distrust it. Primary VoC: <strong>Saif (1Endo)</strong> found the rank feature "unreliable for daily use"; <strong>Garrison</strong> googles himself <em>every day</em>; <strong>Artful almost cancelled</strong> over it (churn). The root cause, named on Saif's call and confirmed by the research: rank is <strong>"inconsistent, largely influenced by proximity to competitors"</strong> — Google's dominant local factor is distance, so a <strong>single sample point flickers</strong> and systematically flatters (the owner searches from their own desk, the point distance most favors them, and sees a false #1).</p>
+    <p><strong>You can't build a trustworthy gauge on a broken sensor.</strong> Slice 1 fixes the sensor: sample many points, for the right keywords, and aggregate into a stable, honest reading. The confusing grid stays <em>internal plumbing</em>; the owner never decodes it.</p>
+  </section>
+
+  <section>
+    <h2>The full architecture (context — this slice builds the first box)</h2>
+    <div class="arc">
+      <p><b>The scientist loop</b> (Corey, 2026-07-15) — the measure-and-<b>act</b> engine A5 becomes the brain of:</p>
+      <p><code>Sensor</code> &rarr; <code>Reader/Diagnostic</code> &rarr; <code>Hypothesizer + Lever-Router</code> &rarr; <code>Actor (pulls A2/A4/A1, owner-gated)</code> &rarr; <code>Watcher (proving / E2)</code> &rarr; <code>Learner (fleet moat, NS2)</code> — with the <b>owner-facing gauge</b> as the translated read.</p>
+      <p><b>This slice = the Sensor only.</b> The Reader, Hypothesizer, Actor, and the owner Gauge are subsequent slices; the Watcher/Learner is <code>E2</code> (already designed — <code>proving-simulation-design.md</code> + <code>self-proving-loop.md</code>; don't re-derive). Everything downstream reads the sensor, so it is the honest first cut.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>What — in scope (the honest sensor)</h2>
+    <div class="reuse">
+      <p><b>Reuse first (verified against code + the graded research).</b></p>
+      <ul>
+        <li><b>The per-point rank call</b> — <code>getSearchPositionViaSerpApiMaps</code> (<code>service.serpapi-maps.ts</code>) already runs one keyword at one <code>@lat,lng,zoom</code> vantage (exactly the geo-grid's per-pin call, per the research). The sensor calls it at <b>many</b> vantages. Reuse the grid/geo utils (<code>util.competitor-geo.ts</code>, <code>util.competitor-radius-selection.ts</code>) for point generation.</li>
+        <li><b>Keyword demand</b> — A1's shipped <b>GSC&rarr;content loop</b> already surfaces the org's real top Google queries. The sensor picks the keywords to track from that <em>real demand</em> + the practice's service list — never the owner guessing.</li>
+        <li><b>Pipeline + persistence shape</b> — mirror the <code>practice-ranking</code> pipeline + the <code>ai-seo-audit</code> persistence pattern (run &rarr; execute &rarr; persist).</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>The sensor</h3>
+      <ul>
+        <li><strong>Keyword selection (service-not-name).</strong> Choose the <em>service</em> keyword-families that bring <b>new</b> customers ("orthodontist near me", "Invisalign [city]") — NOT the brand-name search (ranking #1 for your own name is the flattering vanity trap; it's people who already know you). Derived from GSC demand (A1) + the service list. A per-location <b>keyword/area config</b> stores the chosen families; it is <b>done-for-you + owner-steerable</b> ("we added Invisalign" / "we opened South Orange" re-aims it) — never a keyword-research panel the owner operates.</li>
+        <li><strong>Geo sampling (the grid, internal).</strong> For each tracked keyword, sample rank across an NxN grid of vantage points over the practice's real service area (research default: 7&times;7 "Goldilocks" per Merchynt; configurable). Each pin = one reused per-point call. Sample <b>during open hours</b> (Paige's honesty upgrade — Google ranks differ open vs closed).</li>
+        <li><strong>Honest aggregation.</strong> Per keyword-family, compute <b>SoLV</b> (% of pins in the top 3 — the owner-legible measure per the research) + ARP/ATRP (internal, agency-grade) + the per-pin raw (for the future map). One honest headline the gauge can translate: <em>"a top-3 choice in X% of your area for the searches that bring new patients."</em></li>
+        <li><strong>Persist a time-series snapshot</strong> — per (location, keyword-family, run): SoLV, coverage, per-pin ranks, competitors-per-pin, observed_at. The record the Reader/Watcher slices read; the "map moving" proof of the self-proving loop.</li>
+      </ul>
+    </div>
+    <h2 style="margin-top:34px">What — explicitly NOT in this slice</h2>
+    <ul>
+      <li><strong>No owner-facing grid or gauge UI</strong> — the sampling is plumbing; the translated gauge is slice 2.</li>
+      <li><strong>No Reader/Hypothesizer/Actor</strong> (the scientist agent) and <strong>no Watcher/E2</strong> — later slices; this slice only produces the honest data they read.</li>
+      <li><strong>No rank promise, no "#1", no "keep improving", no rank&rarr;revenue claim</strong> (Value #6; the research's honesty line; Owner.com's one soft spot we do not copy).</li>
+      <li><strong>No organic (blue-link) rank</strong> — this is the <b>local</b> Maps/3-pack, which is what matters for a local service business; label it as such.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Context</h2>
+    <p><strong>Source of truth:</strong> the funnel map (A5); <code>research/rank-geo-grid-mechanism.md</code> (grid method, SoLV, cost, the honesty line — every claim URL-cited); <code>research/rank-findability-voc-and-fuel-gauge.md</code> (the ICP/VoC + design mandate); <code>self-proving-loop.md</code> (the watcher honesty). Evidence tier <span class="tier">DIRECTIONAL/MEASUREMENT</span>: a repeatable <em>estimate</em> (Local Falcon's own honest promise: same-spot comparability, "you will never quite know exactly what someone sees"), never truth-of-position.</p>
+    <p><strong>Meet-or-exceed (Corey's bar):</strong> the proven example is Local Falcon (the geo-grid instrument). Slice 1 <b>meets</b> its sampling capability (honest multi-point sampling with SoLV). Alloro <b>exceeds</b> it later via the experience (fuel gauge, not a KPI panel) + the done-for-you scientist loop (mirror with hands) + the keyword-brain (service-not-name, demand-driven) — none of which the agency incumbents do.</p>
+    <p><strong>Constitution:</strong> backend <code>&sect;6.1</code> — mirror <code>practice-ranking</code> / <code>ai-seo-audit</code> (pipeline + persistence, location-scoped, tenant-safe). Additive migration (a new sensor-reading table + a keyword/area config; if the recurring scan is scheduled, a <code>schedules</code> seed <b>DISABLED</b> like A4). Precise <code>&sect;N.M</code> at the <code>alloro-engineer</code> pass; load-bearing Article = data-validity/honesty.</p>
+  </section>
+
+  <section>
+    <h2>Constraints</h2>
+    <div class="guard">
+      <p><b>Honesty (Value #6 + the research's line).</b> Claimable: "here's exactly where you stand, everywhere," "how your map changed since last time," "you own X% of your neighborhood [SoLV]." Forbidden: "we'll make you #1," "your rankings will keep improving," "#1 = $X revenue," "this is exactly what every searcher sees." Every reading is labelled a repeatable <b>estimate/simulation</b>, not ground truth. No gamed signals, ever (the opposite of Jumper).</p>
+    </div>
+    <div class="guard">
+      <p><b>Anti-fabrication.</b> Persist only what the sampling actually returned (per-pin ranks + the real competitors seen). Never infer a pin's rank; never fabricate coverage; a pin that errored is recorded as unknown, not as "not ranking".</p>
+    </div>
+    <div class="guard">
+      <p><b>Sandbox-safety + cost (the real knob).</b> Cost = <b>pins &times; keywords &times; SerpApi</b> per scan (a 7&times;7 &times; 3 keywords = 147 calls). So grid size, keyword count, and cadence are the cost knobs; the recurring scan (if scheduled) ships <b>SEEDED DISABLED</b> like A4 — zero cost until Corey enables. Migration additive + reversible; prove DB paths with a rolled-back sandbox transaction. No writes to Google.</p>
+    </div>
+    <ul>
+      <li><strong>Per-(location,keyword) failure isolation</strong> — one failed pin or keyword never fails the scan; record what succeeded.</li>
+      <li><strong>Edge cases:</strong> no service keywords resolvable (no GSC demand yet, no service list) &rarr; skip honestly (record nothing, not a fake reading); business with no geo/area &rarr; skip; SerpApi unconfigured/over-quota &rarr; skip + log, never fabricate; open-hours unknown &rarr; note the caveat on the reading.</li>
+      <li><strong>Idempotency</strong> — one snapshot per (location, keyword-family, run-date).</li>
+      <li><strong>Lane:</strong> Corey+Claude author; build + adversary in the sandbox; PR to <code>dev/dave</code>; never push to <code>dev/dave</code>/<code>main</code> directly.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Risk</h2>
+    <ul>
+      <li><strong>SerpApi cost scales with pins&times;keywords.</strong> Mitigation: sensible default grid (7&times;7), small keyword set, cadence knob, schedule seeded disabled.</li>
+      <li><strong>Estimate mistaken for truth.</strong> Mitigation: label every reading a repeatable estimate; SoLV is a described observation, never a forecast; no per-searcher "this is what they see" claim.</li>
+      <li><strong>Vanity keyword drift (tracking the name, or agency ARP).</strong> Mitigation: keyword selection is service-not-name from real demand; SoLV is the owner headline; ARP/ATRP stay internal.</li>
+      <li><strong>Non-repeatable noise.</strong> Mitigation: same-spot, same-grid, open-hours sampling for comparability (Local Falcon's own honesty method); trend-over-time, not a single reading, is the signal.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Tasks</h2>
+    <ol class="tasks">
+      <li><strong>Migration</strong> — additive sensor-reading table (per location/keyword/run: SoLV, coverage, per-pin ranks JSON, observed_at) + a keyword/area config table; reversible <code>down</code>. (Schedule seed, if any, DISABLED.)</li>
+      <li><strong>Keyword selection</strong> — a service-not-name keyword-family resolver from GSC demand (A1) + the service list; the done-for-you + owner-steerable config.</li>
+      <li><strong>Grid generation + open-hours guard</strong> — NxN vantage points over the service area (reuse the geo/radius utils); scan-during-open-hours check.</li>
+      <li><strong>Sampling runner</strong> — call the reused per-point rank lookup per pin per keyword; isolate failures; a pure aggregator (SoLV/ARP/ATRP) over the pins; persist the idempotent snapshot.</li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>Test / verification (how Dave proves it)</h2>
+    <ul>
+      <li>Pure aggregator unit tests (no network): pins with known ranks &rarr; assert SoLV (% top-3), ARP (present-only), ATRP (whole-grid); all-not-ranking &rarr; SoLV 0 honestly; errored pins &rarr; unknown, not "not ranking".</li>
+      <li>Keyword selection: name-only demand &rarr; excluded; service demand &rarr; included; no demand + no services &rarr; empty (honest skip).</li>
+      <li>Runner with an <b>injected fake per-point provider</b> (no SerpApi): grid sampled, snapshot persisted idempotently, per-pin failure isolated.</li>
+      <li>Assert no reading/copy contains a rank/guarantee/"#1"/rank&rarr;revenue claim; every reading carries the estimate label.</li>
+      <li>Migration up+down clean (rolled-back sandbox proof); any schedule seed is disabled.</li>
+      <li><code>npm run check:all</code> clean; <code>npm test</code> green (Node 22).</li>
+      <li><strong>Post-merge smoke-test (Dave/dev):</strong> one real scan against an onboarded location; confirm an honest SoLV snapshot lands.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Done</h2>
+    <ul class="done">
+      <li>Additive sensor-reading + keyword/area config tables (reversible); any recurring schedule seeded DISABLED.</li>
+      <li>Keyword selection derives service-not-name families from GSC demand + services; done-for-you, owner-steerable.</li>
+      <li>The sampling runner samples the grid per keyword via the reused per-point call, isolates failures, and persists an idempotent SoLV/coverage snapshot with per-pin raw.</li>
+      <li>No owner-facing grid/gauge; no rank/guarantee claim; every reading labelled an estimate (test-proven). Local (Maps) not organic.</li>
+      <li>Test section passes; <code>npm run check:all</code> clean; <code>npm test</code> green; a fresh adversary (<code>alloro-proof</code>) ran and its findings are fixed; <code>&sect;N.M</code> confirmed at the <code>alloro-engineer</code> pass.</li>
+      <li>Opened as a PR to <code>dev/dave</code> with this spec linked. (Gauge, Reader, Hypothesizer, Actor, Watcher/E2 = documented follow-on slices.)</li>
+    </ul>
+  </section>
+
+  <section id="revision-log">
+    <h2>Revision Log</h2>
+    <article class="rev">
+      <h3>Rev 1 &mdash; 2026-07-15</h3>
+      <p><strong>Change:</strong> Initial spec. A5 reframed (with Corey) from "rank tracking geo-grid" to the <b>findability fuel-gauge engine</b>; this is slice 1, the honest <b>sensor</b>. Grounded in six disciplines: anchor (NS1/NS2), ICP/VoC (Saif/Garrison/Artful — the minivan-no-fuel-gauge persona + churn), reverse-engineering + research (Local Falcon grid method, SoLV, cost, honesty line; Owner.com's claim + soft spot), coherence (A5↔A1 shared keyword brain; closes into E2), and the keyword + scientist-loop dimensions Corey added. The grid survives as internal plumbing; the owner never decodes it.</p>
+      <p><strong>Reason:</strong> Funnel map A5; Corey's "clarity+confidence + agents pull levers + watch results" mandate; "measure twice" — grounding prevented building the confusing grid the owner distrusts.</p>
+      <p><strong>Updated Done criteria:</strong> initial slice-1 (sensor) set.</p>
+    </article>
+  </section>
+
+</div>
+</body>
+</html>
