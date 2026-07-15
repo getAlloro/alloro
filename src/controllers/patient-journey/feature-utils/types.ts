@@ -37,6 +37,16 @@ export type StageUnavailableReason = "not_connected" | "pending" | "no_data";
 
 export type OrgType = "health" | "generic";
 
+export interface PatientJourneyAction {
+  id: string;
+  actionType: "seo_meta_update";
+  metricKey: "ctr";
+  occurredAt: string;
+  activeUntil: string;
+  summary: string;
+  measurementNote: string;
+}
+
 export interface PatientJourneyLocation {
   id: number;
   name: string;
@@ -76,6 +86,8 @@ export interface PatientJourneyStage {
   note?: string;
   /** Optional source-specific metadata for detail views and QA visibility. */
   metadata?: Record<string, unknown>;
+  /** Current Alloro actions tied to this stage's metrics. */
+  actions?: PatientJourneyAction[];
 }
 
 export interface PatientJourneyConversion {

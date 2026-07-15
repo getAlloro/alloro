@@ -1,0 +1,97 @@
+{
+  "plan": "plans/07152026-journey-insights-alloro-actions",
+  "generatedAt": "2026-07-16",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "T1",
+      "title": "SEO action is returned with the current CTR metric",
+      "surface": "api",
+      "precondition": "The local database contains the synthetic One Endodontics SEO metadata event created for this acceptance run.",
+      "steps": [
+        "Request GET /api/patient-journey?locationId=14&month=2026-07 with a One Endodontics Pilot token.",
+        "Inspect the impressions stage actions array."
+      ],
+      "expected": "The response is 200 and includes one active SEO metadata action tied to CTR with plain-English summary and measurement copy.",
+      "status": "pass",
+      "evidence": "HTTP 200; impressions=17,952; action 97832888-c6a2-4e23-9fb7-f75a874a73cb; summary and August 14 measurement window returned.",
+      "notes": "The API was served by this worktree on [::1]:3002 against the shared local database.",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Google Visibility shows clicks, CTR, and the Alloro action note",
+      "surface": "ui",
+      "precondition": "Open One Endodontics in Pilot mode on the worktree frontend and select July 2026.",
+      "steps": [
+        "Open Patient Journey Insights.",
+        "Open Google Visibility details."
+      ],
+      "expected": "The detail shows 456 Google clicks, 2.5% click-through rate, and an Alloro did this note with completion date, six-page summary, and August 14 watch window.",
+      "status": "pass",
+      "evidence": "evidence/desktop-action-note.png",
+      "notes": "Browser DOM and screenshot both matched the expected copy and values.",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "The action note remains readable on mobile",
+      "surface": "ui",
+      "precondition": "Google Visibility details are open at a 390 by 844 viewport.",
+      "steps": [
+        "Inspect the action note and surrounding detail card.",
+        "Measure the action note and article scroll widths."
+      ],
+      "expected": "All copy is visible without horizontal overflow or overlap.",
+      "status": "pass",
+      "evidence": "evidence/mobile-action-note.png",
+      "notes": "Action clientWidth=274 and scrollWidth=274; article clientWidth=324 and scrollWidth=324; no horizontal overflow.",
+      "waiver": ""
+    },
+    {
+      "id": "T4",
+      "title": "The action note is absent outside its reporting period",
+      "surface": "ui",
+      "precondition": "The synthetic SEO action occurred on July 15, 2026.",
+      "steps": [
+        "Navigate from July 2026 to June 2026.",
+        "Open Google Visibility details."
+      ],
+      "expected": "June retains its clicks and CTR metrics but does not show the July Alloro action note.",
+      "status": "pass",
+      "evidence": "evidence/mobile-prior-month-no-action.png",
+      "notes": "June showed 816 clicks and 3.9% CTR with no Alloro action element in the browser DOM.",
+      "waiver": ""
+    },
+    {
+      "id": "T5",
+      "title": "Automated verification remains clean",
+      "surface": "cli",
+      "precondition": "Feature implementation and focused test harness fix are present in the worktree.",
+      "steps": [
+        "Run focused backend and frontend tests.",
+        "Run TypeScript, frontend build, docs build, convention checks, check:all, and the full backend test suite."
+      ],
+      "expected": "All feature tests and required build gates pass with no errors caused by this work.",
+      "status": "pass",
+      "evidence": "32 focused backend tests, 3 focused frontend tests, 471 full backend tests, TypeScript, frontend build, docs build, check:conventions --strict, and check:all passed.",
+      "notes": "check:all retained repository-existing warning output only.",
+      "waiver": ""
+    },
+    {
+      "id": "T6",
+      "title": "Jo confirms the client-facing copy",
+      "surface": "ui",
+      "precondition": "Jo can review the desktop or mobile evidence, or the running worktree.",
+      "steps": [
+        "Review the Alloro did this heading, completion date, action summary, and measurement note.",
+        "Confirm that the note communicates value without adding noise."
+      ],
+      "expected": "Jo approves the copy for non-technical client users.",
+      "status": "fail",
+      "evidence": "Dave directed -d finalization and merge to dev/dave on 2026-07-16 after the browser acceptance results were presented.",
+      "notes": "Jo's review has not been recorded and remains recommended before production promotion.",
+      "waiver": "Dave explicitly authorized finalization and the dev/dave merge without waiting for Jo; this does not claim Jo approval."
+    }
+  ]
+}

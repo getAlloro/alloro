@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Journey Insights Alloro Actions Spec</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); margin-top: 12px; }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 840px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; letter-spacing: 0; }
+    h2 { font-size: 1.35rem; letter-spacing: 0; }
+    h3 { font-size: 1rem; letter-spacing: 0; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    .task-card dd { font-weight: 500; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    .scope-table { width: 100%; border-collapse: collapse; font-size: 0.94rem; }
+    .scope-table th, .scope-table td { border-top: 1px solid var(--line); padding: 12px 10px; text-align: left; vertical-align: top; }
+    .scope-table th { width: 180px; color: var(--muted); font-size: 0.78rem; text-transform: uppercase; }
+    .callout { border-left: 4px solid var(--ink); padding: 14px 16px; background: var(--soft); }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+      .scope-table th, .scope-table td { display: block; width: 100%; }
+      .scope-table td { padding-top: 2px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill">Completed</span>
+      </div>
+      <h1>Journey Insights: Alloro Actions</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/07152026-journey-insights-alloro-actions</dd></div>
+        <div><dt>Size</dt><dd>Large</dd></div>
+        <div><dt>Risk</dt><dd>Level 3</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>Patient Journey Insights shows what is happening and how the practice is performing, but it does not show work Alloro completed to improve those numbers. The first trustworthy signal is a completed SEO metadata regeneration tied to Google click-through rate.</p>
+      <p>The feature must build trust without implying that Alloro caused a result that has not been measured. It should say what changed, when it changed, and which metric is being watched.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Add a durable, tenant-scoped metric action record and surface the latest active SEO metadata action inside the Google Visibility detail view beside a newly visible Google click-through rate metric.</p>
+      <div class="callout">
+        <strong>Customer-facing example:</strong> <q>Updated Google search titles and descriptions on 6 pages. Watching Google click-through through Aug 14.</q>
+      </div>
+      <p style="margin-top:16px">The action row remains in the database as internal history. Its dashboard note is eligible for display for 30 calendar days, then disappears automatically. Version 1 does not calculate or claim SEO lift.</p>
+    </section>
+
+    <section class="spec-card" id="scope-ledger">
+      <h2>Scope Ledger</h2>
+      <table class="scope-table">
+        <tbody>
+          <tr><th>Objective</th><td>Show a plain-English <q>Alloro did this</q> trust signal next to the metric the work is intended to influence.</td></tr>
+          <tr><th>Intended user</th><td>Client users viewing Patient Journey Insights.</td></tr>
+          <tr><th>Surface</th><td><code>/patientJourneyInsights</code>, inside the click-open Google Visibility detail card beside Google click-through rate.</td></tr>
+          <tr><th>First trigger</th><td>A completed bulk SEO regeneration job that successfully changed at least one page or post <code>meta_title</code> or <code>meta_description</code>.</td></tr>
+          <tr><th>System of record</th><td>A new durable <code>metric_action_events</code> table. <code>seo_generation_jobs</code> remains the operational job tracker and supplies the source reference; it is not the customer-facing action store.</td></tr>
+          <tr><th>Visible lifetime</th><td>30 calendar days from job completion. The database row is retained after visibility expires.</td></tr>
+          <tr><th>Attribution</th><td>Record the action only after a successful persisted before/after change. Do not infer actions from commits, changelogs, queued work, failed work, or CTR movement.</td></tr>
+          <tr><th>Multi-location</th><td>SEO regeneration is project/organization-wide, so <code>location_id</code> is null and the action can accompany the existing whole-practice Google Visibility stage for each authorized location.</td></tr>
+          <tr><th>Existing analogs</th><td><code>GbpWorkEventModel</code> for durable events, <code>PatientJourneyService</code> for tenant-scoped assembly, and the existing Google Visibility detail deck for presentation.</td></tr>
+          <tr><th>Suggested follow-up</th><td>GBP posts, review replies, content publishing, manual SEO saves with proven actor identity, historical action browsing, and measured before/after comparisons.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="spec-card" id="behavior">
+      <h2>Behavior Contract</h2>
+      <h3>Trigger and aggregation</h3>
+      <ul>
+        <li>Compare the stored <code>meta_title</code> and <code>meta_description</code> with the generated values for each logical page or post before the write.</li>
+        <li>Count only entities whose title or description actually changed and was successfully persisted.</li>
+        <li>Create one action per completed bulk job, not one note per page or post.</li>
+        <li>Use the SEO job id as the idempotency source. A retry or duplicate finalization must not create a second action.</li>
+        <li>A partially successful job may produce an action for its successfully changed entities. A job with zero successful metadata changes produces no action.</li>
+      </ul>
+      <h3>Visibility</h3>
+      <ul>
+        <li>The API returns only the latest active action for the <code>impressions</code> stage and <code>ctr</code> metric.</li>
+        <li>An action is active when <code>active_until &gt;= now</code>.</li>
+        <li>It is shown for a selected report month only when the 30-day measurement window overlaps that month and the action occurred no later than the end of that month.</li>
+        <li>An expired action remains stored but is not returned to the client, including when browsing an older month.</li>
+      </ul>
+      <h3>Copy</h3>
+      <ul>
+        <li>Use plain terms such as <q>Google search titles and descriptions</q>, not an engineering changelog or raw job terminology.</li>
+        <li>Use a separate <q>Alloro did this</q> label so the action is visually distinct from the metric.</li>
+        <li>Say the metric is being watched through a date. Never say the action increased CTR unless a later measurement feature proves it.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>src/workers/processors/seoBulkGenerate.processor.ts</code> - persists generated page/post SEO data and owns the completed bulk-job event.</li>
+        <li><code>src/models/website-builder/SeoGenerationJobModel.ts</code> - operational job status and source id; not the new action history table.</li>
+        <li><code>src/models/website-builder/PageModel.ts</code> and <code>PostModel.ts</code> - provide the existing SEO reads/writes used for before/after comparison.</li>
+        <li><code>src/controllers/patient-journey/feature-services/PatientJourneyService.ts</code> - assembles the tenant-scoped dashboard response.</li>
+        <li><code>src/controllers/patient-journey/feature-utils/types.ts</code> and <code>frontend/src/types/patientJourney.ts</code> - mirrored backend/frontend contract.</li>
+        <li><code>frontend/src/components/dashboard/patient-journey/patientJourneyDetailDeck.utils.ts</code> - builds Google Visibility detail metrics; CTR exists in the payload but is not displayed today.</li>
+        <li><code>frontend/src/components/dashboard/patient-journey/PatientJourneyDetailCard.tsx</code> - renders the metric grid and the new action note.</li>
+        <li><code>/Users/rustinedave/Desktop/alloro-docs/src/data/pages.ts</code> and <code>src/data/pageLoader.ts</code> - docs registry currently omits the live Patient Journey route.</li>
+      </ul>
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li><strong>Backend:</strong> <code>&sect;6.1</code> and <code>&sect;7.1</code> - mirror <code>src/controllers/gbp-automation/</code>; worker calls a shared service, service calls the model, and all Knex remains in <code>models/</code>.</li>
+        <li><strong>Frontend:</strong> <code>&sect;12.1</code>, <code>&sect;13.3</code>, and <code>&sect;14.1</code> - preserve the existing typed Patient Journey API/hook/component flow and feature folder.</li>
+        <li><strong>Events:</strong> <code>src/models/GbpWorkEventModel.ts</code> - closest event-model analog, extended here with direct tenant, metric, source, and visibility fields.</li>
+        <li><strong>Docs:</strong> recover the deleted Patient Journey doc structure from Alloro Docs commit <code>ae5cc40</code>, but rebuild its stale replica from the current three-gate funnel rather than restoring old GBP/Clarity copy.</li>
+      </ul>
+      <p><strong>Reference files:</strong> <code>src/controllers/gbp-automation/</code> for backend layering, <code>frontend/src/api/</code> + React Query + <code>components/dashboard/patient-journey/</code> for frontend flow, and <code>src/models/GbpWorkEventModel.ts</code> for the durable event shape.</p>
+    </section>
+
+    <section class="spec-card" id="data-contract">
+      <h2>Data Contract</h2>
+      <p>Create <code>metric_action_events</code> in the public schema with:</p>
+      <ul>
+        <li><code>id uuid</code> primary key.</li>
+        <li><code>organization_id integer</code> required; cascade on organization deletion.</li>
+        <li><code>location_id integer</code> nullable; null means organization/project-wide. Location-scoped rows cascade on location deletion.</li>
+        <li><code>project_id uuid</code> nullable; cascade on project deletion.</li>
+        <li><code>action_type text</code>, initially <code>seo_meta_update</code>.</li>
+        <li><code>stage_key text</code> and <code>metric_key text</code>, initially <code>impressions</code> and <code>ctr</code>.</li>
+        <li><code>source_type text</code> and <code>source_id text</code>, initially <code>seo_bulk_generation_job</code> plus its job id.</li>
+        <li><code>entity_type text</code> (<code>page</code> or <code>post</code>) and <code>affected_count integer</code> greater than zero.</li>
+        <li><code>occurred_at timestamptz</code>, <code>active_until timestamptz</code>, <code>metadata jsonb</code>, and timestamps.</li>
+        <li>Unique idempotency key on <code>(action_type, source_type, source_id)</code>.</li>
+        <li>Read index covering <code>organization_id</code>, <code>project_id</code>, <code>stage_key</code>, <code>metric_key</code>, <code>active_until</code>, and <code>occurred_at</code>.</li>
+      </ul>
+      <p><code>metadata</code> stores structured counts such as title changes, description changes, and failed job items. It must not store customer-facing prose, secrets, page content, or PII. The service builds display copy from structured values so wording can change without rewriting history.</p>
+      <p>The migration is additive and has no backfill. Past SEO jobs must not be converted into actions because the old job records do not prove which metadata fields actually changed.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Keep tenant identity server-derived and require organization/project scope in every action read (<code>&sect;5.5</code>, <code>&sect;11.7</code>).</li>
+            <li>Keep DB access in <code>MetricActionModel</code> (<code>&sect;7.4</code>) and the shared behavior in <code>MetricActionService</code>.</li>
+            <li>Use named constants for action type, stage, metric, 30-day window, and display limit (<code>&sect;4.2</code>).</li>
+            <li>Make event creation idempotent for BullMQ retries (<code>&sect;21.1</code>).</li>
+            <li>Log action-write failures with job/project context through Pino, without exposing content or secrets (<code>&sect;9.1</code>, <code>&sect;21.4</code>).</li>
+            <li>Keep backend and frontend Patient Journey types in lockstep and preserve the existing success envelope (<code>&sect;8.1</code>, <code>&sect;16.1</code>).</li>
+            <li>Add focused model/service/worker and presentation tests with synthetic data (<code>&sect;20.1</code>, <code>&sect;20.2</code>, <code>&sect;20.4</code>).</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>Do not infer an action from CTR movement, commits, audit logs, or incomplete jobs.</li>
+            <li>Do not claim measured lift or causal attribution.</li>
+            <li>Do not show a permanent dashboard feed or stack multiple notes into changelog-like noise.</li>
+            <li>Do not log manual page/post SEO saves until actor identity can prove the edit was made by Alloro.</li>
+            <li>Do not add a new endpoint, frontend state system, package, or raw API call.</li>
+            <li>Do not refactor unrelated legacy <code>any</code>, response-shape, worker, or query-key drift while adding this feature.</li>
+            <li>Do not overwrite unrelated dirty work in Alloro Docs.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>GBP post, review reply, website content, and new-page publishing triggers.</li>
+        <li>Manual SEO saves and actor attribution.</li>
+        <li>A customer-visible action history or global changelog.</li>
+        <li>Baseline capture, before/after trend calculation, notifications, and proof that an action changed CTR.</li>
+        <li>Backfilling action rows from historical SEO jobs.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 3 - structural risk. This adds an additive production migration, a shared action contract, a background-job producer, and customer-visible attribution language.</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><strong>False attribution:</strong> job completion alone does not prove a metadata change. <strong>Mitigation:</strong> compare persisted before/after titles and descriptions and count only successfully written differences.</li>
+        <li><strong>Duplicate actions:</strong> BullMQ may retry a job or finalization. <strong>Mitigation:</strong> unique source idempotency key plus model upsert/ignore behavior (<code>&sect;21.1</code>).</li>
+        <li><strong>Action logging failure after SEO success:</strong> retrying the entire generation job could rewrite metadata unnecessarily, while swallowing the error could lose the trust signal. <strong>Mitigation:</strong> isolate final action recording from generation success, retry the idempotent write a small bounded number of times, log a structured error if exhausted, and never display a note without a durable row. Do not re-run successful generation solely to repair a missing note.</li>
+        <li><strong>Cross-tenant visibility:</strong> organization-wide website actions use a null location. <strong>Mitigation:</strong> require organization and project filters in the model, then allow either the authorized location or null within that tenant; add isolation tests (<code>&sect;5.5</code>, <code>&sect;11.7</code>, <code>&sect;20.2</code>).</li>
+        <li><strong>Wrong month context:</strong> a current action beside an unrelated historical CTR would mislead. <strong>Mitigation:</strong> require both current activity and overlap with the selected report month.</li>
+        <li><strong>Production migration:</strong> a new indexed table changes the shared database. <strong>Mitigation:</strong> additive reversible migration, no backfill, indexed read path, dev migration and rollback before production (<code>&sect;10.3</code>, <code>&sect;10.4</code>).</li>
+        <li><strong>Docs conflict:</strong> Alloro Docs is already dirty in <code>PracticeHubReplica.tsx</code> and <code>practice-hub.ts</code>. <strong>Mitigation:</strong> keep this plan's docs changes to new Patient Journey files and the required registry/loader/sidebar mappings; preserve and exclude unrelated dirty files.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> bulk SEO generation for every project, <code>GET /api/patient-journey</code>, the Practice Hub query cache that shares that payload, the Google Visibility detail deck, the public database migration path, and the separate Alloro Docs dashboard registry.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li><code>seo_generation_jobs</code> should not become the customer action store. It is shaped for queue progress, lacks the reusable metric/stage contract, and would couple future GBP/review actions to SEO internals.</li>
+        <li>A general <q>Alloro activity feed</q> is not part of this first version. Showing one current, metric-linked signal is clearer and less noisy.</li>
+        <li>Measured CTR lift must be a later feature with a captured baseline and comparison window. Adding a green/red result now would overstate what the data proves.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+
+      <article class="task-card">
+        <h3>T1: Durable metric action foundation</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Create the additive <code>metric_action_events</code> migration, shared constants, <code>MetricActionModel</code>, and <code>MetricActionService</code>. Implement tenant-scoped active reads, source-idempotent action creation, structured SEO change counts, 30-day expiration, deterministic public copy, and a latest-per-stage/metric limit. No historical backfill.</dd></div>
+          <div><dt>Files</dt><dd><code>src/database/migrations/20260715000000_create_metric_action_events.ts</code>, <code>src/config/metricActions.ts</code>, <code>src/models/MetricActionModel.ts</code>, <code>src/services/MetricActionService.ts</code>, matching tests, and this plan's <code>migrations/</code> artifacts.</dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Targeted Vitest: insert shape, unique source idempotency, tenant isolation, organization-wide null-location read, active/expired filtering, month-overlap filtering, and copy variants. Apply and roll back the migration against dev/local-safe infrastructure only.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: SEO regeneration action producer</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Extend the typed bulk SEO entity projection to retain existing <code>seo_data</code>. Compare old/new title and description fields, increment structured counts only after a successful persistence, and record one action after job finalization when at least one logical entity changed. Keep the action write idempotent and isolated so a missing note never falsely marks SEO generation as failed or triggers a full regeneration retry.</dd></div>
+          <div><dt>Files</dt><dd><code>src/workers/processors/seoBulkGenerate.processor.ts</code>, any narrow existing Page/Post projection types required, and <code>src/__tests__/seo-bulk-generate.processor.test.ts</code>.</dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>Targeted Vitest: changed metadata records one aggregated action, unchanged metadata records none, failed items are excluded, partial success uses only successful changed count, and repeated finalization does not duplicate the action.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: Patient Journey action contract</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Read the latest eligible action through <code>MetricActionService</code> during Patient Journey assembly and attach it to the matching <code>impressions</code> stage. Add a typed public action shape containing only the id, action type, metric key, occurred/active dates, summary, and measurement note. Keep backend/frontend contracts aligned.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/patient-journey/feature-services/PatientJourneyService.ts</code>, <code>src/controllers/patient-journey/feature-utils/types.ts</code>, <code>src/__tests__/patient-journey.service.test.ts</code>, <code>frontend/src/types/patientJourney.ts</code>.</dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>Targeted Vitest: matching active action is attached to Google Visibility, expired/non-overlapping/other-tenant actions are omitted, and no-project responses remain unchanged.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: CTR metric and Alloro action note</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add Google clicks and click-through rate to the Google Visibility detail summary using existing GSC metadata. Render a compact, accessible <q>Alloro did this</q> note immediately after the metric grid when an active action exists. Keep the note inside the existing detail card, not as a new dashboard section or feed. Ensure it fits mobile and desktop without changing the pipeline card layout.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/components/dashboard/patient-journey/patientJourneyDetailDeck.utils.ts</code>, <code>PatientJourneyDetailCard.tsx</code>, new <code>PatientJourneyActionNote.tsx</code>, and focused frontend tests.</dd></div>
+          <div><dt>Depends on</dt><dd>T3</dd></div>
+          <div><dt>Verify</dt><dd><code>npm --prefix frontend test -- patientJourney</code>; browser acceptance at <code>http://localhost:3000/admin</code> by piloting into One Endodontics, then checking desktop and mobile widths, CTR formatting, action copy, no-action state, and month navigation.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T5: Alloro Docs Patient Journey parity</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Re-add a Patient Journey docs entry using the current three-gate funnel, month navigation, click-open source deck, visible CTR, and <q>Alloro did this</q> note. Build a current visual replica rather than restoring the deleted pre-funnel GBP/Clarity stage content. Add registry, loader, navigation icon, and changelog wiring while preserving unrelated dirty docs work.</dd></div>
+          <div><dt>Files</dt><dd><code>/Users/rustinedave/Desktop/alloro-docs/src/data/pages/patient-journey.ts</code>, <code>src/components/replicas/PatientJourneyReplica.tsx</code>, <code>src/data/pages.ts</code>, <code>src/data/pageLoader.ts</code>, <code>src/components/replicas/AlloroSidebar.tsx</code>, and docs changelog/version files as required by that repo.</dd></div>
+          <div><dt>Depends on</dt><dd>T4</dd></div>
+          <div><dt>Verify</dt><dd>Alloro Docs build passes; the Patient Journey page loads, its replica matches the implemented dashboard, hotspots describe the action note accurately, and existing dirty Practice Hub files are neither overwritten nor staged with this work.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="dependency-chain">
+      <h2>Dependency Chain</h2>
+      <p>T1 is the foundation. T2 and T3 may execute in parallel after T1 because they have disjoint write scopes. T4 follows T3. T5 follows the final T4 UI so documentation mirrors the real result. Because the plan touches more than ten files, execution should use bounded parallel workers only for the independent T2 and T3 branches, then integrate and verify centrally.</p>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" checked disabled> Additive migration applies and rolls back on dev/local-safe infrastructure; no production backfill or data rewrite.</li>
+        <li><input type="checkbox" checked disabled> A completed bulk SEO job that changes metadata creates exactly one durable action with the correct tenant, source, counts, timestamps, stage, and metric.</li>
+        <li><input type="checkbox" checked disabled> Unchanged, queued, fully failed, or duplicate/retried work does not create a misleading or duplicate action.</li>
+        <li><input type="checkbox" checked disabled> Tenant isolation tests prove one organization/location cannot read another organization's action.</li>
+        <li><input type="checkbox" checked disabled> <code>GET /api/patient-journey</code> returns the latest eligible action only when its 30-day window is active and overlaps the selected report month.</li>
+        <li><input type="checkbox" checked disabled> The Google Visibility detail card visibly shows Google clicks and correctly formatted Google click-through rate.</li>
+        <li><input type="checkbox" checked disabled> The <q>Alloro did this</q> note is clear on desktop/mobile, disappears after expiry, and never claims measured improvement.</li>
+        <li><input type="checkbox" checked disabled> Focused backend and frontend tests pass with synthetic data; no skipped/focused tests (<code>&sect;20.3</code>).</li>
+        <li><input type="checkbox" checked disabled> <code>npx tsc --noEmit</code>, <code>npm run check:all</code>, <code>npm test</code>, <code>npm --prefix frontend run build</code>, and relevant frontend tests pass with no new violations.</li>
+        <li><input type="checkbox" checked disabled> Layer 2 acceptance artifact exists and passes for API, desktop, mobile, expiration, no-action, and month-navigation states (<code>&sect;20.5</code>).</li>
+        <li><input type="checkbox" checked disabled> Alloro Docs includes the current Patient Journey screen and action-note behavior; docs build passes and unrelated dirty files remain excluded.</li>
+        <li><input type="checkbox" checked disabled> Jo copy review is explicitly waived by Dave for this <code>dev/dave</code> merge; it remains outstanding before production promotion.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="task-card">
+        <h3>Rev 1 - 2026-07-15</h3>
+        <p><strong>Change:</strong> Execution started in the dedicated <code>codex/journey-insights-alloro-actions</code> worktree.</p>
+        <p><strong>Reason:</strong> Execution deviation: none. This records the approved move from planning into implementation and keeps the original <code>dev/dave</code> checkout isolated.</p>
+        <p><strong>Updated Done criteria:</strong> none.</p>
+      </article>
+      <article class="task-card">
+        <h3>Rev 2 - 2026-07-16</h3>
+        <p><strong>Change:</strong> Completed implementation, automated verification, desktop/mobile browser acceptance, Alloro Docs parity, and finalization records. Acceptance T6 is preserved as a waived failure instead of being presented as Jo approval.</p>
+        <p><strong>Reason:</strong> User QA: Dave directed <code>-d</code> finalization and merge to <code>dev/dave</code> without waiting for Jo's copy review.</p>
+        <p><strong>Updated Done criteria:</strong> Jo's copy review is waived for this dev merge only and remains recommended before production promotion.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

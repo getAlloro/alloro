@@ -69,6 +69,13 @@ vi.mock(
   }),
 );
 
+const findLatestForJourney = vi.fn();
+vi.mock("../services/MetricActionService", () => ({
+  MetricActionService: {
+    findLatestForJourney: (...a: unknown[]) => findLatestForJourney(...a),
+  },
+}));
+
 // ── Per-stage reader seam ─────────────────────────────────────────────────
 const readImpressions = vi.fn();
 const readVisits = vi.fn();
@@ -150,6 +157,7 @@ function seedHappyPath(): void {
   readReviews.mockResolvedValue(FULL_REVIEWS);
   findReplyableForLocation.mockResolvedValue([]);
   getLocationReadiness.mockResolvedValue({ ready: false });
+  findLatestForJourney.mockResolvedValue(null);
 }
 
 beforeEach(() => {
@@ -303,6 +311,67 @@ describe("assemblePatientJourney — empty / not-connected paths", () => {
     ).toBe(true);
     expect(result.leakStageKey).toBeNull();
     expect(result.headline.text).toMatch(/which growth gate needs attention/i);
+  });
+});
+
+describe("assemblePatientJourney — metric actions", () => {
+  it("attaches the latest matching action to the impressions stage only", async () => {
+    const action = {
+      id: "action-1",
+      actionType: "seo_meta_update" as const,
+      metricKey: "ctr" as const,
+      occurredAt: "2026-06-12T08:30:00.000Z",
+      activeUntil: "2026-07-12T08:30:00.000Z",
+      summary: "Updated Google search titles on 3 pages.",
+      measurementNote: "Watching Google click-through through July 12.",
+    };
+    findLatestForJourney.mockResolvedValue(action);
+
+    const result = await assemblePatientJourney({
+      organizationId: ORG,
+      locationId: LOCATION,
+      reportMonth: MONTH,
+    });
+
+    expect(
+      result.stages.find((item) => item.key === "impressions")?.actions,
+    ).toEqual([action]);
+    expect(
+      result.stages.find((item) => item.key === "visits"),
+    ).not.toHaveProperty("actions");
+    expect(
+      result.stages.find((item) => item.key === "leads"),
+    ).not.toHaveProperty("actions");
+  });
+
+  it("returns an empty impressions action array when no action matches", async () => {
+    findLatestForJourney.mockResolvedValue(null);
+
+    const result = await assemblePatientJourney({
+      organizationId: ORG,
+      locationId: LOCATION,
+      reportMonth: MONTH,
+    });
+
+    expect(
+      result.stages.find((item) => item.key === "impressions")?.actions,
+    ).toEqual([]);
+  });
+
+  it("passes resolved tenant, project, and half-open month bounds to the action service", async () => {
+    await assemblePatientJourney({
+      organizationId: ORG,
+      locationId: LOCATION,
+      reportMonth: MONTH,
+    });
+
+    expect(findLatestForJourney).toHaveBeenCalledWith({
+      organizationId: ORG,
+      locationId: LOCATION,
+      projectId: "proj-1",
+      periodStart: new Date("2026-06-01T00:00:00.000Z"),
+      periodEnd: new Date("2026-07-01T00:00:00.000Z"),
+    });
   });
 });
 
