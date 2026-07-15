@@ -1,0 +1,64 @@
+{
+  "plan": "plans/07152026-local-rankings-refresh-map-hotfix",
+  "generatedAt": "2026-07-15",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "T1",
+      "title": "Frontend build passes",
+      "surface": "cli",
+      "precondition": "Hotfix files are present in the hotfix worktree.",
+      "steps": ["1. Run npm --prefix frontend run build."],
+      "expected": "TypeScript and Vite build complete successfully.",
+      "status": "pass",
+      "evidence": "npm --prefix frontend run build exited 0 on 2026-07-15.",
+      "notes": "Build warnings were existing bundle/chunk warnings, not hotfix errors.",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Code Constitution strict convention check passes",
+      "surface": "cli",
+      "precondition": "Hotfix files are present in the hotfix worktree.",
+      "steps": ["1. Run npm run check:conventions -- --strict."],
+      "expected": "No strict backend structural violations and no new frontend advisory violations from this hotfix.",
+      "status": "pass",
+      "evidence": "npm run check:conventions -- --strict exited 0 on 2026-07-15.",
+      "notes": "Existing Tier A advisories remained unrelated.",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "Refresh confirmation covers the Local Rankings map",
+      "surface": "ui",
+      "precondition": "Signed-in local admin/Pilot session available locally; One Endodontics Pilot user kuda@1endodontics.com can open Local Rankings competitor management.",
+      "steps": [
+        "1. Set the browser viewport to roughly 720px wide.",
+        "2. Open Local Rankings in Pilot mode.",
+        "3. Click Refresh competitors or the equivalent refresh suggestions control.",
+        "4. Confirm the map is dimmed behind the confirmation overlay and does not sit above the modal."
+      ],
+      "expected": "The confirmation modal and backdrop render above Leaflet map panes and controls.",
+      "status": "pass",
+      "evidence": "Browser QA on 2026-07-15: One Endodontics / Falls Church competitor manager opened locally. Clicking Refresh suggestions opened the confirmation modal. Computed styles showed the overlay class fixed inset-0 z-[1200] with z-index 1200; Leaflet panes and controls were at z-index 200, 400, 500, 600, 650, 700, and 1000. Proceed was not clicked.",
+      "notes": "Validated through the local Pilot surface using the same Pilot embed flow; a temporary no-secret QA harness was removed before staging.",
+      "waiver": ""
+    },
+    {
+      "id": "T4",
+      "title": "Pilot bug report opens when screenshot capture fails",
+      "surface": "ui",
+      "precondition": "Signed-in local Pilot session with the global support launcher visible.",
+      "steps": [
+        "1. Open the support launcher.",
+        "2. Choose Bug report from a Pilot page with map or embedded content.",
+        "3. Confirm the Help ticket composer opens even if screenshot capture is unavailable."
+      ],
+      "expected": "A bug-report composer opens with source URL and logs; screenshot attachment may be absent.",
+      "status": "pass",
+      "evidence": "Browser QA on 2026-07-15: opened the support menu from the Pilot competitor manager, selected Bug report, and verified the New ticket composer opened with Bug report selected, source/log context available, and no ticket submitted.",
+      "notes": "The composer opened with a console-log attachment and without requiring a screenshot file.",
+      "waiver": ""
+    }
+  ]
+}
