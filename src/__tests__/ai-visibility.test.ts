@@ -486,41 +486,163 @@ describe("AiVisibilityObservationModel.record — reports whether a row actually
 });
 
 describe("AiVisibilityObservationModel.listForLocation — tenant scoping (§11.7 / §20.2)", () => {
-  type MockQb = {
-    where: (arg: Record<string, unknown>) => MockQb;
-    orderBy: () => MockQb;
-    limit: () => Promise<never[]>;
-  };
+  /**
+   * BEHAVIORAL, not shape-based. An earlier version of this test asserted the
+   * WHERE *argument* (`expect(whereArg).toEqual({...})`) — worthless, because it
+   * passed whether or not the filter ever excluded a row. This fake is a real
+   * (tiny) query engine: `where` actually narrows the row set, so the assertion
+   * below is about which ROWS come back. Reverting the model's
+   * `organization_id` predicate makes it fail (proven in the PR body).
+   *
+   * HONEST LIMIT: this proves the model's own filtering logic against a fake
+   * that applies knex's where-semantics. It does NOT prove PostgreSQL's
+   * behaviour — no live DB in this suite. The real-DB claim stays `pending` in
+   * test-results.json.
+   */
+  type Row = Record<string, unknown>;
 
-  it("scopes the read by BOTH organization_id and location_id, so one org cannot read another's rows", async () => {
-    // The suite is DB-mocked, so this asserts the query SHAPE — the WHERE clause
-    // that enforces isolation. A behavioral real-DB test belongs in
-    // integration-tests once this read is wired to a production caller (none yet).
-    let whereArg: Record<string, unknown> | undefined;
-    const qb: MockQb = {
-      where(arg) {
-        whereArg = arg;
+  /** Minimal in-memory stand-in for the knex chain that ACTUALLY filters. */
+  function fakeTable(rows: Row[]) {
+    let working = [...rows];
+    const qb = {
+      where(conditions: Record<string, unknown>) {
+        // Real narrowing: every key/value in `conditions` must match.
+        working = working.filter((row) =>
+          Object.entries(conditions).every(([col, val]) => row[col] === val)
+        );
         return qb;
       },
-      orderBy() {
+      orderBy(col: string, dir: "asc" | "desc") {
+        working.sort((a, b) => {
+          const av = Number(a[col]);
+          const bv = Number(b[col]);
+          return dir === "desc" ? bv - av : av - bv;
+        });
         return qb;
       },
-      limit() {
-        return Promise.resolve([]);
+      limit(n: number) {
+        return Promise.resolve(working.slice(0, n));
       },
     };
+    return qb;
+  }
+
+  // Two tenants share location_id 42 — the exact collision that an unscoped
+  // read leaks. Org 8's row is the one that must never come back for org 7.
+  const rows: Row[] = [
+    { id: "o7-a", organization_id: 7, location_id: 42, observed_at: 200 },
+    { id: "o7-b", organization_id: 7, location_id: 42, observed_at: 100 },
+    { id: "o8-SECRET", organization_id: 8, location_id: 42, observed_at: 300 },
+    { id: "o7-other-loc", organization_id: 7, location_id: 99, observed_at: 400 },
+  ];
+
+  it("returns ONLY the caller's org rows when another tenant shares the same location_id", async () => {
     const tableSpy = vi
       .spyOn(
-        AiVisibilityObservationModel as unknown as { table: (trx?: unknown) => MockQb },
+        AiVisibilityObservationModel as unknown as { table: (trx?: unknown) => unknown },
         "table"
       )
-      .mockReturnValue(qb);
+      .mockImplementation(() => fakeTable(rows));
 
-    await AiVisibilityObservationModel.listForLocation(7, 42);
+    const result = await AiVisibilityObservationModel.listForLocation(7, 42);
 
-    // Org 7 querying location 42 is scoped to org 7; org 8's rows at the same
-    // location_id are excluded by the organization_id filter.
-    expect(whereArg).toEqual({ organization_id: 7, location_id: 42 });
+    // Behavioral: org 8's row is EXCLUDED even though it shares location 42 and
+    // is the newest row (so a missing org filter would surface it first).
+    expect(result.map((r) => r.id)).toEqual(["o7-a", "o7-b"]);
+    expect(result.map((r) => r.id)).not.toContain("o8-SECRET");
+    expect(result.every((r) => r.organization_id === 7)).toBe(true);
     tableSpy.mockRestore();
+  });
+
+  it("returns nothing for an org that owns no rows at that location", async () => {
+    const tableSpy = vi
+      .spyOn(
+        AiVisibilityObservationModel as unknown as { table: (trx?: unknown) => unknown },
+        "table"
+      )
+      .mockImplementation(() => fakeTable(rows));
+
+    // Org 999 guessing location 42 must get an empty set, not org 7's or 8's rows.
+    const result = await AiVisibilityObservationModel.listForLocation(999, 42);
+
+    expect(result).toEqual([]);
+    tableSpy.mockRestore();
+  });
+});
+
+describe("AiVisibilityObservationModel — sealed unscoped entry points (§11.7 / §5.5)", () => {
+  /**
+   * Each `@ts-expect-error` below is a COMPILE-TIME assertion, and `tsc` covers
+   * this file (verified: it appears in `tsc --noEmit --listFiles`). If a seal is
+   * ever removed, the call type-checks again, the directive becomes unused, and
+   * `npx tsc --noEmit` FAILS with TS2578 — so the seal cannot be silently
+   * deleted. The `rejects.toThrow` half proves the runtime backstop for
+   * untyped/JS callers in the same line.
+   */
+
+  it("seals findById — an unscoped id read cannot compile or run", async () => {
+    await expect(
+      // @ts-expect-error §11.7 — sealed: passing an id must not type-check (TS2554).
+      AiVisibilityObservationModel.findById("leaked-uuid")
+    ).rejects.toThrow(/findById is unscoped and disabled/);
+  });
+
+  it("seals findOne — a condition read cannot compile or run", async () => {
+    await expect(
+      // @ts-expect-error §11.7 — sealed: passing conditions must not type-check.
+      AiVisibilityObservationModel.findOne({ location_id: 42 })
+    ).rejects.toThrow(/findOne is unscoped and disabled/);
+  });
+
+  it("seals findMany — a cross-tenant list cannot compile or run", async () => {
+    await expect(
+      // @ts-expect-error §11.7 — sealed: passing conditions must not type-check.
+      AiVisibilityObservationModel.findMany({})
+    ).rejects.toThrow(/findMany is unscoped and disabled/);
+  });
+
+  it("seals create — an arbitrary insert bypassing record() cannot compile or run", async () => {
+    await expect(
+      // @ts-expect-error §11.7/§5.4 — sealed: arbitrary insert must not type-check.
+      AiVisibilityObservationModel.create({ organization_id: 8 })
+    ).rejects.toThrow(/create bypasses the idempotent record\(\) contract/);
+  });
+
+  it("seals createReturningId — the write the usual unscoped-reader list misses", async () => {
+    await expect(
+      // @ts-expect-error §11.7/§5.4 — sealed: arbitrary insert must not type-check.
+      AiVisibilityObservationModel.createReturningId({ organization_id: 8 })
+    ).rejects.toThrow(/createReturningId bypasses the idempotent record\(\) contract/);
+  });
+
+  it("seals updateById — this log is append-only, so no scoped update exists", async () => {
+    await expect(
+      // @ts-expect-error §11.7 — sealed: unscoped update must not type-check.
+      AiVisibilityObservationModel.updateById("leaked-uuid", { mentioned: false })
+    ).rejects.toThrow(/updateById is unscoped and disabled/);
+  });
+
+  it("seals deleteById — the most destructive cross-tenant hole", async () => {
+    await expect(
+      // @ts-expect-error §11.7 — sealed: unscoped delete must not type-check.
+      AiVisibilityObservationModel.deleteById("leaked-uuid")
+    ).rejects.toThrow(/deleteById is unscoped and disabled/);
+  });
+
+  it("seals paginate — a paged cross-tenant read", async () => {
+    await expect(
+      // @ts-expect-error §11.7 — sealed: caller-built query must not type-check.
+      AiVisibilityObservationModel.paginate((qb: unknown) => qb, { limit: 10 })
+    ).rejects.toThrow(/paginate is unscoped and disabled/);
+  });
+
+  it("seals count at RUNTIME ONLY — the honest exception to the compile-time seal", async () => {
+    // NOTE: no @ts-expect-error here, deliberately. `BaseModel.count()` is
+    // callable with zero arguments, so the arity trick cannot fire and this
+    // call DOES type-check. Adding a directive would itself fail tsc (TS2578).
+    // The seal is runtime-only; that gap is documented on the method.
+    await expect(AiVisibilityObservationModel.count()).rejects.toThrow(
+      /count is unscoped and disabled/
+    );
   });
 });
