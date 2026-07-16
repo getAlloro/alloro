@@ -84,7 +84,7 @@ export const WIZARD_STEPS: WizardStep[] = [
     targetSelector: "[data-wizard-target='dashboard-visibility']",
     title: "Local Visibility",
     description:
-      "Your estimated Google Maps position and whether a fresh Google post is due — the levers that move your local search ranking.",
+      "Your estimated Google Maps position. Plus whether a fresh Google post is due — posts keep your profile active for patients who are deciding.",
     scrollToElement: true,
   },
 

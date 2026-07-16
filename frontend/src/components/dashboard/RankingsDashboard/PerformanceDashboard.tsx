@@ -63,7 +63,7 @@ export function PerformanceDashboard({
         insight={overviewInsight}
         insightHighlights={overviewHighlights}
         score={<HealthGauge value={score} prev={gaugePrev} />}
-        scoreTooltip="This 0-100 score summarizes the local visibility signals behind the estimate, including reviews, rating, category match, profile activity, and consistency. It explains why the estimate looks the way it does; it is not a guaranteed Google rank."
+        scoreTooltip="This 0-100 score summarizes the profile signals behind the estimate, including reviews, rating, category match, profile activity, and consistency. It explains why the estimate looks the way it does; it is not a guaranteed Google rank."
         estimateSummary={
           <LocalSearchEstimateSummary
             result={result}

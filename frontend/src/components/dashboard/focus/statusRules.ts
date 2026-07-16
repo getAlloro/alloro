@@ -10,7 +10,39 @@
  * Spec: plans/06092026-practice-hub-simplification/spec.html (T3)
  */
 
-export type StatusTone = "positive" | "warn" | "critical" | "neutral";
+/**
+ * Status tones.
+ *
+ * `unknown` and `neutral` render identically (stone) but mean OPPOSITE things,
+ * and the difference is load-bearing — see UNKNOWN_IS_NOT_FINE below.
+ *
+ *   unknown = we have NO measurement. We cannot say anything about this stage.
+ *   neutral = we DID measure, and the result is genuinely unremarkable.
+ */
+export type StatusTone =
+  | "positive"
+  | "warn"
+  | "critical"
+  | "neutral"
+  | "unknown";
+
+/**
+ * UNKNOWN_IS_NOT_FINE — the honesty invariant of this file.
+ *
+ * "I don't know" and "you're fine" are different answers, and collapsing the
+ * first into the second is fabricated reassurance to an owner about his own
+ * business. So:
+ *
+ *   - A missing measurement is `unknown`. It NEVER reads as good news, and it
+ *     never lets a verdict claim an all-clear it did not earn.
+ *   - A measurement we can see is weak is `warn`/`critical`. It NEVER hides
+ *     inside `neutral`, where the verdict would skip it as "not measured".
+ *
+ * This is the bug PR #155 was reviewed for: rankTone() mapped every position
+ * below 3 to `neutral`, buildHealthVerdict() skipped `neutral` as unmeasured,
+ * and a practice ranked #10 was told it was healthy. Keep the two states
+ * distinct in every helper here, forever.
+ */
 
 /**
  * Dot / status-text colors per tone (warm palette, matches focus cards).
@@ -19,7 +51,8 @@ export type StatusTone = "positive" | "warn" | "critical" | "neutral";
  *   positive (green)  = healthy / current / on track
  *   warn     (yellow) = needs attention soon
  *   critical (red)    = overdue / failing — act now
- *   neutral  (stone)  = no signal yet
+ *   neutral  (stone)  = measured, unremarkable
+ *   unknown  (stone)  = no signal yet — we cannot say
  * Every hub's status dot imports from here — no ad-hoc dot colors.
  */
 export const TONE_COLOR: Record<StatusTone, string> = {
@@ -27,6 +60,7 @@ export const TONE_COLOR: Record<StatusTone, string> = {
   warn: "#C2891E",
   critical: "#B0382E",
   neutral: "#A8A192",
+  unknown: "#A8A192",
 };
 
 export interface CardStatus {
@@ -45,7 +79,8 @@ export function referralStatus(
   priorMonth: number | null,
 ): CardStatus {
   if (thisMonth === null || priorMonth === null) {
-    return { text: null, tone: "neutral" };
+    // No count, or no prior month to compare — unknown, not "fine".
+    return { text: null, tone: "unknown" };
   }
   const delta = thisMonth - priorMonth;
   if (delta === 0) return { text: "no change", tone: "neutral" };
@@ -55,19 +90,32 @@ export function referralStatus(
 }
 
 /**
- * Findable (get-found) tone from REAL local rank position. A strong map-pack
- * position reads positive; anything else stays NEUTRAL — we never flag a
- * get-found "gap + move" we can't honestly deliver yet, and post-recency is NOT a
- * rank signal (posts convert, they don't rank — Sterling Sky / lever-evidence-map).
- * A null position is unknown, which is also neutral.
+ * Findable tone from REAL local rank position.
+ *
+ *   null / nonsense → unknown  (we have no position; say nothing)
+ *   1..3            → positive (in the map pack)
+ *   4+              → warn     (measured, and measured WEAK)
+ *
+ * The earlier version returned `neutral` for 4+ so the verdict would not flag a
+ * get-found gap we have no honest lever for (post-recency is NOT a rank signal:
+ * posts convert, they don't rank — Sterling Sky / lever-evidence-map). But
+ * silence about a weak rank is not neutrality — the verdict read it as
+ * "unmeasured" and told a #10 practice it was healthy.
+ *
+ * The lever problem is real; hiding the measurement was the wrong fix. We now
+ * report the weak rank honestly and let the verdict name the gap WITHOUT
+ * promising a move (see STAGE_HAS_HONEST_MOVE in verdict.ts). Naming a problem
+ * you can't yet fix is honest; pretending you can't see it is not.
  */
 export const RANK_STRONG = 3;
 export function rankTone(position: number | null): StatusTone {
-  if (position === null) return "neutral";
-  return position >= 1 && position <= RANK_STRONG ? "positive" : "neutral";
+  if (position === null || !Number.isFinite(position) || position < 1) {
+    return "unknown";
+  }
+  return position <= RANK_STRONG ? "positive" : "warn";
 }
 
-/** Reviews: green at 4.5+, amber below, RED below 3.0, neutral when unknown. */
+/** Reviews: green at 4.5+, amber below, RED below 3.0, unknown when unmeasured. */
 export const STRONG_RATING = 4.5;
 // Below this, a low rating is a real problem, not a "minor gap" — it must escalate
 // to critical so the verdict cannot call a 2-star practice "Healthy overall"
@@ -75,12 +123,33 @@ export const STRONG_RATING = 4.5;
 // no tone ever emitted it). Tunable heuristic, not a product band (see file header).
 export const CRITICAL_RATING = 3.0;
 export function reviewTone(rating: number | null): StatusTone {
-  if (rating === null) return "neutral";
+  if (rating === null || !Number.isFinite(rating)) return "unknown";
   if (rating < CRITICAL_RATING) return "critical";
   return rating >= STRONG_RATING ? "positive" : "warn";
 }
 
-/** Form subs: green when any submissions this month, neutral when zero. */
+/**
+ * Form subs (Bookable):
+ *
+ *   null → unknown  (nothing connected — we cannot say)
+ *   0    → warn     (a MEASURED zero: no one asked to book this month)
+ *   1+   → positive
+ *
+ * The earlier `count ? "positive" : "neutral"` folded a measured zero into the
+ * same bucket as "no data", so the verdict skipped it and could call a practice
+ * with zero inquiries healthy. A zero we actually measured is the Bookable leak
+ * the verdict exists to catch — the same UNKNOWN_IS_NOT_FINE bug as rank.
+ *
+ * Warning on 0 is only honest because null and 0 genuinely differ upstream, so
+ * this will not cry wolf at a practice that simply has no forms:
+ *   - No website project → GET .../form-submissions/timeseries 404s
+ *     (formSubmissionHandlers.ts: `if (!project) return res.status(404)`), the
+ *     api client throws, React Query has no data, callers pass `null` → unknown.
+ *   - Has a website, no submissions this month → the service zero-fills every
+ *     month in the range (formSubmissions.service.ts getSubmissionsTimeseries),
+ *     so `total` is a real, measured 0 → warn.
+ */
 export function formSubsTone(count: number | null): StatusTone {
-  return count ? "positive" : "neutral";
+  if (count === null || !Number.isFinite(count)) return "unknown";
+  return count > 0 ? "positive" : "warn";
 }
