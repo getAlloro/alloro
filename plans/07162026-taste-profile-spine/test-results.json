@@ -127,6 +127,21 @@
       "evidence": "tsc --noEmit exit 0. npm test: 62 files / 481 tests passed, 0 failed. check:conventions --strict: 0 CLEAR structural violations, exit 0. lint: 0 errors (2384 pre-existing warnings). depcruise: 0 errors, 38 warnings (39 pre-fix).",
       "notes": "The PR body's claim that vitest will not run in-env (a pre-existing ESM/toolchain issue) did not reproduce on Node 22.23.1 - the committed vitest files run normally.",
       "waiver": ""
+    },
+    {
+      "id": "T9",
+      "title": "Current GitHub checks attached to the PR head (review finding 4, part 3)",
+      "surface": "ci",
+      "precondition": "NOT SATISFIABLE ON ANY BRANCH. The review asked for tenant-isolation tests (T2-T5), the acceptance artifacts (this file), and current GitHub checks. This item records the third part rather than letting it go unrecorded.",
+      "steps": [
+        "Inspect every trigger in .github/workflows/.",
+        "Run `gh pr checks 160`."
+      ],
+      "expected": "There is no CI to attach. The repo has only deploy workflows, each triggered by a PUSH to one branch - deploy-sandbox.yml on [sandbox], dev.yml on [dev/dave], main.yml on [main]. No pull_request trigger exists anywhere, so no workflow runs against a feature branch or a pull request, and `gh pr checks 160` can only ever report none.",
+      "status": "pending",
+      "evidence": "Structurally verified on the branch head: the three workflow files carry push-only triggers and `grep -rn pull_request .github/workflows/` returns nothing. `gh pr checks 160` itself could not be run at verification time (transient api.github.com connectivity error), but the workflow files are the stronger proof - with no trigger, no check CAN exist to report.",
+      "notes": "HONEST LIMIT, not a gap this PR can close. This is an infrastructure absence already raised with Dave, not something the branch did wrong; adding a pull_request CI workflow is its own change, out of scope here. Recorded as pending rather than waived to green so the package cannot roll up 'Passed' on a check nobody ran. Every gate CI would have proven was instead run locally on Node 22.23.1 and is recorded in T8 with exit codes.",
+      "waiver": ""
     }
   ]
 }
