@@ -1,0 +1,145 @@
+{
+  "plan": "plans/07152026-findability-sensor",
+  "generatedAt": "2026-07-16",
+  "status": "In Progress",
+  "items": [
+    {
+      "id": "T1",
+      "title": "Concurrent configuration saves leave exactly one config per location",
+      "surface": "model",
+      "precondition": "Run the sensor model tests against the Postgres-shaped in-memory evaluator, which emulates the unique index and resolves ON CONFLICT atomically.",
+      "steps": [
+        "Issue two upsertConfig calls for the same (organization, location) concurrently via Promise.all.",
+        "Count the rows in findability_sensor_keyword_configs."
+      ],
+      "expected": "Exactly one configuration row exists; neither call throws.",
+      "status": "pass",
+      "evidence": "src/__tests__/findability-sensor-model.test.ts passed in the 41-test focused run and the 497-test full suite. Adversarially verified: this test FAILS against the pre-fix check-then-create upsertConfig with 'duplicate key value violates unique constraint'.",
+      "notes": "Review finding #1. The DB now owns the rule via fs_configs_dedup_uidx; the model converges on it rather than racing it.",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "A null-location config cannot escape the uniqueness rule",
+      "surface": "model",
+      "precondition": "Same evaluator, keyed on (organization_id, COALESCE(location_id, -1)) exactly as the migration keys the index.",
+      "steps": [
+        "Issue two concurrent upsertConfig calls with location_id null for one organization.",
+        "Count the rows."
+      ],
+      "expected": "Exactly one configuration row exists.",
+      "status": "pass",
+      "evidence": "src/__tests__/findability-sensor-model.test.ts passed; also FAILS against the pre-fix implementation.",
+      "notes": "Postgres treats NULLs as DISTINCT in a plain unique index, so a null location would otherwise slip the constraint. This is why the index is an expression index over COALESCE(location_id, -1) and not a plain column pair.",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "A re-save edits the location's one config in place and preserves created_at",
+      "surface": "model",
+      "precondition": "Run the sensor model tests.",
+      "steps": [
+        "Save a config, then save again for the same location with changed grid_size, radius_miles, and enabled.",
+        "Inspect row count, id, created_at, and the merged columns."
+      ],
+      "expected": "One row; same id; created_at unchanged; the merge columns reflect the new values.",
+      "status": "pass",
+      "evidence": "src/__tests__/findability-sensor-model.test.ts passed. The generated SQL was rendered with the pg dialect and confirmed to set only the merge columns from excluded, never created_at.",
+      "notes": "CONFIG_MERGE_COLUMNS deliberately excludes the identity key and created_at.",
+      "waiver": ""
+    },
+    {
+      "id": "T4",
+      "title": "The uniqueness rule does not over-constrain distinct locations or organizations",
+      "surface": "model",
+      "precondition": "Run the sensor model tests.",
+      "steps": [
+        "Concurrently save configs for location 1, location 2, and a null location under one organization.",
+        "Concurrently save configs for the same location id under two different organizations."
+      ],
+      "expected": "Three rows in the first case and two in the second - the index constrains only true duplicates.",
+      "status": "pass",
+      "evidence": "src/__tests__/findability-sensor-model.test.ts passed both non-over-constraining cases.",
+      "notes": "Guards against a fix that trades a race for lost tenant/location data.",
+      "waiver": ""
+    },
+    {
+      "id": "T5",
+      "title": "The same race on the readings table converges to one snapshot per keyword/day",
+      "surface": "model",
+      "precondition": "Run the sensor model tests.",
+      "steps": [
+        "Issue two concurrent upsertReading calls for the same (org, location, keyword, run_date).",
+        "Re-scan the same day with a changed SoLV; then scan a different run_date."
+      ],
+      "expected": "One row for the day whose measurement reflects the later write; a different run_date adds a new point rather than conflicting.",
+      "status": "pass",
+      "evidence": "src/__tests__/findability-sensor-model.test.ts passed all three readings cases.",
+      "notes": "upsertReading moved from Rev 3's catch-23505-and-retry to the same onConflict().merge() shape, which also removes the caveat that a 23505 aborts a caller's surrounding transaction.",
+      "waiver": ""
+    },
+    {
+      "id": "T6",
+      "title": "The slice ships no schedule it cannot run",
+      "surface": "model",
+      "precondition": "Run the sensor model tests and read the migration source.",
+      "steps": [
+        "Resolve the findability_sensor key against agentRegistry.",
+        "Assert the migration contains no knex(\"schedules\") statement.",
+        "Assert every registered agent key resolves to a callable handler."
+      ],
+      "expected": "No findability_sensor handler exists; the migration seeds no schedules row; every dispatchable key has something to dispatch to.",
+      "status": "pass",
+      "evidence": "src/__tests__/findability-sensor-model.test.ts passed all three guards. The seed was removed from src/database/migrations/20260715000000_create_findability_sensor_tables.ts.",
+      "notes": "Review finding #2, resolved by removal rather than half-wiring: the row had no next_run_at and no handler, so enabling it alone could never produce a due, dispatchable run. The schedule lands with the executor slice.",
+      "waiver": ""
+    },
+    {
+      "id": "T7",
+      "title": "The migration applies, reverses, and re-applies against a real Postgres",
+      "surface": "db",
+      "precondition": "A live Postgres (dev or a disposable instance) with the branch checked out.",
+      "steps": [
+        "Run npm run db:migrate; confirm both tables and both unique indexes exist.",
+        "Run npm run db:rollback; confirm both tables are gone and no schedules row was left behind.",
+        "Re-run npm run db:migrate to confirm idempotency, then run it again against an already-migrated DB."
+      ],
+      "expected": "up/down/re-up are clean; fs_configs_dedup_uidx and fs_readings_dedup_uidx exist as unique expression indexes; the IF NOT EXISTS guards make a repeat run a no-op.",
+      "status": "pending",
+      "evidence": "NOT RUN. No live Postgres was reachable from this session - no local server, no Docker daemon - and writing to the shared dev database was out of scope for this fix.",
+      "notes": "Layer 3. This is the check most likely to surface a problem the hermetic tests cannot: the DDL itself is unproven against a real server.",
+      "waiver": ""
+    },
+    {
+      "id": "T8",
+      "title": "Postgres infers the ON CONFLICT target from the expression index",
+      "surface": "db",
+      "precondition": "A live Postgres with the migration applied.",
+      "steps": [
+        "Call upsertConfig twice for the same location and inspect for error 42P10.",
+        "Call upsertReading twice for the same keyword/day."
+      ],
+      "expected": "Both converge on one row; no 42P10 (no matching ON CONFLICT inference target).",
+      "status": "pending",
+      "evidence": "NOT RUN against a live server. Partially de-risked offline: the upsert SQL was rendered with knex's pg dialect and the conflict target emits as `on conflict (organization_id, COALESCE(location_id, -1)) do update set ...`, matching the migration's index expression textually.",
+      "notes": "Layer 3. A conflict target must match the index expression for Postgres to infer it; the two are written to match and were compared as rendered SQL, but only a live server proves inference.",
+      "waiver": ""
+    },
+    {
+      "id": "T9",
+      "title": "Static and structural gates are clean",
+      "surface": "ci",
+      "precondition": "Node 22 toolchain in the branch worktree.",
+      "steps": [
+        "Run npx tsc --noEmit.",
+        "Run npm run check:conventions -- --strict.",
+        "Run npm test."
+      ],
+      "expected": "Typecheck 0 errors; 0 clear backend structural violations; the full suite green with no regression.",
+      "status": "pass",
+      "evidence": "tsc --noEmit exit 0. check:conventions --strict exit 0, 'CLEAR structural violations - backend (size + console + db): 0'. npm test: 62 files, 497 tests passed (485 baseline + 12 new).",
+      "notes": "CI could not be attached: no workflow is configured to run on claude/* branches, so these are local runs on the pushed commit. Already raised with Dave.",
+      "waiver": ""
+    }
+  ]
+}

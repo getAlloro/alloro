@@ -3,7 +3,7 @@ import type { Knex } from "knex";
 /**
  * Findability Sensor (A5, slice 1) — additive, reversible schema.
  *
- * Two tables + one DISABLED schedule seed:
+ * Two tables, no schedule seed:
  *   - `findability_sensor_readings`  one honest SoLV snapshot per
  *     (organization, location, keyword-family, run_date). Holds the aggregated
  *     reading (SoLV/ARP/ATRP + coverage) and the raw per-pin ranks as jsonb —
@@ -12,19 +12,28 @@ import type { Knex } from "knex";
  *   - `findability_sensor_keyword_configs`  the done-for-you + owner-steerable
  *     keyword/area config per location. `enabled` defaults FALSE (Value #2:
  *     every lever ships OFF until the owner/operator turns it on).
- *   - a `schedules` row (`agent_key='findability_sensor'`) SEEDED DISABLED, so
- *     the recurring scan costs nothing until Corey enables it (mirrors A4).
- *     A disabled row is never dispatched (ScheduleModel.findDueSchedules filters
- *     enabled=true), so seeding one before its handler exists is inert.
  *
- * Safety: all additive (new tables, one new schedules row); no locks on or
- * changes to existing tables; fully reversible down(). No data rewrites.
+ * NO SCHEDULE IS SEEDED (Rev 4, review finding #2). This slice ships the sensor
+ * only — there is no `agentRegistry` handler for a `findability_sensor` key, so
+ * a seeded row could never produce a dispatchable run even if it were enabled
+ * (it also carried no `next_run_at`, and findDueSchedules requires
+ * `enabled = true AND next_run_at <= now()`). Seeding a row that cannot run is
+ * dead config that reads as a shipped capability. The schedule belongs in the
+ * slice that ships the fleet executor + its registry handler, and lands with it.
+ *
+ * Both uniqueness rules are enforced by the DB, not by app-level check-then-write
+ * (a TOCTOU race under concurrent scheduled + manual writes). Both use
+ * COALESCE(location_id, -1) because Postgres treats NULLs as DISTINCT in a plain
+ * unique index, so a null location would otherwise escape the constraint.
+ *
+ * Safety: all additive (two new tables); no locks on or changes to existing
+ * tables; fully reversible down(); idempotent (table guards + IF NOT EXISTS
+ * indexes). No data rewrites, no seeds.
  * Spec: plans/07152026-findability-sensor/spec.html
  */
 
 const READINGS = "findability_sensor_readings";
 const CONFIGS = "findability_sensor_keyword_configs";
-const SCHEDULE_AGENT_KEY = "findability_sensor";
 
 export async function up(knex: Knex): Promise<void> {
   const hasReadings = await knex.schema.hasTable(READINGS);
@@ -70,18 +79,16 @@ export async function up(knex: Knex): Promise<void> {
       t.index(["organization_id", "location_id"], "fs_readings_org_loc_idx");
       t.index(["observed_at"], "fs_readings_observed_at_idx");
     });
-
-    // Enforce "one snapshot per (org, location, keyword, run_date)" at the DB —
-    // an app-level check-then-insert alone is a TOCTOU race under concurrent
-    // (scheduled + manual) scans. COALESCE(location_id, -1) is used because
-    // Postgres treats NULLs as DISTINCT in a plain unique index, so a null
-    // location would otherwise escape the constraint. Real location ids are
-    // positive, so -1 is a safe sentinel for "no location".
-    await knex.raw(
-      `CREATE UNIQUE INDEX fs_readings_dedup_uidx ON ${READINGS} ` +
-        `(organization_id, COALESCE(location_id, -1), keyword, run_date)`,
-    );
   }
+
+  // Enforce "one snapshot per (org, location, keyword, run_date)" at the DB.
+  // Real location ids are positive, so -1 is a safe sentinel for "no location".
+  // Created outside the table guard with IF NOT EXISTS so the migration
+  // converges to the enforced shape even on a DB that ran an earlier draft.
+  await knex.raw(
+    `CREATE UNIQUE INDEX IF NOT EXISTS fs_readings_dedup_uidx ON ${READINGS} ` +
+      `(organization_id, COALESCE(location_id, -1), keyword, run_date)`,
+  );
 
   const hasConfigs = await knex.schema.hasTable(CONFIGS);
   if (!hasConfigs) {
@@ -101,35 +108,25 @@ export async function up(knex: Knex): Promise<void> {
       t.timestamp("created_at", { useTz: true }).notNullable().defaultTo(knex.fn.now());
       t.timestamp("updated_at", { useTz: true }).notNullable().defaultTo(knex.fn.now());
 
+      // Non-unique lookup index: findForLocation reads by the literal
+      // (organization_id, location_id) pair, which the COALESCE expression
+      // index below cannot serve. Both indexes earn their keep.
       t.index(["organization_id", "location_id"], "fs_configs_org_loc_idx");
     });
   }
 
-  // Seed the recurring-scan schedule DISABLED — zero cost until enabled.
-  if (await knex.schema.hasTable("schedules")) {
-    const existing = await knex("schedules").where({ agent_key: SCHEDULE_AGENT_KEY }).first();
-    if (!existing) {
-      const now = new Date();
-      await knex("schedules").insert({
-        agent_key: SCHEDULE_AGENT_KEY,
-        display_name: "Findability Sensor",
-        description:
-          "Samples local-Maps rank across a geo-grid for each tracked service keyword and stores an honest SoLV snapshot per onboarded location. SEEDED DISABLED — cost is pins x keywords x SerpApi per scan; enable only when ready.",
-        schedule_type: "interval_days",
-        interval_days: 15,
-        timezone: "UTC",
-        enabled: false,
-        created_at: now,
-        updated_at: now,
-      });
-    }
-  }
+  // Enforce "one keyword configuration per (organization, location)" at the DB
+  // (review finding #1). Mirrors the readings dedup index above, including the
+  // COALESCE so a null-location config cannot escape the constraint.
+  await knex.raw(
+    `CREATE UNIQUE INDEX IF NOT EXISTS fs_configs_dedup_uidx ON ${CONFIGS} ` +
+      `(organization_id, COALESCE(location_id, -1))`,
+  );
 }
 
 export async function down(knex: Knex): Promise<void> {
-  if (await knex.schema.hasTable("schedules")) {
-    await knex("schedules").where({ agent_key: SCHEDULE_AGENT_KEY }).del();
-  }
+  // Dropping each table drops its indexes with it. No schedules row is seeded
+  // by up(), so there is none to remove here.
   await knex.schema.dropTableIfExists(CONFIGS);
   await knex.schema.dropTableIfExists(READINGS);
 }

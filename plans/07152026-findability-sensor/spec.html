@@ -53,7 +53,7 @@
 <div class="wrap">
 
   <header class="hero">
-    <span class="pill"><span class="dot"></span>In Progress &middot; Rev 3</span>
+    <span class="pill"><span class="dot"></span>In Progress &middot; Rev 4</span>
     <h1>A5 · Slice 1 — The Findability Sensor</h1>
     <p class="sub">The honest instrument under the fuel gauge. Replace today's single, flickering rank point with stable, proximity-aware sampling of the <em>service</em> searches that bring new customers, across the practice's real area. Slice 1 of the scientist-loop engine (sensor → gauge → hypothesize → act → watch → learn). Not a grid the owner reads — the sampling is plumbing.</p>
     <div class="meta">
@@ -116,7 +116,7 @@
     <h2>Context</h2>
     <p><strong>Source of truth:</strong> the funnel map (A5); <code>research/rank-geo-grid-mechanism.md</code> (grid method, SoLV, cost, the honesty line — every claim URL-cited); <code>research/rank-findability-voc-and-fuel-gauge.md</code> (the ICP/VoC + design mandate); <code>self-proving-loop.md</code> (the watcher honesty). Evidence tier <span class="tier">DIRECTIONAL/MEASUREMENT</span>: a repeatable <em>estimate</em> (Local Falcon's own honest promise: same-spot comparability, "you will never quite know exactly what someone sees"), never truth-of-position.</p>
     <p><strong>Meet-or-exceed (Corey's bar):</strong> the proven example is Local Falcon (the geo-grid instrument). Slice 1 <b>meets</b> its sampling capability (honest multi-point sampling with SoLV). Alloro <b>exceeds</b> it later via the experience (fuel gauge, not a KPI panel) + the done-for-you scientist loop (mirror with hands) + the keyword-brain (service-not-name, demand-driven) — none of which the agency incumbents do.</p>
-    <p><strong>Constitution:</strong> backend <code>&sect;6.1</code> — mirror <code>practice-ranking</code> / <code>ai-seo-audit</code> (pipeline + persistence, location-scoped, tenant-safe). Additive migration (a new sensor-reading table + a keyword/area config; if the recurring scan is scheduled, a <code>schedules</code> seed <b>DISABLED</b> like A4). Precise <code>&sect;N.M</code> at the <code>alloro-engineer</code> pass; load-bearing Article = data-validity/honesty.</p>
+    <p><strong>Constitution:</strong> backend <code>&sect;6.1</code> — mirror <code>practice-ranking</code> / <code>ai-seo-audit</code> (pipeline + persistence, location-scoped, tenant-safe). Additive migration (a new sensor-reading table + a keyword/area config). <b>No <code>schedules</code> seed</b> — removed at Rev 4: this slice ships no registry handler, so a seeded row could never run. Precise <code>&sect;N.M</code> at the <code>alloro-engineer</code> pass; load-bearing Article = data-validity/honesty.</p>
   </section>
 
   <section>
@@ -131,7 +131,7 @@
       <p><b>The Watcher's honesty is load-bearing &mdash; the moat is the learning <em>rate</em>, not a static playbook (Rev 2).</b> Everything downstream (Reader &rarr; Hypothesizer &rarr; Actor &rarr; Watcher/E2) attributes lever-actions to needle-movement on <em>this</em> sensor. <strong>A single false attribution poisons the entire loop</strong>: if a scan reports movement that a fabricated pin created, the Hypothesizer learns the wrong lesson, the Actor pulls the wrong lever, and the owner is shown a win that isn't real &mdash; and once the owner catches one fake number, the honesty that IS the moat (<code>self-proving-loop.md</code>: "you cannot fake the number and keep the trust") is gone. The defensible asset is not a fixed set of "moves that work" &mdash; it is <strong>how fast and how honestly the loop learns from real, correctly-attributed readings</strong>. That is why the sensor's honesty caps are not cosmetic: they are the foundation the whole compounding advantage stands on. A wrong reading is worse than a missing one.</p>
     </div>
     <div class="guard">
-      <p><b>Sandbox-safety + cost (the real knob).</b> Cost = <b>pins &times; keywords &times; SerpApi</b> per scan (a 7&times;7 &times; 3 keywords = 147 calls). So grid size, keyword count, and cadence are the cost knobs; the recurring scan (if scheduled) ships <b>SEEDED DISABLED</b> like A4 — zero cost until Corey enables. Migration additive + reversible; prove DB paths with a rolled-back sandbox transaction. No writes to Google.</p>
+      <p><b>Sandbox-safety + cost (the real knob).</b> Cost = <b>pins &times; keywords &times; SerpApi</b> per scan (a 7&times;7 &times; 3 keywords = 147 calls). So grid size, keyword count, and cadence are the cost knobs; the recurring scan is <b>not scheduled in this slice at all</b> (Rev 4) — zero cost, and no dead schedule row pretending otherwise. The schedule lands with the executor slice. Migration additive + reversible; prove DB paths with a rolled-back sandbox transaction. No writes to Google.</p>
     </div>
     <ul>
       <li><strong>Per-(location,keyword) failure isolation</strong> — one failed pin or keyword never fails the scan; record what succeeded.</li>
@@ -144,7 +144,7 @@
   <section>
     <h2>Risk</h2>
     <ul>
-      <li><strong>SerpApi cost scales with pins&times;keywords.</strong> Mitigation: sensible default grid (7&times;7), small keyword set, cadence knob, schedule seeded disabled.</li>
+      <li><strong>SerpApi cost scales with pins&times;keywords.</strong> Mitigation: sensible default grid (7&times;7), small keyword set, cadence knob, and no schedule in this slice (Rev 4) — a scan only runs when invoked.</li>
       <li><strong>Estimate mistaken for truth.</strong> Mitigation: label every reading a repeatable estimate; SoLV is a described observation, never a forecast; no per-searcher "this is what they see" claim.</li>
       <li><strong>Vanity keyword drift (tracking the name, or agency ARP).</strong> Mitigation: keyword selection is service-not-name from real demand; SoLV is the owner headline; ARP/ATRP stay internal.</li>
       <li><strong>Non-repeatable noise.</strong> Mitigation: same-spot, same-grid, open-hours sampling for comparability (Local Falcon's own honesty method); trend-over-time, not a single reading, is the signal.</li>
@@ -154,7 +154,7 @@
   <section>
     <h2>Tasks</h2>
     <ol class="tasks">
-      <li><strong>Migration</strong> — additive sensor-reading table (per location/keyword/run: SoLV, coverage, per-pin ranks JSON, observed_at) + a keyword/area config table; reversible <code>down</code>. (Schedule seed, if any, DISABLED.)</li>
+      <li><strong>Migration</strong> — additive sensor-reading table (per location/keyword/run: SoLV, coverage, per-pin ranks JSON, observed_at) + a keyword/area config table; reversible <code>down</code>. <b>Both</b> uniqueness rules DB-enforced by unique indexes over <code>COALESCE(location_id,-1)</code>. No schedule seed (Rev 4).</li>
       <li><strong>Keyword selection</strong> — a service-not-name keyword-family resolver from GSC demand (A1) + the service list; the done-for-you + owner-steerable config.</li>
       <li><strong>Grid generation + open-hours guard</strong> — NxN vantage points over the service area (reuse the geo/radius utils); scan-during-open-hours check.</li>
       <li><strong>Sampling runner</strong> — call the reused per-point rank lookup per pin per keyword; isolate failures; a pure aggregator (SoLV/ARP/ATRP) over the pins; persist the idempotent snapshot.</li>
@@ -168,7 +168,7 @@
       <li>Keyword selection: name-only demand &rarr; excluded; service demand &rarr; included; no demand + no services &rarr; empty (honest skip).</li>
       <li>Runner with an <b>injected fake per-point provider</b> (no SerpApi): grid sampled, snapshot persisted idempotently, per-pin failure isolated.</li>
       <li>Assert no reading/copy contains a rank/guarantee/"#1"/rank&rarr;revenue claim; every reading carries the estimate label.</li>
-      <li>Migration up+down clean (rolled-back sandbox proof); any schedule seed is disabled.</li>
+      <li>Migration up+down clean, additive, idempotent (<code>IF NOT EXISTS</code> indexes); <b>no schedule is seeded</b> (Rev 4).</li>
       <li><code>npm run check:all</code> clean; <code>npm test</code> green (Node 22).</li>
       <li><strong>Post-merge smoke-test (Dave/dev):</strong> one real scan against an onboarded location; confirm an honest SoLV snapshot lands.</li>
     </ul>
@@ -177,7 +177,7 @@
   <section>
     <h2>Done</h2>
     <ul class="done">
-      <li>Additive sensor-reading + keyword/area config tables (reversible); any recurring schedule seeded DISABLED.</li>
+      <li>Additive sensor-reading + keyword/area config tables (reversible); one config per (org, location) DB-enforced; <b>no recurring schedule seeded</b> until its handler exists (Rev 4).</li>
       <li>Keyword selection derives service-not-name families from GSC demand + services; done-for-you, owner-steerable.</li>
       <li>The sampling runner samples the grid per keyword via the reused per-point call, isolates failures, and persists an idempotent SoLV/coverage snapshot with per-pin raw.</li>
       <li>No owner-facing grid/gauge; no rank/guarantee claim; every reading labelled an estimate (test-proven). Local (Maps) not organic.</li>
@@ -191,6 +191,16 @@
 
   <section id="revision-log">
     <h2>Revision Log</h2>
+    <article class="rev">
+      <h3>Rev 4 &mdash; 2026-07-16</h3>
+      <p><strong>Change:</strong> Parallel-review round on PR #167 (changes requested); all 4 findings addressed.
+      <b>(1) &ldquo;One keyword configuration per (organization, location)&rdquo; is now enforced in Postgres.</b> The configs table had only a non-unique index while <code>upsertConfig()</code> did check-then-create &mdash; the same TOCTOU race Rev 3 fixed on <i>readings</i> but never carried across to <i>configs</i>. Added unique index <code>fs_configs_dedup_uidx</code> on <code>(organization_id, COALESCE(location_id, -1))</code> (the COALESCE is what stops a null-location config escaping, since Postgres treats NULLs as DISTINCT), and rewrote <code>upsertConfig</code> as a single conflict-safe <code>INSERT ... ON CONFLICT DO UPDATE</code>. <code>upsertReading</code> moved to the same <code>onConflict().merge()</code> shape, which also retires Rev 3's caveat that its catch-23505 retry aborted a caller's surrounding transaction. Both indexes are now created with <code>IF NOT EXISTS</code> outside the table guard, so the migration is genuinely idempotent.
+      <b>(2) The seeded schedule is REMOVED from this slice.</b> The row carried no <code>next_run_at</code> and <code>agentRegistry</code> has no <code>findability_sensor</code> handler, so enabling it could never produce a due, dispatchable run (<code>findDueSchedules</code> requires <code>enabled = true AND next_run_at &lt;= now()</code>). Rev 3 called the seed &ldquo;inert&rdquo; and treated that as safety; the review is right that inert dead config reads as a shipped capability. Removing it is the honest call &mdash; the schedule belongs with the slice that ships the fleet executor and its registry handler, and lands with it.
+      <b>(3) Regression coverage added</b> &mdash; new <code>src/__tests__/findability-sensor-model.test.ts</code> (12 tests) over a Postgres-shaped in-memory evaluator (the <code>receipts-report-model.test.ts</code> precedent) that emulates the unique index and resolves ON CONFLICT atomically: concurrent config saves (incl. the null-location case), in-place convergence preserving <code>created_at</code>, non-over-constraining across locations/orgs, the same race on readings, and guards that no un-runnable schedule ships. Verified adversarially: the two concurrency tests FAIL against the pre-fix <code>upsertConfig</code>.
+      <b>(4) &sect;20.5 acceptance artifacts added</b> &mdash; <code>test.html</code> + <code>test-results.json</code>.</p>
+      <p><strong>Reason:</strong> User QA: parallel review on PR #167 requested changes (findings 1&ndash;4).</p>
+      <p><strong>Updated Done criteria:</strong> config uniqueness is DB-enforced and the upsert is conflict-safe (not check-then-create); no schedule is seeded until a registry handler exists; concurrent-save regressions are covered by tests proven to fail on the old code; <code>test.html</code> + <code>test-results.json</code> present. Gates: <code>tsc --noEmit</code> 0; full suite <b>497</b> green (485 + 12); <code>check:conventions --strict</code> 0 structural. <b>Not verified:</b> no live Postgres was reachable this session, so the DDL and the ON CONFLICT target inference are unproven against a real server (Layer 3 &mdash; see <code>test.html</code> T7/T8).</p>
+    </article>
     <article class="rev">
       <h3>Rev 3 &mdash; 2026-07-15</h3>
       <p><strong>Change:</strong> Fresh-adversary (<code>alloro-proof</code>) QA round on the built code; 5 findings, all fixed + regression-tested. (1) <b>Idempotency was claimed but not enforced</b> — the dedup index was non-unique and the model did check-then-insert (a TOCTOU race under concurrent scheduled+manual scans). Fixed: unique index <code>fs_readings_dedup_uidx</code> on <code>(organization_id, COALESCE(location_id,-1), keyword, run_date)</code> (COALESCE so a null location can't escape the constraint), and a race-safe <code>upsertReading</code> that catches the 23505 and resolves to an update. Proven in the rolled-back sandbox: duplicate + null-location-duplicate both rejected (23505). (2) <b>Non-Latin service keywords were corrupted/dropped</b> (ASCII-only normalize mangled "ni&ntilde;os"&rarr;"ni os", dropped "&#29273;&#21307;") — fixed with Unicode-aware <code>\p{L}\p{N}</code> normalization (matters for the bilingual dental ICP). (3) <b>The injected-provider outcome boundary accepted position 0/negative as a real rank</b> — hardened to require <code>position &gt;= 1</code>, else unknown. (4) <b>A rank beyond the cutoff scored better than a genuine absence</b> — the aggregator now treats <code>position &gt; 20</code> as a measured absence. (5) <b>A fully-generic business name let its exact vanity query through</b> — added a full-name exclusion fallback. Adversary confirmed the core honesty caps already held (no live fabrication, no overclaim, migration additive/reversible, schedule seed inert).</p>

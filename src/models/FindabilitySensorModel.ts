@@ -1,4 +1,5 @@
 import { BaseModel, QueryContext } from "./BaseModel";
+import { db } from "../database/connection";
 import type { KeywordFamily, PinObservation } from "../types/findability-sensor";
 
 /**
@@ -47,6 +48,33 @@ export type FindabilitySensorReadingInput = Omit<
   "id" | "created_at" | "updated_at"
 >;
 
+/**
+ * Columns an on-conflict re-run refreshes. Deliberately excludes the identity
+ * key (organization_id, location_id, keyword, run_date) and `created_at`, so a
+ * same-day re-scan updates the measurement in place and keeps the row's
+ * original birth timestamp.
+ */
+const READING_MERGE_COLUMNS = [
+  "keyword_source",
+  "grid_size",
+  "radius_miles",
+  "center_lat",
+  "center_lng",
+  "solv_percent",
+  "arp",
+  "atrp",
+  "total_pins",
+  "known_pins",
+  "unknown_pins",
+  "ranked_pins",
+  "top_three_pins",
+  "coverage",
+  "per_pin",
+  "open_hours_known",
+  "observed_at",
+  "updated_at",
+];
+
 export class FindabilitySensorReadingModel extends BaseModel {
   protected static tableName = "findability_sensor_readings";
   protected static jsonFields: string[] = ["per_pin"];
@@ -55,44 +83,38 @@ export class FindabilitySensorReadingModel extends BaseModel {
    * Idempotent write: one snapshot per (organization, location, keyword,
    * run_date). A re-run on the same day updates the existing row rather than
    * stacking duplicates (spec: "one snapshot per (location, keyword-family,
-   * run-date)"). Location may be null; knex renders `location_id is null`.
+   * run-date)").
    *
-   * Race-safe: the DB enforces uniqueness via `fs_readings_dedup_uidx`. If two
-   * concurrent scans both pass the initial existence check, the losing insert
-   * hits a unique violation (23505); we catch it and resolve to an update, so
-   * the guarantee holds even without a surrounding transaction. (Callers that
-   * pass their own `trx` own conflict handling — a 23505 aborts a Postgres
-   * transaction, so the retry path assumes the no-trx runner call.)
+   * Race-safe by construction: a single INSERT ... ON CONFLICT DO UPDATE that
+   * the DB resolves atomically against `fs_readings_dedup_uidx`. There is no
+   * check-then-write window for a concurrent (scheduled + manual) scan to slip
+   * through, and — unlike a catch-23505-and-retry — it never aborts a caller's
+   * surrounding transaction, so it is safe with or without a `trx`.
+   *
+   * The conflict target must match the index expression exactly (including the
+   * COALESCE), or Postgres cannot infer the index and raises 42P10.
    */
   static async upsertReading(
     input: FindabilitySensorReadingInput,
     trx?: QueryContext,
   ): Promise<IFindabilitySensorReading> {
-    const key = {
-      organization_id: input.organization_id,
+    const now = new Date();
+    const row = this.serializeJsonFields({
+      ...input,
       location_id: input.location_id ?? null,
-      keyword: input.keyword,
-      run_date: input.run_date,
-    };
-    const existing = await this.findOne(key, trx);
-    if (existing) {
-      await this.updateById(existing.id, input as Record<string, unknown>, trx);
-      return this.findById(existing.id, trx);
-    }
-    try {
-      return await this.create(input as Record<string, unknown>, trx);
-    } catch (error: unknown) {
-      // Unique violation → another scan inserted the same run first. Resolve
-      // to an update so the day's snapshot converges, never duplicates.
-      if ((error as { code?: string })?.code === "23505" && !trx) {
-        const raced = await this.findOne(key);
-        if (raced) {
-          await this.updateById(raced.id, input as Record<string, unknown>);
-          return this.findById(raced.id);
-        }
-      }
-      throw error;
-    }
+      created_at: now,
+      updated_at: now,
+    });
+    const [written] = await this.table(trx)
+      .insert(row)
+      .onConflict(
+        (trx || db).raw(
+          "(organization_id, COALESCE(location_id, -1), keyword, run_date)",
+        ),
+      )
+      .merge(READING_MERGE_COLUMNS)
+      .returning("*");
+    return this.deserializeJsonFields(written);
   }
 
   static async latestForLocation(
@@ -124,6 +146,19 @@ export type FindabilitySensorKeywordConfigInput = Omit<
   "id" | "created_at" | "updated_at"
 >;
 
+/**
+ * Columns an on-conflict save refreshes. Excludes the identity key
+ * (organization_id, location_id) and `created_at` — a re-save edits the
+ * location's one config in place rather than creating a second one.
+ */
+const CONFIG_MERGE_COLUMNS = [
+  "keywords",
+  "grid_size",
+  "radius_miles",
+  "enabled",
+  "updated_at",
+];
+
 export class FindabilitySensorKeywordConfigModel extends BaseModel {
   protected static tableName = "findability_sensor_keyword_configs";
   protected static jsonFields: string[] = ["keywords"];
@@ -139,20 +174,38 @@ export class FindabilitySensorKeywordConfigModel extends BaseModel {
     );
   }
 
-  /** One config per (organization, location) — upsert keeps it single. */
+  /**
+   * One config per (organization, location) — enforced by the DB, not by this
+   * method (review finding #1).
+   *
+   * A single INSERT ... ON CONFLICT DO UPDATE against `fs_configs_dedup_uidx`.
+   * The previous check-then-create was a TOCTOU race: two concurrent saves for
+   * the same location (a double-clicked save, or onboarding racing an owner
+   * edit) could both read "no existing row" and both insert, leaving two
+   * configs for one location and a scan whose keyword set depends on which row
+   * it happened to read. The unique index makes that unrepresentable, and this
+   * upsert converges on it instead of colliding with it.
+   *
+   * The conflict target must match the index expression exactly (including the
+   * COALESCE, which is what stops a null-location config from escaping the
+   * constraint — Postgres treats NULLs as DISTINCT in a plain unique index).
+   */
   static async upsertConfig(
     input: FindabilitySensorKeywordConfigInput,
     trx?: QueryContext,
   ): Promise<IFindabilitySensorKeywordConfig> {
-    const existing = await this.findForLocation(
-      input.organization_id,
-      input.location_id ?? null,
-      trx,
-    );
-    if (existing) {
-      await this.updateById(existing.id, input as Record<string, unknown>, trx);
-      return this.findById(existing.id, trx);
-    }
-    return this.create(input as Record<string, unknown>, trx);
+    const now = new Date();
+    const row = this.serializeJsonFields({
+      ...input,
+      location_id: input.location_id ?? null,
+      created_at: now,
+      updated_at: now,
+    });
+    const [written] = await this.table(trx)
+      .insert(row)
+      .onConflict((trx || db).raw("(organization_id, COALESCE(location_id, -1))"))
+      .merge(CONFIG_MERGE_COLUMNS)
+      .returning("*");
+    return this.deserializeJsonFields(written);
   }
 }
