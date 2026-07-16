@@ -1,15 +1,37 @@
 /**
  * Get-found write wiring — Alloro Funnel Engine Slice 1b.
  *
- * Turns a Slice-1a get-found finding plus an owner-approved `schema_json` into a
- * PENDING recommendation row of the new `page_seo_schema` target_type, inserted
- * on an existing ai-command batch. It QUEUES; it never approves. A human approves
- * the row through the existing rail, and `executeBatch` then runs the schema-write
- * handler (`executeUpdatePageSeoSchema`) and auto-publishes the pinned draft — so
- * no new autonomy is added here. The `page_seo_schema` type is the only one that
- * writes `seo_data`; every other rides the existing HTML/structure handlers, and
- * the answer-first section restructure reuses the shipping `page_section` handler
- * unchanged (no new handler for it).
+ * SCOPE — read this before relying on it.
+ *
+ * This module is the ROW CONTRACT for the new `page_seo_schema` target_type: it
+ * builds (and can insert) a PENDING recommendation from an owner-approved
+ * `schema_json`. It QUEUES; it never approves.
+ *
+ * What Slice 1b ships in production is the EXECUTE half. `executeBatch`
+ * dispatches `page_seo_schema` → `executeUpdatePageSeoSchema`
+ * (`service.ai-command-execute.ts`), reachable from
+ * `POST /:id/ai-command/:batchId/execute`. An approved row of this type is
+ * written to the batch's pinned draft, auto-published, and then verified against
+ * the live page's `seo_data.schema_json` (`util.ai-command-verify`). A human
+ * approves each row through the existing rail — no new autonomy.
+ *
+ * What Slice 1b does NOT ship is the PRODUCER. Nothing in the application
+ * creates a `page_seo_schema` row today — `queueSeoSchemaRecommendation` below
+ * has no production caller, so the type is inert until one exists. The intended
+ * producer is the get-found batch, and it is blocked upstream: Slice 1a's
+ * `runGetFoundChecker` (`services/ai-seo-audit/getFoundChecker.ts`) is itself
+ * not invoked from any application path, so there is no get-found analysis
+ * result in production to turn into a recommendation. Building one needs the
+ * deferred pieces (hosted-page fetch, a GBP identity source, a get-found batch
+ * type and its UI) — it is deliberately NOT faked here.
+ *
+ * So: do not describe this module as "turns a get-found finding into a pending
+ * recommendation" end-to-end until that producer lands.
+ *
+ * Design notes that DO hold today: `page_seo_schema` is the only type that
+ * writes `seo_data` (every other rides the existing HTML/structure handlers),
+ * and the answer-first section restructure reuses the shipping `page_section`
+ * handler unchanged (no new handler for it).
  */
 
 import { AiCommandRecommendationModel } from "../../../models/website-builder/AiCommandRecommendationModel";
@@ -62,6 +84,11 @@ export function buildSeoSchemaRecommendationRow(
  * Queue the schema-write recommendation as PENDING. A human must approve it in
  * the existing rail before `executeBatch` runs it — this function adds no
  * autonomy and performs no live write itself.
+ *
+ * NOT CALLED IN PRODUCTION YET (see the module header). This is the entry point
+ * the get-found batch will call once that producer is built; today only tests
+ * exercise it. Treat "Slice 1b can queue a schema recommendation" as a
+ * capability of the CONTRACT, not of the running system.
  */
 export async function queueSeoSchemaRecommendation(
   input: SeoSchemaRecommendationInput

@@ -126,16 +126,43 @@ export async function executeBatch(batchId: string): Promise<void> {
     await refreshStats(batchId);
   }
 
-  // Publish all page drafts that were created during this batch (one version per page)
+  // Publish all page drafts that were created during this batch (one version per
+  // page). A publish failure is NOT swallowed (§3.2): the failing paths are
+  // collected here, every recommendation that wrote to one of them is downgraded
+  // executed→failed below, and the batch itself finishes as "failed". An
+  // unpublished draft means the approved change never reached the live page —
+  // completing that batch would report a success that did not happen.
+  const publishFailures = new Map<string, string>();
   for (const [path, draftId] of ctx.pageDrafts) {
     const draftPage = await PageModel.findRawById(draftId);
     if (!draftPage || draftPage.status !== "draft") continue;
-    const publishResult = await publishPage(draftPage.project_id, draftId);
-    if (publishResult.error) {
-      logger.warn(`[AiCommand] Auto-publish failed for page ${path} (${draftId}): ${publishResult.error.message}`);
-    } else {
-      logger.info(`[AiCommand] ✓ Auto-published page ${path} (${draftId})`);
+    try {
+      const publishResult = await publishPage(draftPage.project_id, draftId);
+      if (publishResult.error) {
+        publishFailures.set(path, publishResult.error.message);
+        logger.error(
+          { batchId, path, draftId, err: publishResult.error.message },
+          "[AiCommand] Auto-publish failed — batch will be marked failed"
+        );
+      } else {
+        logger.info(`[AiCommand] ✓ Auto-published page ${path} (${draftId})`);
+      }
+    } catch (err) {
+      publishFailures.set(path, (err as Error).message);
+      logger.error(
+        { batchId, path, draftId, err: (err as Error).message },
+        "[AiCommand] Auto-publish threw — batch will be marked failed"
+      );
     }
+  }
+
+  // Downgrade every recommendation whose write landed on a draft that then failed
+  // to publish — without this the row still reads "executed" while the change
+  // sits on an unpublished draft.
+  if (publishFailures.size > 0) {
+    const downgraded = await failRecommendationsForUnpublishedPages(batchId, publishFailures);
+    failedCount += downgraded;
+    executedCount = Math.max(0, executedCount - downgraded);
   }
 
   // Verify each executed HTML edit actually reached the published content. The
@@ -150,18 +177,88 @@ export async function executeBatch(batchId: string): Promise<void> {
     );
   }
 
-  const executionSummary = await buildExecutionSummary(batchId);
+  let executionSummary = await buildExecutionSummary(batchId);
+
+  // §3.2 — a batch whose pages did not publish is NOT "completed". The approved
+  // changes are still sitting on unpublished drafts; the operator has to see
+  // that and re-run, so the terminal status has to say so.
+  if (publishFailures.size > 0) {
+    const lines = [...publishFailures].map(([path, err]) => `- ${path}: ${err}`);
+    executionSummary += `\n\n## ⚠️ Publish failed\nThese pages did not publish, so their approved changes are NOT live (the edits remain on an unpublished draft):\n${lines.join("\n")}`;
+  }
 
   await AiCommandBatchModel.updateById(batchId, {
-    status: "completed",
+    status: publishFailures.size > 0 ? "failed" : "completed",
     summary: executionSummary,
   });
 
   await refreshStats(batchId);
 
+  if (publishFailures.size > 0) {
+    logger.error(
+      { batchId, executedCount, failedCount, unpublishedPaths: [...publishFailures.keys()] },
+      "[AiCommand] ✗ Batch execution finished FAILED — one or more pages did not publish"
+    );
+    return;
+  }
+
   logger.info(
     `[AiCommand] ✓ Batch ${batchId} execution complete: ${executedCount} executed, ${failedCount} failed`
   );
+}
+
+/** Recommendation types whose write lands on a page draft the batch publishes. */
+const PAGE_DRAFT_TARGET_TYPES = new Set(["page_section", "page_seo_schema"]);
+
+/**
+ * Downgrade executed→failed every recommendation that wrote to a page whose
+ * publish failed, keyed by page path (the key `ctx.pageDrafts` uses). Returns the
+ * number downgraded so the batch counters stay truthful.
+ */
+async function failRecommendationsForUnpublishedPages(
+  batchId: string,
+  publishFailures: Map<string, string>
+): Promise<number> {
+  const executed = await AiCommandRecommendationModel.findByBatchId(batchId, {
+    status: "executed",
+  });
+
+  let downgraded = 0;
+  for (const rec of executed) {
+    if (!PAGE_DRAFT_TARGET_TYPES.has(rec.target_type)) continue;
+
+    const page = await PageModel.findRawById(rec.target_id);
+    if (!page) continue;
+    const reason = publishFailures.get(page.path);
+    if (!reason) continue;
+
+    let prior: Record<string, unknown> = {};
+    try {
+      prior =
+        typeof rec.execution_result === "string"
+          ? JSON.parse(rec.execution_result)
+          : rec.execution_result || {};
+    } catch {
+      prior = {};
+    }
+
+    await AiCommandRecommendationModel.updateById(rec.id, {
+      status: "failed",
+      execution_result: JSON.stringify({
+        ...prior,
+        success: false,
+        published: false,
+        error: `Page ${page.path} failed to publish — the change stayed on an unpublished draft and is not live: ${reason}`,
+      }),
+    });
+    downgraded++;
+    logger.warn(
+      { recId: rec.id, batchId, path: page.path },
+      "[AiCommand] Downgraded executed→failed: page did not publish"
+    );
+  }
+
+  return downgraded;
 }
 
 async function executeRecommendation(rec: any, ctx: ExecutionContext): Promise<void> {

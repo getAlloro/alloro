@@ -1,0 +1,159 @@
+{
+  "plan": "plans/07162026-funnel-engine-slice-1b-get-found-write",
+  "generatedAt": "2026-07-16",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "T1",
+      "title": "The schema handler merges schema_json into the draft's existing seo_data",
+      "surface": "api",
+      "precondition": "Run the Slice 1b tests with PageModel and the recommendation model mocked.",
+      "steps": [
+        "Execute an approved page_seo_schema recommendation against a draft whose seo_data already carries meta_title.",
+        "Inspect the seo_data written to the draft."
+      ],
+      "expected": "schema_json is written as a non-empty array and the pre-existing seo_data keys survive (no clobber).",
+      "status": "pass",
+      "evidence": "src/__tests__/get-found-write.test.ts passed in the focused 15-test run and the 496-test full suite (Node 22).",
+      "notes": "The write lands on the batch's pinned draft, which the batch auto-publishes as one reversible page version.",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "The honesty gate blocks a rank/placement claim before any write",
+      "surface": "api",
+      "precondition": "Run the Slice 1b tests with a schema whose description carries a ranking promise.",
+      "steps": [
+        "Execute the recommendation with a rank-claiming description.",
+        "Inspect the recommendation status and whether the page was written."
+      ],
+      "expected": "The recommendation is failed with the blocked reasons and PageModel.updateSeoDataById is never called.",
+      "status": "pass",
+      "evidence": "src/__tests__/get-found-write.test.ts passed the honesty-gate cases.",
+      "notes": "Only descriptive keys are scanned; identity fields (name, alternateName) are excluded so a real practice name is not false-blocked.",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "A non-array schema_json fails the recommendation and writes nothing",
+      "surface": "api",
+      "precondition": "Run the Slice 1b tests with a bare object and with an empty array.",
+      "steps": [
+        "Execute the recommendation with schema_json as a bare object.",
+        "Execute it with an empty array."
+      ],
+      "expected": "Both fail the recommendation with a typed reason and perform no write.",
+      "status": "pass",
+      "evidence": "src/__tests__/get-found-write.test.ts passed the array-shape cases.",
+      "notes": "The whole codebase reads seo_data.schema_json as an array; a bare object would crash the admin SEO score.",
+      "waiver": ""
+    },
+    {
+      "id": "T4",
+      "title": "The row builder produces a PENDING, human-gated recommendation of the new type",
+      "surface": "api",
+      "precondition": "Build a recommendation row from an owner-approved schema array.",
+      "steps": [
+        "Build the row.",
+        "Inspect its target_type, target_meta, and status."
+      ],
+      "expected": "target_type is page_seo_schema, target_meta carries the schema array, and no status is set, so the DB default 'pending' applies and a human must approve before executeBatch runs it.",
+      "status": "pass",
+      "evidence": "src/__tests__/get-found-write.test.ts passed the row-contract case.",
+      "notes": "CONTRACT ONLY. queueSeoSchemaRecommendation has no production caller (see T10), so this proves the row shape, not a live capability.",
+      "waiver": ""
+    },
+    {
+      "id": "T5",
+      "title": "A failed publish marks the batch FAILED instead of completing it",
+      "surface": "api",
+      "precondition": "Run executeBatch with publishPage mocked to return a typed error, and again to throw.",
+      "steps": [
+        "Execute a batch whose approved recommendation writes to a page draft.",
+        "Make publishPage return an error object on one run and reject on the other.",
+        "Inspect the terminal batch status and summary."
+      ],
+      "expected": "The batch terminates 'failed' (not 'completed') on both the returned-error and thrown-error paths, and the summary names the unpublished path and the reason.",
+      "status": "pass",
+      "evidence": "src/__tests__/ai-command-publish-failure.test.ts passed 3/3. Verified non-vacuous: against the pre-fix code the two failure cases fail with \"expected 'completed' to be 'failed'\".",
+      "notes": "Article 3.2. The previous loop logged the publishPage error via logger.warn and continued to 'completed'.",
+      "waiver": ""
+    },
+    {
+      "id": "T6",
+      "title": "Recommendations whose page did not publish are downgraded from executed to failed",
+      "surface": "api",
+      "precondition": "Run executeBatch with a page_seo_schema recommendation and a failing publishPage.",
+      "steps": [
+        "Execute the batch.",
+        "Inspect the recommendation's status and stored execution_result."
+      ],
+      "expected": "The recommendation is failed with published:false and a reason naming the unpublished draft, so batch stats never claim a change is live while it sits on a draft.",
+      "status": "pass",
+      "evidence": "src/__tests__/ai-command-publish-failure.test.ts passed the downgrade assertions.",
+      "notes": "Scoped to page_section and page_seo_schema, the types whose write lands on a batch-published draft.",
+      "waiver": ""
+    },
+    {
+      "id": "T7",
+      "title": "A fully successful batch still completes and downgrades nothing",
+      "surface": "api",
+      "precondition": "Run executeBatch with publishPage succeeding.",
+      "steps": [
+        "Execute the batch with every page publishing.",
+        "Inspect the batch status and recommendation updates."
+      ],
+      "expected": "The batch completes with the unmodified summary and no recommendation is downgraded, so the fix does not fail healthy batches.",
+      "status": "pass",
+      "evidence": "src/__tests__/ai-command-publish-failure.test.ts passed the happy-path case (it also passes against pre-fix code, as expected for a no-regression guard).",
+      "notes": "Guards against the fix over-failing.",
+      "waiver": ""
+    },
+    {
+      "id": "T8",
+      "title": "The approved schema is confirmed live before it counts as a success",
+      "surface": "api",
+      "precondition": "Run verifyBatchEdits over an executed page_seo_schema recommendation.",
+      "steps": [
+        "Re-read the published page's seo_data.schema_json.",
+        "Compare it against the approved array."
+      ],
+      "expected": "When the published schema contains the approved entry the recommendation verifies; extra published keys are tolerated and array order is ignored.",
+      "status": "pass",
+      "evidence": "src/__tests__/get-found-write.test.ts passed the containment-helper and verify cases.",
+      "notes": "page_seo_schema was previously excluded from VERIFIABLE_TARGET_TYPES entirely, so the write was never checked against the live page.",
+      "waiver": ""
+    },
+    {
+      "id": "T9",
+      "title": "A schema write that did not reach the live page is failed, not reported as success",
+      "surface": "api",
+      "precondition": "Run verifyBatchEdits against a stale published schema, a missing published row, and an unreadable read.",
+      "steps": [
+        "Publish a page whose schema_json lacks the approved entry.",
+        "Remove the published row entirely.",
+        "Make the published read reject."
+      ],
+      "expected": "All three downgrade the recommendation to failed with a verify_reason; an unreadable live page fails rather than defaulting to success.",
+      "status": "pass",
+      "evidence": "src/__tests__/get-found-write.test.ts passed all three downgrade cases.",
+      "notes": "Deliberately stricter than the HTML token heuristic: the approved schema is exact JSON, so presence is decidable. A false failure costs one idempotent re-run; a false success would claim structured data is live when it is not.",
+      "waiver": ""
+    },
+    {
+      "id": "T10",
+      "title": "NOT PROVEN: no production path creates a page_seo_schema recommendation",
+      "surface": "api",
+      "precondition": "Static reference check across src/.",
+      "steps": [
+        "Grep for callers of queueSeoSchemaRecommendation.",
+        "Grep for callers of the upstream Slice 1a runGetFoundChecker."
+      ],
+      "expected": "A production caller turns a get-found analysis result into a pending recommendation.",
+      "status": "fail",
+      "evidence": "Both are referenced only by their own definition and their tests. queueSeoSchemaRecommendation: service.get-found-write.ts plus get-found-write.test.ts only. runGetFoundChecker: getFoundChecker.ts:88 plus get-found-checker.test.ts only.",
+      "notes": "The producer is blocked upstream: Slice 1a's checker is itself not invoked from any application path, so there is no get-found analysis result in production to wire from. Building one needs the deferred pieces (hosted-page fetch, a GBP identity source, a get-found batch type and its UI). The execute half IS production-wired: executeBatch dispatches page_seo_schema to the handler, reachable from POST /:id/ai-command/:batchId/execute.",
+      "waiver": "Contract narrowed instead of faked. service.get-found-write.ts now states that Slice 1b ships the execute half plus the row contract, that queueSeoSchemaRecommendation has no production caller, and that the type is inert until a producer lands. The reviewer explicitly allowed 'add a real production path, OR honestly narrow the stated contract'; this is the second option, recorded here so the gap stays visible rather than reading as shipped."
+    }
+  ]
+}

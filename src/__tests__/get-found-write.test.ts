@@ -5,22 +5,21 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
  * behaviors the spec's Test section requires for 1b:
  *   - the new `page_seo_schema` handler writes `seo_data.schema_json` (merged),
  *   - the honesty gate blocks a rank/placement claim before any write,
- *   - the wiring builds a PENDING (human-gated) recommendation of the new type.
+ *   - the wiring builds a PENDING (human-gated) recommendation of the new type,
+ *   - the approved schema is confirmed LIVE after publish, and a write that did
+ *     not reach the published page is failed rather than reported as a success.
  *
  * Version-reversibility of the seo_data write is proven separately against the
  * real DB (rolled-back transaction) — the write lands on the batch's pinned
  * draft, which the batch auto-publishes, retiring the prior version (with its
  * seo_data) as restorable history.
- *
- * NOTE: the repo's vitest currently fails to start with ERR_REQUIRE_ESM
- * (pre-existing, tracked). This file compiles under `tsc --noEmit` and mirrors a
- * tsx proof that was executed and passed; it runs once the ESM issue is fixed.
  */
 
 vi.mock("../models/website-builder/PageModel", () => ({
   PageModel: {
     findRawById: vi.fn(),
     updateSeoDataById: vi.fn(async () => 1),
+    findRawByProjectPathStatus: vi.fn(),
   },
 }));
 
@@ -28,7 +27,16 @@ vi.mock("../models/website-builder/AiCommandRecommendationModel", () => ({
   AiCommandRecommendationModel: {
     updateById: vi.fn(async () => 1),
     insertRow: vi.fn(async () => undefined),
+    findByBatchId: vi.fn(async () => []),
   },
+}));
+
+// The verify pass imports these; mocked so the suite never reaches a real DB.
+vi.mock("../models/website-builder/ProjectModel", () => ({
+  ProjectModel: { findRawById: vi.fn() },
+}));
+vi.mock("../models/website-builder/PostModel", () => ({
+  PostModel: { findRawById: vi.fn() },
 }));
 
 vi.mock("../controllers/admin-websites/feature-utils/util.ai-command-shared", () => ({
@@ -42,6 +50,11 @@ import {
   buildSeoSchemaRecommendationRow,
   SEO_SCHEMA_TARGET_TYPE,
 } from "../controllers/admin-websites/feature-services/service.get-found-write";
+import {
+  publishedSchemaContains,
+  schemaEntryMatches,
+  verifyBatchEdits,
+} from "../controllers/admin-websites/feature-utils/util.ai-command-verify";
 
 const NEW_SCHEMA = [
   {
@@ -201,5 +214,105 @@ describe("buildSeoSchemaRecommendationRow — human-approved wiring", () => {
     // No status set -> DB default 'pending'; not pre-approved. executeBatch only
     // runs status='approved' rows, so a human must approve first (no new autonomy).
     expect("status" in row).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// §3.2 — the approved schema must be confirmed LIVE before it counts as success
+// ---------------------------------------------------------------------------
+
+describe("schema containment helpers", () => {
+  it("matches an approved entry that the published copy carries verbatim", () => {
+    expect(schemaEntryMatches(NEW_SCHEMA[0], { ...NEW_SCHEMA[0] })).toBe(true);
+  });
+
+  it("tolerates EXTRA published keys but not a changed or missing one", () => {
+    expect(schemaEntryMatches(NEW_SCHEMA[0], { ...NEW_SCHEMA[0], extra: "ok" })).toBe(true);
+    expect(schemaEntryMatches(NEW_SCHEMA[0], { ...NEW_SCHEMA[0], name: "Other" })).toBe(false);
+    expect(schemaEntryMatches(NEW_SCHEMA[0], { "@type": "Dentist" })).toBe(false);
+  });
+
+  it("finds the approved entry regardless of published array order", () => {
+    expect(publishedSchemaContains(NEW_SCHEMA, [{ "@type": "WebSite" }, NEW_SCHEMA[0]])).toBe(true);
+  });
+
+  it("is false when the published schema is absent or not an array", () => {
+    expect(publishedSchemaContains(NEW_SCHEMA, undefined)).toBe(false);
+    expect(publishedSchemaContains(NEW_SCHEMA, NEW_SCHEMA[0])).toBe(false);
+    expect(publishedSchemaContains(NEW_SCHEMA, [])).toBe(false);
+  });
+});
+
+describe("verifyBatchEdits — page_seo_schema is verified against the live page", () => {
+  const schemaRec = {
+    id: "rec-1",
+    target_type: "page_seo_schema",
+    target_id: "page-1",
+    target_label: "/x > structured data",
+    target_meta: JSON.stringify({ page_path: "/x", schema_json: NEW_SCHEMA }),
+    execution_result: JSON.stringify({ success: true, schema_written: true }),
+  };
+
+  beforeEach(() => {
+    vi.mocked(AiCommandRecommendationModel.findByBatchId).mockResolvedValue([schemaRec] as never);
+    vi.mocked(AiCommandRecommendationModel.updateById).mockClear();
+    vi.mocked(PageModel.findRawById).mockResolvedValue({
+      id: "page-1",
+      project_id: "p",
+      path: "/x",
+    } as never);
+  });
+
+  it("verifies the recommendation when the approved schema is live", async () => {
+    vi.mocked(PageModel.findRawByProjectPathStatus).mockResolvedValue({
+      id: "pub-1",
+      seo_data: JSON.stringify({ meta_title: "keep-me", schema_json: NEW_SCHEMA }),
+    } as never);
+
+    const result = await verifyBatchEdits("b1");
+
+    expect(result).toEqual({ verified: 1, downgraded: 0 });
+    expect(AiCommandRecommendationModel.updateById).not.toHaveBeenCalled();
+  });
+
+  it("FAILS the recommendation when the published schema lacks the approved entry", async () => {
+    vi.mocked(PageModel.findRawByProjectPathStatus).mockResolvedValue({
+      id: "pub-1",
+      seo_data: JSON.stringify({ schema_json: [{ "@type": "WebSite", name: "stale" }] }),
+    } as never);
+
+    const result = await verifyBatchEdits("b1");
+
+    expect(result).toEqual({ verified: 0, downgraded: 1 });
+    const [, patch] = vi.mocked(AiCommandRecommendationModel.updateById).mock.calls[0];
+    expect(patch.status).toBe("failed");
+    const stored = JSON.parse(patch.execution_result as string);
+    expect(stored.success).toBe(false);
+    expect(stored.schema_written).toBe(false);
+    expect(stored.verify_reason).toMatch(/does not contain the approved schema/);
+  });
+
+  it("FAILS the recommendation when the page never published (no live row)", async () => {
+    vi.mocked(PageModel.findRawByProjectPathStatus).mockResolvedValue(undefined as never);
+
+    const result = await verifyBatchEdits("b1");
+
+    expect(result).toEqual({ verified: 0, downgraded: 1 });
+    const [, patch] = vi.mocked(AiCommandRecommendationModel.updateById).mock.calls[0];
+    expect(patch.status).toBe("failed");
+    expect(JSON.parse(patch.execution_result as string).verify_reason).toMatch(/not live/);
+  });
+
+  it("FAILS rather than reporting success when the live schema cannot be read", async () => {
+    vi.mocked(PageModel.findRawByProjectPathStatus).mockRejectedValue(
+      new Error("connection lost") as never
+    );
+
+    const result = await verifyBatchEdits("b1");
+
+    expect(result).toEqual({ verified: 0, downgraded: 1 });
+    const [, patch] = vi.mocked(AiCommandRecommendationModel.updateById).mock.calls[0];
+    expect(patch.status).toBe("failed");
+    expect(JSON.parse(patch.execution_result as string).verify_reason).toMatch(/connection lost/);
   });
 });
