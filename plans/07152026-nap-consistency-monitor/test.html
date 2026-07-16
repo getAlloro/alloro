@@ -24,6 +24,11 @@
     .item.fail { border-left:4px solid var(--fail); }
     .item h3 { margin:0 0 6px; font-size:1rem; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
     .tag { font-size:.66rem; font-weight:800; text-transform:uppercase; border:1px solid var(--line); border-radius:999px; padding:1px 8px; color:var(--muted); }
+    /* A Layer 1 receipt is an automated test, NOT behavioural validation of the
+       running app. Tagged distinctly so it can never be skim-read as Layer 2. */
+    .tag.layer1 { border-style:dashed; }
+    .tag.layer2 { border-color:var(--ink); color:var(--ink); }
+    .layer-note { margin:12px 0 0; padding-top:12px; border-top:1px solid var(--line); color:var(--muted); font-size:.8rem; line-height:1.45; }
     .item dt { color:var(--muted); font-size:.7rem; font-weight:700; text-transform:uppercase; margin-top:8px; }
     .item ol { margin:4px 0 0 18px; padding:0; }
     .st { font-weight:800; font-size:.72rem; text-transform:uppercase; }
@@ -36,11 +41,12 @@
   <main class="shell">
     <header class="hero">
       <div class="topline">
-        <p class="eyebrow">Alloro Acceptance Tests · Layer 2</p>
+        <p class="eyebrow">Alloro Acceptance Tests · Layer 2 checklist</p>
         <span class="pill" id="pill">Not Run</span>
       </div>
       <h1 id="title">A4 — Citations &amp; NAP Consistency Monitor · Acceptance Tests</h1>
       <p id="meta" class="eyebrow"></p>
+      <p id="layerNote" class="layer-note"></p>
     </header>
     <div class="bar">
       <input type="file" id="file" accept="application/json" hidden>
@@ -65,12 +71,14 @@
       if (!data) return;
       $("title").textContent = data.plan || "Acceptance Tests";
       $("meta").textContent = "Plan: " + (data.plan || "—") + " · generated " + (data.generatedAt || "—");
+      $("layerNote").textContent = data.layerNote || "";
       const status = rollup(data); data.status = status;
       const pill = $("pill"); pill.textContent = status; pill.className = "pill " + status.toLowerCase().replace(/\s/g, "");
       $("list").innerHTML = (data.items || []).map((it, idx) => `
         <div class="item ${it.status}">
           <h3><input type="checkbox" data-i="${idx}" ${it.status === "pass" ? "checked" : ""}>
             ${esc(it.title || it.id)} <span class="tag">${esc(it.surface || "")}</span>
+            ${it.layer ? `<span class="tag layer${esc(it.layer)}">Layer ${esc(it.layer)}${it.layer === 1 ? " · unit receipt" : " · behavioural"}</span>` : ""}
             <span class="st ${it.status}">${esc(it.status || "pending")}</span></h3>
           <dl>
             ${it.precondition ? `<dt>Precondition</dt><dd>${esc(it.precondition)}</dd>` : ""}

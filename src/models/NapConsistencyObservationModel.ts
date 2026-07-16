@@ -34,13 +34,20 @@ export interface RecordNapObservationInput {
 export class NapConsistencyObservationModel extends BaseModel {
   protected static tableName = "nap_consistency_observation";
 
-  /** Idempotent per (location, run_date): a second write for the same run day
-   * is ignored (a log, not a score). */
+  /**
+   * Idempotent per (location, run_date): a second write for the same run day is
+   * ignored (a log, not a score).
+   *
+   * Returns whether a row was ACTUALLY inserted. `false` means the conflict
+   * target already had a row and this call was a no-op — callers must not count
+   * that as a new observation. `ON CONFLICT DO NOTHING RETURNING id` yields zero
+   * rows on the ignore path, which is the signal.
+   */
   static async record(
     input: RecordNapObservationInput,
     trx?: QueryContext
-  ): Promise<void> {
-    await this.table(trx)
+  ): Promise<boolean> {
+    const inserted = await this.table(trx)
       .insert({
         organization_id: input.organizationId,
         location_id: input.locationId,
@@ -52,7 +59,9 @@ export class NapConsistencyObservationModel extends BaseModel {
         observed_at: input.observedAt,
       })
       .onConflict(["location_id", "run_date"])
-      .ignore();
+      .ignore()
+      .returning("id");
+    return inserted.length > 0;
   }
 
   /**
