@@ -50,10 +50,16 @@ export class SerpApiAiOverviewAdapter implements AiVisibilityEngineAdapter {
       .filter((s) => s.length > 0)
       .join("\n");
     // Keep BOTH fields: `link` is the real URL and the only thing that can prove
-    // a citation by hostname. A reference's title is prose ("Bright Smiles
-    // Dental") and usually carries no domain at all.
+    // a citation by hostname. A reference's title is the page's HEADLINE prose
+    // ("Directory profile for smiledental.com") — it names whatever the page
+    // talks about, not the host that was cited, so it is NOT canonical and is
+    // kept as metadata only.
     const citations: EngineCitation[] = (data.ai_overview?.references ?? [])
-      .map((r) => ({ url: r.link ?? null, title: r.title ?? null }))
+      .map((r) => ({
+        url: r.link ?? null,
+        title: r.title ?? null,
+        titleIsCanonicalHost: false,
+      }))
       .filter((c) => c.url !== null || c.title !== null);
     return { answerText, citations, captureMethod: "serp_scrape" };
   }

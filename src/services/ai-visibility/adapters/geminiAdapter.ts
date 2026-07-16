@@ -57,11 +57,18 @@ export class GeminiVisibilityAdapter implements AiVisibilityEngineAdapter {
     });
     const answerText = response.text ?? "";
     const gm = (response as GroundingShape).candidates?.[0]?.groundingMetadata;
-    // The `uri` is a Google redirect link, so the TITLE is what carries the real
-    // domain here. Both are kept and the detector searches both — the adapter
-    // does not decide which field is the useful one.
+    // The `uri` is a Google redirect link that hides the real host, so Gemini
+    // names each grounding chunk by its BARE DOMAIN in `title`. Only this
+    // adapter knows that contract, so only it may declare the title canonical
+    // (`titleIsCanonicalHost`) — every other engine's title is prose and can
+    // never prove a citation. The detector still independently requires the
+    // title to BE a bare host, so a prose title fabricates nothing even here.
     const citations: EngineCitation[] = (gm?.groundingChunks ?? [])
-      .map((c) => ({ url: c.web?.uri ?? null, title: c.web?.title ?? null }))
+      .map((c) => ({
+        url: c.web?.uri ?? null,
+        title: c.web?.title ?? null,
+        titleIsCanonicalHost: true,
+      }))
       .filter((c) => c.url !== null || c.title !== null);
     return { answerText, citations, captureMethod: "api_grounded" };
   }

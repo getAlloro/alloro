@@ -44,6 +44,19 @@ export interface EngineCitation {
   url: string | null;
   /** Human-readable title of the cited page, when the engine provides one. */
   title: string | null;
+  /**
+   * TRUE only when THIS engine's contract makes the title the canonical
+   * destination itself (Gemini names its grounding chunks by bare domain,
+   * because its `uri` is a redirect that hides the real host).
+   *
+   * DEFAULT-DENY: absent/false means the title is unverified prose metadata and
+   * can NEVER prove a citation. A third-party page titled "Directory profile for
+   * smiledental.com" is not a citation of smiledental.com — treating it as one
+   * fabricates evidence. Only the adapter knows its engine's contract, so only
+   * the adapter may set this; the detector still independently requires such a
+   * title to BE a bare hostname, never merely to contain one.
+   */
+  titleIsCanonicalHost?: boolean;
 }
 
 /** Raw adapter output, BEFORE detection. */

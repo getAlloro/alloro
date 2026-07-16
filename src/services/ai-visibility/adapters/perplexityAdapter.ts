@@ -51,10 +51,11 @@ export class PerplexityVisibilityAdapter implements AiVisibilityEngineAdapter {
     }
     const data = (await res.json()) as PerplexityResponse;
     const answerText = data.choices?.[0]?.message?.content ?? "";
-    // Sonar returns bare absolute URLs — the URL IS the citation, no title.
+    // Sonar returns bare absolute URLs — the URL IS the citation, no title, so
+    // there is no title to declare canonical.
     const citations: EngineCitation[] = (data.citations ?? [])
       .filter((s): s is string => typeof s === "string" && s.length > 0)
-      .map((url) => ({ url, title: null }));
+      .map((url) => ({ url, title: null, titleIsCanonicalHost: false }));
     return { answerText, citations, captureMethod: "api_proxy" };
   }
 }

@@ -57,19 +57,34 @@ describe("detectAppearance", () => {
     expect(detectAppearance(raw, identity).mentioned).toBe(false);
   });
 
-  it("cited=true only when the practice DOMAIN appears in the sources", () => {
+  it("cited=true only when a citation's real HOST is the practice's own", () => {
     const raw: EngineRawResult = {
       answerText: "General answer.",
       citations: [
-        { url: null, title: "Bright Smiles — brightsmiles.com" },
         { url: "https://yelp.com/biz/x", title: "Yelp" },
+        { url: "https://brightsmiles.com/services", title: "Services" },
       ],
       captureMethod: "api_grounded",
     };
     const d = detectAppearance(raw, identity);
     expect(d.cited).toBe(true);
-    expect(d.citedSource).toContain("brightsmiles.com");
+    expect(d.citedSource).toBe("https://brightsmiles.com/services");
     expect(d.mentioned).toBe(true);
+  });
+
+  it("a NON-canonical title carrying the domain in prose is NOT a citation", () => {
+    // Previously this recorded cited=true: the practice's domain appeared in a
+    // third party's title text. The engine never cited the practice — the claim
+    // was manufactured out of prose.
+    const raw: EngineRawResult = {
+      answerText: "General answer.",
+      citations: [{ url: null, title: "Bright Smiles — brightsmiles.com" }],
+      captureMethod: "api_grounded",
+    };
+    const d = detectAppearance(raw, identity);
+    expect(d.cited).toBe(false);
+    expect(d.citedSource).toBeNull();
+    expect(d.mentioned).toBe(false);
   });
 
   it("ambiguity guard: a bare name match without the domain is NOT cited", () => {
@@ -129,6 +144,252 @@ describe("detectAppearance — anti-fabrication (adversary regressions)", () => 
       { name: "Bright Smiles", domain: "brightsmiles.com" }
     );
     expect(d.cited).toBe(true);
+  });
+});
+
+/**
+ * Round-3 adversary: IDENTITY, NOT RESEMBLANCE.
+ *
+ * Every case below recorded a FABRICATION before this round — evidence we would
+ * have shown an owner as fact. The class is "a match decided by resemblance",
+ * so these sweep the whole surface (name prefix/suffix, lowercase prose, URL
+ * string scraping, title prose, cross-engine title trust, a garbage practice
+ * domain, and the diagnostic line), not only the two cases that were named.
+ *
+ * The `records` block is the other half of the proof: the guards must not be
+ * vacuous. A detector that answered `false` to everything would pass every
+ * fabrication test and be worthless.
+ */
+describe("detectAppearance — identity not resemblance (round-3 adversary)", () => {
+  const ID = { name: "Smile Dental", domain: "smiledental.com" };
+  const answer = (answerText: string): EngineRawResult => ({
+    answerText,
+    citations: [],
+    captureMethod: "api_grounded",
+  });
+  const sources = (citations: EngineRawResult["citations"]): EngineRawResult => ({
+    answerText: "General answer.",
+    citations,
+    captureMethod: "api_grounded",
+  });
+
+  describe("fabricates nothing", () => {
+    it.each([
+      ["a lowercase suffix word", "Try Smile Dental group today."],
+      ["an ampersand continuation", "Smile Dental & Orthodontics is great."],
+      ["a name-forming connector", "Smile Dental of Austin is great."],
+      ["a hyphenated locality", "Smile Dental-Austin is great."],
+      ["a capitalized continuation", "Smile Dental Group, they are excellent."],
+      ["a LEFT-extended longer name", "Bright Smile Dental is great."],
+      ["a left-extended name mid-sentence", "Book at Bright Smile Dental today."],
+      ["an all-lowercase left extension", "the bright smile dental option"],
+    ])("does NOT record a mention for %s", (_label, text) => {
+      expect(detectAppearance(answer(text), ID).mentioned).toBe(false);
+    });
+
+    it("does NOT cite a third party whose TITLE carries our domain in prose", () => {
+      const d = detectAppearance(
+        sources([
+          { url: "https://directory.example/listing", title: "Directory profile for smiledental.com" },
+        ]),
+        ID
+      );
+      expect(d.cited).toBe(false);
+      expect(d.citedSource).toBeNull();
+    });
+
+    it("does NOT cite a URL that merely CONTAINS our domain in its query", () => {
+      expect(
+        detectAppearance(
+          sources([{ url: "https://directory.example/listing?ref=smiledental.com", title: "Listing" }]),
+          ID
+        ).cited
+      ).toBe(false);
+    });
+
+    it("does NOT cite a URL that merely CONTAINS our domain in its path", () => {
+      expect(
+        detectAppearance(
+          sources([{ url: "https://evil.example/smiledental.com/reviews", title: "Reviews" }]),
+          ID
+        ).cited
+      ).toBe(false);
+    });
+
+    it("does NOT trust a bare-host title from an engine that cannot prove it", () => {
+      expect(
+        detectAppearance(sources([{ url: null, title: "smiledental.com" }]), ID).cited
+      ).toBe(false);
+    });
+
+    it("does NOT trust a declared-canonical title that is PROSE, not a host", () => {
+      // Defence in depth: even the one engine allowed to prove a citation from a
+      // title cannot smuggle prose through it.
+      expect(
+        detectAppearance(
+          sources([
+            { url: null, title: "Directory profile for smiledental.com", titleIsCanonicalHost: true },
+          ]),
+          ID
+        ).cited
+      ).toBe(false);
+    });
+
+    it("a TLD-only practice domain never matches every host under that TLD", () => {
+      expect(
+        detectAppearance(sources([{ url: "https://competitor.com/x", title: "X" }]), {
+          name: "Smile Dental",
+          domain: "com",
+        }).cited
+      ).toBe(false);
+    });
+
+    it("never points `position` at a lookalike's line", () => {
+      const d = detectAppearance(
+        answer("1. Smile Dental Group\n2. Other Practice\n3. Smile Dental"),
+        ID
+      );
+      expect(d.mentioned).toBe(true);
+      expect(d.position).toBe(3);
+    });
+  });
+
+  describe("still records real evidence (the guards are not vacuous)", () => {
+    it("records a real standalone mention", () => {
+      expect(
+        detectAppearance(answer("I recommend Smile Dental for cleanings."), ID).mentioned
+      ).toBe(true);
+    });
+
+    it("records a mention a lookalike appears BEFORE", () => {
+      // A competitor earlier in the answer must not suppress a real later hit.
+      expect(
+        detectAppearance(answer("Smile Dental Group is one option.\nSo is Smile Dental."), ID)
+          .mentioned
+      ).toBe(true);
+    });
+
+    it("records a mention in a numbered list", () => {
+      const d = detectAppearance(answer("Top picks:\n1. Smile Dental\n2. Other Co"), ID);
+      expect(d.mentioned).toBe(true);
+      expect(d.position).toBe(2);
+    });
+
+    it("records a possessive mention", () => {
+      expect(detectAppearance(answer("Smile Dental's team is excellent."), ID).mentioned).toBe(true);
+    });
+
+    it("records a mention followed by a comma clause", () => {
+      expect(
+        detectAppearance(answer("Smile Dental, a family practice, is great."), ID).mentioned
+      ).toBe(true);
+    });
+
+    it("records a real citation of our host", () => {
+      const d = detectAppearance(sources([{ url: "https://www.smiledental.com/", title: "Home" }]), ID);
+      expect(d.cited).toBe(true);
+      expect(d.citedSource).toBe("https://www.smiledental.com/");
+    });
+
+    it("records a real subdomain citation", () => {
+      expect(
+        detectAppearance(sources([{ url: "https://book.smiledental.com/x", title: "Book" }]), ID).cited
+      ).toBe(true);
+    });
+
+    it("records a citation from a canonical bare-host title (the Gemini contract)", () => {
+      const d = detectAppearance(
+        sources([
+          { url: "https://vertexaisearch.cloud.google.com/grounding-api-redirect/abc", title: "smiledental.com", titleIsCanonicalHost: true },
+        ]),
+        ID
+      );
+      expect(d.cited).toBe(true);
+      expect(d.citedSource).toBe("smiledental.com");
+    });
+
+    it("matches the practice's own longer name exactly", () => {
+      expect(
+        detectAppearance(answer("Smile Dental Group is great."), {
+          name: "Smile Dental Group",
+          domain: "smiledental.com",
+        }).mentioned
+      ).toBe(true);
+    });
+  });
+});
+
+describe("GeminiVisibilityAdapter — the ONLY engine that may prove a citation by title", () => {
+  /**
+   * Gemini's grounding `uri` is a vertexaisearch REDIRECT — the real host is not
+   * in it — and Gemini names each chunk by its bare domain in `title`. That
+   * engine-specific contract is why this adapter, and only this adapter, marks
+   * its titles canonical. If this ever stops being true, this test fails loudly
+   * rather than the detector silently trusting prose.
+   *
+   * HONEST LIMIT: the @google/genai client is mocked, so this proves the MAPPING
+   * against the documented grounding shape, not the live API. The live Gemini
+   * smoke test stays `pending` in test-results.json — no key here.
+   */
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it("marks grounding titles canonical, so a redirect URI still proves a real citation", async () => {
+    vi.stubEnv("GEMINI_API_KEY", "test-key-not-a-real-secret");
+    // Reset FIRST: this file already static-imports the adapter (for
+    // FakeVisibilityAdapter), so without clearing the registry the dynamic
+    // import below returns the cached module bound to the REAL client — and the
+    // "unit" test silently makes a live network call.
+    vi.resetModules();
+    vi.doMock("@google/genai", () => ({
+      GoogleGenAI: class {
+        models = {
+          generateContent: async () => ({
+            text: "Bright Smiles Dental is well reviewed.",
+            candidates: [
+              {
+                groundingMetadata: {
+                  groundingChunks: [
+                    {
+                      web: {
+                        uri: "https://vertexaisearch.cloud.google.com/grounding-api-redirect/xyz",
+                        title: "brightsmiles.com",
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+          }),
+        };
+      },
+    }));
+    const { GeminiVisibilityAdapter } = await import(
+      "../services/ai-visibility/adapters/geminiAdapter"
+    );
+    const raw = await new GeminiVisibilityAdapter().query({
+      key: "generic",
+      text: "q",
+      kind: "generic",
+    });
+
+    expect(raw.captureMethod).toBe("api_grounded");
+    expect(raw.citations).toEqual([
+      {
+        url: "https://vertexaisearch.cloud.google.com/grounding-api-redirect/xyz",
+        title: "brightsmiles.com",
+        titleIsCanonicalHost: true,
+      },
+    ]);
+    // The redirect host is NOT ours, so only the canonical title can prove this.
+    const d = detectAppearance(raw, {
+      name: "Bright Smiles Dental",
+      domain: "brightsmiles.com",
+    });
+    expect(d.cited).toBe(true);
+    expect(d.citedSource).toBe("brightsmiles.com");
   });
 });
 
@@ -215,10 +476,12 @@ describe("SerpApiAiOverviewAdapter — parses the REAL ai_overview response shap
       {
         url: "https://www.brightsmiles.com/services/endodontics",
         title: "Bright Smiles Dental — Endodontics in Austin",
+        titleIsCanonicalHost: false,
       },
       {
         url: "https://www.yelp.com/search?find_desc=endodontist",
         title: "The 10 Best Endodontists in Austin",
+        titleIsCanonicalHost: false,
       },
     ]);
   });
@@ -253,11 +516,17 @@ describe("SerpApiAiOverviewAdapter — parses the REAL ai_overview response shap
     });
     const adapter = new SerpApiAiOverviewAdapter();
     const raw = await adapter.query({ key: "generic", text: "q", kind: "generic" });
-    expect(raw.citations).toEqual([{ url: null, title: "brightsmiles.com" }]);
-    // Title-only is still matched, so a Gemini-style redirect citation works.
+    expect(raw.citations).toEqual([
+      { url: null, title: "brightsmiles.com", titleIsCanonicalHost: false },
+    ]);
+    // A SerpApi reference title is a page HEADLINE, not the cited host — even
+    // when that headline happens to read as a bare domain. SerpApi's contract
+    // cannot prove the destination, so this records NOTHING rather than a maybe.
+    // (The Gemini adapter, whose contract DOES name chunks by domain, is the
+    // only engine allowed to prove a citation from a title — see its test.)
     expect(
       detectAppearance(raw, { name: "Bright Smiles", domain: "brightsmiles.com" }).cited
-    ).toBe(true);
+    ).toBe(false);
 
     stubSerpApi({});
     const empty = await adapter.query({ key: "generic", text: "q", kind: "generic" });
