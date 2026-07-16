@@ -1,0 +1,152 @@
+{
+  "plan": "plans/07142026-alloro-funnel-engine (Slice 1a — get-found)",
+  "generatedAt": "2026-07-16",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "T1",
+      "title": "Schema completeness returns exactly the missing-field set",
+      "surface": "service",
+      "precondition": "Fixture page carrying a LocalBusiness/Dentist entity with only @type/name/address/telephone",
+      "steps": [
+        "1. Score the fixture with scoreSchemaCompleteness",
+        "2. Compare the returned missingFields with the expected set",
+        "3. Confirm every graded field is a real schema.org field"
+      ],
+      "expected": "missingFields equals areaServed, geo, image, openingHours, priceRange, sameAs, url; no invented field ever appears; a non-business @type reports no gradable entity",
+      "status": "pass",
+      "evidence": "src/__tests__/get-found-checker.test.ts > 'scoreSchemaCompleteness — missing-field set' — 3/3 passed in the 31-test focused run and the 487-test full suite.",
+      "notes": "Grading is new logic layered over the reused extractIdentityFromHtml parse (reconcile-first rule).",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Honesty gate blocks rank/placement/visibility copy without false positives",
+      "surface": "service",
+      "precondition": "GbpContentSafetyService.validateGeneratedCopy run over the rejected and honest copy sets",
+      "steps": [
+        "1. Submit 10 ranking/placement/visibility promises",
+        "2. Submit 6 honest copy lines, including negated disclaimers"
+      ],
+      "expected": "Every promise returns isSafe false / status blocked with reason codes; every honest line returns isSafe true / status safe",
+      "status": "pass",
+      "evidence": "src/__tests__/get-found-checker.test.ts > 'honesty lint — GbpContentSafetyService.validateGeneratedCopy' — 16/16 passed (10 rejected, 6 honest) in the 31-test focused run.",
+      "notes": "Extends the existing bounded-regex scanner; the negation guard keeps 'does not guarantee a higher ranking' passing. Value #6 — no ranking promises.",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "AEO-incomplete gates nothing and never reaches owner-facing copy",
+      "surface": "service",
+      "precondition": "Checker run on an AEO-incomplete fixture page with honest candidate copy",
+      "steps": [
+        "1. Assert the internal signal is present",
+        "2. Assert recommendations are still emitted and the honesty gate still passes",
+        "3. Scan every recommendation title/detail for the signal"
+      ],
+      "expected": "internalSignals contains AEO-incomplete, recommendations are non-empty, honesty passes, and no owner-facing string matches /AEO/i",
+      "status": "pass",
+      "evidence": "src/__tests__/get-found-checker.test.ts > 'AEO-incomplete gates nothing and is never owner-facing' — 3/3 passed in the 31-test focused run.",
+      "notes": "The signal is admin-only and blocks nothing.",
+      "waiver": ""
+    },
+    {
+      "id": "T4",
+      "title": "GBP<->page consistency flag is read-only and skips cleanly without a GBP",
+      "surface": "service",
+      "precondition": "Checker run with, and without, a supplied GBP identity",
+      "steps": [
+        "1. Run with gbpIdentity omitted",
+        "2. Run with a GBP identity that disagrees with the page"
+      ],
+      "expected": "Omitted -> gbpPageConsistency is null (flag skipped); disagreeing -> a non-null flag is returned; nothing is written either way",
+      "status": "pass",
+      "evidence": "src/__tests__/get-found-checker.test.ts — the skip and divergence cases passed in the 31-test focused run.",
+      "notes": "Reuses compareExternalIdentity. Read-only: no DB insert/update, no GBP write.",
+      "waiver": ""
+    },
+    {
+      "id": "T5",
+      "title": "Answer-first lint enforces the boundary in document order (review fix)",
+      "surface": "service",
+      "precondition": "Fixture pages placing a 32-word substantive answer at different document positions",
+      "steps": [
+        "1. Answer before the first form",
+        "2. Answer only AFTER the first form",
+        "3. Answer buried past the element cap",
+        "4. Answer only in a later top-level section",
+        "5. Answer only after a CTA",
+        "6. A nav CTA ahead of an early answer"
+      ],
+      "expected": "Only the answer-before-form and nav-chrome pages omit answer_not_first; the other four flag it, each reporting the boundary that stopped the scan (form, element_cap, next_section, cta)",
+      "status": "pass",
+      "evidence": "src/__tests__/get-found-checker.test.ts > 'answer-first lint — document-order boundary' — 6/6 passed. Proven a real regression: all 4 flagging cases returned [] against the pre-fix code (expected [] to include 'answer_not_first').",
+      "notes": "Root cause: the old code computed firstFormIndex, stored it in details, and never applied it — it scanned the first 6 <p> elements wherever they sat. Replaced with a document-order walk halting at the first form/CTA/section boundary.",
+      "waiver": ""
+    },
+    {
+      "id": "T6",
+      "title": "The checker has a production call site in the real per-page audit path",
+      "surface": "worker",
+      "precondition": "executeTargets invoked with the audit pipeline's collaborators (models, collector, scoring, persistence) mocked",
+      "steps": [
+        "1. Execute one page target and assert the checker was invoked",
+        "2. Execute a target whose fetch failed",
+        "3. Make the checker throw and assert the audit still scores and persists"
+      ],
+      "expected": "The checker runs once per successfully fetched page, reusing the audit's own snapshot html/finalUrl (no second request); it is skipped for unfetched pages; a checker throw never fails the audit run",
+      "status": "pass",
+      "evidence": "src/__tests__/get-found-production-wiring.test.ts — 3/3 passed. Proven a real lock: removing the runGetFoundAdvisory(entry.snapshot) call makes it fail with 'expected vi.fn() to be called 1 times, but got 0 times'.",
+      "notes": "LIMITATION — unit-level with the audit pipeline mocked, NOT behavioral validation against a running app; the running-app check is T7. Before this fix runGetFoundChecker had no caller outside the test suite.",
+      "waiver": ""
+    },
+    {
+      "id": "T7",
+      "title": "Observability hook emits on a real queued audit run against a live hosted page",
+      "surface": "app",
+      "precondition": "A running app: Postgres, Redis/BullMQ, the ai-seo-audit worker, and a real hosted practice page",
+      "steps": [
+        "1. Queue an organization or url_only audit run against a live hosted page",
+        "2. Let the ai-seo-audit worker execute the run",
+        "3. Grep the worker log for the '[get-found] checker run complete' line",
+        "4. Confirm the run's score and persisted results are unchanged by the advisory checker"
+      ],
+      "expected": "One structured log line per fetched page carrying checker/url/schemaMissingFields/answerFirstFlags/honestyChecked/internalSignals, and no change to the audit's score or persisted rows",
+      "status": "fail",
+      "evidence": "Not auto-run by the agent. No verification was performed against a running app.",
+      "notes": "The one item genuinely requiring Layer-2 behavioral validation. The wiring is verified structurally (T6) and by tsc, but the log has not been observed firing from the real worker.",
+      "waiver": "Not executable in the review environment: no Postgres/Redis/BullMQ and no live hosted practice page, and a claude/* branch does not deploy to dev. Dave closes this by running one audit on dev after merge and confirming '[get-found] checker run complete' appears once per fetched page. Risk is bounded: the call is guarded by try/catch, persists nothing, and cannot alter the audit score (T6)."
+    },
+    {
+      "id": "T8",
+      "title": "Repository gates are green with no regression",
+      "surface": "ci",
+      "precondition": "Node 22.23.1 in a clean worktree of claude/slice-1a-get-found",
+      "steps": [
+        "1. npx tsc --noEmit",
+        "2. npm run check:conventions -- --strict",
+        "3. npm test (full suite)"
+      ],
+      "expected": "tsc exit 0; 0 clear structural violations; the full suite shows no new failures against the pre-change baseline",
+      "status": "pass",
+      "evidence": "tsc --noEmit exit 0. check:conventions -- --strict: 'CLEAR structural violations — backend (size + console + db): 0'. npm test: 62 files / 487 tests, 0 failures, on two consecutive runs. Pre-change baseline was 478 tests (477 pass / 1 fail); +9 new tests (6 answer-first boundary + 3 production wiring) = 487.",
+      "notes": "Flake characterised, not hidden: the pre-change baseline run failed once in src/__tests__/admin-organizations-pms-type.test.ts (expected 200, got 404). It did NOT reproduce — that file passes 6/6 standalone on the unmodified branch, and the full suite passed twice in a row after the change. It is a pre-existing order/parallelism-dependent flake in a file this PR does not touch, not a regression.",
+      "waiver": ""
+    },
+    {
+      "id": "T9",
+      "title": "Current GitHub checks attached to the PR",
+      "surface": "ci",
+      "precondition": "A CI workflow triggering on the claude/slice-1a-get-found branch",
+      "steps": [
+        "1. Read the PR's check runs",
+        "2. Attach the results to the acceptance artifacts"
+      ],
+      "expected": "Green CI check runs are attached to PR #158",
+      "status": "fail",
+      "evidence": "Not possible. No CI is configured for claude/* branches — the workflows trigger on dev/dave (dev.yml) and main (main.yml) only, so PR #158 has no check runs to attach.",
+      "notes": "Raised with Dave separately; not a defect in this PR.",
+      "waiver": "No CI exists for this branch pattern, so there are no checks to attach. The equivalent evidence is T8: the same gates run locally on Node 22 with their exact output recorded."
+    }
+  ]
+}

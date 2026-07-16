@@ -7,6 +7,7 @@ import {
   runGetFoundChecker,
   INTERNAL_AEO_INCOMPLETE_SIGNAL,
 } from "../services/ai-seo-audit/getFoundChecker";
+import { lintAnswerFirstStructure } from "../services/ai-seo-audit/answerFirstStructureLint";
 import { GbpContentSafetyService } from "../controllers/gbp-automation/feature-services/GbpContentSafetyService";
 
 /**
@@ -65,6 +66,91 @@ describe("scoreSchemaCompleteness — missing-field set", () => {
     const result = scoreSchemaCompleteness([{ "@type": "WebSite", name: "x" }]);
     expect(result.hasGradableEntity).toBe(false);
     expect(result.missingFields).toEqual([]);
+  });
+});
+
+/**
+ * Answer-first boundary regressions. The first implementation computed a
+ * `firstFormIndex` but never applied it: it scanned the first six <p> elements
+ * wherever they sat, so an answer BELOW the first form — or far down the page —
+ * wrongly passed. These lock the document-order walk and its boundaries.
+ */
+describe("answer-first lint — document-order boundary", () => {
+  // 32 words — comfortably over the MIN_ANSWER_WORDS (25) substantive-answer bar.
+  const LONG_ANSWER =
+    "Bright Smiles Dental is a family dental practice in Austin, Texas, offering routine cleanings, fillings, crowns, implants, and teeth whitening, with same week appointments available for new patients who need urgent care.";
+  const QUESTION_HEADING = "<h1>Is Bright Smiles Dental accepting new patients?</h1>";
+
+  it("PASSES when the substantive answer appears before the first form", () => {
+    const result = lintAnswerFirstStructure(
+      `<!doctype html><html><body>
+        ${QUESTION_HEADING}
+        <p>${LONG_ANSWER}</p>
+        <form><input name="email" /><button>Book</button></form>
+      </body></html>`,
+    );
+    expect(result.flags).not.toContain("answer_not_first");
+    expect(result.details.boundary).toBeNull();
+  });
+
+  it("FLAGS a substantive paragraph that only appears AFTER the first form", () => {
+    const result = lintAnswerFirstStructure(
+      `<!doctype html><html><body>
+        ${QUESTION_HEADING}
+        <p>Yes.</p>
+        <form><input name="email" /><button>Book</button></form>
+        <p>${LONG_ANSWER}</p>
+      </body></html>`,
+    );
+    expect(result.flags).toContain("answer_not_first");
+    expect(result.details.boundary).toBe("form");
+  });
+
+  it("FLAGS a substantive paragraph buried far down the page (element cap)", () => {
+    const result = lintAnswerFirstStructure(
+      `<!doctype html><html><body>
+        <h1>What are your hours?</h1>
+        ${"<div></div>".repeat(70)}
+        <p>${LONG_ANSWER}</p>
+      </body></html>`,
+    );
+    expect(result.flags).toContain("answer_not_first");
+    expect(result.details.boundary).toBe("element_cap");
+  });
+
+  it("FLAGS a substantive paragraph that only appears in a later section", () => {
+    const result = lintAnswerFirstStructure(
+      `<!doctype html><html><body>
+        <section class="hero">${QUESTION_HEADING}<p>Yes.</p></section>
+        <section class="about"><h2>About us</h2><p>${LONG_ANSWER}</p></section>
+      </body></html>`,
+    );
+    expect(result.flags).toContain("answer_not_first");
+    expect(result.details.boundary).toBe("next_section");
+  });
+
+  it("FLAGS a substantive paragraph that only appears after a CTA", () => {
+    const result = lintAnswerFirstStructure(
+      `<!doctype html><html><body>
+        ${QUESTION_HEADING}
+        <p>Yes.</p>
+        <a class="btn btn-primary" href="/book">Book now</a>
+        <p>${LONG_ANSWER}</p>
+      </body></html>`,
+    );
+    expect(result.flags).toContain("answer_not_first");
+    expect(result.details.boundary).toBe("cta");
+  });
+
+  it("does not treat a nav CTA as the boundary (site chrome is skipped)", () => {
+    const result = lintAnswerFirstStructure(
+      `<!doctype html><html><body>
+        <nav><a class="btn" href="/book">Book</a></nav>
+        ${QUESTION_HEADING}
+        <p>${LONG_ANSWER}</p>
+      </body></html>`,
+    );
+    expect(result.flags).not.toContain("answer_not_first");
   });
 });
 
