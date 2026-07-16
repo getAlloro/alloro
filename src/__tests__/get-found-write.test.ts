@@ -121,6 +121,9 @@ describe("executeUpdatePageSeoSchema — schema write handler", () => {
     expect(PageModel.updateSeoDataById).not.toHaveBeenCalled();
   });
 
+  // `name` IS scanned (see the rank-claim-in-name case below), but a medical/
+  // outcome-only match does not block an identifier: a practice legitimately
+  // named "Pain-Free Dental Studio" is stating its name, not a claim Alloro makes.
   it("SUCCEEDS when an identifier `name` looks like a claim but descriptive fields are clean", async () => {
     const store = seedStore();
     await executeUpdatePageSeoSchema(
@@ -176,21 +179,177 @@ describe("executeUpdatePageSeoSchema — schema write handler", () => {
   });
 });
 
-describe("collectSchemaCopy — honesty-gate input selection", () => {
-  it("collects only descriptive CLAIM text, skipping structural AND identifier keys", () => {
-    const copy = collectSchemaCopy({
+// ---------------------------------------------------------------------------
+// §5.2 — every array MEMBER must be a JSON-LD object, not just "some array".
+// Consumers dereference entries as objects, so a null/scalar/nested-array member
+// crashes the reader downstream. It must never reach the write.
+// ---------------------------------------------------------------------------
+
+describe("executeUpdatePageSeoSchema — schema_json member validation", () => {
+  const invalidSchemas: Record<string, unknown> = {
+    "a null member": [null],
+    "a string member": ["text"],
+    "a number member": [123],
+    "a boolean member": [true],
+    "a nested array member": [[{ "@type": "Dentist" }]],
+    "a valid object followed by a null": [{ "@type": "Dentist", name: "Ok" }, null],
+    "a valid object followed by a scalar": [{ "@type": "Dentist", name: "Ok" }, "text"],
+    "an empty array": [],
+  };
+
+  for (const [label, schemaJson] of Object.entries(invalidSchemas)) {
+    it(`fails ${label} and writes nothing`, async () => {
+      const store = seedStore();
+      await executeUpdatePageSeoSchema(
+        {
+          id: `bad-${label}`,
+          target_id: "page-1",
+          target_meta: JSON.stringify({ schema_json: schemaJson }),
+        },
+        ctx(),
+      );
+      expect(parseSeo(store.get("draft-1")!.seo_data).schema_json).toBeUndefined();
+      expect((AiCommandRecommendationModel.updateById as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith(
+        `bad-${label}`,
+        expect.objectContaining({ status: "failed" }),
+      );
+      expect(PageModel.updateSeoDataById).not.toHaveBeenCalled();
+    });
+  }
+
+  it("still accepts an array of several valid JSON-LD objects", async () => {
+    const store = seedStore();
+    await executeUpdatePageSeoSchema(
+      {
+        id: "ok-multi",
+        target_id: "page-1",
+        target_meta: JSON.stringify({
+          schema_json: [{ "@type": "Dentist", name: "Bright Smiles" }, { "@type": "WebSite" }],
+        }),
+      },
+      ctx(),
+    );
+    expect(parseSeo(store.get("draft-1")!.seo_data).schema_json).toHaveLength(2);
+    expect((AiCommandRecommendationModel.updateById as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith(
+      "ok-multi",
+      expect.objectContaining({ status: "executed" }),
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// §5.2 — the honesty gate scans by default. A claim parked on a key the old
+// allowlist never enumerated must not reach the published schema.
+// ---------------------------------------------------------------------------
+
+describe("executeUpdatePageSeoSchema — honesty gate scans non-enumerated keys", () => {
+  const blockedCases: Record<string, Record<string, unknown>> = {
+    "serviceType": { "@type": "Service", serviceType: "Rank #1 dental implants" },
+    "an unenumerated award key": { "@type": "Dentist", award: "Guaranteed first page of Google" },
+    "a nested offer description": {
       "@type": "Dentist",
+      makesOffer: { "@type": "Offer", description: "We will rank your practice higher on Google." },
+    },
+    "an identifier `name` carrying a rank claim": { "@type": "Dentist", name: "Rank #1 Dental Implants" },
+  };
+
+  for (const [label, entry] of Object.entries(blockedCases)) {
+    it(`BLOCKS a rank claim in ${label} and writes nothing`, async () => {
+      const store = seedStore();
+      await executeUpdatePageSeoSchema(
+        {
+          id: `blk-${label}`,
+          target_id: "page-1",
+          target_meta: JSON.stringify({ schema_json: [entry] }),
+        },
+        ctx(),
+      );
+      expect(parseSeo(store.get("draft-1")!.seo_data).schema_json).toBeUndefined();
+      expect((AiCommandRecommendationModel.updateById as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith(
+        `blk-${label}`,
+        expect.objectContaining({ status: "failed" }),
+      );
+      expect(PageModel.updateSeoDataById).not.toHaveBeenCalled();
+    });
+  }
+
+  it("does NOT block an honest serviceType", async () => {
+    const store = seedStore();
+    await executeUpdatePageSeoSchema(
+      {
+        id: "ok-st",
+        target_id: "page-1",
+        target_meta: JSON.stringify({
+          schema_json: [{ "@type": "Service", serviceType: "Dental implants", description: "Same-day implants in Austin, TX." }],
+        }),
+      },
+      ctx(),
+    );
+    expect(parseSeo(store.get("draft-1")!.seo_data).schema_json).toHaveLength(1);
+    expect((AiCommandRecommendationModel.updateById as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith(
+      "ok-st",
+      expect.objectContaining({ status: "executed" }),
+    );
+  });
+
+  it("does NOT block a URL that happens to contain claim-like tokens", async () => {
+    const store = seedStore();
+    await executeUpdatePageSeoSchema(
+      {
+        id: "ok-url",
+        target_id: "page-1",
+        target_meta: JSON.stringify({
+          schema_json: [{ "@type": "Dentist", url: "https://example.com/rank-1-dental-implants" }],
+        }),
+      },
+      ctx(),
+    );
+    expect(parseSeo(store.get("draft-1")!.seo_data).schema_json).toHaveLength(1);
+    expect((AiCommandRecommendationModel.updateById as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith(
+      "ok-url",
+      expect.objectContaining({ status: "executed" }),
+    );
+  });
+});
+
+describe("collectSchemaCopy — honesty-gate input selection", () => {
+  const values = (value: unknown) => collectSchemaCopy(value).map((entry) => entry.value);
+
+  it("collects claim-bearing text by DEFAULT, skipping only structural keys and URL values", () => {
+    const copy = values({
+      "@type": "Dentist",
+      "@id": "https://example.com/#dentist",
       name: "Bright Smiles",
       url: "https://example.com",
       telephone: "+1-512-555-0100",
+      email: "hello@example.com",
+      logo: "https://example.com/logo.png",
       description: "Gentle family dentistry.",
+      serviceType: "Dental implants",
       areaServed: { "@type": "City", name: "Austin" },
     });
     expect(copy).toContain("Gentle family dentistry.");
-    expect(copy).not.toContain("Bright Smiles"); // `name` is an identifier, not a claim — not scanned
-    expect(copy).not.toContain("Austin"); // nested `name` identifier — not scanned
-    expect(copy).not.toContain("https://example.com");
-    expect(copy).not.toContain("+1-512-555-0100");
+    expect(copy).toContain("Dental implants"); // `serviceType` — an allowlist missed this entirely
+    expect(copy).toContain("Bright Smiles"); // identifiers ARE scanned; the gate softens them, not the collector
+    expect(copy).toContain("Austin");
+    expect(copy).not.toContain("Dentist"); // @type
+    expect(copy).not.toContain("https://example.com/#dentist"); // @id
+    expect(copy).not.toContain("https://example.com"); // url
+    expect(copy).not.toContain("https://example.com/logo.png"); // logo
+    expect(copy).not.toContain("+1-512-555-0100"); // telephone
+    expect(copy).not.toContain("hello@example.com"); // email
+  });
+
+  it("collects a key nobody enumerated — the allowlist bypass this closes", () => {
+    expect(values({ "@type": "Service", award: "Best of Austin 2026" })).toContain(
+      "Best of Austin 2026",
+    );
+  });
+
+  it("tags each collected string with its key so the gate can soften identifiers", () => {
+    expect(collectSchemaCopy({ "@type": "Service", serviceType: "Dental implants" })).toEqual([
+      { key: "serviceType", value: "Dental implants" },
+    ]);
   });
 });
 

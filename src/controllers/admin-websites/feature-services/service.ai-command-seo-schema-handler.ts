@@ -15,9 +15,11 @@
  * retains the old row; `restoreVersionQuery` re-inserts a version's `seo_data`
  * via `carriedFields`), so the change is reversible without any new rollback code.
  *
- * Honesty gate (spec Constraint / Value #6): every owner-facing free-text field in
+ * Honesty gate (spec Constraint / Value #6): every claim-bearing free-text value in
  * the proposed schema is run through `GbpContentSafetyService` before the write; a
- * rank/placement/visibility claim FAILS the recommendation and writes nothing.
+ * rank/placement/visibility claim FAILS the recommendation and writes nothing. The
+ * gate scans by DEFAULT and skips only narrowly structural values, so a key nobody
+ * enumerated cannot smuggle claim text past it.
  * No new autonomy — the row executes only because a human already approved it.
  */
 
@@ -31,32 +33,64 @@ import {
 } from "../feature-utils/util.ai-command-shared";
 
 /**
- * Descriptive schema.org keys whose values are owner-facing CLAIM text. Only these
- * are scanned by the honesty gate; structural/identifier keys (@type, url,
- * telephone, serviceType, …) can't carry a rank claim and would false-positive
- * the GBP reply validator's medical/outcome heuristics.
+ * Schema.org keys whose values are STRUCTURAL — identifiers, machine references,
+ * and contact endpoints that cannot carry an owner-facing claim. These are the
+ * ONLY keys the honesty gate skips.
  *
- * `name`/`alternateName` are deliberately EXCLUDED: they are pure identifiers, not
- * claims Alloro is making. A real practice named "Pain-Free Dental Studio" would
- * otherwise trip the GBP safety heuristics and block an owner-approved write.
+ * This is deliberately a DENYLIST, not an allowlist. An allowlist of "descriptive"
+ * keys silently passes every key nobody thought of (`serviceType`, `award`,
+ * `makesOffer`, …), and schema.org has hundreds — any one of them can carry claim
+ * text and would bypass the gate. Scanning by default fails CLOSED: an unknown key
+ * is scanned, not trusted.
  */
-const SCHEMA_DESCRIPTIVE_KEYS = new Set([
-  "description",
-  "slogan",
-  "disambiguatingDescription",
-  "keywords",
-  "headline",
-  "text",
+const STRUCTURAL_SCHEMA_KEYS = new Set([
+  "@context",
+  "@id",
+  "@type",
+  "identifier",
+  "url",
+  "sameAs",
+  "image",
+  "logo",
+  "telephone",
+  "faxNumber",
+  "email",
 ]);
 
-/** Recursively collect free-text values under descriptive keys for the honesty gate. */
+/**
+ * Identifier keys carrying a proper NAME. They are scanned (a name can still carry
+ * a rank claim — "Rank #1 Dental Implants"), but a medical/outcome-only match does
+ * not block them: a real practice named "Pain-Free Dental Studio" is stating its
+ * name, not a claim Alloro is making. Every rank/placement/visibility/will-rank
+ * family still blocks here.
+ */
+const IDENTITY_SCHEMA_KEYS = new Set(["name", "alternateName", "legalName"]);
+
+/** Reason code from `validateGeneratedCopy` for the guarantee/cure/pain-free family. */
+const MEDICAL_OUTCOME_REASON_CODE = "medical_or_outcome_claim";
+
+/** A value that is ENTIRELY a URL/contact endpoint — structural regardless of key. */
+const STRUCTURAL_VALUE = /^(?:https?:\/\/|mailto:|tel:)\S*$/i;
+
+export interface SchemaCopyEntry {
+  key: string;
+  value: string;
+}
+
+/**
+ * Recursively collect claim-bearing free-text values for the honesty gate: every
+ * string EXCEPT those under a structural key or whose whole value is a URL.
+ */
 export function collectSchemaCopy(
   value: unknown,
   key: string | null = null,
-  acc: string[] = []
-): string[] {
+  acc: SchemaCopyEntry[] = []
+): SchemaCopyEntry[] {
   if (typeof value === "string") {
-    if (key && SCHEMA_DESCRIPTIVE_KEYS.has(key) && value.trim()) acc.push(value);
+    const text = value.trim();
+    if (key && text && !STRUCTURAL_SCHEMA_KEYS.has(key) && !STRUCTURAL_VALUE.test(text)) {
+      acc.push({ key, value });
+    }
   } else if (Array.isArray(value)) {
     for (const item of value) collectSchemaCopy(item, key, acc);
   } else if (value && typeof value === "object") {
@@ -65,6 +99,40 @@ export function collectSchemaCopy(
     }
   }
   return acc;
+}
+
+/**
+ * A JSON-LD entry must be a real JSON object. `[null]`, `["text"]`, `[1]` and
+ * nested arrays are not: every consumer dereferences entries as objects, so a
+ * scalar or null member crashes the reader downstream. Validated here, before any
+ * write — client input is never trusted (§5.2).
+ */
+function isJsonLdEntry(entry: unknown): entry is Record<string, unknown> {
+  return typeof entry === "object" && entry !== null && !Array.isArray(entry);
+}
+
+/** Honesty-gate reasons for every claim-bearing string in the proposed schema. */
+export function findSchemaCopyViolations(schemaJson: unknown): string[] {
+  const reasons: string[] = [];
+  for (const entry of collectSchemaCopy(schemaJson)) {
+    const result = GbpContentSafetyService.validateGeneratedCopy(entry.value);
+    if (result.isSafe) continue;
+    const isIdentity = IDENTITY_SCHEMA_KEYS.has(entry.key);
+    // reasonCodes/reasons are pushed in lockstep by validateGeneratedCopy.
+    result.reasonCodes.forEach((code, index) => {
+      if (isIdentity && code === MEDICAL_OUTCOME_REASON_CODE) return;
+      reasons.push(`${entry.key}: ${result.reasons[index]}`);
+    });
+  }
+  return reasons;
+}
+
+/** Fail the recommendation with a typed result and write nothing (§3.2). */
+async function failRecommendation(recId: string, error: string): Promise<void> {
+  await AiCommandRecommendationModel.updateById(recId, {
+    status: "failed",
+    execution_result: JSON.stringify({ success: false, error }),
+  });
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -76,43 +144,32 @@ export async function executeUpdatePageSeoSchema(
 
   const origPage = await PageModel.findRawById(rec.target_id);
   if (!origPage) {
-    await AiCommandRecommendationModel.updateById(rec.id, {
-      status: "failed",
-      execution_result: JSON.stringify({ success: false, error: `Page ${rec.target_id} not found` }),
-    });
+    await failRecommendation(rec.id, `Page ${rec.target_id} not found`);
     return;
   }
 
   const schemaJson = meta?.schema_json;
   // The whole codebase reads `seo_data.schema_json` as an ARRAY of JSON-LD
-  // objects (consumers call `.some(...)` / guard with `Array.isArray`). Require
-  // a non-empty array; a bare object (or empty) fails the recommendation and
-  // writes nothing — writing a single object would crash the panel scorer and
-  // silently disable the enrichment reader.
-  const schemaIsValidArray = Array.isArray(schemaJson) && schemaJson.length > 0;
+  // OBJECTS (consumers call `.some(...)`, guard with `Array.isArray`, and then
+  // dereference each entry's properties). Require a non-empty array in which
+  // EVERY member is a non-null, non-array object: a bare object, an empty array,
+  // or a member that is null/scalar/nested-array fails the recommendation and
+  // writes nothing. Anything looser crashes the panel scorer on dereference and
+  // silently disables the enrichment reader (§5.2 — never trust client input).
+  const schemaIsValidArray =
+    Array.isArray(schemaJson) && schemaJson.length > 0 && schemaJson.every(isJsonLdEntry);
   if (!schemaIsValidArray) {
-    await AiCommandRecommendationModel.updateById(rec.id, {
-      status: "failed",
-      execution_result: JSON.stringify({
-        success: false,
-        error: "A non-empty schema_json array (of JSON-LD objects) is required in target_meta.",
-      }),
-    });
+    await failRecommendation(
+      rec.id,
+      "A non-empty schema_json array is required in target_meta, and every entry must be a JSON-LD object.",
+    );
     return;
   }
 
   // Honesty gate — no rank/placement/visibility claim may enter the schema.
-  const blocked = collectSchemaCopy(schemaJson)
-    .map((text) => GbpContentSafetyService.validateGeneratedCopy(text))
-    .filter((result) => !result.isSafe);
+  const blocked = findSchemaCopyViolations(schemaJson);
   if (blocked.length > 0) {
-    await AiCommandRecommendationModel.updateById(rec.id, {
-      status: "failed",
-      execution_result: JSON.stringify({
-        success: false,
-        error: `Honesty gate blocked schema copy: ${blocked.flatMap((b) => b.reasons).join("; ")}`,
-      }),
-    });
+    await failRecommendation(rec.id, `Honesty gate blocked schema copy: ${blocked.join("; ")}`);
     return;
   }
 

@@ -17,13 +17,19 @@
  *
  * What Slice 1b does NOT ship is the PRODUCER. Nothing in the application
  * creates a `page_seo_schema` row today — `queueSeoSchemaRecommendation` below
- * has no production caller, so the type is inert until one exists. The intended
- * producer is the get-found batch, and it is blocked upstream: Slice 1a's
- * `runGetFoundChecker` (`services/ai-seo-audit/getFoundChecker.ts`) is itself
- * not invoked from any application path, so there is no get-found analysis
- * result in production to turn into a recommendation. Building one needs the
- * deferred pieces (hosted-page fetch, a GBP identity source, a get-found batch
- * type and its UI) — it is deliberately NOT faked here.
+ * has no production caller, so the type is inert until one exists.
+ *
+ * The intended producer is the get-found batch, and it is blocked upstream — but
+ * NOT for want of a caller. As of Slice 1a's current head, `runGetFoundChecker`
+ * (`services/ai-seo-audit/getFoundChecker.ts`) IS invoked from an application
+ * path: `runGetFoundAdvisory` in `services/ai-seo-audit/auditTargetExecutionService.ts`
+ * runs it on every hosted page the audit already fetched. The blocker is what that
+ * call does with the result: it is a read-only ADVISORY that DISCARDS the returned
+ * findings and persists nothing, by design (Slice 1a owns analysis, not routing).
+ * So no get-found analysis result survives an audit run to be turned into a
+ * recommendation. Closing that gap needs the deferred pieces — persisting the
+ * checker's findings, a GBP identity source, and a get-found batch type with its
+ * approval UI — and it is deliberately NOT faked here.
  *
  * So: do not describe this module as "turns a get-found finding into a pending
  * recommendation" end-to-end until that producer lands.

@@ -22,30 +22,34 @@
       "id": "T2",
       "title": "The honesty gate blocks a rank/placement claim before any write",
       "surface": "api",
-      "precondition": "Run the Slice 1b tests with a schema whose description carries a ranking promise.",
+      "precondition": "Run the Slice 1b tests with claim text on descriptive, non-enumerated, nested, and identifier keys.",
       "steps": [
         "Execute the recommendation with a rank-claiming description.",
+        "Execute with a rank claim on serviceType, on an unenumerated award key, on a nested makesOffer.description, and on an identifier name.",
+        "Execute with an honest serviceType and with a claim-like URL.",
         "Inspect the recommendation status and whether the page was written."
       ],
-      "expected": "The recommendation is failed with the blocked reasons and PageModel.updateSeoDataById is never called.",
+      "expected": "Every rank-claiming case fails the recommendation and PageModel.updateSeoDataById is never called; the honest cases still execute.",
       "status": "pass",
-      "evidence": "src/__tests__/get-found-write.test.ts passed the honesty-gate cases.",
-      "notes": "Only descriptive keys are scanned; identity fields (name, alternateName) are excluded so a real practice name is not false-blocked.",
+      "evidence": "src/__tests__/get-found-write.test.ts passed the honesty-gate cases, including the new 'honesty gate scans non-enumerated keys' suite (serviceType, award, nested makesOffer.description, identifier name). Verified as REAL regression tests: restoring the old allowlist fails exactly those cases (6 failed / 26 passed).",
+      "notes": "Rewritten after the second-round review. The gate now scans by DEFAULT and skips only narrowly structural keys/values (@context, @id, @type, identifier, url, sameAs, image, logo, telephone, faxNumber, email, and whole-value URLs). The previous allowlist of six descriptive keys silently passed every key nobody enumerated, serviceType among them. Identifier keys (name, alternateName, legalName) are still scanned for rank/placement/visibility claims; only a medical/outcome-ONLY match is softened there, so a real practice named 'Pain-Free Dental Studio' is not false-blocked while 'Rank #1 Dental Implants' is.",
       "waiver": ""
     },
     {
       "id": "T3",
-      "title": "A non-array schema_json fails the recommendation and writes nothing",
+      "title": "schema_json must be a non-empty array in which EVERY member is a JSON-LD object",
       "surface": "api",
-      "precondition": "Run the Slice 1b tests with a bare object and with an empty array.",
+      "precondition": "Run the Slice 1b tests with a bare object, an empty array, and arrays carrying non-object members.",
       "steps": [
         "Execute the recommendation with schema_json as a bare object.",
-        "Execute it with an empty array."
+        "Execute it with an empty array.",
+        "Execute it with [null], ['text'], [123], [true], a nested array member, and a valid object followed by a null and by a scalar.",
+        "Execute it with an array of several valid JSON-LD objects."
       ],
-      "expected": "Both fail the recommendation with a typed reason and perform no write.",
+      "expected": "Every malformed case fails the recommendation with a typed reason and performs no write; the all-objects array still executes.",
       "status": "pass",
-      "evidence": "src/__tests__/get-found-write.test.ts passed the array-shape cases.",
-      "notes": "The whole codebase reads seo_data.schema_json as an array; a bare object would crash the admin SEO score.",
+      "evidence": "src/__tests__/get-found-write.test.ts passed the array-shape cases plus the new 'schema_json member validation' suite (8 malformed shapes + 1 valid multi-entry). Verified as REAL regression tests: restoring the old length-only check fails exactly the 7 member cases (7 failed / 25 passed).",
+      "notes": "Strengthened after the second-round review. The old check required only a non-empty array, so [null], ['text'], scalar members, and nested arrays passed and were published. Consumers dereference each entry as an object, so a null/scalar member crashes the schema scorer downstream (§5.2 — never trust client input). Every member is now required to be a non-null, non-array object.",
       "waiver": ""
     },
     {
@@ -144,16 +148,17 @@
       "id": "T10",
       "title": "NOT PROVEN: no production path creates a page_seo_schema recommendation",
       "surface": "api",
-      "precondition": "Static reference check across src/.",
+      "precondition": "Static reference check across src/, plus the base branch (claude/slice-1a-get-found) at its current head 556bd7a0, which this PR merges into.",
       "steps": [
         "Grep for callers of queueSeoSchemaRecommendation.",
-        "Grep for callers of the upstream Slice 1a runGetFoundChecker."
+        "Grep for callers of the upstream Slice 1a runGetFoundChecker at the base branch head.",
+        "Read that call site to see whether the returned findings are persisted."
       ],
       "expected": "A production caller turns a get-found analysis result into a pending recommendation.",
       "status": "fail",
-      "evidence": "Both are referenced only by their own definition and their tests. queueSeoSchemaRecommendation: service.get-found-write.ts plus get-found-write.test.ts only. runGetFoundChecker: getFoundChecker.ts:88 plus get-found-checker.test.ts only.",
-      "notes": "The producer is blocked upstream: Slice 1a's checker is itself not invoked from any application path, so there is no get-found analysis result in production to wire from. Building one needs the deferred pieces (hosted-page fetch, a GBP identity source, a get-found batch type and its UI). The execute half IS production-wired: executeBatch dispatches page_seo_schema to the handler, reachable from POST /:id/ai-command/:batchId/execute.",
-      "waiver": "Contract narrowed instead of faked. service.get-found-write.ts now states that Slice 1b ships the execute half plus the row contract, that queueSeoSchemaRecommendation has no production caller, and that the type is inert until a producer lands. The reviewer explicitly allowed 'add a real production path, OR honestly narrow the stated contract'; this is the second option, recorded here so the gap stays visible rather than reading as shipped."
+      "evidence": "queueSeoSchemaRecommendation is referenced only by its own definition (service.get-found-write.ts) and get-found-write.test.ts. runGetFoundChecker DOES have an application caller at the base branch head: auditTargetExecutionService.ts:166, inside runGetFoundAdvisory, which the audit run invokes for every hosted page it already fetched. That call discards the return value (it is never assigned) and persists nothing.",
+      "notes": "Corrected after the second-round review: the earlier evidence claimed Slice 1a's checker had no application caller. That is stale against the base branch's current head. The accurate blocker is narrower: the checker RUNS in production but as a read-only advisory whose findings are discarded and never persisted (Slice 1a deliberately owns analysis, not routing), so no analysis result survives an audit run to turn into a recommendation. Closing the gap needs the deferred pieces: persisting the checker's findings, a GBP identity source, and a get-found batch type with its approval UI. The execute half IS production-wired: executeBatch dispatches page_seo_schema to the handler, reachable from POST /:id/ai-command/:batchId/execute.",
+      "waiver": "Contract narrowed instead of faked. service.get-found-write.ts states that Slice 1b ships the execute half plus the row contract, that queueSeoSchemaRecommendation has no production caller, and that the type is inert until a producer lands. The reviewer explicitly allowed 'add a real production path, OR honestly narrow the stated contract' and, in the second-round review, accepted this narrowing; the gap stays recorded here rather than reading as shipped."
     }
   ]
 }
