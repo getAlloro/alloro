@@ -523,10 +523,21 @@ describe("TasteProfileModel — the owner signature is write-once (§5.4)", () =
  *
  * Guarding `markApproved` only fixes the write path we happened to look at. The
  * durable question is: can ANY entry point reachable on this model reattribute a
- * finalized signature? These two tests answer it by enumerating the class's
- * whole runtime surface rather than trusting a hand-written list — so a method
- * added later, or a new static inherited from a future `BaseModel`, FAILS this
- * suite until someone audits it against the write-once rule.
+ * finalized signature? These tests answer it by enumerating the class's whole
+ * runtime surface rather than trusting a hand-written list — so a method added
+ * later, or a new static inherited from a future `BaseModel`, FAILS this suite
+ * until someone audits it against the write-once rule.
+ *
+ * The answer is bounded, and the bound is asserted rather than hidden. What
+ * holds: no TYPED caller can rewrite an existing row's signature. What does NOT
+ * hold, each pinned by its own test or classification below rather than left to
+ * a reader's optimism: `delete + create + approve` re-signs the ORG-LEVEL
+ * profile (T20 — a policy question, not a bug to patch blind), and the raw
+ * escape hatches (`table`, `transaction`, `beginTransaction`) hand back a knex
+ * handle that writes the row directly (T21 — the table has no CHECK constraint,
+ * so the model, not the DB, is the boundary). An adversary found all three by
+ * attacking an earlier draft of these very tests; they are recorded here so the
+ * next reader inherits the limits along with the guarantee.
  */
 describe("TasteProfileModel — no write path can reattribute a signature (§5.4)", () => {
   /** Every function-valued static reachable on the model, own + inherited. */
@@ -552,10 +563,12 @@ describe("TasteProfileModel — no write path can reattribute a signature (§5.4
     // TypeScript is compile-time only, so the helpers are listed too: at runtime
     // they are reachable, and this test is about what CAN be called.
     const scopedReaders = ["findByIdForOrg", "findLatestByOrgAndLocation"];
-    // The only paths that write columns on this table:
+    // The paths on the TYPED API that write columns on this table:
     //  - create ............ draft-only, explicit column copy (never a signature)
     //  - markApproved ...... draft-only one-way transition (writes it once)
-    //  - deleteByIdForOrg .. removes the row; deletion is not reattribution
+    //  - deleteByIdForOrg .. removes the row. NOTE: this does not make the org's
+    //    history immutable — delete + create + approve re-signs the org-level
+    //    profile (pinned by its own test above, recorded as T20).
     const auditedWriters = ["create", "markApproved", "deleteByIdForOrg"];
     const sealed = [
       "count",
@@ -567,11 +580,17 @@ describe("TasteProfileModel — no write path can reattribute a signature (§5.4
       "paginate",
       "updateById",
     ];
-    // Delegate to db.transaction() and hand back a handle; they never query
-    // this table, so there is no predicate to enforce on them.
-    const nonTable = ["beginTransaction", "transaction"];
+    // RAW ESCAPE HATCHES — deliberately NOT claimed as guarded. `table()` is
+    // `protected` in TypeScript only, so `(Model as any).table()` returns a live
+    // knex builder at runtime; transaction()/beginTransaction() hand back a
+    // handle that can write any table. A caller reaching past the model this way
+    // CAN reattribute a signature, and no assertion here pretends otherwise —
+    // this model is the enforcement boundary for TYPED callers, not the DB.
+    // (True of every model in the repo; real enforcement against a raw writer
+    // would be a DB-level CHECK/trigger, which taste_profiles does not have.)
+    const rawEscapeHatches = ["table", "transaction", "beginTransaction"];
+    // Pure serialization helpers — they transform values, never issue a query.
     const internals = [
-      "table",
       "parseJson",
       "toJson",
       "serializeJsonFields",
@@ -582,13 +601,60 @@ describe("TasteProfileModel — no write path can reattribute a signature (§5.4
       ...scopedReaders,
       ...auditedWriters,
       ...sealed,
-      ...nonTable,
+      ...rawEscapeHatches,
       ...internals,
     ].sort();
 
     // An unfamiliar name here means a new entry point exists that this rule has
     // never been checked against. Classify it above — do not just append it.
     expect(callableSurface()).toEqual(audited);
+  });
+
+  it("delete + create + approve DOES re-sign the org-level profile — a known, recorded gap", async () => {
+    // NOT a passing guarantee — this test PINS REAL, CURRENT BEHAVIOUR that the
+    // write-once guard does NOT prevent, so it cannot be quietly forgotten.
+    //
+    // Every call below is typed, tenant-scoped and individually legitimate. The
+    // approved ROW is never rewritten — it is deleted, and a NEW row is signed
+    // by whoever ran the sequence. But consumers read by org+location (see
+    // findLatestByOrgAndLocation), not by id, so the ORGANIZATION-LEVEL profile
+    // is now signed by the second person with no trace of the first. That is
+    // Dave's underlying threat — a second party taking credit — reached without
+    // a single type violation.
+    //
+    // Deliberately NOT "fixed" here: whether an owner may delete and re-approve
+    // their own org's profile is a POLICY question (a mistaken profile and a
+    // deletion request are both legitimate), and it belongs to the surface that
+    // exposes delete. No such surface exists (this model has zero importers), so
+    // inventing a rule now would be guessing. Recorded as T20.
+    rows = [
+      makeRow({
+        id: "tp-a",
+        organization_id: ORG_A,
+        location_id: null,
+        status: "approved",
+        approved_by: "original-owner@org-a.test",
+        approved_at: new Date("2026-07-01T12:00:00Z"),
+      }),
+    ];
+
+    await TasteProfileModel.deleteByIdForOrg("tp-a", ORG_A);
+    const replacement = await TasteProfileModel.create({
+      organization_id: ORG_A,
+      location_id: null,
+      business_name: "Cedar Park Dental",
+      business_category: "Dentist",
+      profile: makeProfile(),
+      source_summary: makeAudit(),
+    });
+    await TasteProfileModel.markApproved(replacement.id, ORG_A, "second-owner@org-a.test");
+
+    const current = await TasteProfileModel.findLatestByOrgAndLocation(ORG_A, null);
+    // The org-level profile is now signed by the second party. Asserting the
+    // gap, not endorsing it.
+    expect(current?.approved_by).toBe("second-owner@org-a.test");
+    // ...and the original signature is gone entirely, not overwritten.
+    expect(rows.some((r) => r.approved_by === "original-owner@org-a.test")).toBe(false);
   });
 
   it("no reachable entry point can alter an approved row's signature", async () => {
@@ -605,10 +671,18 @@ describe("TasteProfileModel — no write path can reattribute a signature (§5.4
       ];
     };
 
-    // Every candidate write, driven with the arguments an attacker would use:
-    // the correct org, the correct id, and a forged signature. Sealed paths are
-    // called untyped (a JS caller / a cast) so the runtime backstop is exercised
-    // rather than assumed — tsc already blocks the typed call (TS2554).
+    // Every candidate write on the model's own API, driven with the arguments an
+    // attacker would use: the correct org, the correct id, and a forged
+    // signature. Sealed paths are called untyped (a JS caller / a cast) so the
+    // runtime backstop is exercised rather than assumed — tsc already blocks the
+    // typed call (TS2554).
+    //
+    // SCOPE: this covers the model's API. It deliberately does NOT drive
+    // `table()` / `transaction()` / `beginTransaction()` — those return a raw
+    // knex handle that CAN write the row, and asserting otherwise would be
+    // false. They are classified as raw escape hatches above, not as guarded
+    // paths. Nor does it cover delete+create+approve, which is real and pinned
+    // by its own test directly above.
     const untyped = TasteProfileModel as unknown as Record<
       string,
       (...args: unknown[]) => Promise<unknown>

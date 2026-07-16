@@ -40,16 +40,41 @@ export interface ITasteProfile {
  * `approved_by`/`approved_at` in the same write (§5.4 — the owner sign-off is
  * enforced here on the server, never assumed from the caller's input).
  *
- * The owner signature is WRITE-ONCE (§5.4). `draft -> approved` is a one-way
- * transition guarded in the WHERE clause, so an approved row can never be
- * re-approved and its `approved_by`/`approved_at` can never be reattributed to
- * a different person or time. Every column-writing path into this table is
- * therefore audited: `create()` (draft-only, explicit column copy),
- * `markApproved()` (draft-only transition), and `deleteByIdForOrg()` (removes
- * the row; deletion is not reattribution) — every other inherited writer is
- * sealed. `TasteProfileModel.test.ts` enforces that list by enumerating the
- * class's whole callable surface, so a newly added or newly inherited write
- * path FAILS the suite until it is audited against this rule.
+ * The owner signature is WRITE-ONCE PER ROW (§5.4). `draft -> approved` is a
+ * one-way transition guarded in the WHERE clause, so an approved ROW can never
+ * be re-approved and its `approved_by`/`approved_at` can never be reattributed
+ * to a different person or time. Through this model's typed public API, the
+ * column-writing paths are `create()` (draft-only, explicit column copy),
+ * `markApproved()` (draft-only transition) and `deleteByIdForOrg()` (removes
+ * the row) — every other inherited writer is sealed.
+ * `TasteProfileModel.test.ts` enforces that list by enumerating the class's
+ * whole callable surface, so a newly added or newly inherited write path FAILS
+ * the suite until it is audited against this rule.
+ *
+ * READ THE SCOPE OF THAT GUARANTEE HONESTLY — it is per-row and per-typed-API,
+ * and it is NOT a claim that an org's approval history cannot be laundered:
+ *
+ *  1. DELETE-AND-REPLACE IS NOT BLOCKED, and it is not a row rewrite: an
+ *     `deleteByIdForOrg()` + `create()` + `markApproved()` sequence — every
+ *     call tenant-scoped, typed, and legitimate on its own — yields a NEW
+ *     approved row signed by whoever ran it. Because consumers read by
+ *     org+location via `findLatestByOrgAndLocation` (not by id), the
+ *     ORGANIZATION-LEVEL profile is then signed by that person with no trace of
+ *     the previous signature. Whether an owner may delete and re-approve their
+ *     own org's profile is a POLICY question for the surface that exposes
+ *     delete — there is no such surface yet (this model has no importers), so
+ *     no policy is invented here. It is recorded, not silently implied away.
+ *  2. RAW-HANDLE WRITES BYPASS THIS MODEL ENTIRELY. `table()` is `protected` in
+ *     TypeScript only, so at runtime `(Model as any).table()` returns a live
+ *     knex builder; `transaction()`/`beginTransaction()` likewise hand back a
+ *     handle that can write any table. Neither is guarded here. This is true of
+ *     every model in the repo — the model is the enforcement boundary for
+ *     TYPED callers, not the database. Real enforcement against a raw writer
+ *     would be a DB-level CHECK/trigger, which this table does not have.
+ *
+ * So: no TYPED caller can rewrite an existing row's signature. That is the
+ * guarantee, and it is the one Dave's finding asked for. It is not "the audit
+ * trail is tamper-proof".
  *
  * Persisted JSONB shapes come from the neutral `types/tasteProfile` module —
  * never from the composition service, which is a controller-layer module (§7.1).
@@ -177,7 +202,10 @@ export class TasteProfileModel extends BaseModel {
    * one-way `draft -> approved` transition: the row STOPS matching its own
    * update predicate the moment it is approved. A second call — by the same
    * owner or a different one — matches 0 rows and cannot rewrite `approved_by`
-   * or `approved_at`. The original signature is immutable through this model.
+   * or `approved_at`. THIS ROW's original signature cannot be rewritten by any
+   * typed caller. (It is not a claim that the org's approval history is
+   * tamper-proof — see the class docstring: delete-and-replace and raw-handle
+   * writes are both outside this guarantee, and are recorded, not implied away.)
    *
    * The guard is one atomic guarded UPDATE rather than a read-then-write check,
    * which would race: two concurrent approvals could both read `draft` and both
@@ -212,7 +240,16 @@ export class TasteProfileModel extends BaseModel {
    *    explicit that a repeat run must be SAFE, not loud: "a job may run more
    *    than once (retries, at-least-once delivery); design every job so a repeat
    *    run is safe." A guarded UPDATE is exactly the idempotency guard it asks
-   *    for, and this transition is the kind of thing a job will retry. Whether a 0
+   *    for, and this transition is the kind of thing a job will retry.
+   *    PRECISELY: a SEQUENTIAL repeat (the retry case §21.1 is about — the first
+   *    call already committed) returns 0 at every isolation level. A CONCURRENT
+   *    second writer is a different scenario: under READ COMMITTED it also
+   *    returns 0, but under REPEATABLE READ/SERIALIZABLE it raises `40001
+   *    could not serialize access due to concurrent update` rather than
+   *    returning 0. Since this method accepts a `trx`, a caller threading a
+   *    REPEATABLE READ transaction must expect that throw. The signature is not
+   *    overwritten in either case — but "always returns 0, never throws" would
+   *    be a false contract, so it is not claimed. Whether a 0
    *    is a 404, a 409, or a benign no-op is a POLICY question that depends on
    *    the surface asking, and this is a thin DB-correctness layer with no
    *    business logic in it (§6.1). The model's job is to make the illegal write
