@@ -69,9 +69,29 @@ function makeRow(overrides: Partial<ITasteProfile>): ITasteProfile {
 /** Records every WHERE condition the model built, for the query-shape assertions. */
 let lastWhereConditions: Array<Record<string, unknown>> = [];
 
+/**
+ * The predicate each UPDATE / DELETE carried, keyed to that statement alone.
+ *
+ * WHY THIS EXISTS, and it is the hard-won part of this harness. `lastWhereConditions`
+ * is a flat log of every `.where()` any builder ever built, so
+ * `expect(lastWhereConditions).toContainEqual({... status: "draft" })` proves only
+ * that SOMETHING somewhere used that predicate. Once `markApproved` gained a
+ * draft-scoped READ, that read satisfied the assertion for free — and the test named
+ * for the write's guard went vacuous. An adversary deleted `status: "draft"` from the
+ * final UPDATE and the whole suite stayed green (38/38); the mutant was then committed
+ * to this branch by accident and nothing caught it.
+ *
+ * A guard is a property of ONE statement. Assert it on that statement.
+ */
+let updateWheres: Array<Record<string, unknown>> = [];
+let deleteWheres: Array<Record<string, unknown>> = [];
+
 /** Builds a chainable query-builder bound to the in-memory `rows` array. */
 function makeQueryBuilder(): any {
   const filters: Array<(r: ITasteProfile) => boolean> = [];
+  // This builder's OWN accumulated predicate — merged across its .where() calls,
+  // and snapshotted when it issues an update/delete.
+  const ownWhere: Record<string, unknown> = {};
   // `orderBy` records its intent here and `apply()` honours it on the RESULT VIEW.
   // The sort must never touch the `rows` store: the tests assert positionally
   // (`rows[0]`), so re-ordering the store would make those assertions describe a
@@ -97,6 +117,7 @@ function makeQueryBuilder(): any {
   const builder: any = {
     where: vi.fn((cond: Record<string, unknown>) => {
       lastWhereConditions.push(cond);
+      Object.assign(ownWhere, cond);
       filters.push((r) =>
         Object.entries(cond).every(
           ([k, v]) => (r as unknown as Record<string, unknown>)[k] === v
@@ -106,6 +127,10 @@ function makeQueryBuilder(): any {
     }),
     whereNull: vi.fn((col: string) => {
       filters.push((r) => (r as unknown as Record<string, unknown>)[col] === null);
+      return builder;
+    }),
+    whereIn: vi.fn((col: string, vals: unknown[]) => {
+      filters.push((r) => vals.includes((r as unknown as Record<string, unknown>)[col]));
       return builder;
     }),
     orderBy: vi.fn((col: string, dir: string) => {
@@ -134,11 +159,13 @@ function makeQueryBuilder(): any {
       }),
     })),
     update: vi.fn((data: Record<string, unknown>) => {
+      updateWheres.push({ ...ownWhere });
       const targets = apply();
       targets.forEach((r) => Object.assign(r, data));
       return Promise.resolve(targets.length);
     }),
     del: vi.fn(() => {
+      deleteWheres.push({ ...ownWhere });
       const toDelete = apply();
       rows = rows.filter((r) => !toDelete.includes(r));
       return Promise.resolve(toDelete.length);
@@ -170,6 +197,8 @@ import { TasteProfileModel } from "../models/website-builder/TasteProfileModel";
 beforeEach(() => {
   rows = [];
   lastWhereConditions = [];
+  updateWheres = [];
+  deleteWheres = [];
   vi.clearAllMocks();
 });
 
@@ -530,10 +559,45 @@ describe("TasteProfileModel — the owner signature is write-once (§5.4)", () =
 
     await TasteProfileModel.markApproved("tp-a", ORG_A, FIRST_OWNER);
 
-    expect(lastWhereConditions).toContainEqual({
+    // Asserted on the APPROVAL UPDATE'S OWN predicate — not on the flat log of
+    // every WHERE the call built. That distinction is the whole test: since
+    // markApproved gained a draft-scoped READ, a `lastWhereConditions` check
+    // passes even with the UPDATE's guard deleted, because the read supplies the
+    // identical shape. An adversary proved it (guard removed -> 38/38 still
+    // green), and the mutant then reached this branch's HEAD unnoticed.
+    //
+    // The approval UPDATE is the one carrying `id`; the supersede UPDATE is scoped
+    // by org+location+status and has no id.
+    const approvalUpdate = updateWheres.find((w) => w.id === "tp-a");
+    expect(approvalUpdate).toEqual({
       id: "tp-a",
       organization_id: ORG_A,
       status: "draft",
+    });
+  });
+
+  it("the supersede UPDATE targets the incumbent only — org, location, approved", async () => {
+    // The other statement markApproved issues. It must be scoped to the org's
+    // approved row for that location and nothing else: no id (it does not know
+    // one), and never a bare {organization_id} that would retire every location.
+    rows = [
+      makeRow({
+        id: "tp-old",
+        organization_id: ORG_A,
+        location_id: null,
+        status: "approved",
+        approved_by: FIRST_OWNER,
+        approved_at: APPROVED_AT,
+      }),
+      makeRow({ id: "tp-new", organization_id: ORG_A, location_id: null, status: "draft" }),
+    ];
+
+    await TasteProfileModel.markApproved("tp-new", ORG_A, SECOND_OWNER);
+
+    const supersedeUpdate = updateWheres.find((w) => w.id === undefined);
+    expect(supersedeUpdate).toEqual({
+      organization_id: ORG_A,
+      status: "approved",
     });
   });
 
@@ -593,12 +657,11 @@ describe("TasteProfileModel — approvals are append-only (§5.4)", () => {
     expect(deleted).toBe(0);
     expect(rows).toHaveLength(1);
     expect(rows[0].approved_by).toBe(OWNER_A);
-    // The block is in the DELETE's own predicate, not in caller discipline.
-    expect(lastWhereConditions).toContainEqual({
-      id: "tp-approved",
-      organization_id: ORG_A,
-      status: "draft",
-    });
+    // The block is in the DELETE's own predicate, not in caller discipline —
+    // and asserted on THAT statement, not on a flat log of every WHERE built.
+    expect(deleteWheres).toEqual([
+      { id: "tp-approved", organization_id: ORG_A, status: "draft" },
+    ]);
   });
 
   it("a superseded profile cannot be deleted either — history is not disposable", async () => {
@@ -754,6 +817,47 @@ describe("TasteProfileModel — approvals are append-only (§5.4)", () => {
     expect(rows).toHaveLength(2);
   });
 
+  it("the approval history is readable through the typed API, newest stake first", async () => {
+    rows = [
+      seedApproved({
+        id: "tp-1",
+        status: "superseded",
+        approved_by: "first@org-a.test",
+        approved_at: new Date("2026-07-01T00:00:00Z"),
+      }),
+      seedApproved({
+        id: "tp-2",
+        status: "approved",
+        approved_by: "second@org-a.test",
+        approved_at: new Date("2026-07-08T00:00:00Z"),
+      }),
+      // A draft was never staked, so it is not part of the record of who signed.
+      makeRow({ id: "tp-draft", organization_id: ORG_A, location_id: null, status: "draft" }),
+    ];
+
+    const history = await TasteProfileModel.findApprovalHistoryByOrgAndLocation(ORG_A, null);
+
+    expect(history.map((h) => h.id)).toEqual(["tp-2", "tp-1"]);
+    expect(history.map((h) => h.approved_by)).toEqual(["second@org-a.test", "first@org-a.test"]);
+  });
+
+  it("the approval history never crosses organizations", async () => {
+    rows = [
+      makeRow({
+        id: "tp-b",
+        organization_id: ORG_B,
+        location_id: null,
+        status: "approved",
+        approved_by: "owner@org-b.test",
+        approved_at: APPROVED_AT,
+      }),
+    ];
+
+    const history = await TasteProfileModel.findApprovalHistoryByOrgAndLocation(ORG_A, null);
+
+    expect(history).toEqual([]);
+  });
+
   it("a full lifecycle leaves every stake on the record, in order", async () => {
     // draft -> approved -> superseded, twice over: the table is its own ledger.
     rows = [];
@@ -834,6 +938,7 @@ describe("TasteProfileModel — no write path can reattribute a signature (§5.4
       "findByIdForOrg",
       "findLatestByOrgAndLocation",
       "findCurrentApprovedByOrgAndLocation",
+      "findApprovalHistoryByOrgAndLocation",
     ];
     // The paths on the TYPED API that write columns on this table:
     //  - create ............ draft-only, explicit column copy (never a signature)
@@ -944,12 +1049,17 @@ describe("TasteProfileModel — no write path can reattribute a signature (§5.4
     expect(current?.approved_by).toBe("second-owner@org-a.test");
 
     // 5. The history is reconstructible from the table itself — no shadow audit
-    //    table. Both stakes are present, each with the person who made it.
-    const history = rows
-      .filter((r) => r.approved_by !== null)
-      .map((r) => r.approved_by)
-      .sort();
-    expect(history).toEqual(["original-owner@org-a.test", "second-owner@org-a.test"]);
+    //    table — and reconstructible THROUGH THE TYPED API, which is the only
+    //    boundary this model's guarantee is scoped to. An earlier version of this
+    //    test read the mock's `rows` array directly to "prove" the ledger claim;
+    //    an adversary pointed out that no typed caller has that access, so the
+    //    assertion was proving something a real consumer could not do.
+    const history = await TasteProfileModel.findApprovalHistoryByOrgAndLocation(ORG_A, null);
+    expect(history.map((h) => h.approved_by)).toEqual([
+      "second-owner@org-a.test", // newest stake first
+      "original-owner@org-a.test",
+    ]);
+    expect(history.map((h) => h.status)).toEqual(["approved", "superseded"]);
   });
 
   it("no reachable entry point can alter an approved row's signature", async () => {

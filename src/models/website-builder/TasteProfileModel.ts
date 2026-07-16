@@ -230,6 +230,40 @@ export class TasteProfileModel extends BaseModel {
   }
 
   /**
+   * The approval history for an org+location: every profile a human ever staked,
+   * newest stake first, each with its own `approved_by`/`approved_at`.
+   *
+   * THIS IS WHAT MAKES "THE TABLE IS ITS OWN LEDGER" A FACT RATHER THAN A SLOGAN.
+   * The class docstring rejects a separate audit table on the grounds that these
+   * rows ARE the history — but a history no typed caller can read is not a
+   * ledger, it is just retained bytes. Every other reader here returns a SINGLE
+   * row, and `findMany`/`paginate` are sealed, so without this method auditing an
+   * org's approvals would require the raw escape hatch the docs call unguarded.
+   * An adversary caught exactly that gap; this closes it.
+   *
+   * Returns `approved` + `superseded` rows only. Drafts are excluded on purpose:
+   * a draft was never staked, so it is not part of the record of who signed what.
+   * Ordering is by `approved_at` desc — every returned row has one, because both
+   * statuses are reachable only through `markApproved`, which stamps it.
+   */
+  static async findApprovalHistoryByOrgAndLocation(
+    organizationId: number,
+    locationId: number | null,
+    trx?: QueryContext
+  ): Promise<ITasteProfile[]> {
+    const query = this.table(trx)
+      .where({ organization_id: organizationId })
+      .whereIn("status", ["approved", "superseded"]);
+    if (locationId === null) {
+      query.whereNull("location_id");
+    } else {
+      query.where({ location_id: locationId });
+    }
+    const found = await query.orderBy("approved_at", "desc");
+    return found.map((row: unknown) => this.deserializeJsonFields(row));
+  }
+
+  /**
    * Newest profile row for an organization (+ optional location) of ANY status,
    * by `created_at`. Tenant-scoped: `organizationId` is required.
    * `location_id === null` selects the organization-level profile explicitly
@@ -373,8 +407,18 @@ export class TasteProfileModel extends BaseModel {
       await incumbent.update({ status: "superseded", updated_at: new Date() });
 
       // Stake the new record. Still draft-only, still one-way.
+      //
+      // The `status: "draft"` here is NOT redundant with the read above, and an
+      // adversary proved it by deleting it: the suite stayed green (38/38), so
+      // this predicate is the one thing standing between a stale read and a
+      // reattributed signature. It is load-bearing whenever `ctx` is not a real
+      // transaction — `forUpdate()` then holds no lock past its own statement,
+      // two callers can both pass the read, and without this clause the second
+      // would overwrite the first's `approved_by`/`approved_at`. Do not "simplify"
+      // it away; the test below asserts THIS update's own predicate for that
+      // reason.
       return this.table(ctx)
-        .where({ id, organization_id: organizationId })
+        .where({ id, organization_id: organizationId, status: "draft" })
         .update({
           status: "approved",
           approved_by: approvedBy,
