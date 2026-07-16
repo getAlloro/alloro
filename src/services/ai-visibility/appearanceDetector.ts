@@ -1,3 +1,4 @@
+import { getDomain } from "tldts";
 import {
   AppearanceDetection,
   EngineCitation,
@@ -17,7 +18,12 @@ import {
  * - a domain appearing ANYWHERE in a URL string ("directory.example/?ref=us.com")
  *   is not the host that was cited;
  * - a domain appearing in a third party's citation TITLE ("Directory profile for
- *   us.com") is not a citation of us.
+ *   us.com") is not a citation of us;
+ * - a host that merely ENDS WITH our stored domain is not our host: under a
+ *   public suffix ("co.uk") every competitor ends with it, so ownership is
+ *   compared as REGISTRABLE DOMAIN (eTLD+1), never as a string suffix;
+ * - a URL is only evidence when it is one: `javascript://us.com/…` parses to
+ *   hostname "us.com" but cites nothing, so only http(s) can prove a citation.
  *
  * Every ambiguous case DROPS the claim rather than guessing, because a missed
  * mention is a gap while a fabricated mention is a lie — we tell an owner they
@@ -27,10 +33,12 @@ import {
  * - `mentioned` = the practice name (or GBP title) appears as a WHOLE entity —
  *   not extended on either side into a longer, different business name — OR the
  *   practice's own domain is genuinely cited.
- * - `cited` = the practice's own HOST is the host of a citation, proved from a
- *   PARSED URL's hostname (never a substring of the URL string), matched by host
- *   equality/subdomain. A title proves a citation only for an engine whose
- *   adapter declares the title canonical AND whose title IS a bare host.
+ * - `cited` = the practice's own site is the host of a citation, proved from a
+ *   PARSED http(s) URL's hostname (never a substring of the URL string) and
+ *   matched by REGISTRABLE-DOMAIN equality. A practice identity with no
+ *   registrable domain ("co.uk", "com") proves nothing and fails closed. A title
+ *   proves a citation only for an engine whose adapter declares the title
+ *   canonical AND whose title IS a bare host.
  * - `position` = raw 1-based line index where the name first appears AS A WHOLE
  *   ENTITY; diagnostic only, NEVER rendered as a rank.
  */
@@ -101,12 +109,44 @@ const NAME_SUFFIX_WORDS = [
 
 /**
  * Lowercase connectors that FORM longer business names ("Smile Dental of
- * Austin"). Deliberately NOT prepositions that only ever read as prose ("in",
- * "for", "by") — rejecting those would cost real mentions and buy no safety.
- * "and" IS included: "Smile Dental and Braces" (a name) cannot be told from
- * "Smile Dental and Bright Ortho" (a list), and ambiguity drops the claim.
+ * Austin", "Smiles by Design", "Dentistry for Kids").
+ *
+ * A CLOSED class, unlike NAME_SUFFIX_WORDS. English function words
+ * (prepositions + coordinating conjunctions) are a finite, fixed set, so
+ * completing the naming subset is not whack-a-mole — it is enumerating a set
+ * that cannot grow. The OPEN class (any capitalized continuation: "Smile Dental
+ * Arts", "Smile Dental Excellence") is handled STRUCTURALLY by
+ * RIGHT_CAPITALIZED_TOKEN, never by a word list, because that set is infinite.
+ *
+ * Included because businesses genuinely name themselves this way. EXCLUDED:
+ * "in", "near", "from" — locative prepositions that read as prose ("Smile
+ * Dental in Austin has good reviews") and are not an English business-naming
+ * pattern; listing them would cost real mentions and buy no safety. That
+ * exclusion is the deliberate recall/safety line, not an oversight.
+ *
+ * "and"/"or" ARE included: "Smile Dental and Braces" (a name) cannot be told
+ * from "Smile Dental and Bright Ortho" (a list), and ambiguity drops the claim.
+ *
+ * HONEST about the weakest entry: "with" earns its place less clearly than
+ * "of"/"by"/"for" (which match everyday practice names — "Smiles by Design",
+ * "Dentistry for Kids"). Its recall cost is real and recurring: "Smile Dental
+ * with Invisalign" and "Smile Dental with Dr. Smith" are genuine mentions this
+ * drops. It stays because the asymmetry is not a preference — a gap is a gap,
+ * a fabricated mention is a lie — and this file already drops every other
+ * capitalized continuation for exactly that reason. Revisit it with real engine
+ * output, not intuition.
  */
-const NAME_CONNECTOR_WORDS = ["of", "at", "and", "on"];
+const NAME_CONNECTOR_WORDS = [
+  "of",
+  "at",
+  "and",
+  "on",
+  "or",
+  "by",
+  "for",
+  "plus",
+  "with",
+];
 
 /**
  * What can sit between a preceding name token and our match without ending the
@@ -142,9 +182,28 @@ const RIGHT_SUFFIX_WORD = new RegExp(
   `^${H}+(${NAME_SUFFIX_WORDS.join("|")})s?\\b`,
   "i"
 );
+/**
+ * Determiners that sit INSIDE a business name between a connector and the head
+ * noun ("Smile Dental by the Bay", "Smile Dental of the Hills"). Without this
+ * window the connector test looks only at the next token, sees "the", and lets
+ * the longer name through.
+ */
+const NAME_DETERMINERS = ["the", "a", "an"];
+/**
+ * A connector continuing into a CAPITALIZED head noun.
+ *
+ * Deliberately case-SENSITIVE: `[A-Z0-9]` must mean a capital. The prior "i"
+ * flag applied to the whole pattern, which silently made `[A-Z0-9]` match
+ * lowercase too, so ANY word after a connector ended the entity. That was
+ * invisible while the list held only "of/at/and/on", but it is the difference
+ * between "Smile Dental for Kids" (a different business — capital) and "Smile
+ * Dental for cleanings" (prose about ours — lowercase). Capitalization is the
+ * identity signal the rest of this file already relies on, so the test reads it
+ * directly. A capitalized connector ("Smile Dental Of Austin") is not lost —
+ * RIGHT_CAPITALIZED_TOKEN catches it first.
+ */
 const RIGHT_CONNECTOR_NAME = new RegExp(
-  `^${H}+(${NAME_CONNECTOR_WORDS.join("|")})${H}+[A-Z0-9]`,
-  "i"
+  `^${H}+(${NAME_CONNECTOR_WORDS.join("|")})${H}+((${NAME_DETERMINERS.join("|")})${H}+)*[A-Z0-9]`
 );
 
 function escapeRegex(s: string): string {
@@ -258,8 +317,44 @@ function findIdentityMatch(text: string, rawName: string): number | null {
  * ("com"), which would otherwise match every .com host by suffix. */
 const HOSTNAME_RE = /^([a-z0-9][a-z0-9-]*\.)+[a-z]{2,}$/;
 
+/**
+ * The ONLY schemes that can carry a citation, mirroring the repo's existing
+ * boundary (`services/ai-seo-audit/urlSafetyService.ts` ALLOWED_PROTOCOLS).
+ * That helper is async (it does a DNS lookup) and this detector is pure/no-IO,
+ * so the CHECK is shared by pattern, not by import (§4.4 — the utility exists
+ * but is IO-bound and unusable here).
+ *
+ * `new URL()` parses an authority for ANY "scheme://host" string, so
+ * `javascript://smiledental.com/%0aalert(1)` and `file://smiledental.com/etc`
+ * both yield hostname `smiledental.com`. Without this allowlist each one
+ * fabricated a citation AND persisted a `javascript:` URL into `cited_source`,
+ * which the owner-facing UI renders as a link — fabrication and an XSS sink
+ * from the same hole. §5.2.
+ */
+const ALLOWED_PROTOCOLS = new Set(["http:", "https:"]);
+
 function normalizeHost(host: string): string {
   return host.trim().toLowerCase().replace(/^www\./, "");
+}
+
+/**
+ * The REGISTRABLE domain (eTLD+1) of a host — the unit of ownership actually
+ * sold to a registrant — or null when the host has none.
+ *
+ * The eTLD boundary is DATA (the Mozilla Public Suffix List), not a string
+ * operation: `co.uk`, `com.au` and `github.io` are suffixes under which anyone
+ * may register, so `endsWith("." + practiceDomain)` treats every UK commercial
+ * site as ours. No hand-maintained denylist can track a ~10k-rule list that
+ * changes; this is why a PSL parser is a dependency and not a regex (§4.4).
+ *
+ * `allowPrivateDomains: true` is REQUIRED, not a default. With it FALSE,
+ * `alice.github.io` and `bob.github.io` both reduce to `github.io` and would
+ * match each other — two unrelated practices cited as one. With it TRUE each is
+ * its own registrable domain, and a bare `github.io` identity resolves to null
+ * and is refused. Verified against tldts 7.4.9.
+ */
+function registrableDomain(host: string): string | null {
+  return getDomain(host, { allowPrivateDomains: true });
 }
 
 /**
@@ -280,6 +375,11 @@ function hostFromUrl(raw: string): string | null {
   if (!hasScheme && !/^[a-z0-9]/i.test(s)) return null;
   try {
     const u = new URL(hasScheme ? s : `https://${s}`);
+    if (!ALLOWED_PROTOCOLS.has(u.protocol)) return null;
+    // Userinfo is never part of a plain citation, and
+    // `https://smiledental.com@evil.com/` is a deceptive-link shape we must not
+    // hand an owner as evidence. The existing urlSafetyService refuses it too.
+    if (u.username || u.password) return null;
     const host = normalizeHost(u.hostname);
     return HOSTNAME_RE.test(host) ? host : null;
   } catch {
@@ -302,10 +402,24 @@ function hostFromCanonicalTitle(title: string): string | null {
   return HOSTNAME_RE.test(host) ? host : null;
 }
 
-/** Host equals the practice host, or is a subdomain of it (real "." label
- * boundary), so a lookalike superstring host never matches. */
-function hostMatchesPractice(sourceHost: string, practiceHost: string): boolean {
-  return sourceHost === practiceHost || sourceHost.endsWith("." + practiceHost);
+/**
+ * Does this source host belong to the practice's REGISTRABLE domain?
+ *
+ * Compares eTLD+1 to eTLD+1 — identity of ownership, not string resemblance.
+ * `sourceHost.endsWith("." + practiceDomain)` was the old test and it is wrong
+ * at exactly the boundary that matters: with `practiceDomain = "co.uk"` every
+ * `competitor.co.uk` "matched". Reducing BOTH sides to the registrable domain
+ * makes the comparison an equality between owners.
+ *
+ * This preserves the real subdomain case for free: `booking.smiledental.com`
+ * and `smiledental.com` share one registrable domain, so a genuine citation of
+ * either still records. `practiceDomain` is pre-validated by the caller.
+ */
+function hostMatchesPractice(
+  sourceHost: string,
+  practiceDomain: string
+): boolean {
+  return registrableDomain(sourceHost) === practiceDomain;
 }
 
 /**
@@ -316,21 +430,41 @@ function hostMatchesPractice(sourceHost: string, practiceHost: string): boolean 
  */
 function findCitedSource(
   citations: EngineCitation[],
-  practiceHost: string
+  practiceDomain: string
 ): string | null {
   for (const citation of citations) {
     if (citation.url) {
       const host = hostFromUrl(citation.url);
-      if (host && hostMatchesPractice(host, practiceHost)) return citation.url;
+      if (host && hostMatchesPractice(host, practiceDomain)) return citation.url;
     }
     // Title: default-deny. Only an engine whose contract makes the title the
     // canonical destination may use it, and only when it IS a bare host.
     if (citation.title && citation.titleIsCanonicalHost === true) {
       const host = hostFromCanonicalTitle(citation.title);
-      if (host && hostMatchesPractice(host, practiceHost)) return citation.title;
+      if (host && hostMatchesPractice(host, practiceDomain)) {
+        return citation.title;
+      }
     }
   }
   return null;
+}
+
+/**
+ * The practice's registrable domain, or null when the stored identity cannot
+ * prove ownership of anything.
+ *
+ * THE TRUSTED-IDENTITY BOUNDARY (§5.2). `identity.domain` is database-sourced,
+ * but "first-party" is not "valid": it arrives from onboarding/import and may be
+ * blank, a bare TLD, or a public suffix. Malformed identity data must FAIL
+ * CLOSED — record nothing — rather than widen into an ownership root that
+ * manufactures evidence about a competitor. A dropped citation is a gap; a
+ * fabricated one tells an owner an AI cited them when it cited someone else.
+ */
+function practiceDomainFromIdentity(identity: PracticeIdentity): string | null {
+  if (!identity.domain) return null;
+  const host = hostFromUrl(identity.domain);
+  if (!host) return null;
+  return registrableDomain(host);
 }
 
 export function detectAppearance(
@@ -344,9 +478,9 @@ export function detectAppearance(
     nameMatchIndex !== null ||
     findIdentityMatch(answer, identity.gbpTitle ?? "") !== null;
 
-  const practiceHost = identity.domain ? hostFromUrl(identity.domain) : null;
-  const citedSource = practiceHost
-    ? findCitedSource(raw.citations ?? [], practiceHost)
+  const practiceDomain = practiceDomainFromIdentity(identity);
+  const citedSource = practiceDomain
+    ? findCitedSource(raw.citations ?? [], practiceDomain)
     : null;
   const cited = citedSource !== null;
 

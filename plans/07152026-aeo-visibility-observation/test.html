@@ -29,6 +29,10 @@
     .st { font-weight:800; font-size:.72rem; text-transform:uppercase; }
     .st.pass { color:var(--pass); } .st.fail { color:var(--fail); } .st.pending { color:var(--muted); }
     .notice { border:1px dashed var(--line); border-radius:8px; padding:14px; background:var(--soft); font-size:.9rem; }
+    .rollup { border:1px solid var(--line); border-left:4px solid var(--ink); border-radius:8px; padding:16px; margin:10px 0 18px; background:var(--soft); }
+    .rollup dt { color:var(--muted); font-size:.7rem; font-weight:800; text-transform:uppercase; margin-top:10px; }
+    .rollup dt:first-child { margin-top:0; }
+    .rollup dd { margin:4px 0 0; font-size:.9rem; }
     code { background:var(--soft); border:1px solid var(--line); border-radius:4px; padding:.05rem .3rem; }
   </style>
 </head>
@@ -48,6 +52,7 @@
       <button id="download">Download updated results</button>
     </div>
     <div id="notice" class="notice" hidden></div>
+    <dl id="rollup" class="rollup" hidden></dl>
     <div id="list"></div>
   </main>
   <script>
@@ -67,6 +72,17 @@
       $("meta").textContent = "Plan: " + (data.plan || "—") + " · generated " + (data.generatedAt || "—");
       const status = rollup(data); data.status = status;
       const pill = $("pill"); pill.textContent = status; pill.className = "pill " + status.toLowerCase().replace(/\s/g, "");
+      // A rollup that does not say what it BLOCKS is not an honest rollup: a
+      // reader must see why the pending items are pending and what they gate,
+      // rather than infer it from a bare "In Progress" pill.
+      const c = data.contract || {};
+      $("rollup").innerHTML = [
+        data.statusRationale ? `<dt>Why this status</dt><dd>${esc(data.statusRationale)}</dd>` : "",
+        c.inScope ? `<dt>In scope &mdash; what this PR claims</dt><dd>${esc(c.inScope)}</dd>` : "",
+        c.outOfScope ? `<dt>Out of scope &mdash; not claimed</dt><dd>${esc(c.outOfScope)}</dd>` : "",
+        c.gate ? `<dt>Gate</dt><dd>${esc(c.gate)}</dd>` : "",
+      ].join("");
+      $("rollup").hidden = !(data.statusRationale || data.contract);
       $("list").innerHTML = (data.items || []).map((it, idx) => `
         <div class="item ${it.status}">
           <h3><input type="checkbox" data-i="${idx}" ${it.status === "pass" ? "checked" : ""}>
@@ -78,6 +94,8 @@
             ${it.expected ? `<dt>Expected</dt><dd>${esc(it.expected)}</dd>` : ""}
             ${it.evidence ? `<dt>Evidence</dt><dd>${esc(it.evidence)}</dd>` : ""}
             ${it.notes ? `<dt>Notes</dt><dd>${esc(it.notes)}</dd>` : ""}
+            ${it.blocks ? `<dt>Blocks</dt><dd>${esc(it.blocks)}</dd>` : ""}
+            ${it.cannotRunHere ? `<dt>Why not run here</dt><dd>${esc(it.cannotRunHere)}</dd>` : ""}
             ${it.waiver ? `<dt>Waiver</dt><dd>${esc(it.waiver)}</dd>` : ""}
           </dl>
         </div>`).join("");

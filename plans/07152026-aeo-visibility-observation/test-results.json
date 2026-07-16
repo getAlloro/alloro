@@ -14,7 +14,7 @@
       ],
       "expected": "Two prompts (generic + contextualized) carrying the category and city; an empty set when either input is missing, so the runner skips instead of asking a meaningless question.",
       "status": "pass",
-      "evidence": "src/__tests__/ai-visibility.test.ts — 2 buildPromptSet cases passed in the 83-test A3 run and the 539-test full suite (Node 22).",
+      "evidence": "src/__tests__/ai-visibility.test.ts — 2 buildPromptSet cases passed in the 117-test A3 run and the 573-test full suite (Node 22).",
       "notes": "",
       "waiver": ""
     },
@@ -45,7 +45,7 @@
       ],
       "expected": "cited=true only when a PARSED citation URL's hostname is the practice's own (or a subdomain), and citedSource stores the field that proved it. A domain sitting in a third party's title prose proves nothing and records nothing. A bare name match never implies a citation.",
       "status": "pass",
-      "evidence": "src/__tests__/ai-visibility.test.ts — host-match, non-canonical-title, and ambiguity-guard cases passed in the 83-test A3 run and the 539-test full suite (Node 22).",
+      "evidence": "src/__tests__/ai-visibility.test.ts — host-match, non-canonical-title, and ambiguity-guard cases passed in the 117-test A3 run and the 573-test full suite (Node 22).",
       "notes": "CHANGED IN ROUND 4. The previous version of this test asserted the FABRICATION: a citation {url:null, title:'Bright Smiles — brightsmiles.com'} was expected to record cited=true. The test encoded the bug, so it was corrected, not preserved.",
       "waiver": ""
     },
@@ -62,7 +62,7 @@
       ],
       "expected": "Every lookalike is rejected; only the genuine subdomain citation counts. The detector prefers a MISSED positive over a FABRICATED one.",
       "status": "pass",
-      "evidence": "src/__tests__/ai-visibility.test.ts — 6 anti-fabrication regression cases passed in the 83-test A3 run and the 539-test full suite (Node 22).",
+      "evidence": "src/__tests__/ai-visibility.test.ts — 6 anti-fabrication regression cases passed in the 117-test A3 run and the 573-test full suite (Node 22).",
       "notes": "Binding honesty rule (spec + research/aeo-measurement-spec.md §3): never record a mention/citation that isn't genuinely the practice.",
       "waiver": ""
     },
@@ -297,7 +297,9 @@
       "status": "pending",
       "evidence": "",
       "notes": "HONESTLY NOT RUN — no live database was available and none was stood up for this work. T14 proves the chain and the mapping against a mocked builder; this proves PostgreSQL's actual ON CONFLICT DO NOTHING ... RETURNING behaviour, which a mock cannot establish. The unique index ai_visibility_observation_idem (migration 20260715120000, line 42) matches the onConflict columns exactly, which is a static check, not a run. Must NOT be marked pass until someone runs it against a real database.",
-      "waiver": ""
+      "waiver": "",
+      "blocks": "Enabling a caller for the A3 observation run (§20.1). Does NOT block the pure layer in this PR.",
+      "cannotRunHere": "No live database and no provider API keys in this environment. Deliberately left pending and UNWAIVED — a waiver is a human call, not the authoring agent’s."
     },
     {
       "id": "T17",
@@ -313,7 +315,9 @@
       "status": "pending",
       "evidence": "",
       "notes": "HONESTLY NOT RUN. This suite is DB-mocked and no database was available; no DDL from this migration has executed anywhere. Additive and reversible by inspection only.",
-      "waiver": ""
+      "waiver": "",
+      "blocks": "Enabling a caller for the A3 observation run (§20.1). Does NOT block the pure layer in this PR.",
+      "cannotRunHere": "No live database and no provider API keys in this environment. Deliberately left pending and UNWAIVED — a waiver is a human call, not the authoring agent’s."
     },
     {
       "id": "T18",
@@ -328,7 +332,9 @@
       "status": "pending",
       "evidence": "",
       "notes": "HONESTLY NOT RUN, and NOT CURRENTLY TRIGGERABLE: A3 has no wired caller. Nothing in src/ imports runAiVisibilityObservation outside its own module and the test file — there is no agent, worker, route, or schedule for it. This is the post-merge dev smoke test named in the get-found chain merge brief; it needs wiring first. Every proof above is unit-level with injected seams or stubbed fetch; no live provider call has been made.",
-      "waiver": ""
+      "waiver": "",
+      "blocks": "Enabling a caller for the A3 observation run (§20.1). Does NOT block the pure layer in this PR.",
+      "cannotRunHere": "No live database and no provider API keys in this environment. Deliberately left pending and UNWAIVED — a waiver is a human call, not the authoring agent’s."
     },
     {
       "id": "T19",
@@ -343,7 +349,9 @@
       "status": "pending",
       "evidence": "",
       "notes": "HONESTLY NOT RUN — no key exists, so this HTTP path has never executed against the live API. T6/T7/T8 stub fetch with the documented shape; if the live payload differs from the documented one, only this item would catch it. The adapter stays dormant until a key is present (the runner skips unconfigured engines), so merging costs nothing. SerpApi scrapes Google under its own ToS — a procurement call for Corey, not a merge step.",
-      "waiver": ""
+      "waiver": "",
+      "blocks": "Enabling a caller for the A3 observation run (§20.1). Does NOT block the pure layer in this PR.",
+      "cannotRunHere": "No live database and no provider API keys in this environment. Deliberately left pending and UNWAIVED — a waiver is a human call, not the authoring agent’s."
     },
     {
       "id": "T20",
@@ -358,6 +366,26 @@
       "status": "pending",
       "evidence": "",
       "notes": "HONESTLY NOT RUN — no key exists; this HTTP path has never executed. Unlike SerpApi, the Perplexity adapter has NO stubbed-shape test either, so its parse is currently unproven at any level. It stays dormant until a key is present. Flagged as the weakest-covered adapter.",
+      "waiver": "",
+      "blocks": "Enabling a caller for the A3 observation run (§20.1). Does NOT block the pure layer in this PR.",
+      "cannotRunHere": "No live database and no provider API keys in this environment. Deliberately left pending and UNWAIVED — a waiver is a human call, not the authoring agent’s."
+    },
+    {
+      "id": "T26",
+      "title": "Ownership is a REGISTRABLE DOMAIN, and only http(s) is evidence (Dave round-4)",
+      "surface": "cli",
+      "precondition": "Pure detector. Node 22 (v22.23.1). No network or DB.",
+      "steps": [
+        "Reproduce Dave’s exact repro at 5196ffcd: identity domain co.uk + citation https://competitor.co.uk/path.",
+        "Sweep the class rather than the named case: every public-suffix shape (ICANN + PRIVATE), every non-web URL scheme, and every name-forming connector.",
+        "Fix at the trusted-identity boundary with a PSL-aware parser; allow only http(s); complete the closed connector class.",
+        "Prove BOTH directions: resemblance records nothing AND real evidence still records.",
+        "Prove non-vacuous by reverting the detector to 5196ffcd with the NEW tests in place."
+      ],
+      "expected": "Every public-suffix / non-web-scheme / connector lookalike records nothing, every real citation and mention still records, and the new tests fail without the fix.",
+      "status": "pass",
+      "evidence": "REPRO CONFIRMED at 5196ffcd before any fix — co.uk → cited=true citedSource=https://competitor.co.uk/path, exactly as Dave reported; the same sweep also found com.au, github.io, javascript://smiledental.com/%0aalert(1) and file://smiledental.com/etc/passwd ALL fabricating cited=true. AFTER: all record cited=false. Public suffix: registrable-domain (eTLD+1) comparison via tldts 7.4.9 (Mozilla PSL) with allowPrivateDomains:true — co.uk, com.au, sch.uk, github.io, blogspot.com, com, uk all refused as practice domains; competitor.co.uk ≠ example.co.uk; alice.github.io ≠ bob.github.io. Schemes: allowlist {http:, https:} — javascript:, file:, vbscript:, ftp:, gopher:, ws: all refused, plus a non-web scheme in the STORED domain and userinfo URLs. Names: closed connector class completed (by/for/plus/with/or + determiner window) — “Smile Dental by the Bay”, “for Kids”, “plus Ortho”, “with Braces”, “or Bright Ortho”, “of the Hills” all record nothing. BOTH DIRECTIONS: real evidence still records — example.co.uk root/www/subdomain citations, alice.github.io for the same registrant, plain http, an http-scheme stored domain, and prose mentions (“Smile Dental in Austin has strong reviews”, “near downtown”, “for cleanings”). NON-VACUOUS PROOF: with the new tests in place and the detector reverted to 5196ffcd, vitest exits 1 with 20 failed / 97 passed; restoring the fix returns 117/117 exit 0. Full suite 573/573 exit 0; tsc exit 0; check:conventions --strict exit 0.",
+      "notes": "ROOT CAUSE: the old test was `sourceHost.endsWith(\".\" + practiceHost)` — a STRING operation standing in for an OWNERSHIP question. The eTLD boundary is DATA (a ~10k-rule list that changes), so no regex or hand-maintained denylist can express it; that is why this is a dependency (§4.4) and why Dave forbade a co.uk denylist. §4.4 was checked first: NO PSL exists in the repo (0 hits for psl/tldts/parse-domain in package-lock.json, 0 PSL logic in src/) and the stdlib cannot derive eTLD+1, so a package was required. tldts chosen over the 3.5x smaller psl on EVIDENCE, not taste: psl.get(\"192.168.1.1\") returns the garbage \"1.1\" (fails OPEN on malformed identity) while tldts returns null (fails CLOSED), and tldts exposes allowPrivateDomains, which is decisive — with it FALSE, alice.github.io and bob.github.io both reduce to github.io and would match each other. tldts ships its own types (no @types dep) and adds 0 npm-audit advisories. The scheme allowlist mirrors the repo’s existing boundary (services/ai-seo-audit/urlSafetyService.ts ALLOWED_PROTOCOLS); that helper is async (DNS) and this detector is pure, so the check is shared by pattern, not import. A REAL REGRESSION was caught mid-fix by the existing suite: the connector regex carried an \"i\" flag that silently made [A-Z0-9] match lowercase, so adding \"for\" dropped “I recommend Smile Dental for cleanings”. Capitalization IS the identity signal (“for Kids” = a business, “for cleanings” = prose), so the flag was removed and a determiner window added. The fix also GAINED recall: endsWith could not match our own root when the stored domain was a subdomain (booking.smiledental.com); registrable-domain equality can. HONEST RESIDUALS: (1) a sentence-initial capital still drops a real mention (“Try Smile Dental.”) — pre-existing, deliberate, the safe direction; (2) “in”/“near”/“from” are deliberately NOT connectors, so a practice genuinely named “Smile Dental in Austin” would still record — excluding them is what keeps ordinary prose mentions readable, and that is a recall/safety line, not an oversight; (3) the detector has no LOCATION signal, so a same-name practice in another city is indistinguishable — the deepest residual in the name path, unchanged by this round; (4) NAME_SUFFIX_WORDS remains an open-class word list for LOWERCASE continuations — the capitalized (infinite) case is handled structurally, but a lowercase novel suffix (“Smile Dental arts”) would still record.",
       "waiver": ""
     },
     {
@@ -372,8 +400,8 @@
       ],
       "expected": "Zero type errors, a green suite, and zero structural backend violations.",
       "status": "pass",
-      "evidence": "tsc --noEmit exited 0 (no output). Full suite: 61 files, 539 tests passed (491 at the reviewed head), captured from vitest's OWN exit code, not a piped grep. check:conventions --strict exited 0 with 'CLEAR structural violations — backend (size + console + db): 0'; no ai-visibility file appears in any finding, advisory or otherwise.",
-      "notes": "The §11.7 heuristic lists 102 models repo-wide; AiVisibilityObservationModel is NOT among them (it references organization_id). That heuristic is a backstop, not proof — the real tenant proof is T15/T22.",
+      "evidence": "tsc --noEmit exited 0 (no output). Full suite: 61 files, 573 tests passed (539 at the previous head), read from vitest’s OWN exit code (0), never through a pipe. Focused A3 suite: 117 passed (83 at the head Dave reviewed, 5196ffcd), exit 0. check:conventions --strict exited 0 with “CLEAR structural violations — backend (size + console + db): 0”. eslint on src/services/ai-visibility exited 0. npm audit: tldts contributes 0 advisories (the 34 pre-existing repo advisories are unchanged and out of scope).",
+      "notes": "The §11.7 heuristic lists 102 models repo-wide; AiVisibilityObservationModel is NOT among them (it references organization_id). That heuristic is a backstop, not proof — the real tenant proof is T15/T22. All 573 full-suite tests pass, so the prior rounds’ verified work (the 9 sealed BaseModel statics, the persistence boundary, citation structure, duplicate metrics) is regression-clean at this head.",
       "waiver": ""
     },
     {
@@ -392,5 +420,11 @@
       "notes": "ENUMERATION FINDING: the checker reported 11 public statics, not the 9 on the review list — the extras are transaction() and beginTransaction(). Both are DELIBERATELY NOT sealed and this is the honest residual: they never touch tableName, they return a raw Knex handle that can query ANY table, and that handle is reachable through every other model, so sealing them on this one class would close nothing while breaking the sanctioned BaseModel transaction pattern. The breadth of a raw handle is a BaseModel-wide property this batch does not open; it is a candidate for a separate BaseModel-level decision, not an A3 fix. HONEST EXCEPTION: count() is RUNTIME-ONLY sealed — BaseModel.count() is callable with zero arguments, so the arity trick cannot fire and AiVisibilityObservationModel.count() still type-checks. Documented on the method; no @ts-expect-error on that test (one would itself fail tsc as TS2578).",
       "waiver": ""
     }
-  ]
+  ],
+  "statusRationale": "In Progress, NOT merge-ready. 21 of 26 items pass at this head; T16-T20 remain PENDING and are deliberately NOT waived — no live database and no provider API keys exist in this environment, and an unrunnable check is never a pass. Per Dave (§20.1) these five gate ENABLING A CALLER, not the correctness of the pure layer this PR contains. Nothing in this PR is wired to a caller, so the pending five block the follow-up that wires it, and this artifact must not be read as clearing them.",
+  "contract": {
+    "inScope": "The pure, UNWIRED detection + runner layer: prompt building, appearance detection (anti-fabrication), engine adapter parsing against recorded response shapes, runner orchestration/error boundaries, tenant scoping, and the idempotency contract as proven against a mocked query builder.",
+    "outOfScope": "Live provider readings (Gemini/SerpApi/Perplexity), real PostgreSQL ON CONFLICT behaviour, and the migration landing on dev. These are T16-T20.",
+    "gate": "No caller may be enabled until T16-T20 are run or explicitly waived by a human. This PR does not enable one."
+  }
 }

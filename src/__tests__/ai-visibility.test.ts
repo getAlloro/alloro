@@ -298,6 +298,123 @@ describe("detectAppearance — identity not resemblance (round-3 adversary)", ()
     });
   });
 
+  // ROUND 4 — the registrable-domain boundary. A stored identity is first-party
+  // data but NOT valid data: a public suffix is a root anyone can register
+  // under, so `endsWith` turned it into an ownership claim over every host
+  // beneath it. Dave's exact repro is the first case here.
+  describe("a public suffix is never an ownership root (§5.2)", () => {
+    it.each([
+      ["Dave's repro — co.uk", "co.uk", "https://competitor.co.uk/path"],
+      ["an ICANN multi-label suffix — com.au", "com.au", "https://competitor.com.au/path"],
+      ["a deeper ICANN suffix — sch.uk", "sch.uk", "https://competitor.sch.uk/path"],
+      ["a PRIVATE-section suffix — github.io", "github.io", "https://competitor.github.io/p"],
+      ["a private suffix — blogspot.com", "blogspot.com", "https://competitor.blogspot.com/p"],
+      ["a bare TLD — com", "com", "https://competitor.com/path"],
+      ["a bare ccTLD — uk", "uk", "https://competitor.co.uk/path"],
+    ])("refuses %s as a practice domain", (_label, domain, url) => {
+      const d = detectAppearance(sources([{ url, title: null }]), {
+        name: "Smile Dental",
+        domain,
+      });
+      expect(d.cited).toBe(false);
+      expect(d.citedSource).toBeNull();
+    });
+
+    it("two practices under ONE private suffix are not each other", () => {
+      // With allowPrivateDomains:false both sides reduce to `github.io` and
+      // this records a competitor's page as ours. This test pins the option.
+      expect(
+        detectAppearance(sources([{ url: "https://bob.github.io/x", title: null }]), {
+          name: "Smile Dental",
+          domain: "alice.github.io",
+        }).cited
+      ).toBe(false);
+    });
+
+    it("a competitor sharing our public suffix is not us", () => {
+      expect(
+        detectAppearance(sources([{ url: "https://competitor.co.uk/x", title: null }]), {
+          name: "Smile Dental",
+          domain: "example.co.uk",
+        }).cited
+      ).toBe(false);
+    });
+
+    it("a host merely ENDING with our registrable domain is not us", () => {
+      expect(
+        detectAppearance(
+          sources([{ url: "https://notsmiledental.com/x", title: null }]),
+          ID
+        ).cited
+      ).toBe(false);
+    });
+  });
+
+  // ROUND 4 — a URL is evidence only when it is one. `new URL()` parses an
+  // authority for ANY "scheme://host", so a non-web scheme both fabricated a
+  // citation and persisted a `javascript:` payload into owner-facing
+  // `cited_source`.
+  describe("only http(s) can prove a citation (§5.2)", () => {
+    it.each([
+      ["javascript:", "javascript://smiledental.com/%0aalert(1)"],
+      ["file:", "file://smiledental.com/etc/passwd"],
+      ["vbscript:", "vbscript://smiledental.com/x"],
+      ["ftp:", "ftp://smiledental.com/x"],
+      ["gopher:", "gopher://smiledental.com/x"],
+      ["ws:", "ws://smiledental.com/x"],
+    ])("refuses a %s citation URL naming our own host", (_label, url) => {
+      const d = detectAppearance(sources([{ url, title: null }]), ID);
+      expect(d.cited).toBe(false);
+      expect(d.citedSource).toBeNull();
+    });
+
+    it("refuses a non-http(s) scheme in the stored practice domain", () => {
+      expect(
+        detectAppearance(sources([{ url: "https://smiledental.com/x", title: null }]), {
+          name: "Smile Dental",
+          domain: "javascript://smiledental.com/x",
+        }).cited
+      ).toBe(false);
+    });
+
+    it("refuses a userinfo URL that hides its real host", () => {
+      // hostname is evil.com — the practice host is only the username.
+      expect(
+        detectAppearance(
+          sources([{ url: "https://smiledental.com@evil.com/x", title: null }]),
+          ID
+        ).cited
+      ).toBe(false);
+    });
+
+    it("refuses a deceptive userinfo URL even when the HOST is really ours", () => {
+      // Parses to smiledental.com, but we must not hand an owner a
+      // credential-shaped link as proof.
+      expect(
+        detectAppearance(
+          sources([{ url: "https://evil.com@smiledental.com/x", title: null }]),
+          ID
+        ).cited
+      ).toBe(false);
+    });
+  });
+
+  // ROUND 4 — the connector class. The prior list held four words; business
+  // names use more of the same CLOSED class of English function words.
+  describe("a name-forming connector is never a mention", () => {
+    it.each([
+      ["by + determiner", "Smile Dental by the Bay is great."],
+      ["by", "Smiles by Smile Dental by Design."],
+      ["for", "Smile Dental for Kids is great."],
+      ["plus", "Smile Dental plus Ortho is great."],
+      ["with", "Smile Dental with Braces is great."],
+      ["or (a list, not a name)", "Smile Dental or Bright Ortho are options."],
+      ["of + determiner", "Smile Dental of the Hills is great."],
+    ])("does NOT record a mention for %s", (_label, text) => {
+      expect(detectAppearance(answer(text), ID).mentioned).toBe(false);
+    });
+  });
+
   describe("still records real evidence (the guards are not vacuous)", () => {
     it("records a real standalone mention", () => {
       expect(
@@ -391,6 +508,78 @@ describe("detectAppearance — identity not resemblance (round-3 adversary)", ()
       // The newline is a hard entity boundary, so the previous line's business
       // name must not swallow this one — the dominant shape of engine answers.
       expect(detectAppearance(answer("- Bright Ortho\n- Smile Dental"), ID).mentioned).toBe(true);
+    });
+
+    // ROUND 4 — the other direction. Every guard above rejects; a detector that
+    // answered "no" to everything would pass all of them and be worthless. These
+    // pin the recall the registrable-domain + scheme work must NOT cost.
+    it("records a real citation under a multi-label public suffix", () => {
+      const d = detectAppearance(
+        sources([{ url: "https://example.co.uk/team", title: null }]),
+        { name: "Smile Dental", domain: "example.co.uk" }
+      );
+      expect(d.cited).toBe(true);
+      expect(d.citedSource).toBe("https://example.co.uk/team");
+    });
+
+    it("records a www citation under a multi-label public suffix", () => {
+      expect(
+        detectAppearance(sources([{ url: "https://www.example.co.uk/team", title: null }]), {
+          name: "Smile Dental",
+          domain: "example.co.uk",
+        }).cited
+      ).toBe(true);
+    });
+
+    it("records a subdomain citation under a multi-label public suffix", () => {
+      expect(
+        detectAppearance(sources([{ url: "https://booking.example.co.uk/x", title: null }]), {
+          name: "Smile Dental",
+          domain: "example.co.uk",
+        }).cited
+      ).toBe(true);
+    });
+
+    it("records a citation under a PRIVATE suffix for the same registrant", () => {
+      expect(
+        detectAppearance(sources([{ url: "https://alice.github.io/x", title: null }]), {
+          name: "Smile Dental",
+          domain: "alice.github.io",
+        }).cited
+      ).toBe(true);
+    });
+
+    it("records our own root citation when the STORED domain is a subdomain", () => {
+      // Same registrable domain = same registrant, so this is our site.
+      expect(
+        detectAppearance(sources([{ url: "https://smiledental.com/x", title: null }]), {
+          name: "Smile Dental",
+          domain: "booking.smiledental.com",
+        }).cited
+      ).toBe(true);
+    });
+
+    it("records a citation when the stored domain carries an http scheme", () => {
+      expect(
+        detectAppearance(sources([{ url: "https://smiledental.com/x", title: null }]), {
+          name: "Smile Dental",
+          domain: "http://smiledental.com",
+        }).cited
+      ).toBe(true);
+    });
+
+    it("still records a plain http citation (only NON-web schemes are refused)", () => {
+      expect(
+        detectAppearance(sources([{ url: "http://smiledental.com/x", title: null }]), ID)
+          .cited
+      ).toBe(true);
+    });
+
+    it("still records a mention followed by prose that only LOOKS locative", () => {
+      // "in"/"near" are deliberately NOT connectors — excluding them is what
+      // keeps ordinary prose mentions readable.
+      expect(detectAppearance(answer("Smile Dental in Austin has strong reviews."), ID).mentioned).toBe(true);
+      expect(detectAppearance(answer("Smile Dental near downtown is open late."), ID).mentioned).toBe(true);
     });
 
     it("records a mention bolded whole, with a trailing dash blurb", () => {
