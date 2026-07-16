@@ -14,7 +14,7 @@
       ],
       "expected": "Two prompts (generic + contextualized) carrying the category and city; an empty set when either input is missing, so the runner skips instead of asking a meaningless question.",
       "status": "pass",
-      "evidence": "src/__tests__/ai-visibility.test.ts — 2 buildPromptSet cases passed in the 117-test A3 run and the 573-test full suite (Node 22).",
+      "evidence": "src/__tests__/ai-visibility.test.ts — 2 buildPromptSet cases passed in the 138-test A3 run and the 594-test full suite (Node 22).",
       "notes": "",
       "waiver": ""
     },
@@ -45,7 +45,7 @@
       ],
       "expected": "cited=true only when a PARSED citation URL's hostname is the practice's own (or a subdomain), and citedSource stores the field that proved it. A domain sitting in a third party's title prose proves nothing and records nothing. A bare name match never implies a citation.",
       "status": "pass",
-      "evidence": "src/__tests__/ai-visibility.test.ts — host-match, non-canonical-title, and ambiguity-guard cases passed in the 117-test A3 run and the 573-test full suite (Node 22).",
+      "evidence": "src/__tests__/ai-visibility.test.ts — host-match, non-canonical-title, and ambiguity-guard cases passed in the 138-test A3 run and the 594-test full suite (Node 22).",
       "notes": "CHANGED IN ROUND 4. The previous version of this test asserted the FABRICATION: a citation {url:null, title:'Bright Smiles — brightsmiles.com'} was expected to record cited=true. The test encoded the bug, so it was corrected, not preserved.",
       "waiver": ""
     },
@@ -62,7 +62,7 @@
       ],
       "expected": "Every lookalike is rejected; only the genuine subdomain citation counts. The detector prefers a MISSED positive over a FABRICATED one.",
       "status": "pass",
-      "evidence": "src/__tests__/ai-visibility.test.ts — 6 anti-fabrication regression cases passed in the 117-test A3 run and the 573-test full suite (Node 22).",
+      "evidence": "src/__tests__/ai-visibility.test.ts — 6 anti-fabrication regression cases passed in the 138-test A3 run and the 594-test full suite (Node 22).",
       "notes": "Binding honesty rule (spec + research/aeo-measurement-spec.md §3): never record a mention/citation that isn't genuinely the practice.",
       "waiver": ""
     },
@@ -389,6 +389,23 @@
       "waiver": ""
     },
     {
+      "id": "T27",
+      "title": "Independent adversary round 2 — this round’s changes HELD; the guards’ alphabet did not",
+      "surface": "cli",
+      "precondition": "Pure detector. A fresh agent with no stake in the fix, tasked ONLY to refute it empirically.",
+      "steps": [
+        "Task an independent adversary to break the round-4 detector by running it, not reading it.",
+        "Independently re-probe every CONFIRMED break with an ASCII minimal-pair control.",
+        "Fix the ROOT CAUSE (one shared alphabet), not the individual inputs.",
+        "Re-run both directions, the revert proof, and the full gates."
+      ],
+      "expected": "Every confirmed fabrication closes, this round’s registrable-domain/scheme/connector work still holds, and real evidence still records.",
+      "status": "pass",
+      "evidence": "VERDICT ON THIS ROUND’S WORK: all three changes HELD under everything the adversary threw — scheme allowlist (19 probes, 0 breaks: javascript:, file:, data:, blob:, filesystem:, view-source:, JAVASCRIPT://, NUL-prefixed, tab/newline-split schemes, backslashes, protocol-relative, root-relative, userinfo); PSL/eTLD+1 (16 probes, 0 breaks: co.uk, com.au, github.io, com, uk, blogspot.com, s3.amazonaws.com, wixsite.com, pages.dev, vercel.app all fail closed; wildcard *.ck and *.kawasaki.jp with exception !city.kawasaki.jp all correct; alice.github.io vs bob.github.io separated; IDN homograph rejected); title path (10 probes, 0 breaks: default-deny holds, prose title rejected, bare public-suffix title rejected). It found 4 fabrications in isWholeEntity’s CHARACTER CLASSES — untouched by this round, present since earlier rounds. ALL RE-VERIFIED BY ME INDEPENDENTLY with ASCII minimal pairs before fixing: (1) “Muñoz Family Dental” recorded mentioned=true for identity “Family Dental” while “Munoz Family Dental” recorded false — the ONLY difference the ñ; same for Hernández and “Family Dental Ángeles”. (2) Unicode spaces walked past every guard: “Bright<U+202F>Smile Dental” true, ASCII-space control false; same for U+2009/U+2003/U+3000/U+205F. (3) LEFT/RIGHT separator asymmetry: “**Smile Dental** Group”, “`Smile Dental` Group”, “Smile Dental/Orthodontics”, “Smile Dental<ZWSP>group” all true, while their mirror images correctly dropped. (4) The connector list’s “closed class” claim was FALSE — “to” was missing (“Smile Dental to Go” true), and Spanish connectors (“de Austin”, “y Mas”) recorded. AFTER: all 4 record nothing; ASCII controls unchanged. NON-VACUITY BY REVERT: with the new tests and the detector restored to the pushed round-4 head, vitest exits 1 with 20 failed / 118 passed (17 fabrications + 3 recall gains); restoring returns 138/138 exit 0. Gates: tsc exit 0; full suite 594/594 exit 0; check:conventions --strict exit 0; eslint src/services/ai-visibility exit 0.",
+      "notes": "ROOT CAUSE, and it is one cause not four: the name matcher’s boundary test said “any non-alphanumeric ends a token” (`(?<![A-Za-z0-9])`) while the entity guards read small hand-listed ASCII sets (`[A-Z0-9]`, three space characters, a left-only separator list). The two DISAGREED about what a character is, and every fabrication lived in that gap. Enumerating more characters cannot close it — the gap is infinite while a list is finite. The remedy is ONE alphabet both sides read, defined by Unicode properties and carrying the `u` flag: ALNUM=[\\p{L}\\p{N}\\p{M}] (marks included — decomposed “Nguyễn”), UPPER=[\\p{Lu}\\p{Lt}\\p{N}\\p{Lo}] (\\p{Lo} because caseless scripts have no capitals and a case test is blind to them), H=[^\\S\\r\\n] (all Unicode horizontal whitespace, never a newline), and a SYMMETRIC SEP used on both sides. This is the same structural lesson as round 3 (“the name path enumerates surface forms while the citation path parses structure”) recurring one layer down, in the character classes rather than the word lists. A DELIBERATE ASYMMETRY was introduced and is load-bearing: RIGHT_HEAD excludes digits while UPPER includes them — a digit BEFORE the name is a business name (“1st Family Dental”), a digit AFTER it across a separator is a rating (“**Smile Dental** — 4.8 stars”), which is the most common shape in a ranked engine list. Getting this wrong is how the first attempt broke the existing “bolded whole, with a trailing dash blurb” test; the suite caught it. That existing test had only ever passed BECAUSE of the separator asymmetry (the asterisks blocked the guard), and the fix also RECOVERED recall the old code silently lost — “- Smile Dental - 4.9 rating” and “Smile Dental - 2.1 miles away” were being dropped by the old dash+digit rule. HONEST RESIDUALS: the connector list is now correctly described as a BOUNDED HEURISTIC, not a closed class — a connector from a language not listed (French “aux”, German “und”, Vietnamese) still records; the adversary confirmed a Cyrillic homoglyph left-prefix (“Вright Smile Dental”) still fabricates, which is adversary-only rather than ordinary engine output and is NOT closed here; “Smile Dental by the bay” (lowercase head) still records, consistent with the documented case-sensitivity rule. ADVERSARY’S OWN CORRECTIONS, recorded rather than smoothed: it threw out its first two batteries as contaminated (the frame text it used triggered unrelated drops) and re-ran every finding against ASCII minimal pairs; it withdrew “Smile Dental, Inc. → true” as correct-not-a-bug.",
+      "waiver": ""
+    },
+    {
       "id": "T21",
       "title": "The repo gates are clean at this head",
       "surface": "cli",
@@ -400,7 +417,7 @@
       ],
       "expected": "Zero type errors, a green suite, and zero structural backend violations.",
       "status": "pass",
-      "evidence": "tsc --noEmit exited 0 (no output). Full suite: 61 files, 573 tests passed (539 at the previous head), read from vitest’s OWN exit code (0), never through a pipe. Focused A3 suite: 117 passed (83 at the head Dave reviewed, 5196ffcd), exit 0. check:conventions --strict exited 0 with “CLEAR structural violations — backend (size + console + db): 0”. eslint on src/services/ai-visibility exited 0. npm audit: tldts contributes 0 advisories (the 34 pre-existing repo advisories are unchanged and out of scope).",
+      "evidence": "tsc --noEmit exited 0 (no output). Full suite: 61 files, 594 tests passed (539 at the previous head), read from vitest’s OWN exit code (0), never through a pipe. Focused A3 suite: 138 passed (83 at the head Dave reviewed, 5196ffcd), exit 0. check:conventions --strict exited 0 with “CLEAR structural violations — backend (size + console + db): 0”. eslint on src/services/ai-visibility exited 0. depcruise exited 0 (38 pre-existing advisory warnings, 0 involving ai-visibility). npm audit: tldts contributes 0 advisories (the 34 pre-existing repo advisories are unchanged and out of scope).",
       "notes": "The §11.7 heuristic lists 102 models repo-wide; AiVisibilityObservationModel is NOT among them (it references organization_id). That heuristic is a backstop, not proof — the real tenant proof is T15/T22. All 573 full-suite tests pass, so the prior rounds’ verified work (the 9 sealed BaseModel statics, the persistence boundary, citation structure, duplicate metrics) is regression-clean at this head.",
       "waiver": ""
     },

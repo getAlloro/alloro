@@ -399,8 +399,7 @@ describe("detectAppearance — identity not resemblance (round-3 adversary)", ()
     });
   });
 
-  // ROUND 4 — the connector class. The prior list held four words; business
-  // names use more of the same CLOSED class of English function words.
+  // ROUND 4 — the connector class.
   describe("a name-forming connector is never a mention", () => {
     it.each([
       ["by + determiner", "Smile Dental by the Bay is great."],
@@ -410,8 +409,71 @@ describe("detectAppearance — identity not resemblance (round-3 adversary)", ()
       ["with", "Smile Dental with Braces is great."],
       ["or (a list, not a name)", "Smile Dental or Bright Ortho are options."],
       ["of + determiner", "Smile Dental of the Hills is great."],
+      ["to (was missing from the 'closed' class)", "Smile Dental to Go is great."],
+      ["Spanish de", "Smile Dental de Austin is great."],
+      ["Spanish y", "Smile Dental y Mas is great."],
+      ["Spanish de + determiner", "Smile Dental de la Familia is great."],
     ])("does NOT record a mention for %s", (_label, text) => {
       expect(detectAppearance(answer(text), ID).mentioned).toBe(false);
+    });
+  });
+
+  // ROUND 4 (adversary) — ONE ALPHABET. The matcher's boundary test and the
+  // entity guards used to disagree about what a character IS: the matcher said
+  // "any non-alphanumeric ends a token" while the guards read hand-listed ASCII
+  // sets. Every case below lived in that gap, and each is ORDINARY engine
+  // output, not an attack. Minimal pairs are asserted together so the ASCII
+  // control proves the diacritic/space is the ONLY difference.
+  describe("the guards read Unicode, not ASCII (adversary round 2)", () => {
+    it.each([
+      ["a non-ASCII surname prefix (ñ)", "Muñoz Family Dental offers implants.", "Munoz Family Dental offers implants."],
+      ["a non-ASCII surname prefix (á)", "Hernández Family Dental is great.", "Hernandez Family Dental is great."],
+      ["a non-ASCII continuation (Á)", "Family Dental Ángeles is great.", "Family Dental Angeles is great."],
+    ])("does NOT record a mention for %s (ASCII control agrees)", (_l, uni, ascii) => {
+      const id = { name: "Family Dental", domain: "familydental.com" };
+      expect(detectAppearance(answer(uni), id).mentioned).toBe(false);
+      // The control: identical text, ASCII only. If this ever diverges from the
+      // line above, the guards have gone ASCII-blind again.
+      expect(detectAppearance(answer(ascii), id).mentioned).toBe(false);
+    });
+
+    it.each([
+      ["U+202F narrow no-break space", " "],
+      ["U+2009 thin space", " "],
+      ["U+2003 em space", " "],
+      ["U+3000 ideographic space", "　"],
+      ["U+205F medium mathematical space", " "],
+    ])("does NOT let a lookalike hide behind %s", (_label, space) => {
+      expect(
+        detectAppearance(answer(`patients recommend Bright${space}Smile Dental downtown.`), ID)
+          .mentioned
+      ).toBe(false);
+    });
+
+    // The left guard knew markdown/slashes/zero-widths; the right guard knew
+    // only spaces and dashes. A separator is a separator on either side.
+    it.each([
+      ["markdown closing then a continuation", "**Smile Dental** Group is great."],
+      ["code span then a continuation", "`Smile Dental` Group is great."],
+      ["a slash continuation", "Smile Dental/Orthodontics is great."],
+      ["a zero-width joined suffix word", "Smile Dental​group is great."],
+      ["a thin-space joined continuation", "Smile Dental Group is great."],
+    ])("does NOT record a mention for %s", (_label, text) => {
+      expect(detectAppearance(answer(text), ID).mentioned).toBe(false);
+    });
+  });
+
+  // ROUND 4 (adversary) — the recall these guards must NOT cost. A digit AFTER
+  // the name is a rating, not a name: this is the most common shape in a ranked
+  // engine list, and treating "4.8" as a name continuation would drop it.
+  describe("a trailing rating is not a name continuation", () => {
+    it.each([
+      ["em-dash rating", "1. **Smile Dental** — 4.8 stars"],
+      ["hyphen rating", "- Smile Dental - 4.9 rating"],
+      ["distance blurb", "Smile Dental - 2.1 miles away"],
+      ["plain star line", "Smile Dental 4.7 ★"],
+    ])("still records a mention for %s", (_label, text) => {
+      expect(detectAppearance(answer(text), ID).mentioned).toBe(true);
     });
   });
 

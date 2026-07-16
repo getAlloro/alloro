@@ -43,9 +43,69 @@ import {
  *   ENTITY; diagnostic only, NEVER rendered as a rank.
  */
 
-/** Horizontal whitespace only: a NEWLINE ends an entity, so "…Dental\n2. Other
- * Co" is a list, not a longer name. */
-const H = "[ \\t\\u00a0]";
+/**
+ * ONE alphabet, shared by the matcher and every guard.
+ *
+ * THE ROOT CAUSE OF A WHOLE FABRICATION CLASS: the matcher's boundary test said
+ * "any non-alphanumeric ends a token" (`(?<![A-Za-z0-9])`) while the guards used
+ * small hand-listed ASCII sets (`[A-Z0-9]`, three space characters). The two
+ * DISAGREED about what a character is, and every fabrication lived in that gap:
+ * "Muñoz Family Dental" recorded a mention for `Family Dental` while "Munoz
+ * Family Dental" correctly did not — the ONLY difference being the "ñ", which
+ * the guard's `[A-Za-z0-9]` token body could not cross. That is ordinary engine
+ * output about a competitor, not an adversarial input: Muñoz, Hernández, Peña,
+ * Nguyễn and Ángel are the surname stock of US dental practice names.
+ *
+ * Enumerating more characters cannot fix this — the gap is infinite while a list
+ * is finite. So the classes below are UNICODE PROPERTY based and are the single
+ * definition both sides read. Every regex built from them carries the `u` flag.
+ */
+/** What a token is MADE of: any letter, digit, or combining mark. `\p{M}` matters
+ * — decomposed "Nguyễn" carries its diacritic as a separate mark. */
+const ALNUM = "[\\p{L}\\p{N}\\p{M}]";
+/** What can START a proper name: an uppercase or titlecase letter, a digit
+ * ("1st Family Dental"), or a CASELESS letter (`\p{Lo}` — CJK/Arabic/Hebrew have
+ * no capitals, so a case test is blind to them and would let a longer name
+ * through). */
+const UPPER = "[\\p{Lu}\\p{Lt}\\p{N}\\p{Lo}]";
+/**
+ * What can CONTINUE a name to the RIGHT — the same, MINUS digits.
+ *
+ * The asymmetry is deliberate and load-bearing. A digit BEFORE the name is part
+ * of a business name ("1st Family Dental", "32 Smile Dental"). A digit AFTER it,
+ * across a separator, is almost never a name and almost always a rating or a
+ * distance — "**Smile Dental** — 4.8 stars", "Smile Dental - 2.1 miles" is the
+ * single most common shape in an engine's ranked list. Treating that "4" as a
+ * name continuation drops the most ordinary real mention there is.
+ * (A connector still admits digits — "Smile Dental on 5th" is a name, and a
+ * rating never follows "of"/"on"/"at" — so RIGHT_CONNECTOR_NAME uses UPPER.)
+ */
+const RIGHT_HEAD = "[\\p{Lu}\\p{Lt}\\p{Lo}]";
+/**
+ * Horizontal whitespace — ANY of it, Unicode-wide, but never a line break.
+ * `[ \t ]` knew three characters; an engine emitting a narrow no-break
+ * space (U+202F), a thin space (U+2009) or an ideographic space (U+3000) walked
+ * straight past every guard, so "Bright<U+202F>Smile Dental" recorded a mention
+ * while the identical text with an ASCII space did not.
+ * A NEWLINE is deliberately excluded: an entity never spans lines, so
+ * "…Dental\n2. Other Co" stays a list, not a longer name.
+ */
+const H = "[^\\S\\r\\n]";
+/**
+ * Characters that JOIN two parts of one entity rather than ending it: markdown
+ * emphasis, an ampersand/plus/slash, any dash, and the zero-width characters.
+ */
+const JOIN = "*_`~&+/\\-\\u2010-\\u2015\\u200b-\\u200d\\u2060\\ufeff";
+/**
+ * One separator, used SYMMETRICALLY on both sides.
+ *
+ * The left guard knew markdown, slashes and zero-widths; the right guard knew
+ * only spaces and dashes. That asymmetry was itself a fabrication: "**Bright**
+ * Smile Dental" correctly dropped while "**Smile Dental** Group" — its mirror
+ * image — recorded a mention, as did "Smile Dental/Orthodontics" and "Smile
+ * Dental<ZWSP>group". A separator is a separator whichever side it falls on.
+ */
+const SEP = `(?:${H}|[${JOIN}])`;
 
 /**
  * Lowercase words that continue a business name ("Smile Dental group"). Case is
@@ -111,12 +171,20 @@ const NAME_SUFFIX_WORDS = [
  * Lowercase connectors that FORM longer business names ("Smile Dental of
  * Austin", "Smiles by Design", "Dentistry for Kids").
  *
- * A CLOSED class, unlike NAME_SUFFIX_WORDS. English function words
- * (prepositions + coordinating conjunctions) are a finite, fixed set, so
- * completing the naming subset is not whack-a-mole — it is enumerating a set
- * that cannot grow. The OPEN class (any capitalized continuation: "Smile Dental
- * Arts", "Smile Dental Excellence") is handled STRUCTURALLY by
- * RIGHT_CAPITALIZED_TOKEN, never by a word list, because that set is infinite.
+ * A BOUNDED HEURISTIC — and the earlier claim here that this was "a CLOSED class
+ * that cannot grow" was WRONG, so it is corrected rather than defended. It was
+ * falsified twice over: "to" was simply missing ("Smile Dental to Go" recorded a
+ * mention), and the business-name space is not English — "Smile Dental de
+ * Austin" and "Clínica Dental y Más" are ordinary US practice names. Function
+ * words are closed PER LANGUAGE; the set of languages is not. What IS structural
+ * is the open class next door: any CAPITALIZED continuation ("Smile Dental
+ * Arts", "Smile Dental Excellence") is caught by RIGHT_CAPITALIZED_TOKEN, never
+ * by a word list, because that set is genuinely infinite. This list only covers
+ * the narrower "lowercase function word, then a capitalized head noun" shape,
+ * and it is a list because the alternative — dropping on ANY lowercase word
+ * before a capital — would reject "Smile Dental is Austin's best" and gut real
+ * recall. Residual, named honestly: a connector from a language not listed here
+ * still records.
  *
  * Included because businesses genuinely name themselves this way. EXCLUDED:
  * "in", "near", "from" — locative prepositions that read as prose ("Smile
@@ -137,6 +205,7 @@ const NAME_SUFFIX_WORDS = [
  * output, not intuition.
  */
 const NAME_CONNECTOR_WORDS = [
+  // English
   "of",
   "at",
   "and",
@@ -144,43 +213,47 @@ const NAME_CONNECTOR_WORDS = [
   "or",
   "by",
   "for",
+  "to",
   "plus",
   "with",
+  // Spanish — a large share of US dental practices name themselves this way
+  // ("Clínica Dental de la Familia", "Smile Dental y Más").
+  "de",
+  "del",
+  "la",
+  "las",
+  "el",
+  "los",
+  "y",
+  "en",
 ];
 
 /**
- * What can sit between a preceding name token and our match without ending the
- * entity. Horizontal whitespace is not enough: an adversarial (or merely
- * markdown-formatted) answer separates the tokens with emphasis markers, a dash,
- * an ampersand, or a zero-width character, and a space-only guard looks straight
- * past them — "**Bright** Smile Dental" and "Bright — Smile Dental" are the same
- * lookalike as "Bright Smile Dental". A NEWLINE is deliberately excluded: an
- * entity never spans lines, and treating it as a joiner would reject the genuine
- * list mentions ("- Bright Ortho\n- Smile Dental") that dominate engine answers.
- */
-const LEFT_SEP = "[ \\t\\u00a0*_`~&+/\\-\\u2010-\\u2015\\u200b-\\u200d\\ufeff]";
-/**
- * A preceding name token. Starts `[A-Z0-9]`, not `[A-Z]`: real practices lead
- * with a digit ("1st Family Dental", "3D Smile Dental"), and a capital-only test
- * is blind to them. "." is excluded from the token body so a LIST MARKER ("1. ",
- * "2. ") is not mistaken for a name token — the marker's "." is not a joiner, so
- * "1. Smile Dental" still reads as the practice.
+ * A preceding name token: an entity-initial character then a token body. Starts
+ * with UPPER (not just `[A-Z]`): real practices lead with a digit ("1st Family
+ * Dental", "3D Smile Dental") or a non-ASCII capital ("Ángel Dental"), and an
+ * ASCII-capital-only test is blind to both. "." is excluded from the token body
+ * so a LIST MARKER ("1. ", "2. ") is not mistaken for a name token — the
+ * marker's "." is not a joiner, so "1. Smile Dental" still reads as the practice.
  */
 const LEFT_CAPITALIZED_TOKEN = new RegExp(
-  `(^|[^A-Za-z0-9])[A-Z0-9][A-Za-z0-9'’\\-]*${LEFT_SEP}+$`
+  `(^|[^\\p{L}\\p{N}])${UPPER}[\\p{L}\\p{N}\\p{M}'’\\-]*${SEP}+$`,
+  "u"
 );
-const LEFT_SYMBOL_JOIN = new RegExp(`[&+]${H}*$`);
-const LEFT_ANY_WORD = new RegExp(`[A-Za-z0-9]${H}+$`);
-const RIGHT_SYMBOL_JOIN = new RegExp(`^${H}*[&+]${H}*[A-Za-z0-9]`);
-const RIGHT_CAPITALIZED_TOKEN = new RegExp(
-  `^(${H}+|${H}*[-\\u2010-\\u2015]${H}*)[A-Z0-9]`
-);
+const LEFT_SYMBOL_JOIN = new RegExp(`[&+]${H}*$`, "u");
+const LEFT_ANY_WORD = new RegExp(`${ALNUM}${SEP}+$`, "u");
+const RIGHT_SYMBOL_JOIN = new RegExp(`^${H}*[&+]${H}*${ALNUM}`, "u");
+/** Any capitalized continuation, across ANY separator — the structural guard
+ * that handles the infinite set of name continuations a word list cannot.
+ * Uses RIGHT_HEAD (no digits): see its note on ratings vs names. */
+const RIGHT_CAPITALIZED_TOKEN = new RegExp(`^${SEP}+${RIGHT_HEAD}`, "u");
 /** Plural-tolerant: a word list that knows "clinic" but not "clinics" is beaten
  * by typing one letter — "Smile Dental clinics are common" is generic prose, not
- * a mention of the practice. */
+ * a mention of the practice. Uses `(?![\p{L}\p{N}])` rather than `\b`, which is
+ * ASCII-only and would not fire before a non-ASCII letter. */
 const RIGHT_SUFFIX_WORD = new RegExp(
-  `^${H}+(${NAME_SUFFIX_WORDS.join("|")})s?\\b`,
-  "i"
+  `^${SEP}+(${NAME_SUFFIX_WORDS.join("|")})s?(?![\\p{L}\\p{N}])`,
+  "iu"
 );
 /**
  * Determiners that sit INSIDE a business name between a connector and the head
@@ -188,7 +261,7 @@ const RIGHT_SUFFIX_WORD = new RegExp(
  * window the connector test looks only at the next token, sees "the", and lets
  * the longer name through.
  */
-const NAME_DETERMINERS = ["the", "a", "an"];
+const NAME_DETERMINERS = ["the", "a", "an", "la", "el", "los", "las"];
 /**
  * A connector continuing into a CAPITALIZED head noun.
  *
@@ -203,7 +276,8 @@ const NAME_DETERMINERS = ["the", "a", "an"];
  * RIGHT_CAPITALIZED_TOKEN catches it first.
  */
 const RIGHT_CONNECTOR_NAME = new RegExp(
-  `^${H}+(${NAME_CONNECTOR_WORDS.join("|")})${H}+((${NAME_DETERMINERS.join("|")})${H}+)*[A-Z0-9]`
+  `^${SEP}+(${NAME_CONNECTOR_WORDS.join("|")})${SEP}+((${NAME_DETERMINERS.join("|")})${SEP}+)*${UPPER}`,
+  "u"
 );
 
 function escapeRegex(s: string): string {
@@ -228,7 +302,10 @@ function buildNameMatcher(name: string): RegExp | null {
   const tokens = nameTokens(name);
   if (!tokens.length) return null;
   const body = tokens.map(escapeRegex).join(`${H}+`);
-  return new RegExp(`(?<![A-Za-z0-9])${body}(?![A-Za-z0-9])`, "gi");
+  // The lookarounds read the SAME alphabet as the guards. With `[A-Za-z0-9]`
+  // they treated a non-ASCII letter as a boundary, so "Smile Dental" matched
+  // inside a longer non-ASCII token and the guards never got a chance.
+  return new RegExp(`(?<!${ALNUM})${body}(?!${ALNUM})`, "giu");
 }
 
 /**
@@ -246,12 +323,15 @@ function buildNameMatcher(name: string): RegExp | null {
  * name — every uppercase-in-identity token is uppercase there too.
  */
 function capitalizationAgrees(matched: string, name: string): boolean {
-  if (!/[A-Z]/.test(name)) return true;
+  // `\p{Lu}`, not `[A-Z]`: a name whose only capitals are non-ASCII ("Ángel
+  // Dental") carries a case signal that an ASCII test cannot see, and skipping
+  // the check for it would let prose through as a name.
+  if (!/\p{Lu}/u.test(name)) return true;
   const idTokens = nameTokens(name);
   const matchedTokens = nameTokens(matched);
   if (idTokens.length !== matchedTokens.length) return true;
   for (let i = 0; i < idTokens.length; i++) {
-    if (/^[A-Z]/.test(idTokens[i]) && !/^[A-Z]/.test(matchedTokens[i])) {
+    if (/^\p{Lu}/u.test(idTokens[i]) && !/^\p{Lu}/u.test(matchedTokens[i])) {
       return false;
     }
   }
@@ -277,7 +357,7 @@ function isWholeEntity(text: string, index: number, matched: string): boolean {
   // LEFT in all-lowercase prose — capitalization is the only entity boundary we
   // have; when the engine rendered the name lowercase there is none, so any
   // adjacent word ("the bright smile dental option") is ambiguous.
-  if (!/[A-Z]/.test(matched) && LEFT_ANY_WORD.test(before)) return false;
+  if (!/\p{Lu}/u.test(matched) && LEFT_ANY_WORD.test(before)) return false;
 
   // RIGHT — a longer name continuing across a symbol ("Smile Dental &
   // Orthodontics"), a capitalized token ("Smile Dental Group"), a lowercase
