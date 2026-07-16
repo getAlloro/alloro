@@ -300,6 +300,28 @@ export class ProjectModel extends BaseModel {
   }
 
   /**
+   * Preview-provisioning projection: identity + both hostnames + custom domain +
+   * lifecycle (status, archived_at). Used to gate + derive the preview domain for
+   * on-demand Rybbit provisioning of *.sites.getalloro.com sites.
+   */
+  static async findPreviewProvisioningContextById(
+    projectId: string,
+    trx?: QueryContext,
+  ): Promise<
+    | {
+        id: string;
+        hostname: string | null;
+        generated_hostname: string | null;
+        custom_domain: string | null;
+        status: string | null;
+        archived_at: Date | null;
+      }
+    | undefined
+  > {
+    return q.findPreviewProvisioningContextByIdQuery(projectId, trx);
+  }
+
+  /**
    * Find a project by hostname, generated_hostname, custom_domain, or custom_domain_alt.
    * Used by form submissions that identify the project by the page's hostname.
    */

@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>B1 — Instrument the Hosted/Preview Site (Rybbit provisioning)</title>
+<style>
+  :root {
+    --ink: #0a0a0a; --paper: #ffffff; --mut: #6b6b6b; --line: #e2e2e2;
+    --soft: #f6f6f6; --box: #fafafa; --warn: #111; --code: #f0f0f0;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--ink); background: var(--paper); line-height: 1.55; -webkit-font-smoothing: antialiased; }
+  main { max-width: 860px; margin: 0 auto; padding: 0 24px 96px; }
+  .hero { padding: 64px 0 40px; border-bottom: 2px solid var(--ink); }
+  .kicker { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--mut); margin: 0 0 14px; }
+  h1 { font-size: 34px; line-height: 1.12; margin: 0 0 18px; letter-spacing: -.02em; }
+  h2 { font-size: 21px; margin: 44px 0 12px; letter-spacing: -.01em; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+  h3 { font-size: 15px; margin: 22px 0 6px; }
+  p { margin: 0 0 12px; }
+  .pill { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700;
+    letter-spacing: .08em; text-transform: uppercase; border: 1.5px solid var(--ink); border-radius: 999px; padding: 6px 14px; }
+  .pill.dot::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--ink); display: inline-block; }
+  .meta { display: flex; flex-wrap: wrap; gap: 10px 26px; margin-top: 22px; font-size: 13px; color: var(--mut); }
+  .meta b { color: var(--ink); font-weight: 600; }
+  .card { border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; margin: 14px 0; background: var(--box); }
+  .card.hard { border-color: var(--ink); border-width: 1.5px; background: #fff; }
+  code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px;
+    background: var(--code); padding: 1.5px 5px; border-radius: 4px; }
+  pre { background: var(--soft); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; overflow-x: auto; font-size: 12.5px; }
+  ul, ol { margin: 6px 0 14px; padding-left: 22px; }
+  li { margin: 5px 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; margin: 10px 0 18px; }
+  th, td { border: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }
+  th { background: var(--soft); font-weight: 600; }
+  .tag { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+    border: 1px solid var(--ink); border-radius: 4px; padding: 1px 7px; margin-right: 6px; }
+  .chk { list-style: none; padding-left: 0; }
+  .chk li { padding-left: 26px; position: relative; }
+  .chk li::before { content: "\2610"; position: absolute; left: 0; font-size: 15px; }
+  .chk li.done::before { content: "\2611"; }
+  .lede { font-size: 16px; color: #222; }
+  .warnbar { border-left: 4px solid var(--ink); background: var(--soft); padding: 12px 16px; margin: 14px 0; border-radius: 0 8px 8px 0; }
+  .sec { color: var(--mut); font-weight: 600; }
+  .rev { border-top: 1px solid var(--line); padding-top: 14px; margin-top: 14px; }
+  footer { margin-top: 40px; font-size: 12px; color: var(--mut); }
+</style>
+</head>
+<body>
+<main>
+
+  <section class="hero">
+    <p class="kicker">Alloro Funnel Engine · Stage B (Get Considered) · Feature B1</p>
+    <h1>Instrument the hosted/preview site so "get&#8209;considered" becomes measurable</h1>
+    <p class="lede">Provision Rybbit analytics for preview sites (<span class="mono">*.sites.getalloro.com</span>) on&#8209;demand, so the renderer starts injecting its tracking snippet on them — turning on the traffic + engagement measurement that every later trust lever (B2/B3) must be judged against.</p>
+    <div style="margin-top:22px;"><span class="pill dot">In Progress</span></div>
+    <div class="meta">
+      <span><b>Plan folder:</b> plans/07152026-instrument-site/</span>
+      <span><b>Branch:</b> claude/b1-instrument-site → dev/dave</span>
+      <span><b>Risk:</b> Level 2 (additive, gated OFF)</span>
+      <span><b>Migration:</b> none (columns + tables exist)</span>
+      <span><b>Reference analog:</b> §6.1 src/controllers/gbp-automation/</span>
+    </div>
+  </section>
+
+  <h2>Why — whose life this lifts</h2>
+  <p>A business owner is drowning: they built the practice to serve their community and get their life back, and instead they spend nights wondering whether the website Alloro built for them is doing anything at all. Right now Alloro <em>cannot answer that question</em> for a preview site — the moment a real neighbor lands on the owner's page, considers them, and decides, <strong>none of it is seen</strong>. The owner is asked to trust an invisible result.</p>
+  <p>B1 is the first step that lets Alloro look the owner in the eye and say "here is what happened, and it came from us." It doesn't promise a ranking or a customer (Value&nbsp;#6 — no rank/visibility/guarantee). It measures. It is the foundation of <strong>NS1 — undeniable + attributed</strong>: the owner cannot know a lever worked until the page it improved is instrumented. Alloro is the guide; the owner is the hero who finally gets to <em>see</em> their own front door.</p>
+
+  <h2>What — the buildable brick</h2>
+  <p>An admin&#8209;initiated, gated, idempotent action that provisions a Rybbit site for a <strong>preview&#8209;only project</strong> (one without a verified custom domain), reusing the proven <span class="mono">provisionRybbitSite()</span> path. Once the active Rybbit integration row exists, the already&#8209;deployed <span class="mono">website-renderer</span> injects its tracking snippet on the preview hostname — no renderer change is needed for pageview/session/bounce capture.</p>
+
+  <div class="warnbar">
+    <p style="margin:0"><strong>Load&#8209;bearing scope correction (verified 2026&#8209;07&#8209;15).</strong> The B1 premise named <span class="mono">publicRoutes.ts</span> + <span class="mono">instantWebsiteGenerator.ts</span> as "the inject point." They are not. HTML serving <em>and</em> snippet injection live in a separate <span class="mono">website-renderer</span> repo (header comment <span class="mono">service.rybbit.ts:5</span> — "The renderer owns script injection"; <span class="mono">service.clarity-integration.ts:511</span> — "the renderer injects only <span class="mono">status='active'</span> rows"). This repo only <em>stores</em> the siteId and <em>provisions</em> it. So B1 in this repo = <strong>provision previews so the renderer instruments them</strong>, not "inject the snippet here."</p>
+  </div>
+
+  <h3>The exact gap (confirmed against code, not the audit alone)</h3>
+  <ul>
+    <li>Automatic provisioning fires <strong>only</strong> on custom&#8209;domain DNS verification: <span class="mono">service.custom-domain.ts:178</span> → <span class="mono">provisionRybbitSite(projectId, custom_domain)</span>.</li>
+    <li><span class="mono">generateInstantWebsite()</span> (<span class="mono">instantWebsiteGenerator.ts:483</span>) never sets <span class="mono">rybbit_site_id</span> — preview projects are born un&#8209;instrumented.</li>
+    <li>Result: a preview&#8209;only project has <span class="mono">rybbit_site_id = null</span> and no active rybbit integration row → the renderer has nothing to inject. <em>The audit's "instrumentation only after a custom domain + manual" is confirmed accurate this time.</em></li>
+  </ul>
+
+  <h3>What gets built (all in this repo)</h3>
+  <table>
+    <tr><th>Layer</th><th>File</th><th>Change</th><th>§</th></tr>
+    <tr><td>Route</td><td><span class="mono">src/routes/admin/websites/integrations.routes.ts</span></td><td>Add <span class="mono">POST /:id/integrations/rybbit/preview</span> (before the <span class="mono">/:integrationId</span> matcher), guarded by the existing <span class="mono">...adminGscAuth</span> stack.</td><td>§7.2, §11.1</td></tr>
+    <tr><td>Controller</td><td><span class="mono">WebsiteIntegrationsController.ts</span></td><td>Add thin <span class="mono">provisionRybbitPreview</span> — reads <span class="mono">req.params.id</span>, calls the service, returns via <span class="mono">ok()/failRybbitError()</span>. No DB, no logic.</td><td>§7.3, §8.1</td></tr>
+    <tr><td>Service</td><td><span class="mono">feature-services/service.rybbit.ts</span></td><td>Add <span class="mono">provisionPreviewAnalytics(projectId)</span>: env gate → load project projection → guards → derive preview domain → reuse <span class="mono">provisionRybbitSite()</span> → re&#8209;read siteId → return structured result.</td><td>§6.1, §7.1</td></tr>
+    <tr><td>Model</td><td><span class="mono">website-builder/projectQueries.ts</span> + <span class="mono">ProjectModel.ts</span></td><td>Add <span class="mono">findPreviewProvisioningContextById</span> projection (<span class="mono">id, hostname, generated_hostname, custom_domain, status, archived_at</span>).</td><td>§7.4</td></tr>
+  </table>
+
+  <h3>The behavior, precisely</h3>
+  <pre>provisionPreviewAnalytics(projectId):
+  1. GATE: if env PREVIEW_ANALYTICS_ENABLED !== "true"
+        -> return { enabled:false, provisioned:false, reason:"gate_disabled" }   // provisions NOTHING
+  2. Load project projection (id, hostname, generated_hostname, custom_domain, status, archived_at)
+        -> not found        -> { enabled:true, provisioned:false, reason:"not_found" }
+        -> archived_at set   -> { enabled:true, provisioned:false, reason:"archived" }
+        -> status !== "LIVE" -> { enabled:true, provisioned:false, reason:"not_live" }
+  3. previewHost = (hostname ?? generated_hostname)
+        -> missing          -> { enabled:true, provisioned:false, reason:"no_hostname" }
+        previewDomain = `${previewHost}.sites.getalloro.com`
+  4. provisionRybbitSite(projectId, previewDomain)     // REUSE — idempotent, per-project, non-throwing
+  5. Re-read rybbit_site_id from DB (report ACTUAL state, never assumed)
+        -> siteId present   -> { enabled:true, provisioned:true, siteId, previewDomain }
+        -> still null        -> { enabled:true, provisioned:false, reason:"provision_failed" }</pre>
+  <p>Idempotency, per&#8209;tenant site creation, and error&#8209;swallowing are inherited from <span class="mono">provisionRybbitSite()</span> (verified: it dedups on <em>this</em> project's own integration row, and <span class="mono">POST /organizations/${RYBBIT_ORG_ID}/sites</span> mints a fresh siteId per domain).</p>
+
+  <h2>The signal — tied to the funnel finish line</h2>
+  <table>
+    <tr><th>Signal</th><th>Where it is captured</th><th>State after B1</th></tr>
+    <tr><td>Pageviews / sessions / users / bounce</td><td>Renderer's existing Rybbit snippet (once provisioned)</td><td><span class="tag">B1 turns on</span> Read side already consumes these (<span class="mono">service.rybbit-data.ts:255</span> <span class="mono">RybbitOverviewData</span>).</td></tr>
+    <tr><td><strong>form-view</strong> (patient saw the contact form)</td><td>Renderer snippet custom event — <em>not present here</em></td><td><span class="tag">Follow-on</span> Renderer repo; named below.</td></tr>
+    <tr><td><strong>contact-click</strong> (patient clicked call / request)</td><td>Renderer snippet custom event — <em>not present here</em></td><td><span class="tag">Follow-on</span> Renderer repo; named below.</td></tr>
+  </table>
+  <p>B1 delivers the <strong>foundation signal</strong> (traffic + engagement) — a complete, independently&#8209;valid slice: the read side already consumes exactly these. The richer conversion signals (<span class="mono">form-view</span>, <span class="mono">contact-click</span>) that bridge toward E1 attribution are a <em>distinct next brick</em>, not a dependency dangling off this PR.</p>
+
+  <h2>Context — canon &amp; the reused analogs</h2>
+  <ul>
+    <li><strong>Reference analog (§6.1):</strong> mirror <span class="mono">src/controllers/gbp-automation/</span> — thin controllers, <span class="mono">feature-services/</span>, non&#8209;throwing side effects with <span class="mono">[Module]</span> Pino logs.</li>
+    <li><strong>Reused code:</strong> <span class="mono">provisionRybbitSite()</span> (<span class="mono">service.rybbit.ts:21</span>); the admin&#8209;route auth stack <span class="mono">adminGscAuth</span> (<span class="mono">integrations.routes.ts:32</span>); the <span class="mono">ok()/fail()</span> response helpers.</li>
+    <li><strong>Economics (guardrail — verified with a receipt):</strong> Rybbit is <strong>self&#8209;hosted at <span class="mono">analytics.getalloro.com</span></strong>, one Alloro org (prior plan <span class="mono">03122026-no-ticket-automate-rybbit-site-provisioning/spec.md</span>: "Self-hosted at analytics.getalloro.com"). Sites are created against Alloro's own instance → <strong>no per&#8209;site vendor billing found</strong>; cost is resource only. We still provision <strong>on&#8209;demand / per&#8209;account, never a backfill sweep</strong> (reversible, no write burst).</li>
+    <li><strong>Value #6:</strong> instrumentation <em>measures</em>; it never promises rank, visibility, or a customer. No copy in this feature claims otherwise.</li>
+    <li><strong>Value #2 (owner is hero):</strong> B1 is done&#8209;for&#8209;you execution (admin action). The owner&#8209;facing self&#8209;serve toggle is named adjacent/backlog, not silently skipped.</li>
+  </ul>
+
+  <h2>Constraints — the risk this feature actually carries</h2>
+  <p>B1 is the first lever to observe <strong>real patients on live customer sites</strong>. Each guard below is load&#8209;bearing, not polish.</p>
+
+  <div class="card hard">
+    <h3>1 · Default posture — OFF, with a named PII gate before flip&#8209;on</h3>
+    <p>Ships <strong>disabled</strong> via env <span class="mono">PREVIEW_ANALYTICS_ENABLED</span> (absent/≠"true" = off). This is deliberate (the A6 ships&#8209;disabled lesson): <strong>on&#8209;by&#8209;default is wrong here</strong> because B1 cannot see the renderer's snippet (separate repo), so it <em>cannot assert the snippet is cookieless / no&#8209;PII</em>. Enabling is therefore gated on a one&#8209;time human verification: <span class="tag">⛔ GATE</span> <strong>confirm the renderer's injected Rybbit snippet is cookieless and captures no PII</strong> (no form&#8209;field contents, no patient identifiers in tracked URLs/query strings) <strong>before setting the env flag on.</strong> Rybbit's cookieless posture is <em>assumed from its product design, not verified in this repo</em> — treat it as unverified until the renderer snippet is read.</p>
+  </div>
+
+  <div class="card">
+    <h3>2 · Per&#8209;tenant isolation — each site gets its OWN siteId</h3>
+    <p><span class="mono">provisionRybbitSite()</span> POSTs a fresh Rybbit site per domain and its dedup check reads only <em>this</em> project's integration row (<span class="mono">findByProjectAndPlatform(projectId, "rybbit")</span>). One practice's traffic cannot land in another's analytics because siteIds are never shared across projects. <strong>Proven by test:</strong> provisioning project A then project B yields two distinct siteIds, and A's row is never mutated by B's call.</p>
+  </div>
+
+  <div class="card">
+    <h3>3 · No PII in tracked events</h3>
+    <p>B1 sends the <strong>domain only</strong> to Rybbit (<span class="mono">${host}.sites.getalloro.com</span>) — never form contents, patient names, or query strings. The event stream itself is emitted by the renderer snippet (out of this repo) — which is exactly why guard&nbsp;#1 gates enablement on reading that snippet. B1 introduces no new PII surface of its own.</p>
+  </div>
+
+  <div class="card">
+    <h3>4 · No live beacons in test — stub the Rybbit endpoint</h3>
+    <p>Every test <strong>stubs <span class="mono">global.fetch</span></strong> so the Rybbit site&#8209;creation POST never fires against <span class="mono">analytics.getalloro.com</span>. A test run must not create real sites or pollute production analytics (the A6 "no live writes" analog).</p>
+  </div>
+
+  <div class="card">
+    <h3>5 · Consent / healthcare&#8209;site privacy — named</h3>
+    <p>Analytics on a healthcare&#8209;adjacent site raises a consent/privacy&#8209;policy question. B1's mitigation is structural: cookieless + no&#8209;PII (pending guard&nbsp;#1), which is the posture that avoids a consent banner under GDPR/ePrivacy&#8209;style rules. <span class="tag">⛔ ESCALATE: Corey</span> whether the customer's site privacy policy must name analytics collection — a policy/canon call, not a build call. B1 does not decide it; it flags it.</p>
+  </div>
+
+  <h2>Risk</h2>
+  <p><strong>Level 2</strong> — additive, gated OFF, no migration, reversible (delete the integration row / clear <span class="mono">rybbit_site_id</span> to un&#8209;provision). Production&#8209;risk review:</p>
+  <ul>
+    <li><span class="sec">Destructive schema change:</span> none — no migration.</li>
+    <li><span class="sec">Data rewrite / backfill:</span> none — on&#8209;demand per project, explicitly no sweep.</li>
+    <li><span class="sec">Long lock:</span> none — single&#8209;row read + the existing provisioning writes.</li>
+    <li><span class="sec">Irreversible:</span> no — un&#8209;provision by clearing the row/siteId; Rybbit site can be deleted admin&#8209;side.</li>
+    <li><span class="sec">Dev&#8209;only assumption:</span> none — reuses the prod provisioning path unchanged.</li>
+  </ul>
+
+  <div class="warnbar">
+    <p style="margin:0"><strong>⚠ The one residual I cannot close in this repo.</strong> Whether the renderer <em>actually injects</em> for preview hostnames once an active rybbit row exists is <strong>UNVERIFIED</strong> — the injection condition lives in the <span class="mono">website-renderer</span> repo, which is not present in this worktree. It is <em>plausible</em> (the renderer resolves projects by hostname&#8209;or&#8209;domain and injects active rows), but plausible is not proven. <strong>Acceptance evidence is therefore a post&#8209;enable customer&#8209;walk</strong>: after Dave enables the flag for one project, load its <span class="mono">*.sites.getalloro.com</span> URL and confirm the Rybbit snippet is present in the served HTML. Until that walk passes, B1 is "provisions correctly," not "measures."</p>
+  </div>
+
+  <h2>Tasks</h2>
+  <ol>
+    <li><strong>Model:</strong> add <span class="mono">findPreviewProvisioningContextByIdQuery</span> to <span class="mono">projectQueries.ts</span> + <span class="mono">ProjectModel.findPreviewProvisioningContextById</span> (projection: id, hostname, generated_hostname, custom_domain, status, archived_at). (§7.4)</li>
+    <li><strong>Service:</strong> add <span class="mono">provisionPreviewAnalytics(projectId)</span> to <span class="mono">service.rybbit.ts</span> — the gate + guards + preview&#8209;domain + reuse of <span class="mono">provisionRybbitSite()</span> + read&#8209;back, returning the structured result. (§6.1, §7.1, §9.1)</li>
+    <li><strong>Controller:</strong> add thin <span class="mono">provisionRybbitPreview</span> to <span class="mono">WebsiteIntegrationsController.ts</span>, mirroring <span class="mono">createRybbitIntegration</span>. (§7.3, §8.1)</li>
+    <li><strong>Route:</strong> register <span class="mono">POST /:id/integrations/rybbit/preview</span> with <span class="mono">...adminGscAuth</span>, before the <span class="mono">/:integrationId</span> matcher. (§7.2, §11.1)</li>
+    <li><strong>Tests</strong> (stub <span class="mono">fetch</span>): gate&#8209;off provisions nothing; gate&#8209;on + LIVE preview provisions (sets siteId + active row); idempotent second call; per&#8209;tenant isolation (A ≠ B, A untouched by B); archived / non&#8209;LIVE / no&#8209;hostname guards; no live beacon fired.</li>
+    <li><strong>Gates:</strong> <span class="mono">npx tsc --noEmit</span>, <span class="mono">npm test</span>, <span class="mono">npm run check:conventions --strict</span> all green (Node 22).</li>
+    <li><strong>Adversary:</strong> cross&#8209;model <span class="mono">alloro-proof</span> aimed at PII leakage, cross&#8209;tenant siteId mixing, test traffic reaching prod. Fix findings; re&#8209;verify.</li>
+  </ol>
+
+  <h2>Done</h2>
+  <ul class="chk">
+    <li>Model projection query added; DB access stays in <span class="mono">models/</span> (§7.4).</li>
+    <li><span class="mono">provisionPreviewAnalytics</span> built, reuses <span class="mono">provisionRybbitSite</span>, returns actual (read&#8209;back) state.</li>
+    <li>Controller thin; route added with admin auth; response is <span class="mono">{ success, data, error }</span> (§8.1).</li>
+    <li>Env gate <span class="mono">PREVIEW_ANALYTICS_ENABLED</span> defaults OFF; gate&#8209;off provisions nothing (proven by test).</li>
+    <li>Per&#8209;tenant isolation proven by test (distinct siteIds; A untouched by B).</li>
+    <li>No live beacon in any test (<span class="mono">fetch</span> stubbed) — proven by test.</li>
+    <li><span class="mono">tsc</span> 0 errors · <span class="mono">npm test</span> green · <span class="mono">check:conventions --strict</span> 0 backend violations.</li>
+    <li>Cross&#8209;model adversary run; findings fixed + re&#8209;verified.</li>
+    <li>PR opened to <span class="mono">dev/dave</span> (never pushed direct). Tracker updated B1 → done.</li>
+    <li><span class="tag">post&#8209;merge</span> <strong>NOT done until</strong> Dave enables the flag for one project and the preview URL is walked as a customer with the snippet confirmed live (the residual above).</li>
+  </ul>
+
+  <h2>Named follow-on (a tracked brick, not a dropped intent)</h2>
+  <div class="card hard">
+    <p><strong>B1&#8209;R — Conversion&#8209;event capture + renderer PII audit (cross&#8209;repo, needs <span class="mono">website-renderer</span> access).</strong></p>
+    <ul>
+      <li>Extend the renderer's Rybbit snippet to emit <span class="mono">form-view</span> and <span class="mono">contact-click</span> custom events (the signals that bridge to E1 attribution).</li>
+      <li>Read that snippet and <strong>verify cookieless / no&#8209;PII</strong> — the gate that unlocks flipping <span class="mono">PREVIEW_ANALYTICS_ENABLED</span> on (guard&nbsp;#1).</li>
+      <li>Add read&#8209;side aggregation for the new custom events (today <span class="mono">service.rybbit-data.ts</span> reads overview only).</li>
+    </ul>
+    <p><span class="tag">⛔ ESCALATE: Corey</span> queue <span class="mono">website-renderer</span> repo access so B1&#8209;R doesn't stall at this same seam twice. Recorded in the funnel tracker under B1.</p>
+  </div>
+
+  <section class="rev" id="revision-log">
+    <h2>Revision Log</h2>
+    <article class="revision-entry">
+      <h3>Rev 1 — 2026-07-15</h3>
+      <p><strong>Change:</strong> Initial spec. Re&#8209;scoped from the original B1 premise after a full serve&#8209;path trace proved the snippet inject point lives in a separate <span class="mono">website-renderer</span> repo (not <span class="mono">publicRoutes.ts</span>/<span class="mono">instantWebsiteGenerator.ts</span> as the task premise assumed). B1 in this repo = gated on&#8209;demand Rybbit provisioning for preview projects; form&#8209;view/contact&#8209;click custom events split out as follow&#8209;on B1&#8209;R.</p>
+      <p><strong>Reason:</strong> Reuse&#8209;first verification (Corey&#8209;approved Option&nbsp;1, 2026&#8209;07&#8209;15) — build the in&#8209;repo provisioning brick now, name the renderer&#8209;repo half precisely rather than fabricate it.</p>
+      <p><strong>Updated Done criteria:</strong> as listed in Done above (gate OFF, tenant isolation + no&#8209;live&#8209;beacon proven by test, cross&#8209;model adversary, post&#8209;merge customer&#8209;walk as the true finish line).</p>
+    </article>
+  </section>
+
+  <footer>Alloro · Code Constitution cited inline (§6.1, §7.1–7.4, §8.1, §9.1, §11.1, §13.1). Build in Dave's style; PR to dev/dave; Dave reviews + merges.</footer>
+
+</main>
+</body>
+</html>

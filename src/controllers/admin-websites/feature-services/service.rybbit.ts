@@ -9,6 +9,27 @@ import { ProjectModel } from "../../../models/website-builder/ProjectModel";
 import { WebsiteIntegrationModel } from "../../../models/website-builder/WebsiteIntegrationModel";
 import logger from "../../../lib/logger";
 
+/** Hostname suffix for hosted preview sites. */
+const PREVIEW_HOST_SUFFIX = ".sites.getalloro.com";
+
+/** Structured outcome of an on-demand preview-analytics provisioning attempt. */
+export interface PreviewAnalyticsResult {
+  /** Whether the PREVIEW_ANALYTICS_ENABLED master gate is on. */
+  enabled: boolean;
+  /** Whether a Rybbit site id is now persisted on the project. */
+  provisioned: boolean;
+  siteId?: string;
+  previewDomain?: string;
+  /** Machine-readable reason when not provisioned. */
+  reason?:
+    | "gate_disabled"
+    | "not_found"
+    | "archived"
+    | "not_live"
+    | "no_hostname"
+    | "provision_failed";
+}
+
 const RYBBIT_API_URL = process.env.RYBBIT_API_URL || "";
 const RYBBIT_API_KEY = process.env.RYBBIT_API_KEY || "";
 const RYBBIT_ORG_ID = process.env.RYBBIT_ORG_ID || "";
@@ -124,4 +145,72 @@ export async function provisionRybbitSite(
   } catch (err: any) {
     logger.error({ err: err?.message || err }, `[Rybbit] Error provisioning site for project ${projectId}:`);
   }
+}
+
+/**
+ * Enable analytics for a PREVIEW-only project (a hosted *.sites.getalloro.com
+ * site with no verified custom domain) by provisioning a Rybbit site for its
+ * preview hostname, reusing {@link provisionRybbitSite}. Once the active rybbit
+ * integration row exists, the renderer injects its tracking snippet on the
+ * preview host — no renderer change is needed for pageview/session/bounce.
+ *
+ * Guardrails:
+ *  - Ships DISABLED. The PREVIEW_ANALYTICS_ENABLED master gate must be "true"
+ *    before anything is provisioned. This gate is intentional: B1 cannot see the
+ *    renderer's injected snippet (separate repo), so it cannot assert the snippet
+ *    is cookieless / no-PII — enabling is gated on a human verifying that first.
+ *  - On-demand, per-project — never a backfill sweep. Each project gets its OWN
+ *    Rybbit site id (isolation is inherited from provisionRybbitSite, which mints
+ *    a fresh site per domain and dedups on this project's own integration row).
+ *  - Idempotent and non-throwing (inherited); reports the ACTUAL persisted state
+ *    by re-reading rybbit_site_id, never an assumed success.
+ */
+export async function provisionPreviewAnalytics(
+  projectId: string,
+): Promise<PreviewAnalyticsResult> {
+  if (process.env.PREVIEW_ANALYTICS_ENABLED !== "true") {
+    logger.info(
+      `[Rybbit] Preview analytics gate disabled — skipping project ${projectId}`,
+    );
+    return { enabled: false, provisioned: false, reason: "gate_disabled" };
+  }
+
+  const project =
+    await ProjectModel.findPreviewProvisioningContextById(projectId);
+  if (!project) {
+    return { enabled: true, provisioned: false, reason: "not_found" };
+  }
+  if (project.archived_at) {
+    return { enabled: true, provisioned: false, reason: "archived" };
+  }
+  if (project.status !== "LIVE") {
+    return { enabled: true, provisioned: false, reason: "not_live" };
+  }
+
+  const previewHost = project.hostname ?? project.generated_hostname;
+  if (!previewHost) {
+    return { enabled: true, provisioned: false, reason: "no_hostname" };
+  }
+  const previewDomain = `${previewHost}${PREVIEW_HOST_SUFFIX}`;
+
+  // Reuse the proven, idempotent, per-project provisioning path (non-throwing).
+  await provisionRybbitSite(projectId, previewDomain);
+
+  // Report the actual persisted state — never assume the provision succeeded.
+  const after = await ProjectModel.findRybbitSiteIdById(projectId);
+  const siteId = after?.rybbit_site_id;
+  if (siteId) {
+    return {
+      enabled: true,
+      provisioned: true,
+      siteId: String(siteId),
+      previewDomain,
+    };
+  }
+  return {
+    enabled: true,
+    provisioned: false,
+    previewDomain,
+    reason: "provision_failed",
+  };
 }

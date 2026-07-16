@@ -357,6 +357,33 @@ export function findRybbitSiteIdByIdQuery(
     .first();
 }
 
+export function findPreviewProvisioningContextByIdQuery(
+  projectId: string,
+  trx?: QueryContext,
+): Promise<
+  | {
+      id: string;
+      hostname: string | null;
+      generated_hostname: string | null;
+      custom_domain: string | null;
+      status: string | null;
+      archived_at: Date | null;
+    }
+  | undefined
+> {
+  return table(trx)
+    .select(
+      "id",
+      "hostname",
+      "generated_hostname",
+      "custom_domain",
+      "status",
+      "archived_at",
+    )
+    .where("id", projectId)
+    .first();
+}
+
 export function findByHostnameOrDomainQuery(
   host: string,
   trx?: QueryContext,
