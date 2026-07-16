@@ -40,9 +40,9 @@ the first brick of the scientist loop (Sensor → Reader → Hypothesizer → Ac
 
 ## Build order (reuse-first, one artifact at a time, verify each)
 Pure core first (grid generator + SoLV/ARP/ATRP aggregator — fully unit-testable, no network) →
-injectable runner → migration + model (`sandbox-safety`: additive + reversible; any schedule seeded
-**disabled** — zero cost until Corey enables) → tests → **fresh adversary** (`alloro-proof`, told to
-break it) → fix → PR to `dev/dave`.
+injectable runner → migration + model (`sandbox-safety`: additive + reversible; **this slice ships no
+`schedules` row at all** — see the guardrail below) → tests → **fresh adversary** (`alloro-proof`, told
+to break it) → fix → PR to `dev/dave`.
 
 ## Honesty caps (Value #6 — do not violate)
 Real data only. SoLV is the owner-legible number. **No #1 / rank / visibility promise. No guarantee.**
@@ -60,7 +60,14 @@ ranking."
 ## Guardrails (non-negotiable)
 - **CD SOP:** branch off dev/dave, build + adversary-verify in sandbox, open a PR for Dave to review.
   **NEVER push to dev/dave or main directly.**
-- **sandbox-safety** on the migration; **seed any schedule disabled** and flag that for Dave in the PR.
+- **sandbox-safety** on the migration: additive + reversible.
+- **Do NOT seed a `schedules` row in this slice.** The earlier "seed it disabled" instruction was
+  removed in review: the row had no `next_run_at` and `agentRegistry` has no `findability_sensor`
+  handler, so enabling it alone could never produce a due, dispatchable run — it was un-runnable
+  scaffolding, not a safety measure. A schedule lands with the **executor slice**, and only when it is
+  actually runnable (a real handler **and** a `next_run_at`). `src/__tests__/findability-sensor-model.test.ts`
+  guards this (T6): it asserts the migration seeds no `schedules` row and that every registered agent
+  key resolves to a callable handler. Keep that guard passing.
 - Node 22 (`nvm use 22`); `npm test` + `npm run check:conventions` green before the PR.
 - AI drafts, human stakes — especially any skill/enforcement-layer change (don't).
 

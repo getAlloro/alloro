@@ -6,7 +6,7 @@
     {
       "id": "T1",
       "title": "Concurrent configuration saves leave exactly one config per location",
-      "surface": "model",
+      "surface": "cli",
       "precondition": "Run the sensor model tests against the Postgres-shaped in-memory evaluator, which emulates the unique index and resolves ON CONFLICT atomically.",
       "steps": [
         "Issue two upsertConfig calls for the same (organization, location) concurrently via Promise.all.",
@@ -21,7 +21,7 @@
     {
       "id": "T2",
       "title": "A null-location config cannot escape the uniqueness rule",
-      "surface": "model",
+      "surface": "cli",
       "precondition": "Same evaluator, keyed on (organization_id, COALESCE(location_id, -1)) exactly as the migration keys the index.",
       "steps": [
         "Issue two concurrent upsertConfig calls with location_id null for one organization.",
@@ -36,7 +36,7 @@
     {
       "id": "T3",
       "title": "A re-save edits the location's one config in place and preserves created_at",
-      "surface": "model",
+      "surface": "cli",
       "precondition": "Run the sensor model tests.",
       "steps": [
         "Save a config, then save again for the same location with changed grid_size, radius_miles, and enabled.",
@@ -51,7 +51,7 @@
     {
       "id": "T4",
       "title": "The uniqueness rule does not over-constrain distinct locations or organizations",
-      "surface": "model",
+      "surface": "cli",
       "precondition": "Run the sensor model tests.",
       "steps": [
         "Concurrently save configs for location 1, location 2, and a null location under one organization.",
@@ -66,7 +66,7 @@
     {
       "id": "T5",
       "title": "The same race on the readings table converges to one snapshot per keyword/day",
-      "surface": "model",
+      "surface": "cli",
       "precondition": "Run the sensor model tests.",
       "steps": [
         "Issue two concurrent upsertReading calls for the same (org, location, keyword, run_date).",
@@ -81,7 +81,7 @@
     {
       "id": "T6",
       "title": "The slice ships no schedule it cannot run",
-      "surface": "model",
+      "surface": "cli",
       "precondition": "Run the sensor model tests and read the migration source.",
       "steps": [
         "Resolve the findability_sensor key against agentRegistry.",
@@ -97,7 +97,7 @@
     {
       "id": "T7",
       "title": "The migration applies, reverses, and re-applies against a real Postgres",
-      "surface": "db",
+      "surface": "cli",
       "precondition": "A live Postgres (dev or a disposable instance) with the branch checked out.",
       "steps": [
         "Run npm run db:migrate; confirm both tables and both unique indexes exist.",
@@ -106,14 +106,14 @@
       ],
       "expected": "up/down/re-up are clean; fs_configs_dedup_uidx and fs_readings_dedup_uidx exist as unique expression indexes; the IF NOT EXISTS guards make a repeat run a no-op.",
       "status": "pending",
-      "evidence": "NOT RUN. No live Postgres was reachable from this session - no local server, no Docker daemon - and writing to the shared dev database was out of scope for this fix.",
-      "notes": "Layer 3. This is the check most likely to surface a problem the hermetic tests cannot: the DDL itself is unproven against a real server.",
+      "evidence": "NOT RUN. Re-confirmed 2026-07-16: no live Postgres is reachable from this environment - `docker info` fails (no daemon), and psql/pg_ctl/postgres are absent from PATH. Writing to the shared dev database was out of scope for this fix.",
+      "notes": "Layer 3, and BLOCKING for merge. This is the check most likely to surface a problem the hermetic tests cannot: the DDL itself is unproven against a real server. Per the second-round review this stays `pending` and must NOT be converted to `pass` from the in-memory evaluator - only a real PostgreSQL run can close it.",
       "waiver": ""
     },
     {
       "id": "T8",
       "title": "Postgres infers the ON CONFLICT target from the expression index",
-      "surface": "db",
+      "surface": "cli",
       "precondition": "A live Postgres with the migration applied.",
       "steps": [
         "Call upsertConfig twice for the same location and inspect for error 42P10.",
@@ -122,13 +122,13 @@
       "expected": "Both converge on one row; no 42P10 (no matching ON CONFLICT inference target).",
       "status": "pending",
       "evidence": "NOT RUN against a live server. Partially de-risked offline: the upsert SQL was rendered with knex's pg dialect and the conflict target emits as `on conflict (organization_id, COALESCE(location_id, -1)) do update set ...`, matching the migration's index expression textually.",
-      "notes": "Layer 3. A conflict target must match the index expression for Postgres to infer it; the two are written to match and were compared as rendered SQL, but only a live server proves inference.",
+      "notes": "Layer 3, and BLOCKING for merge. A conflict target must match the index expression for Postgres to infer it; the two are written to match and were compared as rendered SQL, but only a live server proves inference. Per the second-round review this stays `pending` and must NOT be converted to `pass` from rendered-SQL or mocked evidence.",
       "waiver": ""
     },
     {
       "id": "T9",
       "title": "Static and structural gates are clean",
-      "surface": "ci",
+      "surface": "cli",
       "precondition": "Node 22 toolchain in the branch worktree.",
       "steps": [
         "Run npx tsc --noEmit.",

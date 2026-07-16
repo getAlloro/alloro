@@ -53,7 +53,7 @@
 <div class="wrap">
 
   <header class="hero">
-    <span class="pill"><span class="dot"></span>In Progress &middot; Rev 4</span>
+    <span class="pill"><span class="dot"></span>In Progress &middot; Rev 5</span>
     <h1>A5 · Slice 1 — The Findability Sensor</h1>
     <p class="sub">The honest instrument under the fuel gauge. Replace today's single, flickering rank point with stable, proximity-aware sampling of the <em>service</em> searches that bring new customers, across the practice's real area. Slice 1 of the scientist-loop engine (sensor → gauge → hypothesize → act → watch → learn). Not a grid the owner reads — the sampling is plumbing.</p>
     <div class="meta">
@@ -191,6 +191,16 @@
 
   <section id="revision-log">
     <h2>Revision Log</h2>
+    <article class="rev">
+      <h3>Rev 5 &mdash; 2026-07-16</h3>
+      <p><strong>Change:</strong> Second-round review on PR #167 (changes requested); findings 2&ndash;4 fixed, finding 1 honestly blocked.
+      <b>(1) Real-PostgreSQL T7/T8 &mdash; NOT fixed, deliberately left <code>pending</code>.</b> The review requires these run against a disposable/approved PostgreSQL instance and explicitly forbids converting them to <code>pass</code> from mocked evidence. Re-confirmed 2026-07-16 that no PostgreSQL is reachable from this environment: <code>docker info</code> fails (no daemon) and <code>psql</code>/<code>pg_ctl</code>/<code>postgres</code> are absent from PATH. They stay <code>pending</code> with the reason recorded, and <code>test-results.json</code> stays <code>In Progress</code>. This is the correct outcome, not an oversight &mdash; the DDL and the <code>ON CONFLICT</code> expression-index inference remain unproven and BLOCK merge.
+      <b>(2) Nonstandard acceptance <code>surface</code> values corrected</b> &mdash; the artifact used <code>model</code> (&times;6), <code>db</code> (&times;2), and <code>ci</code> (&times;1), which appear in no other plan in the repo (verified by grep across all <code>plans/*/test-results.json</code>: only <code>ui</code>/<code>cli</code>/<code>api</code>/<code>none</code> are in use). All nine items are driven by a command and this slice ships no UI or HTTP route, so all nine are now <code>cli</code>, matching the <code>06262026-code-constitution-remediation</code> precedent. <code>test.html</code> renders <code>surface</code> from the JSON, so it inherits the fix.
+      <b>(3) Public PR body rewritten for accuracy.</b> Four materially false claims removed: it still advertised a <b>seeded disabled schedule</b> (removed at Rev 4); it claimed <b>PostgreSQL migration proof</b> ("proven up/down/idempotent/unique in a rolled-back sandbox transaction") that the current artifact records as NOT RUN &mdash; the Rev 3 sandbox check covered the <i>previous</i> index set and upsert shape, which Rev 4 replaced, so it never covered the reviewed code; it reported <b>stale test counts</b> (29 sensor / 485 suite) against the verified 41 sensor (29 + 12) / 497 suite; and it promised a post-merge <b>real scan + schedule enablement</b> that this slice cannot perform &mdash; there is no route, no controller, no <code>agentRegistry</code> handler, and no non-test caller of <code>runFindabilitySensorScan</code>. The body now states the withdrawal explicitly rather than silently dropping the claim.
+      <b>(4) <code>HANDOFF.md</code> corrected</b> &mdash; the build order (lines 43&ndash;45) and the guardrail (line 63) still instructed the next session to seed a schedule <i>disabled</i>. Both now state that this slice ships no <code>schedules</code> row, explain why the earlier instruction was wrong (no <code>next_run_at</code>, no handler &rArr; un-runnable scaffolding, not safety), and point at the T6 guard that keeps it out.</p>
+      <p><strong>Reason:</strong> User QA: second-round review on PR #167 (findings 1&ndash;4), pinned to <code>8cf42c97</code>. The review confirmed the Rev 4 fixes sound ("no new implementation defect"), so this round is honesty/accuracy repair on the artifacts and the public claim surface &mdash; no implementation change.</p>
+      <p><strong>Updated Done criteria:</strong> acceptance <code>surface</code> values conform to <code>ui | api | cli | none</code>; <code>HANDOFF.md</code> carries no seed-a-disabled-schedule instruction; the public PR body contains no claim the artifacts contradict (no seeded schedule, no unproven PostgreSQL proof, current test counts, no post-merge scan this slice cannot run). <b>Unchanged and still blocking:</b> T7/T8 stay <code>pending</code> until a real PostgreSQL run &mdash; they may not be closed from the in-memory evaluator or rendered SQL. Gates re-run at this head: <code>tsc --noEmit</code> exit 0; <code>check:conventions --strict</code> exit 0 (0 structural); full suite 62 files / <b>497</b> tests green; focused sensor run <b>41/41</b>.</p>
+    </article>
     <article class="rev">
       <h3>Rev 4 &mdash; 2026-07-16</h3>
       <p><strong>Change:</strong> Parallel-review round on PR #167 (changes requested); all 4 findings addressed.
