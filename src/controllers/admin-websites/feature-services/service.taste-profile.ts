@@ -1,10 +1,10 @@
 /**
  * Client Taste Profile — composition + Tier-2 honesty gate (Slice 2).
  *
- * Wires together the outputs of extractors Alloro ALREADY has into one
- * persisted, source-linked profile per business. This is a compose + gate,
- * NOT a new extraction engine (§6.1 analog: `gbp-automation`'s feature-services
- * orchestrate; the extractors stay where they are):
+ * Composes the outputs of extractors Alloro ALREADY has into one source-linked
+ * profile per business. This is a compose + gate, NOT a new extraction engine
+ * (§6.1 analog: `gbp-automation`'s feature-services orchestrate; the extractors
+ * stay where they are):
  *
  *   - `reviewThemeExtractor` (ThemeExtractionResult)  → hero quote, praise
  *     themes, unique strength, suggested headline.
@@ -21,10 +21,26 @@
  * `../feature-utils/util.taste-profile-honesty`:
  *   - no real source  → DROPPED (Tier 1: empty field, never invented).
  *   - banned language → REJECTED (rank/visibility/guarantee/invented metric).
- * The kept result + a full audit of what was dropped/rejected is returned; the
- * caller persists it via `TasteProfileModel`. This module does NO DB access and
- * makes NO network calls — it operates on already-computed extractor outputs,
- * which is what makes it deterministically testable with mocked inputs.
+ * The kept result + a full audit of what was dropped/rejected is returned. This
+ * module does NO DB access and makes NO network calls — it operates on
+ * already-computed extractor outputs, which is what makes it deterministically
+ * testable with mocked inputs. Persistence is `TasteProfileModel`'s job.
+ *
+ * ── WIRING STATUS — read before claiming this is live ──────────────────────
+ * NOT WIRED. This slice ships the compose half and the persist half as separate,
+ * unit-tested CAPABILITIES; no production code path calls them together.
+ * `composeTasteProfile()` / `composeFromExtractors()` are invoked only by
+ * `__tests__/taste-profile-composition.test.ts`, and `TasteProfileModel` has no
+ * importers at all. There is deliberately NO `composeAndPersist()` helper here:
+ * one that nothing calls would move the unwired seam up a layer without creating
+ * a production entry point, and this module's no-DB-access purity is what keeps
+ * the honesty gate deterministically testable.
+ *
+ * Wiring needs a product decision this slice does not make: WHAT triggers a
+ * compose (review/GBP sync? website build? an owner action?), which
+ * org/location context it runs under, and which surface consumes the result.
+ * That belongs to the slice that adds the owner preview/approve path — see
+ * `plans/07162026-taste-profile-spine/spec.html` ("Narrowed contract").
  */
 
 import type { ThemeExtractionResult } from "../../../services/reviewThemeExtractor";

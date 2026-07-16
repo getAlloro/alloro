@@ -1,0 +1,132 @@
+{
+  "plan": "plans/07162026-taste-profile-spine",
+  "generatedAt": "2026-07-16",
+  "status": "In Progress",
+  "items": [
+    {
+      "id": "T1",
+      "title": "Model no longer imports upward from a controller (§7.1)",
+      "surface": "static",
+      "precondition": "Run dependency-cruiser's mechanized models-no-upward-imports rule on the branch head and on the pre-fix baseline.",
+      "steps": [
+        "Stash the fix and run `npm run depcruise` against the original commit 3c8aa614.",
+        "Restore the fix and re-run `npm run depcruise`.",
+        "Compare the models-no-upward-imports violation count and the offending edges."
+      ],
+      "expected": "The TasteProfileModel -> service.taste-profile edge disappears; the rule's violation count drops by exactly one and no new edge appears.",
+      "status": "pass",
+      "evidence": "Baseline: 7 models-no-upward-imports violations (39 total), including `src/models/website-builder/TasteProfileModel.ts -> src/controllers/admin-websites/feature-services/service.taste-profile.ts`. After: 6 violations (38 total), TasteProfileModel absent. depcruise reports 0 errors both times.",
+      "notes": "Persisted shapes moved to the neutral src/types/tasteProfile.ts (precedent: types/adminReset.ts, types/pmsMapping.ts). The 6 remaining violations are pre-existing and out of scope for this PR.",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Org A cannot READ org B's taste profile by id (§11.7)",
+      "surface": "model",
+      "precondition": "In-memory taste_profiles table whose query builder actually applies the model's .where() conditions (mirrors PracticeFactModel.test.ts).",
+      "steps": [
+        "Seed a single row owned by org B (id tp-b).",
+        "Call TasteProfileModel.findByIdForOrg('tp-b', ORG_A) - org A holding a leaked or guessed uuid."
+      ],
+      "expected": "Returns undefined; org B's row is never disclosed, and 'wrong org' is indistinguishable from 'missing' so no existence information leaks.",
+      "status": "pass",
+      "evidence": "src/__tests__/TasteProfileModel.test.ts - \"org A CANNOT read org B's profile even with the exact row id\" passed; a sibling test asserts the WHERE clause contains { id, organization_id }.",
+      "notes": "findLatestByOrgAndLocation was already correctly scoped and was left unchanged; a regression test covers it.",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "Org A cannot APPROVE org B's taste profile (§11.7)",
+      "surface": "model",
+      "precondition": "Seed one draft row owned by org B.",
+      "steps": [
+        "Call TasteProfileModel.markApproved('tp-b', ORG_A, 'owner@org-a.test').",
+        "Inspect the victim row."
+      ],
+      "expected": "0 rows updated; org B's row stays status='draft' with approved_by null - a cross-tenant owner sign-off is impossible.",
+      "status": "pass",
+      "evidence": "src/__tests__/TasteProfileModel.test.ts - \"org A CANNOT approve org B's profile\" passed; the positive case \"markApproved DOES approve the caller's own profile\" also passed, proving the scope is not simply blocking everything.",
+      "notes": "markApproved is not a BaseModel static, so organizationId could be added as a required 2nd positional argument directly.",
+      "waiver": ""
+    },
+    {
+      "id": "T4",
+      "title": "Org A cannot DELETE org B's taste profile (§11.7)",
+      "surface": "model",
+      "precondition": "Seed rows owned by org A and org B.",
+      "steps": [
+        "Call TasteProfileModel.deleteByIdForOrg('tp-b', ORG_A).",
+        "Call deleteByIdForOrg('tp-a', ORG_A) for the positive case."
+      ],
+      "expected": "The cross-org delete removes 0 rows and org B's row survives; the same-org delete removes exactly 1 row and leaves the other tenant untouched.",
+      "status": "pass",
+      "evidence": "src/__tests__/TasteProfileModel.test.ts - \"org A CANNOT delete org B's profile\" and \"deleteByIdForOrg DOES delete the caller's own profile\" both passed.",
+      "notes": "An unscoped delete-by-id was the most destructive of the three holes.",
+      "waiver": ""
+    },
+    {
+      "id": "T5",
+      "title": "The isolation suite is non-vacuous (mutation-tested)",
+      "surface": "model",
+      "precondition": "A passing isolation suite proves nothing if its assertions cannot fail. Mutate the model to remove the tenant scope and re-run.",
+      "steps": [
+        "Strip `organization_id: organizationId` from all three scoped WHERE clauses in TasteProfileModel.",
+        "Re-run src/__tests__/TasteProfileModel.test.ts.",
+        "Restore the file and re-run tsc plus the suite."
+      ],
+      "expected": "The mutant fails exactly the isolation assertions - the tests detect the vulnerability rather than passing regardless.",
+      "status": "pass",
+      "evidence": "Mutant run: 5 failed | 5 passed (10). The three \"org A CANNOT ...\" tests plus the WHERE-shape and markApproved tests failed. After restore: tsc exit 0 and 10/10 passed.",
+      "notes": "This is why the mock APPLIES .where() filters instead of only asserting query shape - a shape assertion passes even if the clause filters nothing.",
+      "waiver": ""
+    },
+    {
+      "id": "T6",
+      "title": "The tenant scope cannot be forgotten at compile time (§11.7)",
+      "surface": "static",
+      "precondition": "BaseModel exposes unscoped findById/deleteById statics that TasteProfileModel would otherwise inherit.",
+      "steps": [
+        "Attempt to widen findById with a required organizationId parameter and run tsc.",
+        "Seal the unscoped entry points instead and re-run tsc.",
+        "Attempt `TasteProfileModel.findById('tp-b')`."
+      ],
+      "expected": "Widening is impossible (TS2417: class static side incorrectly extends base class static side). With the seal, an unscoped call is a compile error (TS2554: Expected 0 arguments, but got 1), and a runtime throw backstops untyped callers.",
+      "status": "pass",
+      "evidence": "TS2417 reproduced on a minimal repro before the design was chosen; TS2554 confirmed on the seal. `npx tsc --noEmit` exits 0 on the branch. The runtime throw is covered by \"seals the unscoped BaseModel entry points rather than inheriting them\".",
+      "notes": "This is why the fix is a seal plus scoped siblings (findByIdForOrg / deleteByIdForOrg) rather than an extra argument on findById itself - the review's literal wording is not expressible in TypeScript here. Repo analog: GbpWorkItemModel.findByIdForScope.",
+      "waiver": ""
+    },
+    {
+      "id": "T7",
+      "title": "Layer-2: compose -> persist end-to-end against the running app",
+      "surface": "e2e",
+      "precondition": "BLOCKED. Requires a production entry point that composes a profile and persists it - a route, job, or consumer running against the app.",
+      "steps": [
+        "Trigger a taste-profile compose for a real organization/location through a production surface.",
+        "Confirm the gated profile is persisted to taste_profiles under the caller's organization_id.",
+        "Confirm an owner can approve only their own profile through that surface."
+      ],
+      "expected": "Not executable on this branch. composeTasteProfile() and composeFromExtractors() are called only by taste-profile-composition.test.ts, and TasteProfileModel has zero importers repo-wide - there is no running surface to drive.",
+      "status": "pending",
+      "evidence": "Verified by grep on the branch head: the only callers of the composition functions are in src/__tests__/taste-profile-composition.test.ts; no src/ module imports TasteProfileModel.",
+      "notes": "This is review finding #3 restated as an acceptance gap. It is recorded as pending - NOT waived to green - so the package rolls up 'In Progress' rather than 'Passed'. Substituting the Layer-1 unit runs for Layer-2 here would be exactly the over-claim the honesty gate exists to prevent.",
+      "waiver": ""
+    },
+    {
+      "id": "T8",
+      "title": "No regression across the backend suite",
+      "surface": "api",
+      "precondition": "Node 22.23.1 (Node 20 throws ERR_REQUIRE_ESM in vitest). Run the full suite on the branch head.",
+      "steps": [
+        "Run `npx tsc --noEmit`.",
+        "Run `npm test`.",
+        "Run `npm run check:conventions -- --strict`, `npm run lint`, `npm run depcruise`."
+      ],
+      "expected": "Typecheck clean, no failing tests, no new structural violations.",
+      "status": "pass",
+      "evidence": "tsc --noEmit exit 0. npm test: 62 files / 481 tests passed, 0 failed. check:conventions --strict: 0 CLEAR structural violations, exit 0. lint: 0 errors (2384 pre-existing warnings). depcruise: 0 errors, 38 warnings (39 pre-fix).",
+      "notes": "The PR body's claim that vitest will not run in-env (a pre-existing ESM/toolchain issue) did not reproduce on Node 22.23.1 - the committed vitest files run normally.",
+      "waiver": ""
+    }
+  ]
+}

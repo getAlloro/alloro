@@ -35,6 +35,11 @@ export interface ITasteProfile {
  *
  * Persisted JSONB shapes come from the neutral `types/tasteProfile` module —
  * never from the composition service, which is a controller-layer module (§7.1).
+ *
+ * WIRING STATUS: this model has NO importers yet — the compose→persist path has
+ * no production entry point (see the WIRING STATUS block in
+ * `controllers/admin-websites/feature-services/service.taste-profile.ts`). It is
+ * a tested capability, not a live path; do not describe it as one.
  */
 export class TasteProfileModel extends BaseModel {
   protected static tableName = "taste_profiles";

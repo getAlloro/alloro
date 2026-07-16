@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Taste Profile Spine — Review Fixes Spec</title>
+  <style>
+    :root { color-scheme: light; --paper:#ffffff; --ink:#080808; --muted:#5f5f5f; --line:#d8d8d8; --soft:#f5f5f5; }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--paper); color:var(--ink); font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; line-height:1.5; }
+    .spec-shell { width:min(1120px, calc(100% - 32px)); margin:0 auto; padding:48px 0; }
+    .spec-hero, .spec-card, .task-card { border:1px solid var(--line); border-radius:8px; background:var(--paper); }
+    .spec-hero { border-color:var(--ink); padding:32px; margin-bottom:20px; }
+    .hero-topline { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px; }
+    .spec-card { padding:28px; margin-top:16px; }
+    .task-card { padding:20px; background:var(--soft); margin-top:12px; }
+    .eyebrow, dt { color:var(--muted); font-size:0.78rem; font-weight:700; text-transform:uppercase; }
+    .eyebrow { margin:0; }
+    .status-pill { display:inline-flex; align-items:center; min-height:34px; padding:0 12px; border:1px solid var(--ink); border-radius:999px; background:var(--ink); color:var(--paper); font-size:0.78rem; font-weight:800; text-transform:uppercase; }
+    .status-card { border-color:var(--ink) !important; }
+    h1,h2,h3,p { margin-top:0; }
+    h1 { max-width:840px; margin-bottom:24px; font-size:clamp(2.25rem,6vw,5rem); line-height:0.95; }
+    h2 { font-size:1.35rem; }
+    h3 { font-size:1rem; }
+    code { padding:0.1rem 0.3rem; border:1px solid var(--line); border-radius:4px; background:var(--soft); font-size:0.92em; }
+    a { color:inherit; text-decoration-thickness:1px; text-underline-offset:3px; }
+    .meta-grid, .split-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px; }
+    .meta-grid { margin:0; }
+    .meta-grid div, .split-grid > div { border:1px solid var(--line); border-radius:8px; padding:16px; }
+    dd { margin:4px 0 0; font-weight:700; }
+    .task-card dl { margin-bottom:0; }
+    .task-card dl > div { padding:9px 0; border-top:1px solid var(--line); }
+    .checklist { list-style:none; padding-left:0; }
+    .checklist li { display:flex; gap:10px; align-items:flex-start; padding:10px 0; border-top:1px solid var(--line); }
+    .callout { border-left:4px solid var(--ink); padding:12px 16px; background:var(--soft); }
+    .compact li { margin:6px 0; }
+    table { border-collapse:collapse; width:100%; font-size:0.92rem; }
+    th, td { border:1px solid var(--line); padding:8px 10px; text-align:left; vertical-align:top; }
+    th { background:var(--soft); font-size:0.72rem; text-transform:uppercase; letter-spacing:.03em; }
+    .scroll-x { overflow-x:auto; }
+    .revision-entry { border-top:1px solid var(--line); padding-top:14px; margin-top:14px; }
+    @media (max-width:640px) { .spec-shell { width:min(100% - 20px,1120px); padding:24px 0; } .spec-hero, .spec-card { padding:20px; } }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill">In Progress</span>
+      </div>
+      <h1>Taste Profile Spine — Review Fixes</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>In Progress — awaiting re-review</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/07162026-taste-profile-spine</dd></div>
+        <div><dt>Size</dt><dd>Medium</dd></div>
+        <div><dt>Risk</dt><dd>Level 3 — Structural + tenant isolation</dd></div>
+        <div><dt>Target</dt><dd>PR 160 — branch <code>claude/taste-profile-spine</code></dd></div>
+        <div><dt>Surface</dt><dd>Backend only — no route, no frontend</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>PR 160 ships the Client Taste Profile spine — the composition service, the honesty gate, the <code>taste_profiles</code> table, and the model. A parallel review requested changes on four findings. Two were real defects in the code: the model imported its own persisted types from a controller (<code>§7.1</code>), and three id-based methods let one organization read or mutate another organization's profile (<code>§11.7</code>). The other two were honesty findings: the "compose + persist" contract is claimed but never exercised by production code, and the acceptance artifacts were missing.</p>
+      <p>This plan records the fixes and — just as important — narrows the stated contract so the PR stops describing a capability that no production path calls.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Fixed in code</h3>
+          <ul class="compact">
+            <li><strong>§7.1</strong> — persisted shapes moved to a neutral <code>src/types/tasteProfile.ts</code>; the model no longer imports from a controller.</li>
+            <li><strong>§11.7</strong> — <code>organizationId</code> is now a required argument on every id-based read and mutation, and the unscoped <code>BaseModel</code> entry points are sealed.</li>
+            <li><strong>§20.2</strong> — a cross-org isolation suite proving one org cannot read, approve, or delete another's profile.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Narrowed, not faked</h3>
+          <ul class="compact">
+            <li>The compose→persist path has <strong>no production entry point</strong>. Rather than invent one, the claim is narrowed in the code docstrings, here, and (proposed) in the PR body.</li>
+            <li>Layer-2 acceptance against a running app is recorded as <strong>pending</strong>, not waived to green — there is no surface to drive.</li>
+          </ul>
+        </div>
+      </div>
+      <p class="callout"><strong>Success condition:</strong> no tenant can touch another tenant's profile, no model imports upward, and nothing in the PR claims a live capability that only tests exercise.</p>
+    </section>
+
+    <section class="spec-card" id="narrowed-contract">
+      <h2>Narrowed contract</h2>
+      <p>This is the section the code docstrings point at. Read it before describing this slice to anyone.</p>
+      <p><strong>What this slice actually delivers:</strong> two independently unit-tested capabilities — a composition + honesty gate that turns already-computed extractor outputs into a gated <code>TasteProfile</code>, and a tenant-scoped model that can persist one. Plus the additive <code>taste_profiles</code> migration.</p>
+      <p><strong>What it does NOT deliver:</strong> a production path that composes and persists. Verified on the branch head: <code>composeTasteProfile()</code> and <code>composeFromExtractors()</code> are called only by <code>src/__tests__/taste-profile-composition.test.ts</code>, and <code>TasteProfileModel</code> has <strong>zero importers</strong> anywhere in <code>src/</code>. No route, no job, no consumer.</p>
+      <p><strong>Why no <code>composeAndPersist()</code> helper was added:</strong> a helper that nothing calls moves the unwired seam up one layer without creating an entry point — it would still be "called only by tests", which is the finding, not a fix. Real wiring needs a product decision this slice does not make: what triggers a compose (review/GBP sync? website build? an owner action?), which org/location context it runs under, and which surface consumes the result. Inventing that would be fake wiring on a public repo without a spec. It belongs to the slice that adds the owner preview/approve path.</p>
+      <p class="callout"><strong>Say this, not that.</strong> Say: "composition and persistence exist and are unit-tested; nothing calls them together yet." Do not say: "Alloro composes and persists a Taste Profile per business."</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <ul class="compact">
+        <li><strong>§7.1</strong> — "Routes → Controllers → Services → Models. Each layer talks only to the next." Mechanized by dependency-cruiser's <code>models-no-upward-imports</code> rule.</li>
+        <li><strong>§11.7</strong> — "Every model query against a tenant-scoped table filters by the organization/location from server context, passed as a required argument — not an optional filter a caller may forget."</li>
+        <li><strong>§20.2 / §20.5</strong> — tenant-isolation tests and the acceptance artifacts (<code>test.html</code> + <code>test-results.json</code>).</li>
+        <li>Reference analogs: <code>GbpWorkItemModel.findByIdForScope</code> (scoped by-id read), <code>PracticeFactModel</code> + <code>PracticeFactModel.test.ts</code> (thin model + in-memory isolation test).</li>
+        <li>Neutral shared-type precedent: <code>src/types/adminReset.ts</code>, <code>src/types/pmsMapping.ts</code>.</li>
+      </ul>
+      <p class="callout"><strong>Note on Article numbering.</strong> <code>§11.7</code>, <code>§20.2</code>, <code>§20.5</code> and <code>§5.5</code> are cited by the review and by <code>scripts/check-conventions.sh</code>, but they do <strong>not</strong> exist in the repo's <code>code-constitution.html</code> viewer, which stops at Part 17 and ends §11 at §11.6 — and the canonical <code>~/.claude/skills/code-constitution/SKILL.md</code> is absent from this machine. The viewer is stale relative to the contract. The work followed the rule text quoted in the review plus repo precedent, not the stale viewer.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <ul class="compact">
+        <li>Node 22 required — Node 20 throws <code>ERR_REQUIRE_ESM</code> in vitest.</li>
+        <li>No live Postgres in the suite (<code>vitest.config.ts</code>, Option B). Isolation is proven against an in-memory table that applies the model's <code>.where()</code> filters.</li>
+        <li>TypeScript forbids widening a base static with a required parameter (<code>TS2417</code>), so <code>organizationId</code> cannot simply be added to <code>findById</code>/<code>deleteById</code>.</li>
+        <li>No migration change — the table already carries <code>organization_id</code> and its indexes.</li>
+        <li>No new public route or frontend surface in this PR.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <div class="scroll-x">
+        <table>
+          <thead><tr><th>Risk</th><th>Handling</th></tr></thead>
+          <tbody>
+            <tr><td>Sealing <code>findById</code>/<code>deleteById</code> breaks an existing caller.</td><td>No risk today — the model has zero importers. A future caller gets a compile error naming the scoped replacement, which is the intent.</td></tr>
+            <tr><td>The isolation test passes without proving anything.</td><td>Mutation-tested: stripping <code>organization_id</code> from the WHERE clauses fails exactly the isolation assertions.</td></tr>
+            <tr><td>The in-memory mock diverges from Postgres.</td><td>Named honestly in the test header. The clauses are plain equality WHEREs; a live-DB test is the deferred Option A.</td></tr>
+            <tr><td>Re-exporting the moved types from the service reintroduces confusion about their home.</td><td>The neutral module is the single definition; the service re-export is API continuity only, and the model imports from the neutral module.</td></tr>
+            <tr><td>The PR keeps over-claiming after this plan.</td><td>Docstrings + this spec narrow it; the PR title/body rewrite is proposed for the coordinator to apply, since comms are handled centrally.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <article class="task-card">
+        <h3>T1 — Remove the upward import (§7.1)</h3>
+        <dl>
+          <div><dt>Change</dt><dd>Move <code>TasteProfile</code>, <code>TasteProfileAudit</code>, <code>SourcedClaim</code>, <code>DroppedClaim</code>, <code>RejectedClaim</code> to <code>src/types/tasteProfile.ts</code>. Model and service both import from there; the service re-exports for continuity. Composition-time input types stay in the service.</dd></div>
+          <div><dt>Proof</dt><dd>dependency-cruiser <code>models-no-upward-imports</code>: 7 violations → 6; the TasteProfileModel edge is gone.</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T2 — Scope every id-based read and mutation (§11.7)</h3>
+        <dl>
+          <div><dt>Change</dt><dd><code>findByIdForOrg(id, organizationId, trx?)</code>, <code>markApproved(id, organizationId, approvedBy, trx?)</code>, <code>deleteByIdForOrg(id, organizationId, trx?)</code>. <code>findLatestByOrgAndLocation</code> was already correct and is unchanged.</dd></div>
+          <div><dt>Seal</dt><dd>The inherited unscoped <code>findById</code>/<code>deleteById</code> are overridden to take no arguments and throw, making an unscoped call a compile error (<code>TS2554</code>).</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T3 — Cross-org isolation tests (§20.2)</h3>
+        <dl>
+          <div><dt>Change</dt><dd><code>src/__tests__/TasteProfileModel.test.ts</code>, following <code>PracticeFactModel.test.ts</code>: an in-memory table that applies the model's filters, so org B's row is excluded by the model's own WHERE rather than by the mock's say-so.</dd></div>
+          <div><dt>Proof</dt><dd>Org A cannot read, approve, or delete org B's profile; positive cases confirm the scope is not blocking everything. Mutation-verified.</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T4 — Narrow the contract (review finding 3)</h3>
+        <dl>
+          <div><dt>Change</dt><dd>WIRING STATUS blocks in the service and model docstrings; the "Narrowed contract" section above; proposed PR title/body text handed to the coordinator.</dd></div>
+          <div><dt>Not done</dt><dd>No production wiring — see "Narrowed contract" for why that is a product decision, not a review fix.</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T5 — Acceptance artifacts (review finding 4, §20.5)</h3>
+        <dl>
+          <div><dt>Change</dt><dd><code>test.html</code> + <code>test-results.json</code> in this folder, recording T1–T8 with real evidence from Node 22 runs.</dd></div>
+          <div><dt>Honest gap</dt><dd>T7 (Layer-2 end-to-end) is <strong>pending</strong> — blocked by the missing production entry point, so the package rolls up "In Progress", not "Passed".</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" checked disabled> No model imports a controller — dependency-cruiser <code>models-no-upward-imports</code> drops from 7 to 6, TasteProfileModel absent.</li>
+        <li><input type="checkbox" checked disabled> <code>organizationId</code> is required on every id-based read and mutation; <code>findLatestByOrgAndLocation</code> untouched.</li>
+        <li><input type="checkbox" checked disabled> The unscoped <code>BaseModel</code> entry points cannot be called — compile error plus runtime throw.</li>
+        <li><input type="checkbox" checked disabled> Cross-org isolation tests prove org A cannot read, approve, or delete org B's profile, and are mutation-verified as non-vacuous.</li>
+        <li><input type="checkbox" checked disabled> <code>npx tsc --noEmit</code> exits 0.</li>
+        <li><input type="checkbox" checked disabled> <code>npm test</code> — 62 files / 481 tests pass, 0 fail.</li>
+        <li><input type="checkbox" checked disabled> <code>npm run check:conventions -- --strict</code> — 0 clear structural violations, exit 0.</li>
+        <li><input type="checkbox" checked disabled> The compose→persist contract is narrowed honestly in code and spec; no fake wiring added.</li>
+        <li><input type="checkbox" checked disabled> <code>test.html</code> + <code>test-results.json</code> exist and record the Layer-2 gap as pending.</li>
+        <li><input type="checkbox" disabled> Layer-2 behavioural validation against the running app — <strong>blocked</strong> until a production entry point exists.</li>
+        <li><input type="checkbox" disabled> GitHub checks attached to the PR head — <strong>blocked</strong>: no workflow triggers on feature branches (<code>dev.yml</code> runs on <code>dev/dave</code>, <code>main.yml</code> on <code>main</code>), so <code>gh pr checks 160</code> reports none.</li>
+        <li><input type="checkbox" disabled> PR title/body narrowed — proposed text handed to the coordinator; comms are handled centrally.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-07-16</h3>
+        <p><strong>Change:</strong> Created this spec to record the PR 160 review fixes. Fixed the §7.1 upward import by moving the persisted types to <code>src/types/tasteProfile.ts</code>. Fixed the §11.7 tenant holes on <code>findById</code>, <code>markApproved</code>, and <code>deleteById</code> by requiring <code>organizationId</code> and sealing the unscoped <code>BaseModel</code> statics (root cause of the seal: <code>TS2417</code> forbids widening a base static with a required parameter, so the review's literal wording was not expressible). Added the mutation-verified cross-org isolation suite. Narrowed the compose→persist contract in the service and model docstrings instead of inventing wiring. Added the §20.5 acceptance artifacts with the Layer-2 gap recorded as pending.</p>
+        <p><strong>Reason:</strong> Dave's parallel review on PR 160 requested changes on four findings; the plan folder did not exist.</p>
+        <p><strong>Updated Done criteria:</strong> the checklist in the Done section above — including three items deliberately left unchecked (Layer-2 acceptance, GitHub checks, PR body) with the blocking reason named on each.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>
