@@ -16,7 +16,7 @@
       "expected": "The B1 suite passes with no live Rybbit beacon fired (global.fetch stubbed).",
       "status": "pass",
       "evidence": "Exit 0. 'Test Files 1 passed (1) / Tests 16 passed (16)' at head 1333e3ca. Count verified independently, not copied from the review.",
-      "notes": "16 covers: gate-off provisions nothing; gate-on + LIVE provisions; idempotent second call; per-tenant isolation (A != B, A untouched by B); archived / org_archived / not_live / no_hostname / has_custom_domain / integration_revoked guards.",
+      "notes": "The 16, read from the file rather than summarized: gate off provisions nothing; unset gate treated as off; LIVE preview provisions + reports actual state; ONLY the preview domain sent to Rybbit (body keys asserted to be exactly [blockBots, domain, name]); prefers a set hostname over generated; no second site on repeat call; each project its own siteId, tenants never mixed; skips not-found / archived / non-LIVE / no-hostname; defers a custom-domain project; skips org-archived; empty-string hostname falls back to generated; refuses a revoked integration without re-syncing; provisioned:false when no active row results. No-live-beacon is a fixture-wide property, not a named case: vi.stubGlobal(\"fetch\", fetchMock) at line 124, so a run never reaches analytics.getalloro.com.",
       "waiver": ""
     },
     {
