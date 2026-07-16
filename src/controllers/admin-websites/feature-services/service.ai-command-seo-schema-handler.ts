@@ -16,7 +16,7 @@
  * via `carriedFields`), so the change is reversible without any new rollback code.
  *
  * Honesty gate (spec Constraint / Value #6): every claim-bearing free-text value in
- * the proposed schema is run through `GbpContentSafetyService` before the write; a
+ * the proposed schema is run through `GeneratedCopySafetyService` before the write; a
  * rank/placement/visibility claim FAILS the recommendation and writes nothing. The
  * gate scans by DEFAULT and skips only narrowly structural values, so a key nobody
  * enumerated cannot smuggle claim text past it.
@@ -25,7 +25,9 @@
 
 import { AiCommandRecommendationModel } from "../../../models/website-builder/AiCommandRecommendationModel";
 import { PageModel } from "../../../models/website-builder/PageModel";
-import { GbpContentSafetyService } from "../../gbp-automation/feature-services/GbpContentSafetyService";
+// The neutral shared gate (§7.1): this admin-websites service must not reach into the
+// gbp-automation domain. #158 extracted the generic logic here for exactly this reason.
+import { GeneratedCopySafetyService } from "../../../services/content-safety/GeneratedCopySafetyService";
 import logger from "../../../lib/logger";
 import {
   type ExecutionContext,
@@ -115,7 +117,7 @@ function isJsonLdEntry(entry: unknown): entry is Record<string, unknown> {
 export function findSchemaCopyViolations(schemaJson: unknown): string[] {
   const reasons: string[] = [];
   for (const entry of collectSchemaCopy(schemaJson)) {
-    const result = GbpContentSafetyService.validateGeneratedCopy(entry.value);
+    const result = GeneratedCopySafetyService.validateGeneratedCopy(entry.value);
     if (result.isSafe) continue;
     const isIdentity = IDENTITY_SCHEMA_KEYS.has(entry.key);
     // reasonCodes/reasons are pushed in lockstep by validateGeneratedCopy.
