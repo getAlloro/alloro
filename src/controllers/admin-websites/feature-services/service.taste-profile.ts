@@ -33,38 +33,32 @@ import {
   enforceHonesty,
   isRealSource,
 } from "../feature-utils/util.taste-profile-honesty";
+import type {
+  DroppedClaim,
+  RejectedClaim,
+  SourcedClaim,
+  TasteProfile,
+  TasteProfileAudit,
+} from "../../../types/tasteProfile";
 
 // ---------------------------------------------------------------------------
 // PUBLIC SHAPES
 // ---------------------------------------------------------------------------
 
-/** A single verifiable claim: the text plus the real source it traces back to. */
-export interface SourcedClaim {
-  value: string;
-  /** review id, GBP field, page URL, or intake ref — a human can click it back. */
-  source: string;
-}
-
-/** The persisted, gated profile the website reads for its content slots. */
-export interface TasteProfile {
-  business_name: string;
-  business_category: string;
-  voice: {
-    archetype: string;
-    tone_descriptor: string;
-  };
-  hero_quote: SourcedClaim | null;
-  /** Generated hero copy — honesty-gated, but not a sourced factual claim. */
-  suggested_headline: string;
-  unique_strength: SourcedClaim | null;
-  praise_themes: SourcedClaim[];
-  credentials: SourcedClaim[];
-  practice_facts: SourcedClaim[];
-  customer_journey: {
-    why_they_choose: SourcedClaim[];
-    what_makes_them_hesitate: SourcedClaim[];
-  };
-}
+/**
+ * The PERSISTED shapes (`TasteProfile`, `TasteProfileAudit`, and the claim types
+ * they contain) live in the neutral `types/tasteProfile` module, NOT here: the
+ * model has to type its own JSONB columns, and a model may never import from a
+ * controller (§7.1 — layers only talk downward). Re-exported so composition
+ * callers keep one coherent public surface for this feature.
+ */
+export type {
+  DroppedClaim,
+  RejectedClaim,
+  SourcedClaim,
+  TasteProfile,
+  TasteProfileAudit,
+};
 
 /** A claim candidate before gating — source may be missing (then it's dropped). */
 export interface SourcedCandidate {
@@ -85,24 +79,6 @@ export interface TasteProfileCandidates {
   practice_facts?: SourcedCandidate[];
   why_they_choose?: SourcedCandidate[];
   what_makes_them_hesitate?: SourcedCandidate[];
-}
-
-export interface DroppedClaim {
-  field: string;
-  value: string;
-  reason: "no_source";
-}
-
-export interface RejectedClaim {
-  field: string;
-  value: string;
-  reasonCodes: string[];
-}
-
-export interface TasteProfileAudit {
-  kept: number;
-  dropped: DroppedClaim[];
-  rejected: RejectedClaim[];
 }
 
 export interface TasteProfileCompositionResult {

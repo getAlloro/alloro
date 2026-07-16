@@ -1,5 +1,5 @@
 import { BaseModel, QueryContext } from "../BaseModel";
-import type { TasteProfile, TasteProfileAudit } from "../../controllers/admin-websites/feature-services/service.taste-profile";
+import type { TasteProfile, TasteProfileAudit } from "../../types/tasteProfile";
 
 export type TasteProfileStatus = "draft" | "approved";
 
@@ -25,10 +25,16 @@ export interface ITasteProfile {
  * The honesty gate + composition live in the service layer
  * (`service.taste-profile.ts`); this model only persists the gated result.
  *
- * Tenant-scoped per §11.7/§5.5 — `organizationId` is a required parameter on
- * every read, never an optional filter a caller can skip. `location_id` is a
- * nullable dimension (null = organization-level profile), handled explicitly
- * like `PracticeFactModel.findByOrgAndLocation`.
+ * Tenant-scoped per §11.7/§5.5 — `organizationId` is a REQUIRED parameter on
+ * every read and every mutation, never an optional filter a caller can skip.
+ * The unscoped `BaseModel` entry points (`findById`, `deleteById`) are sealed
+ * rather than inherited, so the scope cannot be bypassed by accident; use
+ * `findByIdForOrg` / `deleteByIdForOrg` / `markApproved(id, organizationId, …)`.
+ * `location_id` is a nullable dimension (null = organization-level profile),
+ * handled explicitly like `PracticeFactModel.findByOrgAndLocation`.
+ *
+ * Persisted JSONB shapes come from the neutral `types/tasteProfile` module —
+ * never from the composition service, which is a controller-layer module (§7.1).
  */
 export class TasteProfileModel extends BaseModel {
   protected static tableName = "taste_profiles";
@@ -57,11 +63,40 @@ export class TasteProfileModel extends BaseModel {
     );
   }
 
-  static async findById(
+  /**
+   * Read one profile by id, scoped to its owning organization (§11.7/§5.5).
+   * `organizationId` is REQUIRED and always applied to the WHERE clause — a
+   * caller holding only a leaked/guessed uuid cannot read another org's row
+   * (analog: `GbpWorkItemModel.findByIdForScope`). Returns `undefined` when the
+   * id belongs to a different organization — indistinguishable from "missing",
+   * which is deliberate: it leaks no existence information across tenants.
+   */
+  static async findByIdForOrg(
     id: string,
+    organizationId: number,
     trx?: QueryContext
   ): Promise<ITasteProfile | undefined> {
-    return super.findById(id, trx);
+    const row = await this.table(trx)
+      .where({ id, organization_id: organizationId })
+      .first();
+    return row ? this.deserializeJsonFields(row) : undefined;
+  }
+
+  /**
+   * SEALED (§11.7). `BaseModel.findById(id)` is unscoped, so inheriting it would
+   * hand every caller a cross-tenant read of `taste_profiles`. Overriding it to
+   * take no arguments makes `TasteProfileModel.findById(id)` a COMPILE error
+   * (TS2554), not a runtime hope — the org scope cannot be forgotten.
+   * TypeScript forbids widening the base signature with a required param
+   * (TS2417), which is why this is a seal + a scoped sibling rather than an
+   * extra argument on `findById` itself.
+   *
+   * @deprecated Use {@link findByIdForOrg}.
+   */
+  static async findById(): Promise<never> {
+    throw new Error(
+      "TasteProfileModel.findById is unscoped and disabled — use findByIdForOrg(id, organizationId) (§11.7)."
+    );
   }
 
   /**
@@ -87,14 +122,19 @@ export class TasteProfileModel extends BaseModel {
   /**
    * Mark a profile approved (Tier 3 owner sign-off). AI drafts; the human
    * stakes — nothing publishes until this flips `status` to `approved`.
+   *
+   * Tenant-scoped (§11.7): `organizationId` is REQUIRED and part of the WHERE
+   * clause, so an owner can only ever approve their OWN profile. Returns the
+   * number of rows updated — 0 when the id belongs to another organization.
    */
   static async markApproved(
     id: string,
+    organizationId: number,
     approvedBy: string,
     trx?: QueryContext
   ): Promise<number> {
     return this.table(trx)
-      .where({ id })
+      .where({ id, organization_id: organizationId })
       .update({
         status: "approved",
         approved_by: approvedBy,
@@ -103,7 +143,28 @@ export class TasteProfileModel extends BaseModel {
       });
   }
 
-  static async deleteById(id: string, trx?: QueryContext): Promise<number> {
-    return this.table(trx).where({ id }).del();
+  /**
+   * Delete one profile by id, scoped to its owning organization (§11.7).
+   * `organizationId` is REQUIRED — a caller cannot delete another org's row.
+   * Returns the number of rows deleted (0 = wrong org, or already gone).
+   */
+  static async deleteByIdForOrg(
+    id: string,
+    organizationId: number,
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.table(trx).where({ id, organization_id: organizationId }).del();
+  }
+
+  /**
+   * SEALED (§11.7) — see {@link findById}. An unscoped delete-by-id is the most
+   * destructive cross-tenant hole of the three; disabled at compile time.
+   *
+   * @deprecated Use {@link deleteByIdForOrg}.
+   */
+  static async deleteById(): Promise<never> {
+    throw new Error(
+      "TasteProfileModel.deleteById is unscoped and disabled — use deleteByIdForOrg(id, organizationId) (§11.7)."
+    );
   }
 }
