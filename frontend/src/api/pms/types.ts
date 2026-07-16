@@ -22,7 +22,6 @@ export type StepKey =
   | "admin_approval"
   | "client_approval"
   | "monthly_agents"
-  | "task_creation"
   | "complete";
 
 export type MonthlyAgentKey =
@@ -48,14 +47,7 @@ export interface AgentResult {
   error?: string;
 }
 
-export interface TasksCreatedSummary {
-  user: number;
-  alloro: number;
-  total: number;
-}
-
 export interface AutomationSummary {
-  tasksCreated: TasksCreatedSummary;
   agentResults: {
     summary?: AgentResult;
     referral_engine?: AgentResult;

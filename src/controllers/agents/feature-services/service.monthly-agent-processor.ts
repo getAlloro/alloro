@@ -4,8 +4,8 @@
  * Monthly agents pipeline (Plan 1: RE → dashboard-metrics → Summary v2) for a
  * single client. Owns GBP/PMS/Rybbit data fetch, the Referral Engine and
  * Summary v2 retry loops (3 attempts each), the deterministic dashboard-metrics
- * compute between them, post-Zod Summary validators, and task creation. Returns
- * outputs + raw data in memory (raw GBP persistence happens in processClient).
+ * compute between them and post-Zod Summary validators. Returns outputs + raw
+ * data in memory for persistence by the caller.
  *
  * Split out of service.agent-orchestrator.ts in the decomposition pass —
  * behavior identical. Re-exported from service.agent-orchestrator.ts to
@@ -22,15 +22,7 @@ import { getPreviousMonthRange } from "../feature-utils/dateHelpers";
 import {
   buildSummaryPayload,
   buildReferralEnginePayload,
-  buildOpportunityPayload,
-  buildCroOptimizerPayload,
 } from "./service.agent-input-builder";
-import {
-  createTasksFromOpportunityOutput,
-  createTasksFromCroOptimizerOutput,
-  createTasksFromReferralEngineOutput,
-  createTasksFromSummaryV2Output,
-} from "./service.task-creator";
 import { resolveLocationId } from "../../../utils/locationResolver";
 import { GooglePropertyModel } from "../../../models/GooglePropertyModel";
 import { fetchRybbitMonthlyComparison } from "../../../utils/rybbit/service.rybbit-data";
@@ -336,9 +328,8 @@ export async function processMonthlyAgents(
     const summaryStartTime = Date.now();
     log(`  [MONTHLY] Running Summary v2 agent (max 3 attempts)`);
 
-    // Pull latest LLM-curated ranking recommendations for this org+location.
-    // Summary becomes the sole USER-task writer; ranking output flows in here
-    // instead of writing its own RANKING-typed tasks.
+    // Pull latest LLM-curated ranking recommendations for this org+location so
+    // Summary can prioritize them alongside the other monthly signals.
     let rankingRecommendations: any[] | null = null;
     try {
       rankingRecommendations = await fetchLatestRankingRecommendations(
@@ -420,31 +411,6 @@ export async function processMonthlyAgents(
         }
       }
     }
-
-    // === STEP 4 [DISABLED Plan 1]: Opportunity Agent ===
-    // Disabled: Summary v2 absorbs cross-domain action picking.
-    // Code preserved for revival path (uncomment + re-enable in task-creator).
-    if (false) {
-      // void to preserve type usage references (so removal of this block is one-line)
-      void buildOpportunityPayload;
-      void createTasksFromOpportunityOutput;
-    }
-
-    // === STEP 5 [DISABLED Plan 1]: CRO Optimizer Agent ===
-    // Disabled: Summary v2 absorbs cross-domain action picking.
-    if (false) {
-      void buildCroOptimizerPayload;
-      void createTasksFromCroOptimizerOutput;
-    }
-
-    // === STEP 6: Create tasks from action items ===
-    // Plan 1: Summary v2 writes USER tasks (top_actions[]).
-    // RE writes ALLORO tasks ONLY (alloro_automation_opportunities; the
-    // practice_action_plan branch was removed and items now feed Summary instead).
-    if (summaryOutput) {
-      await createTasksFromSummaryV2Output(summaryOutput, googleAccountId, organizationId, locationId);
-    }
-    await createTasksFromReferralEngineOutput(referralEngineOutput!, googleAccountId, organizationId, locationId);
 
     const totalDuration = Date.now() - monthlyStartTime;
     log(`  [MONTHLY] ✓ All monthly agents complete for ${domain} (${totalDuration}ms / ${(totalDuration / 1000).toFixed(1)}s)`);

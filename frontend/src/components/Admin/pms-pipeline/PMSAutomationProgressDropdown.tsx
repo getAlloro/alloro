@@ -9,7 +9,6 @@ import {
   FileText,
   Bot,
   CheckCircle2,
-  ListChecks,
   RefreshCw,
 } from "lucide-react";
 import {
@@ -41,7 +40,6 @@ const STEP_ORDER: StepKey[] = [
   "admin_approval",
   "client_approval",
   "monthly_agents",
-  "task_creation",
   "complete",
 ];
 
@@ -55,7 +53,6 @@ const STEP_ICONS: Record<
   admin_approval: CheckCircle2,
   client_approval: CheckCircle2,
   monthly_agents: Bot,
-  task_creation: ListChecks,
   complete: Check,
 };
 
@@ -450,17 +447,7 @@ export function PMSAutomationProgressDropdown({
                   Restart error: {restartError}
                 </p>
               )}
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <div>
-                  <span className="text-gray-500">Tasks Created:</span>
-                  <span className="ml-2 font-semibold text-gray-900">
-                    {summary.tasksCreated.total}
-                  </span>
-                  <span className="ml-1 text-xs text-gray-500">
-                    ({summary.tasksCreated.user} USER,{" "}
-                    {summary.tasksCreated.alloro} ALLORO)
-                  </span>
-                </div>
+              <div className="text-sm">
                 {summary.duration && (
                   <div>
                     <span className="text-gray-500">Duration:</span>

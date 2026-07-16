@@ -6,6 +6,7 @@ import { PmProjectModel } from "../../models/PmProjectModel";
 import { PmTaskAttachmentModel } from "../../models/PmTaskAttachmentModel";
 import { PmNotificationModel } from "../../models/PmNotificationModel";
 import { UserModel } from "../../models/UserModel";
+import { sendPmMovementEmails } from "./feature-services/PmNotificationEmailService";
 import { logPmActivity } from "./pmActivityLogger";
 import { deleteFromS3 } from "../../utils/core/s3";
 import type { QueryContext } from "../../models/BaseModel";
@@ -188,6 +189,7 @@ export async function moveTask(req: AuthRequest, res: Response): Promise<any> {
   try {
     const { id } = req.params;
     const { column_id: targetColumnId, position: targetPosition } = req.body;
+    const actorUserId = Number(req.user!.userId);
 
     if (!targetColumnId || targetPosition === undefined) {
       return res.status(400).json({
@@ -292,6 +294,18 @@ export async function moveTask(req: AuthRequest, res: Response): Promise<any> {
     });
 
     const updated = await PmTaskModel.findById(id);
+    if (sourceColumnId !== targetColumnId) {
+      await sendPmMovementEmails({
+        actorUserId,
+        projectId: existing.project_id,
+        taskId: id,
+        taskTitle: existing.title,
+        recipientUserIds: [existing.created_by, existing.assigned_to],
+        fromLabel: sourceCol?.name ?? "Unknown column",
+        toLabel: targetCol?.name ?? "Unknown column",
+        movementLabel: "Task moved",
+      });
+    }
     return res.json({ success: true, data: updated });
   } catch (error) {
     return handleError(res, error, "moveTask");
@@ -407,6 +421,7 @@ export async function deleteTask(req: AuthRequest, res: Response): Promise<any> 
 // backlog in input order.
 export async function bulkMoveTasksToProject(req: AuthRequest, res: Response): Promise<any> {
   try {
+    const actorUserId = Number(req.user!.userId);
     const { task_ids, target_project_id } = req.body as {
       task_ids?: unknown;
       target_project_id?: unknown;
@@ -508,6 +523,19 @@ export async function bulkMoveTasksToProject(req: AuthRequest, res: Response): P
         await PmTaskModel.compactColumnPositions(sourceColId, trx);
       }
     });
+
+    for (const task of tasks) {
+      await sendPmMovementEmails({
+        actorUserId,
+        projectId: target_project_id,
+        taskId: task.id,
+        taskTitle: task.title,
+        recipientUserIds: [task.created_by, task.assigned_to],
+        fromLabel: task.source_column_name ?? "Source backlog",
+        toLabel: `${targetProject.name} / ${targetBacklog.name}`,
+        movementLabel: "Task moved to project",
+      });
+    }
 
     return res.json({ success: true, data: { moved_task_ids: movedIds } });
   } catch (error) {

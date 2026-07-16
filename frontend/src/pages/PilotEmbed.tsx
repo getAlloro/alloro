@@ -185,7 +185,10 @@ function PilotEmbedRoutes() {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/patientJourneyInsights" element={<Dashboard />} />
         <Route path="/pmsStatistics" element={<Dashboard />} />
-        <Route path="/tasks" element={<Dashboard />} />
+        <Route
+          path="/tasks"
+          element={<Navigate to="/dashboard" replace />}
+        />
         <Route path="/rankings" element={<Dashboard />} />
         <Route path="/gbp-manager" element={<GbpManagerPage />} />
         <Route path="/referralEngine" element={<Dashboard />} />

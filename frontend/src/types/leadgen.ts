@@ -33,6 +33,8 @@ export type FinalStage =
  */
 export type LinkedVia = "persisted" | "email" | "domain" | null;
 
+export type LeadgenDataQuality = "valid" | "empty" | "report_without_audit";
+
 export interface SubmissionSummary {
   id: string;
   email: string | null;
@@ -44,9 +46,15 @@ export interface SubmissionSummary {
   final_stage: FinalStage;
   completed: boolean;
   abandoned: boolean;
+  /** Server-computed integrity state for honest admin rendering. */
+  data_quality?: LeadgenDataQuality;
+  /** Persisted account relationship. Derived matches must not populate this. */
+  user_id?: number | null;
+  /** Persisted conversion timestamp. This is the only conversion signal. */
+  converted_at?: string | null;
   first_seen_at: string;
   last_seen_at: string;
-  /** Derived at list-render time — see `LinkedVia` comment. */
+  /** Neutral association hint. It never implies account linkage or conversion. */
   linked_via?: LinkedVia;
 }
 

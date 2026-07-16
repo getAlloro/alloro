@@ -29,9 +29,9 @@ export function useInvalidatePmsFileSurfaces(
     void queryClient.invalidateQueries({
       queryKey: QUERY_KEYS.pmsFocusPeriod(orgId, locationId),
     });
-    // agentData/tasks are intentionally NOT invalidated here: edit/delete no
-    // longer trigger a rerun, so analysis output is unchanged until the user
-    // explicitly reruns via "Get updated insights".
+    // Agent output is intentionally not invalidated here: edit/delete no longer
+    // trigger a rerun, so analysis stays unchanged until the user explicitly
+    // reruns via "Get updated insights".
   };
 }
 

@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Leadgen Tracking Integrity and Empty-Session Cleanup Spec</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; margin-top: 12px; background: var(--soft); }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; }
+    .status-card { border-color: var(--ink) !important; }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 900px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; letter-spacing: -0.045em; }
+    h2 { font-size: 1.35rem; }
+    h3 { font-size: 1rem; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; overflow-wrap: anywhere; }
+    .meta-grid, .split-grid, .evidence-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div, .evidence-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    .task-card dl { margin-bottom: 0; }
+    .task-card dt { margin-top: 12px; }
+    .task-card dd { font-weight: 500; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    .number { display: block; font-size: 2rem; font-weight: 800; line-height: 1; margin-bottom: 8px; }
+    .note { padding: 14px 16px; border-left: 4px solid var(--ink); background: var(--soft); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.94rem; }
+    th, td { padding: 10px; border: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { background: var(--soft); }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+      table { display: block; overflow-x: auto; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill">Completed</span>
+      </div>
+      <h1>Leadgen Tracking Integrity and Empty-Session Cleanup</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/07152026-leadgen-tracking-integrity-cleanup</dd></div>
+        <div><dt>Size</dt><dd>Large · cross-repository</dd></div>
+        <div><dt>Risk</dt><dd>Level 4 · production data deletion</dd></div>
+        <div><dt>Primary Worktree</dt><dd>codex/leadgen-tracking-investigation</dd></div>
+        <div><dt>Data Scope</dt><dd>Local, dev, and production cleanup complete</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>The admin Leadgen Submissions page currently presents several different facts as if they were the same. A derived email or domain match is displayed as “Account Linked,” abandoned sessions are hidden behind a stage label, and a raw 60-second browser timer is presented as “Spent 1+ Min on Report” even when the session has no audit to report on.</p>
+      <p>The local database also contains empty session shells produced when session creation succeeds but the first event does not. The cleanup must remove only those provably empty rows without erasing legitimate anonymous traffic or the invalid historical rows needed to prove the tracking defect.</p>
+      <p>Revision 6 extends that reviewed cleanup to the dev and production databases after live read-only checks found the exact same 15 strict-empty session IDs on both targets.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Make the backend the authority for valid leadgen state transitions, make the leadgen client measure real visible report time and preserve audit identity, make the admin read model show one honest row per session, and delete only strict-empty rows from the confirmed local, dev, and production databases.</p>
+      <p class="note"><strong>Cleanup contract:</strong> a row is eligible only when it has zero events and every identity/link field is null: <code>audit_id</code>, <code>email</code>, <code>domain</code>, <code>practice_search_string</code>, <code>user_id</code>, and <code>converted_at</code>. Local cleanup is complete. Read-only live preflight found exactly <strong>15</strong> candidates in dev and <strong>15</strong> in production, with the same candidate-ID hash on both targets.</p>
+    </section>
+
+    <section class="spec-card" id="evidence">
+      <h2>Current Evidence</h2>
+      <div class="evidence-grid">
+        <div><span class="number">251</span>Total local sessions shown by the current stats query.</div>
+        <div><span class="number">253</span>Rows returned by the current list join because two sessions fan out across matching organizations.</div>
+        <div><span class="number">15</span>Strict-empty rows with no events and no identifying or linking data.</div>
+        <div><span class="number">30</span>Verified anonymous landings with a real <code>landed</code> event; these must remain.</div>
+        <div><span class="number">7</span>Report-stage sessions without an audit; these must remain as flagged integrity evidence.</div>
+        <div><span class="number">4</span><code>report_engaged_1min</code> sessions without an audit or email.</div>
+      </div>
+      <h3>Dev and production preflight — 2026-07-15</h3>
+      <p>Read-only transactions against <code>alloro-dev-pgsql…/appdb</code> and <code>alloro-pgsql…/appdb</code> each returned 251 total sessions, 236 event-backed sessions, 15 strict-empty sessions, 7 report-without-audit sessions, 4 unaudited one-minute sessions, and 0 persisted conversions. The 15 candidate IDs match exactly across dev and production (<code>md5 8c92914edaa03f99b8342ccb49c95d4a</code>). No live rows were changed during preflight.</p>
+      <h3>Reproduced session</h3>
+      <p><code>6b9e13b6-8e9b-40ea-9405-34511d3936b7</code> recorded <code>results_viewed</code>, then <code>report_engaged_1min</code> 60.261 seconds later, but has no audit, email, domain, or practice. Later <code>abandoned</code> events extended <code>last_seen</code>. This proves the screenshot is not a display-only problem.</p>
+      <h3>Snapshot classifications</h3>
+      <table>
+        <thead><tr><th>Class</th><th>Count</th><th>Plan action</th></tr></thead>
+        <tbody>
+          <tr><td>Strict empty</td><td>15</td><td>Delete from the confirmed local Docker database after dry-run and transactional capture.</td></tr>
+          <tr><td>Anonymous lifecycle only</td><td>239</td><td>Keep. A blank email/domain does not mean an empty session.</td></tr>
+          <tr><td>Legitimate anonymous landing</td><td>30</td><td>Keep and count as real traffic.</td></tr>
+          <tr><td>Report stage without audit</td><td>7</td><td>Keep, exclude from valid report metrics, and flag as unverified history.</td></tr>
+          <tr><td>False one-minute engagement</td><td>4</td><td>Keep as historical evidence; prevent recurrence.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Repositories and worktrees</h3>
+      <ul>
+        <li><code>/Users/rustinedave/Desktop/alloro-worktrees/leadgen-tracking-investigation</code> — clean Alloro worktree and source of this plan.</li>
+        <li><code>/Users/rustinedave/Desktop/alloro-leadgen-tool</code> — clean leadgen client checkout; create a separate <code>codex/</code> worktree before execution so <code>main</code> remains untouched.</li>
+        <li><code>/Users/rustinedave/Desktop/alloro-docs</code> — checked for parity; it has customer dashboard documentation but no leadgen admin-submission surface. No docs change is planned because this is an internal super-admin analytics page.</li>
+      </ul>
+      <h3>Relevant Alloro files</h3>
+      <ul>
+        <li><code>src/controllers/leadgen-tracking/LeadgenTrackingController.ts</code> — currently performs session, event, and summary writes without one transaction.</li>
+        <li><code>src/controllers/leadgen-tracking/feature-utils/util.event-ordering.ts</code> — validates event names and ordinal order but not semantic prerequisites.</li>
+        <li><code>src/models/LeadgenSessionModel.ts</code> — owns admin list/stats queries and currently permits join fan-out.</li>
+        <li><code>src/models/LeadgenEventModel.ts</code> — event persistence and dedup checks.</li>
+        <li><code>src/controllers/admin-leadgen/feature-services/service.funnel-aggregator.ts</code> — currently treats a zero-event session as a landing and accepts invalid report activity.</li>
+        <li><code>src/routes/leadgenTracking.ts</code> — public shared-secret/rate-limited routes without schema middleware.</li>
+        <li><code>frontend/src/components/Admin/leadgen/LeadgenSubmissionsTable.tsx</code> — 412-line table that overwrites persisted stage meaning with derived matches.</li>
+        <li><code>frontend/src/types/leadgen.ts</code> — admin read-model types.</li>
+      </ul>
+      <h3>Relevant leadgen-client files</h3>
+      <ul>
+        <li><code>App.tsx</code> — direct audit links currently imply email submission and may reuse an unrelated stored session.</li>
+        <li><code>src/lib/tracking.ts</code> — persists session IDs indefinitely, marks dedup state before network success, and can leave empty session shells.</li>
+        <li><code>src/components/stages/DashboardStage.tsx</code> — starts a raw 60-second mount timer without visibility, focus, or audit checks.</li>
+        <li><code>src/components/EmailPaywallOverlay.tsx</code> — unlocks after an unsuccessful email submission result.</li>
+        <li><code>src/components/EmailNotifyFab.tsx</code> — closest client-side success-gating analog because it checks <code>result.ok</code> before advancing.</li>
+      </ul>
+      <h3>Architecture contracts and analogs</h3>
+      <ul>
+        <li><strong>Backend:</strong> follow §6.1, §6.3, §7.1–§7.4, §10.5, §11.2, and §20.1–§20.5. Reference <code>src/controllers/gbp-automation/GbpAutomationController.ts</code> with its <code>feature-services/</code> structure and <code>src/models/GbpDeploymentAttemptModel.ts</code> for transaction/row-lock behavior.</li>
+        <li><strong>Frontend:</strong> follow §12.1, §12.3, §13.1–§13.3, §14.1–§14.3, and §16.1–§16.3. Reference <code>frontend/src/components/Admin/leadgen/FormSubmissionsTab/SubmissionRow.tsx</code> for row extraction and <code>frontend/src/components/Admin/leadgen/leadgenSubmissionDetail.utils.ts</code> for display utilities.</li>
+        <li><strong>Validation:</strong> follow §5.2, §5.4, and §11.2. Reference <code>src/middleware/validate.ts</code> and <code>src/routes/admin/organizations.ts</code>.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Preserve the legacy public response envelope used by already-deployed leadgen clients while tightening server validation.</li>
+            <li>Run multi-table session/event changes in one transaction with session serialization as required by §10.5.</li>
+            <li>Validate public payloads at the route boundary under §11.2 and re-enforce semantic state rules on the server under §5.4.</li>
+            <li>Keep one admin list row per session and distinguish persisted links from derived matches.</li>
+            <li>Measure one-minute engagement only while the report is visible and the window is focused.</li>
+            <li>Use the exact strict-empty predicate on every target, capture affected rows, and verify the result in the same execution.</li>
+            <li>Run dev before production. Create a full-row backup with mode <code>600</code> on each server, verify its count and candidate hash, lock the reviewed rows, and use the same predicate plus <code>RETURNING</code> inside the delete transaction.</li>
+            <li>Add automated contract and failure tests in both repositories under §20.1–§20.4.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>Do not delete all rows that look blank in the admin table.</li>
+            <li>Do not delete the 30 verified anonymous landings, the 239 anonymous lifecycle rows, or the 7 report-without-audit rows.</li>
+            <li>Do not start production cleanup unless dev cleanup commits and its protected counts remain stable.</li>
+            <li>Do not copy full live-row backups into the repository or chat; retain them only on their corresponding server.</li>
+            <li>Do not call a domain or email coincidence a conversion or persisted account link.</li>
+            <li>Do not add more responsibility to the oversized <code>App.tsx</code>, <code>DashboardStage.tsx</code>, or admin table.</li>
+            <li>Do not introduce a second validation path or raw database access outside models.</li>
+            <li>Do not silently change the endpoint contract before the new client is deployed.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out of scope</h3>
+      <ul>
+        <li>Any dev/production deletion outside the strict-empty predicate, deployment, PR, merge, or release promotion.</li>
+        <li>A browser-ID schema migration or retroactive recovery of unknown audit IDs.</li>
+        <li>A full rewrite of <code>DashboardStage.tsx</code>, <code>App.tsx</code>, or <code>LeadgenSubmissions.tsx</code>.</li>
+        <li>Deleting anonymous funnel traffic merely because it has no email or domain.</li>
+        <li>Adding a customer-facing Alloro Docs page for an internal admin-only analytics surface.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level 4 — Major Impact.</strong> Revision 6 authorizes destructive changes to production data. Although the rows are eventless shells and dev/production candidate sets match exactly, an incorrect predicate or target could erase acquisition history. Execution therefore requires an explicit post-revision confirmation, dev-first sequencing, full-row recovery backups, row locking, and immediate before/after verification.</p>
+      <h3>Risks and mitigations</h3>
+      <table>
+        <thead><tr><th>Risk</th><th>Top mitigation</th></tr></thead>
+        <tbody>
+          <tr><td>Cached/older clients send the existing payload shape.</td><td>Keep the current route and response envelope, make new fields additive, and deploy the corrected client before enforcing any rule that old clients cannot satisfy.</td></tr>
+          <tr><td>Session/event races create duplicates or regress summary state.</td><td>Serialize the session row and commit session creation/update plus event insert in one model-owned transaction.</td></tr>
+          <tr><td>Cleanup erases real anonymous acquisition data.</td><td>Delete only rows matching the strict-empty predicate at deletion time; export full candidate rows to a mode-600 server-local backup and use <code>RETURNING</code> for an auditable count.</td></tr>
+          <tr><td>Production differs from the reviewed snapshot or changes between backup and delete.</td><td>Abort unless the live count is 15 and the candidate-ID hash is <code>8c92914edaa03f99b8342ccb49c95d4a</code>; lock the candidate session rows and reapply the complete predicate in the delete statement.</td></tr>
+          <tr><td>A live cleanup cannot be recovered.</td><td>Back up every session column before deletion, verify the backup count/hash, retain the file on the same server with mode 600, and restore only from that target's backup if recovery is required.</td></tr>
+          <tr><td>The historical seven invalid rows cannot be repaired truthfully.</td><td>Retain and classify them as unverified history; exclude them from valid report engagement instead of inventing an audit link.</td></tr>
+          <tr><td>Session-count metrics change after empty rows are removed/excluded.</td><td>Document the definition as event-backed sessions and cover stats/funnel behavior with deterministic fixtures.</td></tr>
+          <tr><td>Cross-repository work drifts or is released in the wrong order.</td><td>Freeze the shared contract in T1/T2, use separate worktrees, verify both builds, and require one cross-repo acceptance run before cleanup.</td></tr>
+          <tr><td>Oversized files become harder to maintain.</td><td>Extract hooks, row components, and pure display/session helpers; do not add new stateful logic to files already above §13.1 limits.</td></tr>
+        </tbody>
+      </table>
+      <h3>Pushback</h3>
+      <ul>
+        <li><strong>Do not delete “blank-looking” rows.</strong> Most are legitimate anonymous sessions. The safe boundary is zero events plus zero identity/link data.</li>
+        <li><strong>Do not keep the “Spent 1+ Min” wording.</strong> A mount timer does not prove active reading. The corrected claim is “Report Visible for 1+ Min.”</li>
+        <li><strong>Do not turn derived matches into conversions.</strong> A coincidence on email/domain is evidence for review, not a persisted relationship.</li>
+        <li><strong>Do not treat matching counts as sufficient.</strong> Production deletion is allowed only after the exact candidate hash also matches, the full-row backup is verified, and dev cleanup passes first.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> public leadgen event ingestion, beacon ingestion, session summaries, admin list/stats/funnel responses, leadgen session persistence, report engagement instrumentation, email-gate unlocking, CSV/admin row rendering, and 15 strict-empty <code>leadgen_sessions</code> rows in each of dev and production. No event row, valid session, historical invalid-report row, customer dashboard, or database schema is authorized to change.</p>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+
+      <article class="task-card">
+        <h3>T1: Authoritative transactional event ingestion</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Create <code>src/controllers/leadgen-tracking/feature-services/LeadgenEventIngestionService.ts</code> and <code>src/validation/leadgenTracking.schemas.ts</code>. Make the controller thin. Apply the same schema and semantic policy to JSON and parsed beacon events. Perform session resolution/create, event dedup/insert, and summary update in one transaction with a session-row lock. Require a real <code>audit_id</code> for every report-surface event—<code>stage_viewed_5</code>, <code>email_gate_shown</code>, <code>email_submitted</code>, <code>results_viewed</code>, and <code>report_engaged_1min</code>—require prior <code>results_viewed</code> for <code>report_engaged_1min</code>, and require an email for <code>email_submitted</code>. Order those stages by the actual UI sequence: <code>stage_viewed_5 → email_gate_shown → email_submitted → results_viewed → report_engaged_1min</code>. Treat <code>audit_id</code> as write-once/must-match. Retain the current public response envelope and the legacy session endpoint for cached builds.</dd></div>
+          <div><dt>Files</dt><dd><code>src/routes/leadgenTracking.ts</code>, <code>src/controllers/leadgen-tracking/LeadgenTrackingController.ts</code>, new service/schema files, <code>src/controllers/leadgen-tracking/feature-utils/util.event-ordering.ts</code>, <code>src/models/LeadgenSessionModel.ts</code>, <code>src/models/LeadgenEventModel.ts</code>, and focused backend tests.</dd></div>
+          <div><dt>Depends on</dt><dd>None. T1 and T2 may start in parallel from this frozen contract, but client compatibility must be checked before strict enforcement is released.</dd></div>
+          <div><dt>Verify</dt><dd>Focused Vitest tests prove rollback on partial failure, dedup under concurrency, write-once audit identity, invalid report rejection, and compatible success responses; then run backend type-check and conventions checks.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: Reliable leadgen session and audit identity</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Use the event path to atomically establish a new session instead of pre-creating empty shells. Replace indefinite local session reuse with a 30-minute idle visit TTL. On a direct audit link, adopt the server-returned original session when available; otherwise rotate to a fresh audit-specific session rather than reusing unrelated local state. Send <code>audit_id</code> with dashboard/report events. Return network outcomes from tracking, retry transient failures with a small bound, and mark client dedup state only after a successful 2xx. Separate report access from “email submitted.” Extract session/audit logic from <code>App.tsx</code> and <code>tracking.ts</code> into a hook and pure helper.</dd></div>
+          <div><dt>Files</dt><dd>Leadgen repo: <code>App.tsx</code>, <code>src/lib/tracking.ts</code>, new <code>src/hooks/useAuditSession.ts</code>, new <code>src/lib/trackingSession.ts</code>, <code>package.json</code>, lockfile, and pure tests.</dd></div>
+          <div><dt>Depends on</dt><dd>Shared contract frozen with T1.</dd></div>
+          <div><dt>Verify</dt><dd>Add Vitest as a development-only dependency and prove TTL rotation, unrelated-session rejection, direct-link adoption/fallback, audit propagation, retry bounds, and success-only dedup persistence.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: Honest report visibility and email-gate behavior</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Extract a report-visibility timer hook plus pure timing helper. Accumulate 60 seconds only while <code>document.visibilityState === "visible"</code> and the window is focused; pause and resume without double counting. Emit measured active/visible duration in <code>event_data</code>. Keep <code>DashboardStage.tsx</code> as a consumer rather than adding more logic. Require <code>submitEmailPaywall()</code> to return <code>ok: true</code> before unlock. Rename the valid admin event label to “Report Visible for 1+ Min.”</dd></div>
+          <div><dt>Files</dt><dd>Leadgen repo: <code>src/components/stages/DashboardStage.tsx</code>, <code>src/components/EmailPaywallOverlay.tsx</code>, new <code>src/hooks/useReportVisibilityTimer.ts</code>, new timing utility and tests. Alloro label utility/type files from T5 consume the revised wording.</dd></div>
+          <div><dt>Depends on</dt><dd>T2.</dd></div>
+          <div><dt>Verify</dt><dd>Fake-timer tests prove hidden/background time does not count, focus/visibility resumes correctly, one event fires at 60 active seconds, unmount cancels work, and failed email submission does not unlock.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: One-row, integrity-aware admin read model</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Replace fan-out organization/user joins with an aggregate or <code>EXISTS</code>-based read model that returns one row per session. Expose derived email/domain matches as neutral association hints, not persisted links. Add a computed data-quality classification for <code>valid</code>, <code>empty</code>, and <code>report_without_audit</code>. Define total sessions as event-backed sessions, keep conversion based only on persisted <code>converted_at</code>, and exclude invalid report-without-audit activity from valid funnel stages. Do not add a migration.</dd></div>
+          <div><dt>Files</dt><dd><code>src/models/LeadgenSessionModel.ts</code>, <code>src/controllers/admin-leadgen/feature-services/service.funnel-aggregator.ts</code>, admin DTO/controller mapping if required, <code>src/__tests__/leadgen-event-ingestion.test.ts</code>, and <code>src/__tests__/leadgen-admin-integrity.test.ts</code>.</dd></div>
+          <div><dt>Depends on</dt><dd>T1, because both tasks change session-model boundaries.</dd></div>
+          <div><dt>Verify</dt><dd>Fixtures reproduce the current 251-session/253-row fan-out and prove the corrected result is unique; tests cover empty exclusion, invalid report classification, honest conversion totals, and valid anonymous landings.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T5: Honest, maintainable admin rendering</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Extract <code>LeadgenSubmissionRow.tsx</code> and <code>leadgenSubmissionDisplay.utils.ts</code> so the modified table falls below the §13.1 hard ceiling. Render persisted account/conversion state separately from neutral “Existing account email match” or “Known organization match” hints. Never overwrite <code>final_stage</code> with “Account Linked” from a derived match. Show abandonment as a separate badge. Render historical <code>report_without_audit</code> rows as “Unverified report activity.” Update timeline/table wording to “Report Visible for 1+ Min” only for valid new events.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/components/Admin/leadgen/LeadgenSubmissionsTable.tsx</code>, new row/display utility files, <code>frontend/src/types/leadgen.ts</code>, <code>frontend/src/components/Admin/leadgen/LeadgenSubmissionDetail/EventTimeline.tsx</code>, <code>frontend/src/components/Admin/leadgen/leadgenSubmissionDetail.utils.ts</code>, the detail caller, and focused frontend tests where the existing harness supports them.</dd></div>
+          <div><dt>Depends on</dt><dd>T4 read-model contract.</dd></div>
+          <div><dt>Verify</dt><dd>Type-check/build plus fixtures for derived matches, persisted links, abandonment, valid report engagement, and unverified historical activity. Confirm the table contains no duplicate session IDs.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T6: Strict local empty-session cleanup</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Before deletion, confirm the active target is the local Docker PostgreSQL instance on <code>localhost:5433</code> with database <code>appdb</code>. Re-run the exact predicate and require the candidate count to match the reviewed set; the current expected count is 15, but the predicate—not a hard-coded ID list—is authoritative. Export candidate IDs and timestamps to a secure temporary file outside the repository. Delete in a transaction using the same predicate and <code>RETURNING</code>. Verify strict-empty count is zero and all protected classifications remain unchanged.</dd></div>
+          <div><dt>Files</dt><dd>No repository file. This is an execution-time local data operation using the existing database connection/configuration after target verification.</dd></div>
+          <div><dt>Depends on</dt><dd>T4 and T5, so retained invalid history remains visible and understandable after cleanup.</dd></div>
+          <div><dt>Verify</dt><dd>Before/after counts for total, strict-empty, legitimate anonymous landings, anonymous lifecycle rows, report-without-audit, and valid linked/conversion rows. Abort if the host/database is not the confirmed local Docker target or the dry-run classification changes unexpectedly.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T7: Cross-repository verification and acceptance</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Run both repositories' automated gates, then validate the running leadgen client at <code>http://localhost:3002</code> and the authoritative admin surface at <code>http://localhost:3000/admin</code>. Generate <code>test.html</code> and <code>test-results.json</code> in this plan folder under §20.5. Record the Alloro Docs parity decision: no customer docs change because the affected page is internal super-admin analytics and no matching documentation exists.</dd></div>
+          <div><dt>Files</dt><dd><code>plans/07152026-leadgen-tracking-integrity-cleanup/test.html</code> and <code>test-results.json</code> at execution time.</dd></div>
+          <div><dt>Depends on</dt><dd>T1–T6.</dd></div>
+          <div><dt>Verify</dt><dd>Alloro: focused tests, <code>npx tsc --noEmit</code>, <code>npm run check:all</code>, and frontend build. Leadgen: tests, <code>npx tsc --noEmit</code>, and build. Manual: a hidden/background report does not fire at wall-clock 60 seconds; a focused visible report fires once at 60 active seconds with the correct audit ID; admin rows are unique and honestly labeled; strict-empty is zero; seven historical invalid rows remain flagged; conversion totals use persisted conversions only.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T8 (Rev 6): Sequential dev and production strict-empty cleanup</h3>
+        <dl>
+          <div><dt>Do</dt><dd>After explicit approval of Revision 6, connect through <code>alloro-dev</code> and <code>alloro-app</code> using their server-managed environment files. On dev first, re-run the exact predicate in a read-only transaction; abort unless count=15 and candidate hash=<code>8c92914edaa03f99b8342ccb49c95d4a</code>. Export every candidate column to a server-local mode-600 recovery file, verify the backup count/hash, lock the candidate sessions, delete transactionally with the complete predicate and <code>RETURNING</code>, and verify total=236, strict-empty=0, event-backed=236, report-without-audit=7, and unaudited one-minute=4. Only after dev passes, repeat the same guarded procedure on production. Keep both backups on their source servers and report their paths without exposing row contents.</dd></div>
+          <div><dt>Files</dt><dd>No repository code file. Operational recovery artifacts are created under <code>/var/tmp</code> on the dev and production servers only.</dd></div>
+          <div><dt>Depends on</dt><dd>T6 local proof, T7 automated verification, Revision 6 approval, and successful dev cleanup before production.</dd></div>
+          <div><dt>Verify</dt><dd>For each target: sanitized host/database identity, preflight count/hash, mode-600 full-row backup count/hash, delete <code>RETURNING</code> count=15, strict-empty=0, total/event-backed=236, protected invalid-history counts unchanged at 7 and 4, persisted conversions unchanged, and database health endpoint healthy after the transaction.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="dependency-chain">
+      <h2>Dependency and Execution Order</h2>
+      <ol>
+        <li>Freeze the shared event contract. Implement T1 in the Alloro worktree and T2 in a new leadgen-client worktree in parallel.</li>
+        <li>Complete T3 after T2. Complete T4 after T1 because both touch session-model behavior.</li>
+        <li>Complete T5 against the T4 DTO/read-model contract.</li>
+        <li>Run the full cross-repository application verification before T6.</li>
+        <li>Run T6 against the confirmed local Docker database, then complete T7 and its acceptance artifacts.</li>
+        <li>After explicit Revision 6 approval, run T8 against dev first. Continue to production only after dev cleanup and protected-count verification pass.</li>
+      </ol>
+      <p>Because this is a Large plan with eight tasks and more than ten touched files, execution should use bounded sub-agents/worktrees for the independent T1 and T2 streams. Each stream must stay within its listed repository and files. T8 is strictly sequential and must not be delegated across targets in parallel.</p>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" checked disabled> JSON and beacon event ingestion share boundary validation and server-side semantic rules.</li>
+        <li><input type="checkbox" checked disabled> Session/event multi-table writes are transactional and concurrency tests pass.</li>
+        <li><input type="checkbox" checked disabled> Direct audit links cannot reuse an unrelated stored session and all report events carry the resolved audit ID.</li>
+        <li><input type="checkbox" checked disabled> Hidden or unfocused report time does not count toward the one-minute engagement event.</li>
+        <li><input type="checkbox" checked disabled> Failed email capture does not unlock the report.</li>
+        <li><input type="checkbox" checked disabled> Admin list returns exactly one row per session and never presents a derived match as a persisted account link or conversion.</li>
+        <li><input type="checkbox" checked disabled> Empty sessions are excluded from analytics and invalid historical report activity is clearly flagged and excluded from valid report metrics.</li>
+        <li><input type="checkbox" checked disabled> The 15 current strict-empty local rows are deleted using the reviewed predicate; protected anonymous and invalid-history classifications remain.</li>
+        <li><input type="checkbox" checked disabled> Dev strict-empty cleanup removes exactly 15 reviewed rows after a verified full-row backup; protected counts remain stable and database health passes.</li>
+        <li><input type="checkbox" checked disabled> Production strict-empty cleanup removes exactly 15 reviewed rows only after dev passes and after a separate verified full-row backup; protected counts remain stable and database health passes.</li>
+        <li><input type="checkbox" checked disabled> No schema migration or non-candidate live row is changed.</li>
+        <li><input type="checkbox" checked disabled> Alloro targeted tests, type-check, <code>npm run check:all</code>, and frontend build pass with no new errors.</li>
+        <li><input type="checkbox" checked disabled> Leadgen-client tests, type-check, and production build pass with no new errors.</li>
+        <li><input type="checkbox" checked disabled> <code>test-results.json</code> rolls up to <code>Passed</code> with nine passes and one explicit user-authorized browser-integration waiver.</li>
+        <li><input type="checkbox" checked disabled> Docs parity is recorded as checked with no update required for the internal-only admin surface.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-07-15</h3>
+        <p><strong>Change:</strong> Marked execution in progress and recorded the isolated leadgen-client worktree at <code>/Users/rustinedave/Desktop/alloro-leadgen-worktrees/tracking-integrity-client</code> on <code>codex/leadgen-tracking-integrity-client</code>.</p>
+        <p><strong>Reason:</strong> Execution start: the user approved <code>-x</code> and required separate worktrees.</p>
+        <p><strong>Updated Done criteria:</strong> none.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 2 - 2026-07-15</h3>
+        <p><strong>Change:</strong> Corrected the T4 funnel-service path from <code>src/controllers/leadgen-tracking/feature-services/service.funnel-aggregator.ts</code> to the verified existing file <code>src/controllers/admin-leadgen/feature-services/service.funnel-aggregator.ts</code>.</p>
+        <p><strong>Reason:</strong> Execution deviation: the planned path did not exist; the admin-leadgen file is the current owner of funnel aggregation.</p>
+        <p><strong>Updated Done criteria:</strong> none.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 3 - 2026-07-15</h3>
+        <p><strong>Change:</strong> Defined the audit-bound report surface as <code>stage_viewed_5</code>, <code>email_gate_shown</code>, <code>email_submitted</code>, <code>results_viewed</code>, and <code>report_engaged_1min</code>.</p>
+        <p><strong>Reason:</strong> Execution deviation: the narrower three-event definition found six invalid sessions, while the complete report-surface definition reproduces the seven historical rows recorded in the investigation.</p>
+        <p><strong>Updated Done criteria:</strong> all five report-surface events must carry and pass server validation for a real audit ID.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 4 - 2026-07-15</h3>
+        <p><strong>Change:</strong> Added the existing submission-detail timeline label consumer to T5 and required it to use session audit context for historical report events.</p>
+        <p><strong>Reason:</strong> Execution deviation: blast-radius review found that the table row could correctly flag invalid history while the detail timeline still reused the valid one-minute label without integrity context.</p>
+        <p><strong>Updated Done criteria:</strong> the seven retained report-without-audit sessions must show “Unverified report activity” in both the table and detail timeline.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 5 - 2026-07-15</h3>
+        <p><strong>Change:</strong> Corrected the shared report-surface progression order to <code>stage_viewed_5 → email_gate_shown → email_submitted → results_viewed → report_engaged_1min</code> and required funnel buckets to use the same order.</p>
+        <p><strong>Reason:</strong> Execution deviation: local integration showed the prior ordinal placed email submission after engagement, causing a valid post-paywall <code>results_viewed</code> event to be suppressed as a regression and its one-minute successor to fail the prior-results rule.</p>
+        <p><strong>Updated Done criteria:</strong> an audited paywall sequence must persist all five events in order, and email submission alone must not count as results viewed or one-minute report engagement.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 6 - 2026-07-15</h3>
+        <p><strong>Change:</strong> Added T8 for guarded dev-then-production deletion of the same 15 strict-empty sessions already removed locally. Live read-only preflight recorded identical counts, date ranges, and candidate-ID hashes on dev and production. Added full-row server-local backups, hash verification, row locking, transactional deletion, protected-count checks, health checks, and explicit recovery boundaries.</p>
+        <p><strong>Reason:</strong> Scope addition: the user explicitly requested cleanup of this reviewed dataset in dev and production after local execution.</p>
+        <p><strong>Updated Done criteria:</strong> dev and production each require a verified mode-600 full-row backup, exactly 15 returned deletions, strict-empty=0, total/event-backed=236, report-without-audit=7, unaudited one-minute=4, unchanged conversions, healthy database checks, and no change outside the exact candidate set.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 7 - 2026-07-16</h3>
+        <p><strong>Change:</strong> Marked Revision 6 execution in progress for the guarded T8 dev-then-production cleanup.</p>
+        <p><strong>Reason:</strong> Execution start: the user explicitly approved the revised Level 4 cleanup plan.</p>
+        <p><strong>Updated Done criteria:</strong> none.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 8 - 2026-07-16</h3>
+        <p><strong>Change:</strong> Recorded T8 completion. Dev and production each received a verified server-local mode-600 full-row backup, then deleted exactly 15 reviewed strict-empty sessions through the guarded transaction. Both targets now have 236 total/event-backed sessions, zero strict-empty sessions, 7 retained report-without-audit sessions, 4 retained unaudited one-minute sessions, unchanged conversions, and healthy database endpoints.</p>
+        <p><strong>Reason:</strong> Execution result: Revision 6 completed successfully in the required dev-first order with no predicate, hash, lock, count, protected-data, or health-check mismatch.</p>
+        <p><strong>Updated Done criteria:</strong> none; the T8 dev and production criteria are satisfied and recorded in <code>test-results.json</code>.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 9 - 2026-07-16</h3>
+        <p><strong>Change:</strong> Finalized the plan as Completed and recorded the remaining positive focused-browser timer check as a user-authorized waived failure. Preserved the passing deterministic timer tests, unfocused runtime negative evidence, live audit-bound API proof, automated gates, and local/dev/production cleanup evidence.</p>
+        <p><strong>Reason:</strong> User QA: the user explicitly requested a one-time waiver and <code>-d</code> finalization. The waiver is narrow and does not convert an unrun browser check into a pass.</p>
+        <p><strong>Updated Done criteria:</strong> acceptance rolls up to Passed through nine passes plus the written T3 waiver; the focused browser integration remains recommended before code promotion to production.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

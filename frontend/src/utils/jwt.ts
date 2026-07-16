@@ -12,6 +12,18 @@ interface JwtIdentityClaims {
   userId?: unknown;
   id?: unknown;
   user_id?: unknown;
+  sub?: unknown;
+}
+
+function normalizeUserIdClaim(value: unknown): number | null {
+  if (typeof value === "number" && Number.isSafeInteger(value) && value > 0) {
+    return value;
+  }
+  if (typeof value !== "string" || !/^\d+$/.test(value)) {
+    return null;
+  }
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
 /** Decode the signed-in user id from a JWT's payload, or null if unreadable. */
@@ -25,8 +37,12 @@ export function decodeJwtUserId(
     const decoded = JSON.parse(
       atob(payload.replace(/-/g, "+").replace(/_/g, "/"))
     ) as JwtIdentityClaims;
-    const id = decoded?.userId ?? decoded?.id ?? decoded?.user_id;
-    return typeof id === "number" ? id : null;
+    return (
+      normalizeUserIdClaim(decoded?.userId) ??
+      normalizeUserIdClaim(decoded?.id) ??
+      normalizeUserIdClaim(decoded?.user_id) ??
+      normalizeUserIdClaim(decoded?.sub)
+    );
   } catch {
     return null;
   }

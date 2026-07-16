@@ -33,22 +33,6 @@ export interface AgentSummary {
   avg_confidence: number;
 }
 
-export interface AgentSummaryWithCounts extends AgentSummary {
-  fixed_count: number;
-}
-
-export interface RecommendationFilters {
-  source?: string;
-  status?: string;
-  month?: string;
-}
-
-export interface StatusUpdatePayload {
-  status: string | null;
-  completed_at: Date | null;
-  updated_at: Date;
-}
-
 export interface AgentDetailFilters {
   verdict?: string;
   status?: string;
@@ -74,49 +58,6 @@ export class AgentRecommendationModel extends BaseModel {
     await this.table(trx).insert(serialized);
   }
 
-  /**
-   * Bulk-insert pre-built recommendation rows verbatim. The recommendation
-   * parser constructs each row with its own created_at/updated_at/observed_at
-   * timestamps and an already-stringified evidence_links field, so this insert
-   * is a passthrough (no timestamp injection, no JSON re-serialization) to
-   * preserve the original inline db("agent_recommendations").insert(rows) call.
-   */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  static async bulkInsertRaw(
-    recommendations: Record<string, unknown>[],
-    trx?: QueryContext
-  ): Promise<void> {
-    await this.table(trx).insert(recommendations);
-  }
-
-  /**
-   * Fetch historical recommendations for an agent filtered by status,
-   * projecting the context columns the guardian/governance payload builder
-   * needs, ordered newest-first and capped. Mirrors the inline historical
-   * PASS/REJECT context queries in the governance validator.
-   */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  static async findHistoricalByAgentAndStatus(
-    agentUnderTest: string,
-    status: string,
-    limit: number,
-    trx?: QueryContext
-  ): Promise<any[]> {
-    return this.table(trx)
-      .where("agent_under_test", agentUnderTest)
-      .where("status", status)
-      .select(
-        "id",
-        "title",
-        "explanation",
-        "verdict",
-        "confidence",
-        "created_at"
-      )
-      .orderBy("created_at", "desc")
-      .limit(limit);
-  }
-
   static async findByAgentResultId(
     agentResultId: number,
     trx?: QueryContext
@@ -134,13 +75,6 @@ export class AgentRecommendationModel extends BaseModel {
     trx?: QueryContext
   ): Promise<number> {
     return super.updateById(id, { status }, trx);
-  }
-
-  static async deleteByIds(
-    ids: number[],
-    trx?: QueryContext
-  ): Promise<number> {
-    return this.table(trx).whereIn("id", ids).del();
   }
 
   static async deleteByAgentResultId(
@@ -248,169 +182,4 @@ export class AgentRecommendationModel extends BaseModel {
     return this.paginate<IAgentRecommendation>(buildQuery, pagination, trx);
   }
 
-  // =====================================================================
-  // Admin Agent Insights Methods
-  // =====================================================================
-
-  /**
-   * Get summary with counts including fixed_count (status = 'PASS').
-   * Returns ALL agent types (no SQL-level pagination) — pagination
-   * is applied in-memory by the caller to preserve original behavior.
-   */
-  static async getSummaryWithCounts(
-    startDate: string,
-    endDateTime: string,
-    trx?: QueryContext
-  ): Promise<AgentSummaryWithCounts[]> {
-    const data = await (trx || db)("agent_recommendations")
-      .select("agent_under_test")
-      .count("* as total_recommendations")
-      .select(
-        (trx || db).raw(
-          "SUM(CASE WHEN verdict = 'PASS' THEN 1 ELSE 0 END) as pass_count"
-        )
-      )
-      .select(
-        (trx || db).raw(
-          "SUM(CASE WHEN verdict = 'FAIL' THEN 1 ELSE 0 END) as fail_count"
-        )
-      )
-      .select(
-        (trx || db).raw(
-          "SUM(CASE WHEN status = 'PASS' THEN 1 ELSE 0 END) as fixed_count"
-        )
-      )
-      .avg("confidence as avg_confidence")
-      .where("created_at", ">=", startDate)
-      .where("created_at", "<=", endDateTime)
-      .whereNotNull("agent_under_test")
-      .groupBy("agent_under_test")
-      .orderBy("agent_under_test");
-
-    return data as unknown as AgentSummaryWithCounts[];
-  }
-
-  /**
-   * Find recommendations for an agent with optional filters and pagination.
-   * Builds the query dynamically based on provided filters.
-   */
-  static async findByAgentWithFilters(
-    agentType: string,
-    dateRange: { startDate: string; endDateTime: string } | null,
-    filters: RecommendationFilters,
-    pagination: { limit: number; offset: number },
-    trx?: QueryContext
-  ): Promise<{ data: any[]; total: number }> {
-    let query = this.table(trx).where("agent_under_test", agentType);
-
-    if (dateRange) {
-      query = query
-        .where("created_at", ">=", dateRange.startDate)
-        .where("created_at", "<=", dateRange.endDateTime);
-    }
-
-    if (filters.source && filters.source !== "all") {
-      query = query.where("source_agent_type", filters.source);
-    }
-
-    if (filters.status && filters.status !== "all") {
-      query = query.where("status", filters.status);
-    }
-
-    // Get total count
-    const countQuery = query.clone();
-    const [{ count }] = await countQuery.count("* as count");
-    const total = parseInt(String(count), 10);
-
-    // Get paginated results
-    const data = await query
-      .orderBy("created_at", "desc")
-      .limit(pagination.limit)
-      .offset(pagination.offset)
-      .select("*");
-
-    return { data, total };
-  }
-
-  /**
-   * Update a recommendation with status logic payload
-   * (status, completed_at, updated_at).
-   */
-  static async updateWithStatusLogic(
-    id: number,
-    payload: StatusUpdatePayload,
-    trx?: QueryContext
-  ): Promise<number> {
-    return this.table(trx).where("id", id).update(payload);
-  }
-
-  /**
-   * Mark all REJECT recommendations for an agent as PASS.
-   * Optionally filter by source_agent_type.
-   */
-  static async markAllAsPassForAgent(
-    agentType: string,
-    sourceFilter?: string,
-    trx?: QueryContext
-  ): Promise<number> {
-    let query = this.table(trx)
-      .where("agent_under_test", agentType)
-      .where("status", "REJECT");
-
-    if (sourceFilter && sourceFilter !== "all") {
-      query = query.where("source_agent_type", sourceFilter);
-    }
-
-    return query.update({
-      status: "PASS",
-      completed_at: new Date(),
-      updated_at: new Date(),
-    });
-  }
-
-  /**
-   * Delete all recommendations within a date range.
-   */
-  static async deleteByDateRange(
-    startDate: string,
-    endDateTime: string,
-    trx?: QueryContext
-  ): Promise<number> {
-    return this.table(trx)
-      .where("created_at", ">=", startDate)
-      .where("created_at", "<=", endDateTime)
-      .del();
-  }
-
-  /**
-   * Find recommendation IDs for an agent filtered by status.
-   * Returns only the id column for efficiency.
-   */
-  static async findIdsByAgentAndStatus(
-    agentType: string,
-    status: "PASS" | "REJECT",
-    trx?: QueryContext
-  ): Promise<number[]> {
-    const rows = await this.table(trx)
-      .where("agent_under_test", agentType)
-      .where("status", status)
-      .select("id");
-
-    return rows.map((r: { id: number }) => r.id);
-  }
-
-  /**
-   * Find recommendations by an array of IDs with optional column selection.
-   * Defaults to id, title, explanation, status.
-   */
-  static async findByIds(
-    ids: number[],
-    columns?: string[],
-    trx?: QueryContext
-  ): Promise<any[]> {
-    if (ids.length === 0) return [];
-
-    const selectCols = columns || ["id", "title", "explanation", "status"];
-    return this.table(trx).whereIn("id", ids).select(...selectCols);
-  }
 }

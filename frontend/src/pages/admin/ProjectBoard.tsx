@@ -1,5 +1,9 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import {
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft,
@@ -31,10 +35,12 @@ import { formatDeadline } from "../../utils/pmDateFormat";
 import { showErrorToast } from "../../lib/toast";
 import type { TaskContextAction } from "../../components/pm/TaskCard";
 import { logger } from "../../lib/logger";
+import { resolvePmTaskTab } from "./projectBoardDeepLink.utils";
 
 export default function ProjectBoard() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { activeProject, fetchProject, isLoading, deleteProject, archiveProject } =
     usePmStore();
   const selectedTaskIds = usePmStore((s) => s.selectedTaskIds);
@@ -56,6 +62,8 @@ export default function ProjectBoard() {
   // Target task ids that the current action applies to — equals selection
   // unless a right-click fired on a non-selected card (single-item mode).
   const [actionTargetIds, setActionTargetIds] = useState<string[] | null>(null);
+  const requestedTaskId = searchParams.get("task");
+  const requestedTab = resolvePmTaskTab(searchParams.get("tab"));
 
   useEffect(() => {
     if (projectId) fetchProject(projectId);
@@ -99,6 +107,21 @@ export default function ProjectBoard() {
     () => activeProject?.columns.flatMap((c) => c.tasks) ?? [],
     [activeProject]
   );
+
+  useEffect(() => {
+    if (!requestedTaskId || !activeProject) return;
+    const task = allTasks.find((candidate) => candidate.id === requestedTaskId);
+    if (task) setSelectedTask(task);
+  }, [activeProject, allTasks, requestedTaskId]);
+
+  const handleCloseTaskPanel = useCallback(() => {
+    setSelectedTask(null);
+    if (!searchParams.has("task") && !searchParams.has("tab")) return;
+    const next = new URLSearchParams(searchParams);
+    next.delete("task");
+    next.delete("tab");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   // Selection diagnostics: are all selected (or action-target) tasks in Backlog?
   const allTargetsInBacklog = useMemo(() => {
@@ -492,7 +515,10 @@ export default function ProjectBoard() {
       {/* Task Detail Panel */}
       <TaskDetailPanel
         task={selectedTask}
-        onClose={() => setSelectedTask(null)}
+        onClose={handleCloseTaskPanel}
+        initialTab={
+          selectedTask?.id === requestedTaskId ? requestedTab : undefined
+        }
         isBacklog={
           selectedTask
             ? activeProject.columns.find((c) => c.id === selectedTask.column_id)?.is_backlog ?? false

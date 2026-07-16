@@ -13,15 +13,19 @@ import {
   type CollisionDetection,
 } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
+import { Plus } from "lucide-react";
 import { usePmStore } from "../../stores/pmStore";
 import type { PmMyTask, PmMyTasksResponse } from "../../types/pm";
 import { MeTaskCard } from "./MeTaskCard";
 import type { TaskContextAction } from "./TaskCard";
 import { DoneWeekGroups } from "./DoneWeekGroups";
 
+export type MeKanbanAddColumn = "todo" | "in_progress";
+
 interface MeKanbanBoardProps {
   tasks: PmMyTasksResponse;
   onRefresh: () => void;
+  onAddTask?: (columnKey: MeKanbanAddColumn) => void;
   highlightedTaskId?: string | null;
   onCardClick?: (task: PmMyTask) => void;
   selectedTaskIds?: Set<string>;
@@ -44,6 +48,7 @@ function DroppableColumn({
   highlightedTaskId,
   isDraggingOver,
   onCardClick,
+  onAddTask,
   selectedTaskIds,
   selectionActive,
   onToggleSelect,
@@ -55,6 +60,7 @@ function DroppableColumn({
   highlightedTaskId?: string | null;
   isDraggingOver: boolean;
   onCardClick?: (task: PmMyTask) => void;
+  onAddTask?: (columnKey: MeKanbanAddColumn) => void;
   selectedTaskIds?: Set<string>;
   selectionActive?: boolean;
   onToggleSelect?: (taskId: string) => void;
@@ -62,6 +68,12 @@ function DroppableColumn({
 }) {
   const { setNodeRef } = useDroppable({ id: columnKey });
   const isDone = columnKey === "done";
+  const canAdd = columnKey === "todo" || columnKey === "in_progress";
+  const handleAddTask = () => {
+    if (columnKey === "todo" || columnKey === "in_progress") {
+      onAddTask?.(columnKey);
+    }
+  };
   const emptyState = (
     <p className="text-center text-[11px] py-6" style={{ color: "var(--color-pm-text-muted)" }}>
       —
@@ -74,9 +86,23 @@ function DroppableColumn({
         <span className="text-[11px] font-semibold tracking-wider" style={{ color: "var(--color-pm-text-muted)" }}>
           {label}
         </span>
-        <span className="text-[11px]" style={{ color: "var(--color-pm-text-muted)" }}>
-          {tasks.length}
-        </span>
+        <div className="flex h-6 items-center gap-1.5">
+          <span className="min-w-4 text-right text-[11px]" style={{ color: "var(--color-pm-text-muted)" }}>
+            {tasks.length}
+          </span>
+          {canAdd && (
+            <button
+              type="button"
+              onClick={handleAddTask}
+              aria-label={`Add task to ${label.toLowerCase()}`}
+              title={`Add task to ${label.toLowerCase()}`}
+              className="flex h-6 w-6 items-center justify-center rounded-md transition-colors duration-150 hover:bg-[var(--color-pm-bg-hover)]"
+              style={{ color: "var(--color-pm-text-muted)", border: "1px solid var(--color-pm-border)" }}
+            >
+              <Plus className="h-3.5 w-3.5" strokeWidth={1.8} />
+            </button>
+          )}
+        </div>
       </div>
 
       <div
@@ -210,6 +236,7 @@ const columnOnlyCollision: CollisionDetection = (args) => {
 export function MeKanbanBoard({
   tasks,
   onRefresh,
+  onAddTask,
   highlightedTaskId,
   onCardClick,
   selectedTaskIds,
@@ -299,6 +326,7 @@ export function MeKanbanBoard({
             highlightedTaskId={highlightedTaskId}
             isDraggingOver={overColumn === key}
             onCardClick={onCardClick}
+            onAddTask={onAddTask}
             selectedTaskIds={selectedTaskIds}
             selectionActive={selectionActive}
             onToggleSelect={onToggleSelect}

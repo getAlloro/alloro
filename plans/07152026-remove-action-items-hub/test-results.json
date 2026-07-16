@@ -1,0 +1,119 @@
+{
+  "plan": "plans/07152026-remove-action-items-hub",
+  "generatedAt": "2026-07-16",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "T1",
+      "title": "Practice Hub reads the latest Summary without legacy tasks",
+      "surface": "ui",
+      "precondition": "Local app is running at http://localhost:3000 and an admin can Pilot into One Endodontics with a selected location that has Summary output.",
+      "steps": [
+        "Open http://localhost:3000/admin and Pilot into One Endodontics.",
+        "Open Practice Hub and inspect the One Thing banner and local review comparison.",
+        "Refresh the page and switch between locations if more than one location is available."
+      ],
+      "expected": "The One Thing banner and grounded comparison render from latest Summary output with no request to /api/tasks and no task-page link.",
+      "status": "pass",
+      "evidence": "Browser: http://localhost:3000/admin/organizations/39?section=pilot&userId=56 loaded One Endodontics Practice Hub with the One Thing 'Call Grove Dental Clinic — find out what changed', supported 'Open Patient Journey Insights' CTA, and referral/ranking/review/form comparison cards. Reload preserved Pilot state. Backend request log showed /api/agents/latest/39?locationId=14 and no /api/tasks request.",
+      "notes": "Verified in the in-app browser against the full backend-served app on port 3000.",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Action Items navigation and pages are retired with safe redirects",
+      "surface": "ui",
+      "precondition": "Local app is running and the tester is signed in as an admin.",
+      "steps": [
+        "Confirm the admin sidebar has no Action Items entry.",
+        "Open http://localhost:3000/admin/action-items.",
+        "In a Pilot session, open /tasks directly."
+      ],
+      "expected": "The admin URL redirects to /admin/mission-control, the client URL redirects to /dashboard, and neither retired page renders.",
+      "status": "pass",
+      "evidence": "Browser: admin navigation contained no /admin/action-items link; http://localhost:3000/admin/action-items redirected to /admin/mission-control; http://localhost:3000/tasks redirected to /dashboard and did not render the retired page.",
+      "notes": "Verified with the authenticated local browser session.",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "Organization detail no longer exposes a Tasks tab",
+      "surface": "ui",
+      "precondition": "Local app is running and an organization detail page is accessible in Admin.",
+      "steps": [
+        "Open an organization detail page and select the Agent section.",
+        "Confirm there is no Tasks submenu item.",
+        "Add section=agent&tab=tasks to the page query string and reload."
+      ],
+      "expected": "No Tasks tab is available and the stale query is replaced with the Notifications tab without an error.",
+      "status": "pass",
+      "evidence": "Browser: One Endodontics organization detail exposed Notifications but no Tasks submenu. Direct /admin/organizations/39?section=agent&tab=tasks rewrote to ?section=agent&tab=notifications and rendered Notifications without error.",
+      "notes": "Verified in the in-app browser.",
+      "waiver": ""
+    },
+    {
+      "id": "T4",
+      "title": "PMS processing finishes with insights and creates no task rows",
+      "surface": "api",
+      "precondition": "Use a dev-safe PMS upload or rerun for a test client. Record a read-only legacy tasks row count for its organization and location before starting.",
+      "steps": [
+        "Run the approved PMS upload or rerun flow.",
+        "Observe the admin and client progress surfaces through completion.",
+        "Read the final automation status response and repeat the read-only legacy tasks row count."
+      ],
+      "expected": "Processing ends at insight completion with no task_creation stage or task counts, Summary and Referral results are present, and the legacy tasks row count is unchanged.",
+      "status": "fail",
+      "evidence": "Read-only local acceptance against completed One Endodontics Falls Church job 151: GET /api/pms/jobs/151/automation-status returned 200 with status=completed, currentStep=complete, message='Automation complete', no task_creation step, no tasksCreated object, Summary resultId 1546, and Referral resultId 1545. Legacy task rows for organization 39/location 14 remained 158 before and after. Admin AI PMS Automation showed job 151 as Approved.",
+      "notes": "A new PMS upload/rerun was not started. The local environment is connected to real external agent/data services, and the restart path deletes existing generated outputs before retriggering. The acceptance run first caught and then fixed historical task-count wording ('Complete - 11 tasks created'); the focused regression test now passes.",
+      "waiver": "Waived only for the destructive/external live-rerun step. The supported final response contract and unchanged legacy task-row count were verified read-only against a real completed local job, with focused automated coverage for historical payload normalization."
+    },
+    {
+      "id": "T5",
+      "title": "Ranking remains available without Action Plans",
+      "surface": "ui",
+      "precondition": "Local app is running and the selected client has a completed Ranking result.",
+      "steps": [
+        "Open the client Ranking view and inspect the latest result.",
+        "Open the admin Practice Ranking result for the same client.",
+        "Confirm ranking scores, recommendations, and history still render."
+      ],
+      "expected": "Ranking data remains usable, while Action Plans, Start Task controls, and links to /admin/action-items are absent.",
+      "status": "pass",
+      "evidence": "Browser: One Endodontics Local Rankings rendered #1 of 11, map, competitors, reviews, and supported recommendations with no Action Plans, Start Task, or /admin/action-items link. Admin /admin/practice-ranking expanded the July 1 batch and Falls Church result with Rank Score 100/100, analysis, factors, competitors, gaps, and drivers, with no retired task controls.",
+      "notes": "Verified in both client Pilot and admin ranking surfaces.",
+      "waiver": ""
+    },
+    {
+      "id": "T6",
+      "title": "Legacy task API is unavailable while workers remain healthy",
+      "surface": "api",
+      "precondition": "Local backend and worker are running with a valid authenticated test session.",
+      "steps": [
+        "Request GET /api/tasks with the test session.",
+        "Request the database health endpoint.",
+        "Inspect the local worker registry or process output for Proofline and Ranking."
+      ],
+      "expected": "The legacy endpoint returns 404, database health passes, and Proofline/Ranking worker registration remains unchanged.",
+      "status": "pass",
+      "evidence": "Authenticated GET http://localhost:3000/api/tasks returned 404 with NOT_FOUND; GET /api/health/db returned 200 healthy. Local worker started successfully, connected to Redis, logged 'All workers running', and scheduler output named both proofline and ranking. src/services/agentRegistry.ts retains handlers for both agents.",
+      "notes": "The worker was stopped immediately after registration evidence because its normal scheduler began a data-harvest run; no background test process was left running.",
+      "waiver": ""
+    },
+    {
+      "id": "T7",
+      "title": "Project Management tasks remain unchanged",
+      "surface": "ui",
+      "precondition": "Local app is running and the tester can open the admin Projects area.",
+      "steps": [
+        "Open the Projects dashboard and a project board.",
+        "Load the backlog or assigned task view.",
+        "Open an existing PM task and verify its normal controls are present."
+      ],
+      "expected": "Project boards and PM task views load through /api/pm/tasks with no missing routes, components, or controls.",
+      "status": "pass",
+      "evidence": "Browser: /admin/pm rendered projects, Backlog, tasks, and activity. Project Leads_Funnel_Follow Up opened at /admin/pm/48e386bf-81a4-4186-a544-91ceaec10cd6 with To Do/In Progress/Done columns and Add task controls. Backlog and existing task 'Advanced Root Canal - Fazel Fakhari' opened with Details, Attachments, Comments, assignee, priority, deadline, description, and Delete task controls.",
+      "notes": "Verified the separate Project Management task domain remained intact.",
+      "waiver": ""
+    }
+  ]
+}

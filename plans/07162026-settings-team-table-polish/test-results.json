@@ -1,0 +1,115 @@
+{
+  "plan": "plans/07162026-settings-team-table-polish",
+  "generatedAt": "2026-07-16",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "T1",
+      "title": "Animated role selector interaction contract",
+      "surface": "cli",
+      "precondition": "Frontend dependencies are available in the linked worktree.",
+      "steps": [
+        "Run npm run test -- UserRoleSelect.test.tsx from frontend/."
+      ],
+      "expected": "Mouse selection, Arrow Up/Down, Enter, Escape, listbox semantics, and focus restoration pass.",
+      "status": "pass",
+      "evidence": "2026-07-16: 2 focused Vitest checks passed.",
+      "notes": "JSDOM does not implement the HTML Popover API, so the test reads the portaled listbox with hidden-role queries while exercising the real state and keyboard handlers.",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Desktop Team Members table remains stable",
+      "surface": "ui",
+      "precondition": "Use a safe contained Alloro runtime with an authenticated admin Pilot session.",
+      "steps": [
+        "Open /admin and Pilot into a seeded organization.",
+        "Open /settings/users at desktop width.",
+        "Enter role edit mode for a member."
+      ],
+      "expected": "User, Role, Joined, and Actions columns remain stable; Change role, Remove, Save, and Cancel stay on one line.",
+      "status": "fail",
+      "evidence": "",
+      "notes": "Blocked from automated browser execution because this repository has no test:worktree adapter.",
+      "waiver": "Explicitly waived by Dave on 2026-07-16 after contained acceptance was blocked by the missing repository-owned test:worktree adapter. The desktop UI check was not run; this waiver accepts that risk for the dev/dave merge."
+    },
+    {
+      "id": "T3",
+      "title": "Role selector renders above table overflow",
+      "surface": "ui",
+      "precondition": "Authenticated admin on /settings/users with at least two members.",
+      "steps": [
+        "Open the last available Change role control.",
+        "Use mouse and keyboard to move through Viewer, Manager, and Admin.",
+        "Press Escape, then reopen and click outside."
+      ],
+      "expected": "The animated menu is not clipped, stays within the viewport, closes correctly, and restores focus after keyboard dismissal.",
+      "status": "fail",
+      "evidence": "",
+      "notes": "Requires a real Chromium pass because CSS anchor positioning and the Popover top layer are not modeled by JSDOM.",
+      "waiver": "Explicitly waived by Dave on 2026-07-16 after contained acceptance was blocked by the missing repository-owned test:worktree adapter. The real-browser popover and clipping check was not run; this waiver accepts that risk for the dev/dave merge."
+    },
+    {
+      "id": "T4",
+      "title": "Role changes remain staged until Save",
+      "surface": "ui",
+      "precondition": "Authenticated admin on /settings/users.",
+      "steps": [
+        "Choose a different role and select Cancel.",
+        "Confirm the original badge returns and no request is sent.",
+        "Choose a different role again and select Save."
+      ],
+      "expected": "Cancel is local-only; Save calls the existing endpoint, refreshes the users query, and shows shared toast feedback.",
+      "status": "fail",
+      "evidence": "",
+      "notes": "The focused selector tests cover local selection and Escape behavior, but no authenticated network inspection was run.",
+      "waiver": "Explicitly waived by Dave on 2026-07-16 after contained acceptance was blocked by the missing repository-owned test:worktree adapter. The authenticated staged-save and request-boundary check was not run; this waiver accepts that risk for the dev/dave merge."
+    },
+    {
+      "id": "T5",
+      "title": "Invite Member reuses the role selector and permissions",
+      "surface": "ui",
+      "precondition": "Test once as an admin and once as a manager.",
+      "steps": [
+        "Open Invite Member as an admin and inspect role options.",
+        "Open Invite Member as a manager and inspect role options."
+      ],
+      "expected": "Admins see Viewer, Manager, and Admin; managers see Viewer and Manager only; the same animated selector is used.",
+      "status": "fail",
+      "evidence": "",
+      "notes": "Role-option restrictions were reviewed in code but not exercised in an authenticated browser session.",
+      "waiver": "Explicitly waived by Dave on 2026-07-16 after contained acceptance was blocked by the missing repository-owned test:worktree adapter. The admin-versus-manager invitation check was not run; this waiver accepts that risk for the dev/dave merge."
+    },
+    {
+      "id": "T6",
+      "title": "Narrow tables scroll without wrapping structural fields",
+      "surface": "ui",
+      "precondition": "Authenticated user on /settings/users with members and a pending invitation.",
+      "steps": [
+        "Set the viewport below the 820px member-table minimum.",
+        "Scroll both tables horizontally.",
+        "Inspect a long name and email."
+      ],
+      "expected": "Tables scroll horizontally; headers, roles, dates, and actions remain single-line; long identities truncate with full values available by title.",
+      "status": "fail",
+      "evidence": "",
+      "notes": "The no-wrap, truncation, and overflow classes were verified statically; the narrow authenticated app surface was not opened.",
+      "waiver": "Explicitly waived by Dave on 2026-07-16 after contained acceptance was blocked by the missing repository-owned test:worktree adapter. The narrow responsive UI check was not run; this waiver accepts that risk for the dev/dave merge."
+    },
+    {
+      "id": "T7",
+      "title": "Alloro Docs default replica matches the polished tables",
+      "surface": "ui",
+      "precondition": "Build and serve the dedicated Alloro Docs worktree.",
+      "steps": [
+        "Open /docs/settings-users.",
+        "Compare the default member and pending-invitation tables with the implementation."
+      ],
+      "expected": "The replica uses the same table shell, fixed column proportions, truncation, badges, single-line actions, and pending-invitation hierarchy.",
+      "status": "pass",
+      "evidence": "2026-07-16: docs production build passed; browser DOM audit confirmed nowrap headers and Change Role, Remove, and Resend controls.",
+      "notes": "The docs replica is isolated in /Users/rustinedave/Desktop/alloro-docs-worktrees/settings-team-table-polish.",
+      "waiver": ""
+    }
+  ]
+}

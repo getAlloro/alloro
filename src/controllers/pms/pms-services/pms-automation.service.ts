@@ -3,6 +3,7 @@ import { OrganizationModel } from "../../../models/OrganizationModel";
 import { notifyAdmins } from "../../../utils/core/notificationHelper";
 import {
   completeStep,
+  normalizeAutomationStatusDetail,
   setAwaitingApproval,
   AutomationStatusDetail,
 } from "../../../utils/pms/pmsAutomationStatus";
@@ -23,10 +24,11 @@ export async function getJobAutomationStatus(jobId: number) {
   // Parse automation status
   let automationStatus: AutomationStatusDetail | null = null;
   if (job.automation_status_detail) {
-    automationStatus =
+    const detail =
       typeof job.automation_status_detail === "string"
         ? JSON.parse(job.automation_status_detail)
         : job.automation_status_detail;
+    automationStatus = normalizeAutomationStatusDetail(detail);
   }
 
   // Auto-advance: If job status is "completed" but pms_parser is still processing,
@@ -48,7 +50,6 @@ export async function getJobAutomationStatus(jobId: number) {
       }
       await notifyAdmins({
         summary: `PMS parser output is ready for admin review for ${orgLabel}`,
-        newActionItems: 1,
         practiceRankingsCompleted: [],
         monthlyAgentsCompleted: [],
       });
@@ -63,10 +64,11 @@ export async function getJobAutomationStatus(jobId: number) {
     // Refresh the automation status
     const updatedJob = await PmsJobModel.findAutomationStatusDetailById(jobId);
     if (updatedJob?.automation_status_detail) {
-      automationStatus =
+      const detail =
         typeof updatedJob.automation_status_detail === "string"
           ? JSON.parse(updatedJob.automation_status_detail)
           : updatedJob.automation_status_detail;
+      automationStatus = normalizeAutomationStatusDetail(detail);
     }
   }
 
@@ -98,10 +100,11 @@ export async function getActiveJobs(
   const formattedJobs = jobs.map((job: any) => {
     let automationStatus: AutomationStatusDetail | null = null;
     if (job.automation_status_detail) {
-      automationStatus =
+      const detail =
         typeof job.automation_status_detail === "string"
           ? JSON.parse(job.automation_status_detail)
           : job.automation_status_detail;
+      automationStatus = normalizeAutomationStatusDetail(detail);
     }
 
     return {

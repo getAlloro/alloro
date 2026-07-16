@@ -157,7 +157,7 @@ export function NotificationCard({ onTaskClick }: NotificationCardProps) {
           No notifications
         </p>
       ) : (
-        <div className="space-y-0.5 overflow-y-auto" style={{ maxHeight: 220 }}>
+        <div className="pm-scrollbar space-y-0.5 overflow-y-auto" style={{ maxHeight: 220 }}>
           {notifications.map((n) => {
             const project = n.metadata?.project_name;
             const isClickable = !!n.task_id && !!onTaskClick;

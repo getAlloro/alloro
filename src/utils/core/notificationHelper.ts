@@ -114,8 +114,8 @@ export async function createNotification(
             actionLabel = "View Rankings";
             break;
           case "task":
-            actionUrl = `${APP_URL}/dashboard?tab=tasks`;
-            actionLabel = "View Tasks";
+            actionUrl = `${APP_URL}/dashboard`;
+            actionLabel = "Open Dashboard";
             break;
           default:
             actionUrl = `${APP_URL}/dashboard`;
@@ -229,14 +229,11 @@ export async function forwardUserInquiry(data: UserInquiryData) {
  * Notify admins when PMS parser output is ready for review
  * Trigger: When n8n webhook completes processing
  */
-export async function notifyAdminsPmsReady(domain: string, jobId: number) {
-  const actionUrl = `${APP_URL}/admin/pms?job=${jobId}`;
-
+export async function notifyAdminsPmsReady(domain: string, _jobId: number) {
   return notifyAdmins({
     summary: `PMS parser output is ready for review for ${domain}`,
     practiceRankingsCompleted: [],
     monthlyAgentsCompleted: [],
-    newActionItems: 1,
   });
 }
 
@@ -244,20 +241,9 @@ export async function notifyAdminsPmsReady(domain: string, jobId: number) {
  * Notify admins when monthly agents complete
  * Trigger: After all monthly agents finish successfully
  */
-export async function notifyAdminsMonthlyAgentComplete(
-  practiceName: string,
-  agentResults: {
-    summaryId: number;
-    referralEngineId: number;
-    opportunityId: number;
-    croOptimizerId: number;
-  },
-  tasksCreated: { user: number; alloro: number; total: number }
-) {
-  const actionUrl = `${APP_URL}/admin`;
-
+export async function notifyAdminsMonthlyAgentComplete(practiceName: string) {
   return notifyAdmins({
-    summary: `Monthly agent run completed for ${practiceName}. Created ${tasksCreated.total} tasks (${tasksCreated.user} USER, ${tasksCreated.alloro} ALLORO).`,
+    summary: `Monthly insight generation completed for ${practiceName}. Summary and Referral Engine results are ready for review.`,
     monthlyAgentsCompleted: [
       { practiceName, agentType: "Summary", status: "completed" },
       {
@@ -265,10 +251,7 @@ export async function notifyAdminsMonthlyAgentComplete(
         agentType: "Referral Engine",
         status: "completed",
       },
-      { practiceName, agentType: "Opportunity", status: "completed" },
-      { practiceName, agentType: "CRO Optimizer", status: "completed" },
     ],
-    newActionItems: tasksCreated.total,
   });
 }
 
@@ -294,6 +277,5 @@ export async function notifyAdminsRankingComplete(
         rankPosition: 0,
       },
     ],
-    newActionItems: 0,
   });
 }

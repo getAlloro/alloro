@@ -8,7 +8,7 @@
  *                                       pipeline async; in-flight dedup
  *   - reselectCompetitorsAndTriggerRun — rerank-only: replace the set, bump
  *                                        competitor_set_revision, exclude from
- *                                        summary task creation
+ *                                        monthly Summary recommendations
  *
  * Transaction boundaries (db.transaction openers) preserved verbatim and trx is
  * threaded into the model calls. The async pipeline kickoff stays in
@@ -253,7 +253,7 @@ export async function finalizeAndTriggerRun(
  * This is intentionally a rerank-only path:
  * - location remains finalized
  * - competitor_set_revision increments
- * - the new practice_rankings row is excluded from summary task creation
+ * - the new practice_rankings row is excluded from monthly Summary recommendations
  */
 export async function reselectCompetitorsAndTriggerRun(
   locationId: number,

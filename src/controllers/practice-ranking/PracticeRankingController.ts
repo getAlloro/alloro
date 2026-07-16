@@ -3,7 +3,7 @@
  *
  * HTTP handler layer for the ranking-lifecycle endpoints (trigger, status,
  * results, list, accounts, retry, delete, refresh-competitors, latest, history,
- * tasks, in-flight). Named function exports per project convention.
+ * and in-flight). Named function exports per project convention.
  *
  * Thin controller: parse/validate request -> call feature-service -> shape
  * response via feature-utils -> map errors. Business logic lives in
@@ -24,7 +24,6 @@ import {
   validateLocations,
   validateRefreshCompetitors,
   validateRankingId,
-  validateTasksRequest,
 } from "./feature-utils/util.ranking-validator";
 import {
   formatTriggerResponse,
@@ -35,7 +34,6 @@ import {
   formatFullResults,
   formatRankingsList,
   formatAccountsList,
-  formatTasksList,
 } from "./feature-utils/util.ranking-formatter";
 import { formatAccounts } from "./feature-utils/util.account-formatter";
 import * as batchTracker from "./feature-services/service.batch-status-tracker";
@@ -54,7 +52,6 @@ import { getRankingHistory as getRankingHistoryData } from "./feature-services/s
 import { PracticeRankingModel } from "../../models/PracticeRankingModel";
 import { GoogleConnectionModel } from "../../models/GoogleConnectionModel";
 import { OrganizationModel } from "../../models/OrganizationModel";
-import { TaskModel } from "../../models/TaskModel";
 import { GooglePropertyModel } from "../../models/GooglePropertyModel";
 
 // POST /trigger
@@ -667,63 +664,6 @@ export async function getRankingHistory(
   } catch (error: any) {
     logError("GET /history", error);
     return fail500(res, "HISTORY_ERROR", error, "Failed to get ranking history");
-  }
-}
-
-// GET /tasks
-
-export async function getRankingTasks(
-  req: Request,
-  res: Response,
-): Promise<Response> {
-  try {
-    const { practiceRankingId, googleAccountId, gbpLocationId } = req.query;
-
-    log(
-      `[Tasks] Fetching approved ranking tasks with params: ${JSON.stringify(
-        req.query,
-      )}`,
-    );
-
-    const validation = validateTasksRequest(req.query);
-    if (!validation.valid) {
-      return res.status(400).json(validation.error);
-    }
-
-    let tasks: any[] = [];
-
-    if (practiceRankingId) {
-      // Fetch tasks for specific practice ranking
-      tasks = await TaskModel.findApprovedRankingTasksForRanking(
-        String(practiceRankingId),
-      );
-    } else if (googleAccountId && gbpLocationId) {
-      // Find the latest completed ranking for this location
-      const latestRanking =
-        await PracticeRankingModel.findLatestCompletedByOrgAndGbpLocation(
-          Number(googleAccountId),
-          String(gbpLocationId),
-        );
-
-      if (latestRanking) {
-        // Fetch tasks for this ranking
-        tasks = await TaskModel.findApprovedRankingTasksForRanking(
-          String(latestRanking.id),
-        );
-      }
-    } else if (googleAccountId) {
-      // Fetch all approved ranking tasks for this account (across all locations)
-      tasks = await TaskModel.findApprovedRankingTasksForOrganization(
-        Number(googleAccountId),
-      );
-    }
-
-    log(`[Tasks] Found ${tasks.length} approved ranking tasks`);
-
-    return res.json(formatTasksList(tasks));
-  } catch (error: any) {
-    logError("GET /tasks", error);
-    return fail500(res, "TASKS_ERROR", error, "Failed to fetch ranking tasks");
   }
 }
 

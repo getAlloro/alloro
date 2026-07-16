@@ -19,7 +19,6 @@ import {
 import type {
   RankingJob,
   RankingResult,
-  RankingTask,
 } from "../practiceRanking.types";
 import { RankingResultsView } from "./RankingResultsView";
 
@@ -34,7 +33,6 @@ export function JobRow({
   retryingJob,
   loadingResults,
   jobResults,
-  rankingTasks,
   refreshingCompetitors,
   onRefreshCompetitors,
   getStatusBadge,
@@ -50,7 +48,6 @@ export function JobRow({
   retryingJob: number | null;
   loadingResults: number | null;
   jobResults: Record<number, RankingResult>;
-  rankingTasks: Record<number, RankingTask[]>;
   refreshingCompetitors: boolean;
   onRefreshCompetitors: () => void;
   getStatusBadge: (status: string) => React.ReactNode;
@@ -182,7 +179,6 @@ export function JobRow({
                   result={jobResults[job.id]}
                   onRefreshCompetitors={onRefreshCompetitors}
                   refreshingCompetitors={refreshingCompetitors}
-                  rankingTasks={rankingTasks}
                 />
               ) : (
                 <div className="text-center text-gray-500">

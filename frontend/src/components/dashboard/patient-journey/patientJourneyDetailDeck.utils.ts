@@ -81,11 +81,25 @@ export function buildGateDetailContent(
 
   switch (stage.key) {
     case "impressions": {
+      const gsc = stage.metadata?.gsc;
+      const clickThroughRate =
+        gsc && Number.isFinite(gsc.ctr) ? gsc.ctr * 100 : null;
       return {
         title,
         description:
           "How often your website appeared in Google Search during the selected period.",
-        summary: [],
+        summary: [
+          metric(
+            "Google clicks",
+            gsc?.clicks,
+            "Clicks from a Google Search result to your website during the selected period.",
+          ),
+          metric(
+            "Google click-through rate",
+            formatPrecisePct(clickThroughRate),
+            "The share of Google Search appearances that resulted in a website click.",
+          ),
+        ],
         insightsTitle: "Top Google searches",
         insights: topGscQueries(stage),
         footer: "From Google Search Console for the selected period.",

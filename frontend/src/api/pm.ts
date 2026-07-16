@@ -59,15 +59,29 @@ function assertPmEnvelope<T extends object>(res: unknown): asserts res is T {
 
 // --- Projects ---
 
+type PmFetchOptions = {
+  cacheBust?: boolean;
+};
+
+function withCacheBust(path: string, options?: PmFetchOptions): string {
+  if (!options?.cacheBust) return path;
+  const separator = path.includes("?") ? "&" : "?";
+  return `${path}${separator}_=${Date.now()}`;
+}
+
 export async function fetchProjects(
-  status: string = "active"
+  status: string = "active",
+  options?: PmFetchOptions
 ): Promise<PmProject[]> {
-  const res = await apiGet({ path: `/pm/projects?status=${status}` });
+  const res = await apiGet({ path: withCacheBust(`/pm/projects?status=${status}`, options) });
   return unwrapPmEnvelope(res);
 }
 
-export async function fetchProject(id: string): Promise<PmProjectDetail> {
-  const res = await apiGet({ path: `/pm/projects/${id}` });
+export async function fetchProject(
+  id: string,
+  options?: PmFetchOptions
+): Promise<PmProjectDetail> {
+  const res = await apiGet({ path: withCacheBust(`/pm/projects/${id}`, options) });
   return unwrapPmEnvelope(res);
 }
 
@@ -403,6 +417,29 @@ export async function uploadAttachment(
       if (!total) return;
       const pct = Math.min(1, (evt.loaded || 0) / total);
       onProgress(pct);
+    },
+  });
+  return unwrapPmEnvelope(res);
+}
+
+export async function uploadCommentImage(
+  taskId: string,
+  commentId: string,
+  file: File,
+  onProgress?: (pct: number) => void
+): Promise<PmTaskAttachment> {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("comment_id", commentId);
+
+  const res = await apiPostWithProgress({
+    path: `/pm/tasks/${taskId}/attachments`,
+    passedData: formData,
+    onUploadProgress: (event) => {
+      if (!onProgress) return;
+      const total = event.total ?? file.size;
+      if (!total) return;
+      onProgress(Math.min(1, (event.loaded || 0) / total));
     },
   });
   return unwrapPmEnvelope(res);

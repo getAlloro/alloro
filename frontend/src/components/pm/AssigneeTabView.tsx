@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { AnimatePresence, motion, useMotionValue, useSpring, useTransform } from "framer-motion";
-import { CalendarRange, Filter, Target, Trash2, TrendingUp, UserRound } from "lucide-react";
+import { CalendarRange, Target, Trash2, TrendingUp } from "lucide-react";
 import { Area, Line, LineChart, ResponsiveContainer, Tooltip, XAxis } from "recharts";
 import {
   fetchAssignedStats,
@@ -15,13 +15,21 @@ import {
 import type { PmMyStats, PmMyTask, PmMyTasksResponse, PmUser, PmVelocityData } from "../../types/pm";
 import { showErrorToast } from "../../lib/toast";
 import { usePmStore } from "../../stores/pmStore";
+import { getCurrentUserId } from "../../utils/currentUser";
 import { BulkActionBar } from "../ui/DesignSystem";
-import { MeKanbanBoard } from "./MeKanbanBoard";
+import { AssigneeFiltersBar, type AssigneeFilters } from "./AssigneeFiltersBar";
+import { AssigneePicker } from "./AssigneePicker";
+import { CreateTaskModal } from "./CreateTaskModal";
+import { MeKanbanBoard, type MeKanbanAddColumn } from "./MeKanbanBoard";
 import { NotificationCard } from "./NotificationCard";
 import { TaskDetailPanel } from "./TaskDetailPanel";
 import type { TaskContextAction } from "./TaskCard";
 
 const RANGES = ["7d", "4w", "3m"] as const;
+const CREATE_COLUMN_LABELS: Record<MeKanbanAddColumn, "To Do" | "In Progress"> = {
+  todo: "To Do",
+  in_progress: "In Progress",
+};
 const SEVERITY_COLORS: Record<string, string> = {
   green: "#3D8B40",
   amber: "#D4920A",
@@ -29,12 +37,6 @@ const SEVERITY_COLORS: Record<string, string> = {
 };
 
 type Range = typeof RANGES[number];
-type AssigneeFilters = {
-  projectId: string;
-  priority: string;
-  overdueOnly: boolean;
-};
-
 type VelocityTooltipPayload = {
   dataKey?: string;
   value?: number | string;
@@ -106,6 +108,7 @@ export function AssigneeTabView({
   const [highlightedTaskId, setHighlightedTaskId] = useState<string | null>(null);
   const [selectedTask, setSelectedTask] = useState<PmMyTask | null>(null);
   const [bulkDeleteCount, setBulkDeleteCount] = useState<number | null>(null);
+  const [createColumn, setCreateColumn] = useState<MeKanbanAddColumn | null>(null);
   const [filters, setFilters] = useState<AssigneeFilters>({
     projectId: "all",
     priority: "all",
@@ -119,6 +122,8 @@ export function AssigneeTabView({
   const selectedUser = users.find((user) => user.id === userId) ?? null;
   const isMe = !showUserPicker;
   const label = isMe ? "Mine" : selectedUser?.display_name ?? "Assignee";
+  const createAssigneeId = isMe ? getCurrentUserId() : userId;
+  const createColumnName = createColumn ? CREATE_COLUMN_LABELS[createColumn] : undefined;
 
   useEffect(() => {
     clearMeTaskSelection();
@@ -242,6 +247,7 @@ export function AssigneeTabView({
         <MeKanbanBoard
           tasks={filteredTasks}
           onRefresh={loadData}
+          onAddTask={setCreateColumn}
           highlightedTaskId={highlightedTaskId}
           onCardClick={(task) => setSelectedTask(task)}
           selectedTaskIds={meSelectedTaskIds}
@@ -252,6 +258,14 @@ export function AssigneeTabView({
       )}
 
       <TaskDetailPanel task={selectedTask} onClose={() => { setSelectedTask(null); loadData(); }} />
+      <CreateTaskModal
+        isOpen={createColumn !== null}
+        onClose={() => setCreateColumn(null)}
+        lockedColumnName={createColumnName}
+        requireProjectSelection
+        requiredAssigneeId={createAssigneeId}
+        onCreated={loadData}
+      />
       <AssigneeBulkDeleteConfirm count={bulkDeleteCount} onCancel={() => setBulkDeleteCount(null)} onConfirm={handleBulkDelete} />
 
       {selectionCount > 0 && (
@@ -288,25 +302,6 @@ function SummaryCard({ icon, label, badge, value, subtitle, color }: {
   );
 }
 
-function AssigneePicker({ users, userId, onUserChange }: {
-  users: PmUser[];
-  userId: number | null;
-  onUserChange?: (userId: number) => void;
-}) {
-  return (
-    <div className="rounded-[14px] p-5" style={{ backgroundColor: "var(--color-pm-bg-secondary)", boxShadow: "var(--pm-shadow-card)", border: "1px solid var(--color-pm-border)" }}>
-      <div className="mb-3 flex items-center gap-2">
-        <UserRound className="h-4 w-4" strokeWidth={1.5} style={{ color: "#D66853" }} />
-        <span className="text-[13px] font-semibold" style={{ color: "var(--color-pm-text-primary)" }}>Assignee View</span>
-      </div>
-      <select value={userId ?? ""} onChange={(e) => onUserChange?.(Number(e.target.value))} className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={{ backgroundColor: "var(--color-pm-bg-primary)", border: "1px solid var(--color-pm-border)", color: "var(--color-pm-text-primary)" }}>
-        {users.map((user) => <option key={user.id} value={user.id}>{user.display_name}</option>)}
-      </select>
-      <p className="mt-2 text-[11px]" style={{ color: "var(--color-pm-text-muted)" }}>Review workload without changing project boards.</p>
-    </div>
-  );
-}
-
 function RangePicker({ value, onChange }: { value: Range; onChange: (value: Range) => void }) {
   return (
     <div className="flex gap-1">
@@ -315,29 +310,6 @@ function RangePicker({ value, onChange }: { value: Range; onChange: (value: Rang
           {range}
         </button>
       ))}
-    </div>
-  );
-}
-
-function AssigneeFiltersBar({ filters, projects, onChange }: {
-  filters: AssigneeFilters;
-  projects: Array<{ id: string; name: string }>;
-  onChange: (filters: AssigneeFilters) => void;
-}) {
-  return (
-    <div className="flex flex-wrap items-center gap-2 rounded-[14px] p-3" style={{ backgroundColor: "var(--color-pm-bg-secondary)", border: "1px solid var(--color-pm-border)" }}>
-      <Filter className="h-4 w-4" strokeWidth={1.5} style={{ color: "var(--color-pm-text-muted)" }} />
-      <select value={filters.projectId} onChange={(e) => onChange({ ...filters, projectId: e.target.value })} className="rounded-lg px-2.5 py-1.5 text-[12px] outline-none" style={{ backgroundColor: "var(--color-pm-bg-primary)", color: "var(--color-pm-text-primary)", border: "1px solid var(--color-pm-border)" }}>
-        <option value="all">All projects</option>
-        {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
-      </select>
-      <select value={filters.priority} onChange={(e) => onChange({ ...filters, priority: e.target.value })} className="rounded-lg px-2.5 py-1.5 text-[12px] outline-none" style={{ backgroundColor: "var(--color-pm-bg-primary)", color: "var(--color-pm-text-primary)", border: "1px solid var(--color-pm-border)" }}>
-        <option value="all">All priorities</option>
-        {["P1", "P2", "P3", "P4", "P5"].map((priority) => <option key={priority} value={priority}>{priority}</option>)}
-      </select>
-      <button onClick={() => onChange({ ...filters, overdueOnly: !filters.overdueOnly })} className="rounded-lg px-2.5 py-1.5 text-[12px] font-medium" style={{ backgroundColor: filters.overdueOnly ? "var(--color-pm-accent-subtle2)" : "var(--color-pm-bg-primary)", color: filters.overdueOnly ? "#D66853" : "var(--color-pm-text-muted)", border: "1px solid var(--color-pm-border)" }}>
-        Overdue
-      </button>
     </div>
   );
 }

@@ -351,46 +351,6 @@ export class AgentResultModel extends BaseModel {
   }
 
   /**
-   * Find an existing system-level guardian result (organization_id IS NULL)
-   * for a given date range and status whitelist. Mirrors the inline
-   * guardian/governance duplicate check in the governance validator.
-   */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  static async findExistingSystemResult(
-    conditions: Record<string, unknown>,
-    statuses: string[],
-    trx?: QueryContext
-  ): Promise<any> {
-    return this.table(trx)
-      .where(conditions)
-      .whereNull("organization_id")
-      .whereIn("status", statuses)
-      .first();
-  }
-
-  /**
-   * Fetch all successful agent results within a created_at window, excluding
-   * a set of agent types, ordered by agent_type then created_at. Used by the
-   * governance validator to gather the month's results for guardian review.
-   * Returns raw rows (select *) to preserve the original consumption.
-   */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  static async findSuccessfulInWindowExcludingTypes(
-    createdAtStart: Date,
-    createdAtEnd: Date,
-    excludeAgentTypes: string[],
-    trx?: QueryContext
-  ): Promise<any[]> {
-    return this.table(trx)
-      .whereBetween("created_at", [createdAtStart, createdAtEnd])
-      .where("status", "success")
-      .whereNotIn("agent_type", excludeAgentTypes)
-      .orderBy("agent_type")
-      .orderBy("created_at")
-      .select("*");
-  }
-
-  /**
    * Insert an agent_results row verbatim and return its id. The caller
    * supplies the full payload (including created_at/updated_at and any
    * optional run_id), matching the original inline
@@ -470,21 +430,4 @@ export class AgentResultModel extends BaseModel {
     return this.table(trx).whereIn("id", ids).del();
   }
 
-  /**
-   * Delete agent results by agent type array and date range.
-   * Used by the clear-month-data endpoint to remove guardian and
-   * governance_sentinel results for a specific month.
-   */
-  static async deleteByAgentTypesAndDateRange(
-    agentTypes: string[],
-    startDate: string,
-    endDateTime: string,
-    trx?: QueryContext
-  ): Promise<number> {
-    return this.table(trx)
-      .whereIn("agent_type", agentTypes)
-      .where("created_at", ">=", startDate)
-      .where("created_at", "<=", endDateTime)
-      .del();
-  }
 }

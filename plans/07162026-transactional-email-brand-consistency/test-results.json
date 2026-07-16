@@ -1,0 +1,99 @@
+{
+  "plan": "plans/07162026-transactional-email-brand-consistency",
+  "generatedAt": "2026-07-16",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "T1",
+      "title": "Shared Alloro email shell uses the approved brand system",
+      "surface": "cli",
+      "precondition": "Dependencies are available; no database or outbound email connection is required.",
+      "steps": [
+        "Run npm test -- src/__tests__/email-template-branding.test.ts.",
+        "Confirm the shared-shell assertions cover the logo, responsive canvas, serif heading stack, sans body stack, monospace code stack, orange CTA, and escaping."
+      ],
+      "expected": "The semantic shell checks pass and no in-scope output contains the legacy blue CTA.",
+      "status": "pass",
+      "evidence": "Post-rebase focused Vitest run: 1 file passed, 6 tests passed. Strict Code Constitution check, TypeScript, and build also passed.",
+      "notes": "Assertions confirm the shared logo/canvas, approved font stacks, orange #d66853 CTA, escaped helpers, and absence of #2563eb.",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Account and authentication variants render consistently",
+      "surface": "cli",
+      "precondition": "Use only the synthetic account, organization, codes, and URLs defined by the focused test suite.",
+      "steps": [
+        "Render invitation, verification, password-reset, and temporary-password variants.",
+        "Confirm initial and resend paths use the same builders and hostile dynamic values are escaped."
+      ],
+      "expected": "Every account/auth variant uses the shared shell, keeps its existing behavioral copy, and safely renders dynamic content.",
+      "status": "pass",
+      "evidence": "src/__tests__/email-template-branding.test.ts rendered invitation, verification, reset, and temporary-password variants with normal and hostile synthetic values.",
+      "notes": "Initial/resend invitation and initial/resend verification call the same pure builders; code expiry text and destination URLs were preserved.",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "Billing and transport-test variants use the shared shell",
+      "surface": "cli",
+      "precondition": "Use synthetic organization, location, transport, recipient, quantity, and price values.",
+      "steps": [
+        "Render quantity increase/decrease, all lifecycle states, and the transport-test message.",
+        "Confirm totals and lifecycle wording remain correct and dynamic values are escaped."
+      ],
+      "expected": "All variants pass semantic rendering assertions without changing billing calculations or transport-send behavior.",
+      "status": "pass",
+      "evidence": "Focused tests rendered quantity changes, all four location lifecycle states, and the transport-test email; all assertions passed.",
+      "notes": "Billing calculations, subjects, recipients, lifecycle wording, category, and allowLiveSend behavior remain in their existing send paths.",
+      "waiver": ""
+    },
+    {
+      "id": "T4",
+      "title": "User notifications format and escape metadata safely",
+      "surface": "cli",
+      "precondition": "Use synthetic notification data containing strings, numbers, booleans, dates, nulls, and hostile HTML.",
+      "steps": [
+        "Render every notification type.",
+        "Confirm the title uses the display font, metadata remains readable, and no injected markup survives."
+      ],
+      "expected": "All notification variants pass and the metadata contract uses unknown instead of any.",
+      "status": "pass",
+      "evidence": "Focused tests rendered all five notification types with hostile title/message/key/value data plus number, boolean, date, and null metadata.",
+      "notes": "Metadata now uses Record<string, unknown>; injected markup is escaped and action behavior is unchanged.",
+      "waiver": ""
+    },
+    {
+      "id": "T5",
+      "title": "Representative emails remain readable at narrow and desktop widths",
+      "surface": "ui",
+      "precondition": "Local Playwright renders synthetic HTML directly; no live send or production data is used.",
+      "steps": [
+        "Render representative invitation, verification-code, billing, notification, transport-test, support, and checkup HTML.",
+        "Capture and inspect narrow-width and desktop-width screenshots.",
+        "Check for horizontal overflow, clipped content, inconsistent typography, unreadable codes, or blue CTAs."
+      ],
+      "expected": "The layout remains readable and Alloro-consistent at both widths with serif headings, sans body copy, orange CTAs, and intentional fallbacks.",
+      "status": "pass",
+      "evidence": "14 screenshots under plans/07162026-transactional-email-brand-consistency/evidence/: invitation, verification, billing, notification, transport-test, support, and checkup at 390px and 760px.",
+      "notes": "Playwright reported overflow=false for every capture. Visual inspection confirmed readable serif headings, sans body copy, monospace codes, orange CTAs, intact cards, and no clipping.",
+      "waiver": ""
+    },
+    {
+      "id": "T6",
+      "title": "Controlled inbox QA is routed only to Dave",
+      "surface": "api",
+      "precondition": "The sender machine must not be recognized as production, Mailgun must be configured, and the interceptor recipient must equal dave@getalloro.com.",
+      "steps": [
+        "Build all 11 in-scope account, authentication, billing, notification, and transport-test variants with synthetic data and reserved .invalid original recipients.",
+        "Run every payload through the email interceptor and assert the final To list contains only dave@getalloro.com while CC and BCC are empty.",
+        "Submit each asserted-safe payload directly to Mailgun without invoking account, billing, database, or production-recipient workflows."
+      ],
+      "expected": "Mailgun accepts all 11 messages for dave@getalloro.com and no customer or production recipient is addressed.",
+      "status": "pass",
+      "evidence": "Preflight: liveSender=false, interceptRecipient=dave@getalloro.com, database host classified local. Mailgun returned HTTP 200 with a message ID for 11 of 11 variants on 2026-07-16.",
+      "notes": "Mailgun acceptance proves the messages were queued, not final inbox placement. Original To, CC, and BCC values used reserved .invalid addresses; the direct transport path avoided product workflows and email-log database writes.",
+      "waiver": ""
+    }
+  ]
+}

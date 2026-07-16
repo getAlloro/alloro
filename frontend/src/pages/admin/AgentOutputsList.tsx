@@ -470,7 +470,7 @@ export default function AgentOutputsList() {
           action={{ label: "Reset Filters", onClick: resetFilters }}
         />
       ) : (
-        /* Outputs List - Card-based like ActionItemsHub */
+        /* Outputs list */
         <div className="space-y-3">
           {outputs.map((output, index) => (
             <motion.div

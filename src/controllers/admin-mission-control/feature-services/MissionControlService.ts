@@ -62,7 +62,6 @@ export interface MissionControlOrganization {
   hasGbpConnection: boolean;
   websiteStatus: string | null;
   activeIntegrations: { platform: string; status: string }[];
-  pendingTaskCount: number;
   unreadNotificationCount: number;
   latestPms: {
     id: number;
@@ -129,7 +128,6 @@ export async function getMissionControlData(): Promise<MissionControlData> {
       hasGbpConnection: baseData.gbpConnections[org.id] ?? false,
       websiteStatus: baseData.websites[org.id]?.status ?? null,
       activeIntegrations: baseData.websites[org.id]?.activeIntegrations ?? [],
-      pendingTaskCount: baseData.pendingTaskCounts[org.id] ?? 0,
       unreadNotificationCount: baseData.unreadNotificationCounts[org.id] ?? 0,
       latestPms: latestPms
         ? {
