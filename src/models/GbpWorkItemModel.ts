@@ -3,7 +3,7 @@ import { db } from "../database/connection";
 
 const MAX_WORK_ITEM_LIST_LIMIT = 500;
 
-export type GbpContentType = "review_reply" | "local_post";
+export type GbpContentType = "review_reply" | "local_post" | "business_info";
 export type GbpSafetyStatus = "safe" | "needs_review" | "blocked";
 export type GbpWorkItemStatus =
   | "draft"
@@ -25,6 +25,7 @@ export interface IGbpWorkItem {
   approved_content: string | null;
   published_content: string | null;
   local_post_payload: Record<string, unknown> | null;
+  business_info_payload: Record<string, unknown> | null;
   featured_image_url: string | null;
   google_resource_name: string | null;
   google_response: Record<string, unknown> | null;
@@ -65,6 +66,7 @@ export class GbpWorkItemModel extends BaseModel {
   protected static tableName = "gbp_work_items";
   protected static jsonFields = [
     "local_post_payload",
+    "business_info_payload",
     "google_response",
     "safety_reason_codes",
     "safety_reasons",

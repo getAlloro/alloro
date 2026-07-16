@@ -15,6 +15,7 @@ export interface IGbpAutomationSettings {
   reply_rules: string[];
   post_rules: string[];
   local_post_generation_enabled: boolean;
+  business_info_writeback_enabled: boolean;
   local_post_frequency: LocalPostFrequency;
   next_post_generation_at: Date | null;
   default_featured_image_url: string | null;
@@ -34,6 +35,7 @@ export type GbpAutomationSettingsUpsert = Partial<
     | "reply_rules"
     | "post_rules"
     | "local_post_generation_enabled"
+    | "business_info_writeback_enabled"
     | "local_post_frequency"
     | "next_post_generation_at"
     | "default_featured_image_url"

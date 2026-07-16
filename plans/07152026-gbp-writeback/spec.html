@@ -87,7 +87,7 @@
     <h1>GBP Write-Back</h1>
     <p class="sub">Let the owner correct and complete their own Google Business Profile — categories, hours, phone, website, description — with a one-approval patch to Google, and a captured snapshot so any write is reversible. The first lever that writes to a customer's live Google presence, built to be <strong>incapable</strong> of firing without the owner's explicit yes.</p>
     <div class="pillrow">
-      <span class="pill status"><span class="dot"></span>Pending Execution</span>
+      <span class="pill status"><span class="dot"></span>In Progress</span>
       <span class="pill meta">Branch: <code>claude/a6-gbp-writeback</code> → <code>dev/dave</code></span>
       <span class="pill meta">Reference analog: §6.1 <code>gbp-automation/</code></span>
       <span class="pill meta">Rev 1 · 2026-07-15</span>
@@ -301,6 +301,12 @@
 
   <section class="card" id="revision-log">
     <h2><span class="n">LOG</span> Revision Log</h2>
+    <article class="rev">
+      <h3>Rev 2 - 2026-07-15</h3>
+      <p><strong>Change:</strong> Executed slice 1. 12 source files + 1 test (13 tests). Verified: <code>tsc --noEmit</code> 0 errors; <code>check:conventions --strict</code> 0 clear structural violations; full suite 469/469 green (Node 22). Execution deviations from Rev 1: (1) <b>Test isolation</b> — used the repo's house pattern (<code>vi.hoisted</code> + <code>vi.mock</code> at the module seam, as in <code>gbp-review-reply-loop.rehearsal.test.ts</code>) instead of Task 2's "injectable http dep"; both guarantee no real <code>axios.patch</code> can escape, and the module-seam mock matches §6.1 (the write fn now mirrors <code>updateGbpLocalPost</code> exactly, module-level axios). (2) <b>Resource format</b> — the businessInformation <b>v1</b> API addresses the location as <code>locations/{id}</code> (verified in <code>location-handler.service.ts:16</code>), NOT the v4 <code>accounts/*/locations/*</code> form; added a v1-specific name validator and no auto-fallback on the mutating call. (3) <b>Payload storage</b> — one nullable jsonb column <code>business_info_payload</code> holds <code>{ patch, updateMask, previousValues }</code> (mirrors <code>local_post_payload</code>). (4) <b>Revert shipped</b> — added the revert route + <code>enqueueRevert</code>/<code>revertNow</code> (the rollback payoff), queued through the same deployment queue. (5) <b>Migration</b> — verified additive + reversible by compile + code review; <b>NOT</b> applied to the shared dev DB (sandbox-safety: an unmerged migration must not pollute shared migration history) — Dave's merge runs it on dev first.</p>
+      <p><strong>Reason:</strong> Execution deviation: house conventions + verified Google resource format won over the Rev 1 sketch; honesty about what was and wasn't run against a live DB.</p>
+      <p><strong>Updated Done criteria:</strong> "verified up + down on dev DB" is amended to "verified additive+reversible by compile + review; live up/down is Dave's on merge (sandbox-safety)."</p>
+    </article>
     <article class="rev">
       <h3>Rev 1 - 2026-07-15</h3>
       <p><strong>Change:</strong> Initial spec for A6 — GBP write-back. Scoped slice 1: owner-approved <code>business_info</code> PATCH to Google via a new <code>business_info</code> work-item content type, capture-before-write rollback snapshot, ships disabled. Reuse map, feasibility (business.manage scope), and every code anchor verified live against the repo. Cites §6.1 reference analog + the structural/response/security Articles. Folds in the four live-write mandates (feasibility, capture-rollback, structural approval gate, no live writes in tests) and the different-model adversary discipline (Fable + Opus for A6).</p>

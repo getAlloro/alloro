@@ -74,6 +74,10 @@ export function settingsPayload(body: Record<string, unknown>) {
       typeof body.local_post_generation_enabled === "boolean"
         ? body.local_post_generation_enabled
         : undefined,
+    business_info_writeback_enabled:
+      typeof body.business_info_writeback_enabled === "boolean"
+        ? body.business_info_writeback_enabled
+        : undefined,
     next_post_generation_at:
       typeof body.next_post_generation_at === "string"
         ? new Date(body.next_post_generation_at)

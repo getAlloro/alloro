@@ -65,6 +65,7 @@ router.patch("/posts/published", GbpAutomationController.updatePublishedPost);
 router.delete("/posts/published", GbpAutomationController.deletePublishedPost);
 router.post("/posts/media", handlePostImageUpload);
 router.post("/posts/generate", GbpAutomationController.generatePostDraftNow);
+router.post("/business-info/draft", GbpAutomationController.createBusinessInfoDraft);
 router.post("/reviews/:reviewId/draft", GbpAutomationController.generateDraft);
 router.post("/reviews/:reviewId/post-draft", GbpAutomationController.createPostDraftFromReview);
 router.patch("/reviews/:reviewId/draft-slot", GbpAutomationController.saveReviewDraftSlot);
@@ -84,6 +85,7 @@ router.post("/work-items/:id/reject", GbpAutomationController.reject);
 router.get("/work-items/:id/deploy-preview", GbpAutomationController.deployPreview);
 router.post("/work-items/:id/deploy", GbpAutomationController.deploy);
 router.post("/work-items/:id/retry", GbpAutomationController.retry);
+router.post("/work-items/:id/revert-business-info", GbpAutomationController.revertBusinessInfo);
 router.get("/work-items/:id/attempts", GbpAutomationController.getAttempts);
 
 export default router;
