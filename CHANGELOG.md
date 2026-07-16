@@ -2,6 +2,26 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.168] - July 2026
+
+### Clearer team tables and consistent role controls
+
+Organization admins and managers now get stable, easier-to-scan Team Members and Pending Invitations tables. Structural labels and actions stay on one line, long names and emails truncate safely, narrow layouts scroll horizontally, and both role-editing and invitation flows use the same animated keyboard-accessible selector. Built on `plans/07162026-settings-team-table-polish`; focused selector tests, TypeScript, production builds, scoped lint, strict Constitution checks, and Alloro Docs build pass. Five authenticated browser checks were explicitly waived by Dave for the direct local `dev/dave` merge and remain recorded as waived failures, not passes. This change is merged locally but has not been pushed or deployed.
+
+**Key Changes:**
+- **Stable semantic tables.** Explicit column proportions, no-wrap structural fields, safe identity truncation, alternating rows, hover states, and horizontal overflow keep member and invitation data readable.
+- **One role selector.** Role changes and invitations share a settings-local animated listbox with mouse and keyboard control, focus restoration, reduced-motion support, and a top-layer popover that avoids table clipping.
+- **Staged role changes.** Selecting a role remains local until Save; Cancel restores the existing role without a request.
+- **Typed mutation boundary.** Invite, update, remove, and resend actions now flow through a typed API module and React Query mutation hook with shared query invalidation and toast feedback.
+- **Permissions preserved.** Existing admin and manager visibility, invitation limits, wizard demo data, endpoint paths, and server-side authorization remain unchanged.
+- **Docs parity.** The Team Members replica now matches the polished default table state on the dedicated Alloro Docs branch.
+
+**Commits:**
+- `frontend/src/api/settingsUsers.ts` and `frontend/src/hooks/queries/useSettingsUserMutations.ts` — typed Settings user mutations and cache invalidation.
+- `frontend/src/components/settings/UsersTab.tsx` and `frontend/src/components/settings/users/` — decomposed tables, invite modal, staged role flow, and animated selector.
+- `plans/07162026-settings-team-table-polish/` — completed spec and acceptance record with two passes and five explicit browser waivers.
+- Alloro Docs commit `3161efd` — default Team Members replica parity.
+
 ## [0.0.167] - July 2026
 
 ### Project Board comments include the task attachment timeline

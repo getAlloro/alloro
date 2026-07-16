@@ -25,14 +25,15 @@
             Admin OS document-import and editing upgrade, and a verified Journey Insights
             signal for completed Alloro SEO work. It also records a leadgen
             tracking-integrity correction and a consistent Alloro transactional-email
-            design that are merged locally but not yet deployed.
+            design, plus clearer team-management tables and role controls, that are
+            merged locally but not yet deployed.
           </p>
         </div>
         <aside class="hero-panel" aria-label="Release state summary">
           <p class="eyebrow">07-13-2026 edition</p>
           <div class="status-stack">
             <span class="tag good">Deployed</span>
-            <span class="tag">3 client workflows</span>
+            <span class="tag">4 client workflows</span>
             <span class="tag">3 admin/operator updates</span>
             <span class="tag warn">Some UI checks waived</span>
           </div>
@@ -78,6 +79,18 @@
             <div class="meta">
               <span class="tag good">User-verified inbox QA</span>
               <span class="tag">Local dev/dave merge</span>
+            </div>
+          </article>
+          <article class="highlight-card">
+            <h3>Team access is easier to scan and manage</h3>
+            <p>
+              Team members and pending invitations now use stable table columns,
+              single-line actions, safe truncation for long identities, and one
+              consistent animated role control for edits and invitations.
+            </p>
+            <div class="meta">
+              <span class="tag">Local dev/dave merge</span>
+              <span class="tag warn">Authenticated UI checks waived</span>
             </div>
           </article>
         </div>
@@ -131,6 +144,20 @@
               <tr><th>Bucket</th><th>Feature</th><th>Audience</th><th>State</th><th>Email?</th><th>Notes</th></tr>
             </thead>
             <tbody>
+              <tr>
+                <td>Client dashboard</td>
+                <td>Team Members tables and animated role controls</td>
+                <td>Organization admins and managers</td>
+                <td>Committed and merged into local dev/dave; not pushed or deployed</td>
+                <td>Not yet</td>
+                <td>
+                  Focused selector tests, TypeScript, builds, scoped lint, Constitution
+                  checks, and Docs build pass. Five authenticated browser checks were
+                  explicitly waived and remain recorded as waived failures. The matching
+                  Docs replica is committed on its dedicated branch. See
+                  <code>plans/07162026-settings-team-table-polish/test-results.json</code>.
+                </td>
+              </tr>
               <tr>
                 <td>Customer communications</td>
                 <td>Consistent Alloro transactional email design</td>

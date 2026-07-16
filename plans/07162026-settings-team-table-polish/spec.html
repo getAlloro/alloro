@@ -59,11 +59,11 @@
     <header class="spec-hero">
       <div class="hero-topline">
         <p class="eyebrow">Alloro Plan Spec</p>
-        <span class="status-pill">In Progress</span>
+        <span class="status-pill">Completed</span>
       </div>
       <h1>Settings Team Table Polish</h1>
       <dl class="meta-grid">
-        <div class="status-card"><dt>Status</dt><dd>In Progress</dd></div>
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
         <div><dt>Plan Folder</dt><dd>plans/07162026-settings-team-table-polish</dd></div>
         <div><dt>Size</dt><dd>Medium · 9 implementation files</dd></div>
         <div><dt>Risk</dt><dd>Level 2 · Interaction and accessibility</dd></div>
@@ -288,24 +288,24 @@
     <section class="spec-card" id="done">
       <h2>Done</h2>
       <ul class="checklist">
-        <li><input type="checkbox" disabled> App changes exist only in the dedicated app worktree; unrelated main-checkout changes remain untouched.</li>
-        <li><input type="checkbox" disabled> Docs parity changes exist only in the dedicated docs worktree; existing Practice Hub changes remain untouched.</li>
-        <li><input type="checkbox" disabled> New components are each under 200 lines; the new custom hook is under 50 lines; <code>UsersTab</code> is reduced to lean orchestration.</li>
-        <li><input type="checkbox" disabled> No native role <code>select</code> remains in <code>UsersTab</code> or the invite flow.</li>
-        <li><input type="checkbox" disabled> Structural table content never wraps; long names/emails truncate safely; narrow layouts scroll horizontally.</li>
-        <li><input type="checkbox" disabled> Dropdown is not clipped by the table, supports mouse and keyboard, restores focus, and respects reduced motion.</li>
-        <li><input type="checkbox" disabled> Role selection stays staged until Save; Cancel performs no mutation.</li>
-        <li><input type="checkbox" disabled> Existing admin/manager action visibility and invitation role limits are unchanged.</li>
-        <li><input type="checkbox" disabled> Wizard demo users, invitations, and <code>data-wizard-target</code> still work.</li>
-        <li><input type="checkbox" disabled> Success and failure states use the shared toast; removal still uses the existing confirmation modal.</li>
-        <li><input type="checkbox" disabled> <code>cd frontend &amp;&amp; npm run test -- UserRoleSelect.test.tsx</code> passes.</li>
-        <li><input type="checkbox" disabled> <code>cd frontend &amp;&amp; npx tsc --noEmit</code> passes with no errors caused by this work.</li>
-        <li><input type="checkbox" disabled> <code>cd frontend &amp;&amp; npm run build</code> passes.</li>
-        <li><input type="checkbox" disabled> <code>npm run check:all</code> reports no new must-fix Constitution violations.</li>
-        <li><input type="checkbox" disabled> <code>npm run build</code> passes in the docs worktree.</li>
-        <li><input type="checkbox" disabled> Manual acceptance passes against the running app through Admin Pilot and the docs replica matches.</li>
-        <li><input type="checkbox" disabled> <code>test-results.json</code> rolls up to Passed before <code>--done</code>.</li>
-        <li><input type="checkbox" disabled> Spec-code parity is confirmed; backend, migrations, shared dropdown, and global Settings width remain unchanged.</li>
+        <li><input type="checkbox" checked disabled> App changes exist only in the dedicated app worktree; unrelated main-checkout changes remain untouched.</li>
+        <li><input type="checkbox" checked disabled> Docs parity changes exist only in the dedicated docs worktree; existing Practice Hub changes remain untouched.</li>
+        <li><input type="checkbox" checked disabled> New components are each under 200 lines; the new custom hook is under 50 lines; <code>UsersTab</code> is reduced to lean orchestration.</li>
+        <li><input type="checkbox" checked disabled> No native role <code>select</code> remains in <code>UsersTab</code> or the invite flow.</li>
+        <li><input type="checkbox" checked disabled> Structural table content never wraps; long names/emails truncate safely; narrow layouts scroll horizontally.</li>
+        <li><input type="checkbox" checked disabled> Dropdown is not clipped by the table, supports mouse and keyboard, restores focus, and respects reduced motion.</li>
+        <li><input type="checkbox" checked disabled> Role selection stays staged until Save; Cancel performs no mutation.</li>
+        <li><input type="checkbox" checked disabled> Existing admin/manager action visibility and invitation role limits are unchanged.</li>
+        <li><input type="checkbox" checked disabled> Wizard demo users, invitations, and <code>data-wizard-target</code> still work.</li>
+        <li><input type="checkbox" checked disabled> Success and failure states use the shared toast; removal still uses the existing confirmation modal.</li>
+        <li><input type="checkbox" checked disabled> <code>cd frontend &amp;&amp; npm run test -- UserRoleSelect.test.tsx</code> passes.</li>
+        <li><input type="checkbox" checked disabled> <code>cd frontend &amp;&amp; npx tsc --noEmit</code> passes with no errors caused by this work.</li>
+        <li><input type="checkbox" checked disabled> <code>cd frontend &amp;&amp; npm run build</code> passes.</li>
+        <li><input type="checkbox" checked disabled> <code>npm run check:all</code> reports no new must-fix Constitution violations.</li>
+        <li><input type="checkbox" checked disabled> <code>npm run build</code> passes in the docs worktree.</li>
+        <li><input type="checkbox" checked disabled> Manual acceptance either passes or is recorded honestly as an explicit user-authorized waiver; the docs replica matches.</li>
+        <li><input type="checkbox" checked disabled> <code>test-results.json</code> rolls up to Passed before <code>--done</code>.</li>
+        <li><input type="checkbox" checked disabled> Spec-code parity is confirmed; backend, migrations, shared dropdown, and global Settings width remain unchanged.</li>
       </ul>
     </section>
 
@@ -316,6 +316,12 @@
         <p><strong>Change:</strong> Marked the approved plan In Progress when execution began.</p>
         <p><strong>Reason:</strong> Execution state transition after the user issued <code>-x</code>.</p>
         <p><strong>Updated Done criteria:</strong> none.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 2 - 2026-07-16</h3>
+        <p><strong>Change:</strong> Recorded five authenticated browser checks as explicit waived failures, marked the plan Completed, and confirmed the final code, docs, and acceptance artifacts.</p>
+        <p><strong>Reason:</strong> User QA: Dave explicitly authorized the acceptance waivers and direct local <code>dev/dave</code> merge after <code>-tw</code> was blocked by the missing repository-owned runtime adapter.</p>
+        <p><strong>Updated Done criteria:</strong> Manual acceptance may be satisfied by an honest written waiver under §20.5; waived checks remain unrun and are not presented as passes.</p>
       </article>
     </section>
   </main>
