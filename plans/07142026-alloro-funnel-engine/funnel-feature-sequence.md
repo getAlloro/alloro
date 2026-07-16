@@ -60,8 +60,8 @@ A feature is done only when all of these hold, in order:
 | A2 | **GBP own-completeness scoring** (score the CLIENT's own profile, read-only) | **✅ BUILT + PR'd 2026-07-15 (#164)** — deterministic grader mirroring 1a; scores the 6 real `client_gbp` fields → missing-field set; adversary caught + fixed a no-listing false-positive | PR #164; spec `plans/07152026-gbp-own-completeness-scoring/` |
 | A3 | **AEO / AI-answer visibility — observation system** (Gemini live; Perplexity/SerpApi key-gated) | **✅ BUILT + PR'd 2026-07-15 (#165)** — multi-engine observation log, observe-only, honesty-capped; grounded-Gemini de-risked live; adversary caught + fixed a critical anti-fabrication bug | PR #165; spec `plans/07152026-aeo-visibility-observation/` |
 | A4 | **Citations / NAP consistency MONITOR** (measurement existed; the ongoing monitor was the gap) | **✅ BUILT + PR'd 2026-07-15 (#166)** — measurement reused (verified live: catches stale phone/moved address); added the recurring monitor, schedule SEEDED DISABLED (zero cost until enabled); adversary caught + fixed a duplicate-target cost bug | PR #166; spec `plans/07152026-nap-consistency-monitor/` |
-| A5 | **Rank tracking → geo-grid** (upgrade single lat/lng to a sampled grid, honest mirror) | **PARTIAL** — audit: "built (SerpApi Maps, every 15 days). Single lat/lng, no geo-grid, sampled estimate" | connect-lever-audit.md §discovery |
-| A6 | **GBP write-back** (categories/completeness patch to Google) | **ABSENT** — only 2 write paths exist (posts + replies); no category/schema write API. Net-new Google `patch`/`updateMask` integration — heavier | connect-lever-audit.md §discovery |
+| A5 | **Rank tracking → geo-grid** (upgrade single lat/lng to a sampled grid, honest mirror) | **✅ BUILT + PR'd 2026-07-15 (#167)** — findability sensor slice 1 (honest geo-grid SoLV/ARP/ATRP; unknown≠0). Branch `claude/a5-findability-sensor` | PR #167 |
+| A6 | **GBP write-back** (categories/completeness patch to Google) | **✅ BUILT + PR'd 2026-07-15 (#168)** — owner-approved `businessInformation` v1 PATCH; new `business_info` work-item type; capture-before-write rollback (capture-once) + snapshot-merge; ships DISABLED; 2 cross-model adversaries (Fable+Sonnet) caught+fixed a critical retry-clobber. tsc 0, conv 0, 476 suite, 20 A6 tests. Branch `claude/a6-gbp-writeback`. Spec `plans/07152026-gbp-writeback/spec.html` | PR #168 |
 
 **Out-of-lane / deferred in get-found:** web-SERP (non-Maps) organic rank tracking (needs a web-SERP source; low priority, status-only); keyword *volume* via a paid provider (DataForSEO removed 6/30 — **use GSC demand instead**, which A1 already does).
 
@@ -110,11 +110,11 @@ Ordering logic: **funnel order (found → considered → chosen → cohesion →
 2. **A2 — GBP own-completeness scoring** — ✅ **BUILT + PR'd (#164) 2026-07-15.** Spec Rev 2; tsc 0, A2 10/10, full suite 488, conventions 0; adversary caught + fixed a real no-listing bug. → proceed to A3.
 3. **A3 — AEO observation system** — ✅ **BUILT + PR'd (#165) 2026-07-15.** Multi-engine (Gemini live+tested; Perplexity/SerpApi key-gated); Rev 2; tsc 0, 16/16, full suite 472, conventions 0; adversary caught + fixed a critical anti-fabrication bug; migration runs on Dave's merge. → proceed to A4.
 4. **A4 — Citations/NAP consistency MONITOR** — ✅ **BUILT + PR'd (#166) 2026-07-15.** Verified the measurement already exists (EMT vitals); built the ongoing monitor (hospital monitor), schedule SEEDED DISABLED (zero cost until enabled); Rev 2; tsc 0, 6/6, full suite 462, conventions 0; adversary caught + fixed a duplicate-target cost bug. → proceed to A5.
-5. **A5 — Rank tracking geo-grid** (enhancement of the built SerpApi path; independent, status-only, honest mirror).
-6. **A6 — GBP write-back** *(net-new Google patch integration; heavier — do after the read/measure get-found bricks; carries its own rollback design).* 
+5. **A5 — Rank tracking geo-grid** — ✅ **BUILT + PR'd (#167) 2026-07-15.** Findability sensor slice 1 (honest geo-grid SoLV/ARP/ATRP; unknown≠0). → proceed to A6.
+6. **A6 — GBP write-back** — ✅ **BUILT + PR'd (#168) 2026-07-15.** Owner-approved `businessInformation` v1 PATCH; new `business_info` work-item type; capture-before-write rollback (capture-once) + snapshot-merge over the snapshot; ships DISABLED (Dave/DB-enable per account); 2 cross-model adversaries (Fable+Sonnet) caught+fixed a critical retry-snapshot-clobber. tsc 0, conv 0, full suite 476, 20 A6 tests. Spec `plans/07152026-gbp-writeback/spec.html`. **Get-found stage COMPLETE (A1–A6 all PR'd, #164–168).** → proceed to B1.
 
-**Get-considered (Taste Profile spine done):**
-7. **B1 — Instrument the hosted/preview site** (near-free; makes "considered" measurable — prerequisite for judging B2/B3).
+**Get-considered (Taste Profile spine done) — ⬅ NEXT: B1:**
+7. **B1 — Instrument the hosted/preview site** (near-free; makes "considered" measurable — prerequisite for judging B2/B3). **← START HERE next session.**
 8. **B2 — CRO-lift rewrite** (spec Slice 2; Taste-Profile-driven).
 9. **B3 — Get-considered trust depth** (spec Slice 3).
 10. **B4 — Review replies auto-draft** (extend the built path).
