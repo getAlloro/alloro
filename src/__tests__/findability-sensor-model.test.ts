@@ -149,6 +149,8 @@ import {
   FindabilitySensorReadingModel,
   type FindabilitySensorKeywordConfigInput,
 } from "../models/FindabilitySensorModel";
+// Imported to ENUMERATE the real inherited surface rather than trust a list.
+import { BaseModel as BaseModelRef } from "../models/BaseModel";
 import { getAgentHandler, getRegisteredAgents } from "../services/agentRegistry";
 
 // ── fixtures ─────────────────────────────────────────────────────────
@@ -299,6 +301,258 @@ describe("upsertReading — one snapshot per (org, location, keyword, run_date)"
     expect(rowsOf("findability_sensor_readings")).toHaveLength(2);
   });
 });
+
+// ── tenant isolation: the §11.7 seal, proven behaviorally (§20.2) ────
+
+/**
+ * Both sensor tables are tenant tables. §20.2 requires the §11.7 rule be
+ * "proven here, not assumed" — so these tests do not assert on shape (that a
+ * method merely EXISTS, which would pass against a model that leaks). They
+ * (a) seed TWO organizations and prove a scoped read returns only the caller's
+ * rows, and (b) CALL every sealed entry point and prove it refuses.
+ */
+
+const readingFor = (over: Record<string, unknown> = {}) =>
+  ({
+    organization_id: 7,
+    location_id: 42,
+    keyword: "dentist",
+    keyword_source: "service_list",
+    grid_size: 7,
+    radius_miles: 2.5,
+    center_lat: 30,
+    center_lng: -97,
+    solv_percent: 50,
+    arp: 4,
+    atrp: 6,
+    total_pins: 9,
+    known_pins: 9,
+    unknown_pins: 0,
+    ranked_pins: 5,
+    top_three_pins: 4,
+    coverage: 1,
+    per_pin: [],
+    open_hours_known: false,
+    observed_at: new Date(),
+    run_date: "2026-07-15",
+    ...over,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  }) as any;
+
+describe("tenant isolation — one organization cannot read another's rows (§11.7/§5.5/§20.2)", () => {
+  it("latestForLocation returns ONLY the caller's organization's readings", async () => {
+    // Same location id, same keyword, same day — under two different orgs.
+    await FindabilitySensorReadingModel.upsertReading(
+      readingFor({ organization_id: 7, solv_percent: 11 }),
+    );
+    await FindabilitySensorReadingModel.upsertReading(
+      readingFor({ organization_id: 8, solv_percent: 99 }),
+    );
+
+    const forOrg7 = await FindabilitySensorReadingModel.latestForLocation(7, 42);
+
+    expect(forOrg7).toHaveLength(1);
+    expect(forOrg7[0].organization_id).toBe(7);
+    expect(forOrg7[0].solv_percent).toBe(11);
+    // The leak this guards: org 8's measurement must be invisible to org 7.
+    expect(forOrg7.some((r) => r.organization_id === 8)).toBe(false);
+    expect(forOrg7.some((r) => r.solv_percent === 99)).toBe(false);
+  });
+
+  it("findForLocation returns ONLY the caller's organization's config", async () => {
+    await FindabilitySensorKeywordConfigModel.upsertConfig(
+      config({ organization_id: 7, location_id: 42, grid_size: 7 }),
+    );
+    await FindabilitySensorKeywordConfigModel.upsertConfig(
+      config({ organization_id: 8, location_id: 42, grid_size: 13 }),
+    );
+
+    const forOrg7 = await FindabilitySensorKeywordConfigModel.findForLocation(7, 42);
+    const forOrg8 = await FindabilitySensorKeywordConfigModel.findForLocation(8, 42);
+
+    expect(forOrg7?.organization_id).toBe(7);
+    expect(forOrg7?.grid_size).toBe(7);
+    expect(forOrg8?.organization_id).toBe(8);
+    expect(forOrg8?.grid_size).toBe(13);
+  });
+
+  it("findForLocation cannot reach a location owned by another organization", async () => {
+    await FindabilitySensorKeywordConfigModel.upsertConfig(
+      config({ organization_id: 8, location_id: 42 }),
+    );
+
+    // Org 7 asking for org 8's location gets "missing", not the row — and the
+    // undefined is indistinguishable from absent, leaking no existence info.
+    const stolen = await FindabilitySensorKeywordConfigModel.findForLocation(7, 42);
+    expect(stolen).toBeUndefined();
+  });
+
+  it("the null-location config of one org is invisible to another org", async () => {
+    await FindabilitySensorKeywordConfigModel.upsertConfig(
+      config({ organization_id: 8, location_id: null, grid_size: 13 }),
+    );
+
+    expect(
+      await FindabilitySensorKeywordConfigModel.findForLocation(7, null),
+    ).toBeUndefined();
+    expect(
+      (await FindabilitySensorKeywordConfigModel.findForLocation(8, null))?.grid_size,
+    ).toBe(13);
+  });
+});
+
+describe("sealed unscoped entry points refuse at runtime (§11.7)", () => {
+  // The JS/untyped caller — the one TS2554 cannot stop. This is the backstop,
+  // and it is exercised WITH arguments, exactly as a real leak would call it.
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  const untypedReading = FindabilitySensorReadingModel as any;
+  const untypedConfig = FindabilitySensorKeywordConfigModel as any;
+  /* eslint-enable @typescript-eslint/no-explicit-any */
+
+  const sealed: [string, () => Promise<unknown>][] = [
+    ["Reading.findById", () => untypedReading.findById(1)],
+    ["Reading.findOne", () => untypedReading.findOne({ organization_id: 8 })],
+    ["Reading.findMany", () => untypedReading.findMany({})],
+    ["Reading.create", () => untypedReading.create({ organization_id: 8 })],
+    ["Reading.createReturningId", () => untypedReading.createReturningId({ organization_id: 8 })],
+    ["Reading.updateById", () => untypedReading.updateById(1, { solv_percent: 0 })],
+    ["Reading.deleteById", () => untypedReading.deleteById(1)],
+    ["Reading.count", () => untypedReading.count()],
+    ["Reading.paginate", () => untypedReading.paginate((q: unknown) => q, {})],
+    ["Config.findById", () => untypedConfig.findById(1)],
+    ["Config.findOne", () => untypedConfig.findOne({ organization_id: 8 })],
+    ["Config.findMany", () => untypedConfig.findMany({})],
+    ["Config.create", () => untypedConfig.create({ organization_id: 8 })],
+    ["Config.createReturningId", () => untypedConfig.createReturningId({ organization_id: 8 })],
+    ["Config.updateById", () => untypedConfig.updateById(1, { enabled: true })],
+    ["Config.deleteById", () => untypedConfig.deleteById(1)],
+    ["Config.count", () => untypedConfig.count()],
+    ["Config.paginate", () => untypedConfig.paginate((q: unknown) => q, {})],
+  ];
+
+  it.each(sealed)("%s throws and cites the Article", async (_name, call) => {
+    await expect(call()).rejects.toThrow(/unscoped|bypasses/);
+    await expect(call()).rejects.toThrow(/§11\.7|§5\.4|§21\.1/);
+  });
+
+  it("a sealed write leaves the table untouched — it refuses, it does not partially write", async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const untyped = FindabilitySensorKeywordConfigModel as any;
+    await expect(
+      untyped.create({ organization_id: 8, location_id: 1, keywords: [] }),
+    ).rejects.toThrow();
+
+    expect(rowsOf("findability_sensor_keyword_configs")).toHaveLength(0);
+  });
+
+  it("every unscoped BaseModel entry point is sealed — enumerated from source, not remembered", () => {
+    // Guards the CLASS, not the two examples a reviewer happened to name: if
+    // BaseModel ever grows a NEW public static, this fails until someone
+    // triages it onto one of the two lists below.
+    //
+    // Enumerated from the SOURCE, deliberately. `protected` is a TypeScript
+    // construct that is ERASED at runtime, so Object.getOwnPropertyNames() on
+    // the class cannot tell a public entry point from a protected helper — it
+    // reports `table`, `parseJson`, `serializeJsonFields` and friends as though
+    // they were inherited API. The declaration is the only honest source of
+    // truth for visibility. (Same fs-read precedent as the migration guard.)
+    const source = fs.readFileSync(
+      path.join(process.cwd(), "src/models/BaseModel.ts"),
+      "utf8",
+    );
+    const publicStatics = [
+      ...source.matchAll(/^\s+(?:(protected|private|public)\s+)?static\s+(?:async\s+)?(\w+)/gm),
+    ]
+      .filter(([, modifier]) => modifier === undefined || modifier === "public")
+      .map(([, , name]) => name);
+
+    // The real public surface — ELEVEN, not the nine an unaided list remembers.
+    expect(publicStatics.sort()).toEqual(
+      [
+        "beginTransaction",
+        "count",
+        "create",
+        "createReturningId",
+        "deleteById",
+        "findById",
+        "findMany",
+        "findOne",
+        "paginate",
+        "transaction",
+        "updateById",
+      ].sort(),
+    );
+
+    // Not table access: they open a transaction and carry no WHERE clause, so
+    // they pose no tenant hazard. BaseModel documents them as the sanctioned
+    // boundary for composing several model writes. Deliberately left open.
+    const allowed = ["transaction", "beginTransaction"];
+    const mustBeSealed = publicStatics.filter((k) => !allowed.includes(k));
+    expect(mustBeSealed).toHaveLength(9);
+
+    for (const name of mustBeSealed) {
+      for (const model of [
+        FindabilitySensorReadingModel,
+        FindabilitySensorKeywordConfigModel,
+      ]) {
+        // Sealed => the subclass declares its OWN override, and that override is
+        // NOT the inherited BaseModel function object.
+        expect(Object.prototype.hasOwnProperty.call(model, name)).toBe(true);
+        expect((model as unknown as Record<string, unknown>)[name]).not.toBe(
+          (BaseModelRef as unknown as Record<string, unknown>)[name],
+        );
+      }
+    }
+  });
+});
+
+/**
+ * COMPILE-TIME seals (§11.7). Never executed — `tsc --noEmit` covers `src/`, so
+ * each `@ts-expect-error` is verified by the same gate that builds the app: if
+ * anyone unseals one of these, the directive becomes unused and TS2578 FAILS
+ * the build. That is the enforcement; the runtime throws above are the backstop.
+ */
+export async function _compileTimeSealsAreEnforced(): Promise<void> {
+  // @ts-expect-error §11.7 — sealed: an id-only read would cross tenants.
+  await FindabilitySensorReadingModel.findById(1);
+  // @ts-expect-error §11.7 — sealed: caller-supplied WHERE crosses tenants.
+  await FindabilitySensorReadingModel.findOne({ organization_id: 8 });
+  // @ts-expect-error §11.7 — sealed: would return every tenant's readings.
+  await FindabilitySensorReadingModel.findMany({});
+  // @ts-expect-error §11.7/§21.1 — sealed: bypasses the idempotent upsert.
+  await FindabilitySensorReadingModel.create({ organization_id: 8 });
+  // @ts-expect-error §11.7/§21.1 — sealed: bypasses the idempotent upsert.
+  await FindabilitySensorReadingModel.createReturningId({ organization_id: 8 });
+  // @ts-expect-error §11.7 — sealed: unscoped cross-tenant write.
+  await FindabilitySensorReadingModel.updateById(1, {});
+  // @ts-expect-error §11.7 — sealed: unscoped cross-tenant delete.
+  await FindabilitySensorReadingModel.deleteById(1);
+  // @ts-expect-error §11.7 — sealed: paged cross-tenant read.
+  await FindabilitySensorReadingModel.paginate((q) => q, {});
+
+  // @ts-expect-error §11.7 — sealed: an id-only read would cross tenants.
+  await FindabilitySensorKeywordConfigModel.findById(1);
+  // @ts-expect-error §11.7 — sealed: the call findForLocation used to delegate to.
+  await FindabilitySensorKeywordConfigModel.findOne({ organization_id: 8 });
+  // @ts-expect-error §11.7 — sealed: would return every tenant's configs.
+  await FindabilitySensorKeywordConfigModel.findMany({});
+  // @ts-expect-error §11.7/§5.4 — sealed: bypasses one-config-per-location.
+  await FindabilitySensorKeywordConfigModel.create({ organization_id: 8 });
+  // @ts-expect-error §11.7/§5.4 — sealed: bypasses one-config-per-location.
+  await FindabilitySensorKeywordConfigModel.createReturningId({ organization_id: 8 });
+  // @ts-expect-error §11.7/§5.4 — sealed: could flip `enabled` on another org.
+  await FindabilitySensorKeywordConfigModel.updateById(1, { enabled: true });
+  // @ts-expect-error §11.7 — sealed: unscoped cross-tenant delete.
+  await FindabilitySensorKeywordConfigModel.deleteById(1);
+  // @ts-expect-error §11.7 — sealed: paged cross-tenant read.
+  await FindabilitySensorKeywordConfigModel.paginate((q) => q, {});
+
+  // NOTE: `count()` is absent on purpose. `BaseModel.count()` is callable with
+  // ZERO arguments, so a zero-arg call raises no TS2554 and a @ts-expect-error
+  // here would itself be an unused-directive error. Its seal is RUNTIME-only —
+  // proven by the "throws and cites the Article" cases above. This is the honest
+  // limit of the compile-time technique, recorded rather than papered over.
+}
 
 // ── finding #2: no schedule this slice cannot run ────────────────────
 

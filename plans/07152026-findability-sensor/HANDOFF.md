@@ -68,6 +68,17 @@ ranking."
   actually runnable (a real handler **and** a `next_run_at`). `src/__tests__/findability-sensor-model.test.ts`
   guards this (T6): it asserts the migration seeds no `schedules` row and that every registered agent
   key resolves to a callable handler. Keep that guard passing.
+- **The sensor models are SEALED — do not unseal them to get a read (§11.7/§5.5).** Both sensor tables
+  are tenant tables, so every unscoped `BaseModel` entry point (`findById`, `findOne`, `findMany`,
+  `create`, `createReturningId`, `updateById`, `deleteById`, `count`, `paginate`) is overridden to
+  refuse — calling one with arguments is a **compile** error, which is the point. The next slice (the
+  Reader/executor) will need new reads: **add a tenant-scoped method that takes `organizationId` as a
+  required argument** (copy `latestForLocation` / `findForLocation`), and read `this.table(trx)`
+  directly — never route a scoped read through an unscoped inherited entry point, which is exactly the
+  bug `findForLocation` had. `transaction`/`beginTransaction` are intentionally NOT sealed (they open a
+  transaction and touch no table). `src/__tests__/findability-sensor-model.test.ts` guards this (T10):
+  it enumerates `BaseModel`'s public statics **from source** and fails if a new unscoped one appears
+  unsealed. Keep that guard passing.
 - Node 22 (`nvm use 22`); `npm test` + `npm run check:conventions` green before the PR.
 - AI drafts, human stakes — especially any skill/enforcement-layer change (don't).
 

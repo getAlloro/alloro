@@ -1,7 +1,13 @@
 {
   "plan": "plans/07152026-findability-sensor",
   "generatedAt": "2026-07-16",
-  "status": "In Progress",
+  "status": "Passed",
+  "environment": {
+    "postgres": "PostgreSQL 16.14 (Homebrew) on aarch64-apple-darwin25.4.0",
+    "cluster": "Disposable local cluster created with initdb for this verification (port 5444, own superuser role, own database). Not dev, not production, not the shared sandbox — no shared database was written to.",
+    "node": "v22.23.1",
+    "migrationScope": "ISOLATED — the A5 migration was run as the ONLY migration in the migrations directory. The full 192-migration chain was NOT run; see the caveat on T7."
+  },
   "items": [
     {
       "id": "T1",
@@ -14,7 +20,7 @@
       ],
       "expected": "Exactly one configuration row exists; neither call throws.",
       "status": "pass",
-      "evidence": "src/__tests__/findability-sensor-model.test.ts passed in the 41-test focused run and the 497-test full suite. Adversarially verified: this test FAILS against the pre-fix check-then-create upsertConfig with 'duplicate key value violates unique constraint'.",
+      "evidence": "src/__tests__/findability-sensor-model.test.ts passed in the 36-test focused run and the 521-test full suite. Adversarially verified: this test FAILS against the pre-fix check-then-create upsertConfig with 'duplicate key value violates unique constraint'.",
       "notes": "Review finding #1. The DB now owns the rule via fs_configs_dedup_uidx; the model converges on it rather than racing it.",
       "waiver": ""
     },
@@ -29,7 +35,7 @@
       ],
       "expected": "Exactly one configuration row exists.",
       "status": "pass",
-      "evidence": "src/__tests__/findability-sensor-model.test.ts passed; also FAILS against the pre-fix implementation.",
+      "evidence": "src/__tests__/findability-sensor-model.test.ts passed; also FAILS against the pre-fix implementation. Independently confirmed against real PostgreSQL under T8: a plain duplicate insert for a NULL location was rejected with 23505, DETAIL: Key (organization_id, COALESCE(location_id, '-1'::integer))=(7, -1) already exists.",
       "notes": "Postgres treats NULLs as DISTINCT in a plain unique index, so a null location would otherwise slip the constraint. This is why the index is an expression index over COALESCE(location_id, -1) and not a plain column pair.",
       "waiver": ""
     },
@@ -44,7 +50,7 @@
       ],
       "expected": "One row; same id; created_at unchanged; the merge columns reflect the new values.",
       "status": "pass",
-      "evidence": "src/__tests__/findability-sensor-model.test.ts passed. The generated SQL was rendered with the pg dialect and confirmed to set only the merge columns from excluded, never created_at.",
+      "evidence": "src/__tests__/findability-sensor-model.test.ts passed. Confirmed against real PostgreSQL under T8: upsertConfig twice for location 42 returned the SAME id (1) with enabled merged false->true.",
       "notes": "CONFIG_MERGE_COLUMNS deliberately excludes the identity key and created_at.",
       "waiver": ""
     },
@@ -59,7 +65,7 @@
       ],
       "expected": "Three rows in the first case and two in the second - the index constrains only true duplicates.",
       "status": "pass",
-      "evidence": "src/__tests__/findability-sensor-model.test.ts passed both non-over-constraining cases.",
+      "evidence": "src/__tests__/findability-sensor-model.test.ts passed both non-over-constraining cases. Confirmed against real PostgreSQL: two organizations writing the SAME location id, keyword and run_date coexist as 2 rows.",
       "notes": "Guards against a fix that trades a race for lost tenant/location data.",
       "waiver": ""
     },
@@ -74,7 +80,7 @@
       ],
       "expected": "One row for the day whose measurement reflects the later write; a different run_date adds a new point rather than conflicting.",
       "status": "pass",
-      "evidence": "src/__tests__/findability-sensor-model.test.ts passed all three readings cases.",
+      "evidence": "src/__tests__/findability-sensor-model.test.ts passed all three readings cases. Confirmed against real PostgreSQL: two same-day upsertReading calls returned the same id with solv_percent merged to 75.00; a different run_date added a second row (2 rows total).",
       "notes": "upsertReading moved from Rev 3's catch-23505-and-retry to the same onConflict().merge() shape, which also removes the caveat that a 23505 aborts a caller's surrounding transaction.",
       "waiver": ""
     },
@@ -98,31 +104,32 @@
       "id": "T7",
       "title": "The migration applies, reverses, and re-applies against a real Postgres",
       "surface": "cli",
-      "precondition": "A live Postgres (dev or a disposable instance) with the branch checked out.",
+      "precondition": "A live, disposable PostgreSQL with the branch checked out. Ran against PostgreSQL 16.14 (Homebrew) on a throwaway cluster created with initdb (port 5444, own role, own database) — never dev, production, or the shared sandbox.",
       "steps": [
-        "Run npm run db:migrate; confirm both tables and both unique indexes exist.",
-        "Run npm run db:rollback; confirm both tables are gone and no schedules row was left behind.",
-        "Re-run npm run db:migrate to confirm idempotency, then run it again against an already-migrated DB."
+        "Run the migration; confirm both tables and both unique indexes exist.",
+        "Roll back; confirm both tables are gone and no schedules row was left behind.",
+        "Re-apply to confirm it is resumable, then run again against an already-migrated DB."
       ],
       "expected": "up/down/re-up are clean; fs_configs_dedup_uidx and fs_readings_dedup_uidx exist as unique expression indexes; the IF NOT EXISTS guards make a repeat run a no-op.",
-      "status": "pending",
-      "evidence": "NOT RUN. Re-confirmed 2026-07-16: no live Postgres is reachable from this environment - `docker info` fails (no daemon), and psql/pg_ctl/postgres are absent from PATH. Writing to the shared dev database was out of scope for this fix.",
-      "notes": "Layer 3, and BLOCKING for merge. This is the check most likely to surface a problem the hermetic tests cannot: the DDL itself is unproven against a real server. Per the second-round review this stays `pending` and must NOT be converted to `pass` from the in-memory evaluator - only a real PostgreSQL run can close it.",
+      "status": "pass",
+      "evidence": "RUN against real PostgreSQL 16.14 (Homebrew), disposable cluster, 2026-07-16. UP: 'Batch 1 run: 1 migrations', exit 0; both tables created. Both expression indexes verbatim from pg_indexes: 'CREATE UNIQUE INDEX fs_readings_dedup_uidx ON public.findability_sensor_readings USING btree (organization_id, COALESCE(location_id, '-1'::integer), keyword, run_date)' and 'CREATE UNIQUE INDEX fs_configs_dedup_uidx ON public.findability_sensor_keyword_configs USING btree (organization_id, COALESCE(location_id, '-1'::integer))'. DOWN: 'Batch 1 rolled back: 1 migrations', 0 sensor tables and 0 indexes remaining. RE-UP: 'Batch 1 run: 1 migrations', both indexes recreated. REPEAT run against the already-migrated DB: 0 migrations applied (no-op).",
+      "notes": "ISOLATION CAVEAT — stated plainly, not hidden. The A5 migration was run IN ISOLATION (as the only migration in the migrations directory), NOT as part of the full chain. The full 192-migration chain CANNOT run from an empty database: it fails at the EARLIEST migration, 20260123000000_add_onboarding_wizard_completed.ts, with 'alter table \"google_accounts\" add column \"onboarding_wizard_completed\" boolean default '0' - relation \"google_accounts\" does not exist' (verified: knex recorded 0 migrations run). No migration in the repo creates google_accounts — the earliest of the 192 only ALTERs it. Per AGENTS.md, dev was cloned from production and the migration history is the STRUCTURE baseline from that point on, so the history was never replayable from zero; this is a pre-existing property of the repo, not something this PR introduced or can fix. What is proven is THIS migration against a real server, which is what the risk actually was (the DDL, the expression indexes, and the down()). The full chain was NOT verified and is not claimed.",
       "waiver": ""
     },
     {
       "id": "T8",
       "title": "Postgres infers the ON CONFLICT target from the expression index",
       "surface": "cli",
-      "precondition": "A live Postgres with the migration applied.",
+      "precondition": "The live disposable PostgreSQL 16.14 above with the migration applied.",
       "steps": [
-        "Call upsertConfig twice for the same location and inspect for error 42P10.",
-        "Call upsertReading twice for the same keyword/day."
+        "Call the REAL upsertConfig twice for the same location, and twice for a NULL location; inspect for error 42P10.",
+        "Call the REAL upsertReading twice for the same keyword/day.",
+        "Attempt a plain duplicate INSERT with no ON CONFLICT and confirm the index rejects it."
       ],
-      "expected": "Both converge on one row; no 42P10 (no matching ON CONFLICT inference target).",
-      "status": "pending",
-      "evidence": "NOT RUN against a live server. Partially de-risked offline: the upsert SQL was rendered with knex's pg dialect and the conflict target emits as `on conflict (organization_id, COALESCE(location_id, -1)) do update set ...`, matching the migration's index expression textually.",
-      "notes": "Layer 3, and BLOCKING for merge. A conflict target must match the index expression for Postgres to infer it; the two are written to match and were compared as rendered SQL, but only a live server proves inference. Per the second-round review this stays `pending` and must NOT be converted to `pass` from rendered-SQL or mocked evidence.",
+      "expected": "Both converge on one row; no 42P10 (no matching ON CONFLICT inference target); a plain duplicate is rejected by the unique index.",
+      "status": "pass",
+      "evidence": "RUN against real PostgreSQL 16.14, 2026-07-16, through the REAL model methods (not raw SQL, not rendered SQL). upsertConfig for location 42 twice: same id=1, enabled merged false->true, NO 42P10. upsertConfig for a NULL location twice: same id=3, grid_size merged to 9, NO 42P10 — the COALESCE inference works for the null case that a plain unique index would miss. Row count after 4 upserts (2 real + 2 null) = 2, as expected. upsertReading same keyword/day twice: same id=1, solv_percent merged to 75.00, NO 42P10; a different run_date added a second row (2 total). A plain duplicate INSERT with no ON CONFLICT was correctly REJECTED: code=23505 'duplicate key value violates unique constraint \"fs_configs_dedup_uidx\"', DETAIL: Key (organization_id, COALESCE(location_id, '-1'::integer))=(7, -1) already exists.",
+      "notes": "This closes the 42P10 risk: the conflict target in the model matches the index expression closely enough for PostgreSQL to actually infer it — proven by execution, not by comparing rendered SQL. Exercised through upsertConfig/upsertReading themselves, so it proves the shipped code path, not a hand-written approximation of it. Same isolation caveat as T7 applies to how the schema got there.",
       "waiver": ""
     },
     {
@@ -133,12 +140,30 @@
       "steps": [
         "Run npx tsc --noEmit.",
         "Run npm run check:conventions -- --strict.",
-        "Run npm test."
+        "Run npm test.",
+        "Run npm run lint."
       ],
       "expected": "Typecheck 0 errors; 0 clear backend structural violations; the full suite green with no regression.",
       "status": "pass",
-      "evidence": "tsc --noEmit exit 0. check:conventions --strict exit 0, 'CLEAR structural violations - backend (size + console + db): 0'. npm test: 62 files, 497 tests passed (485 baseline + 12 new).",
+      "evidence": "tsc --noEmit exit 0. check:conventions --strict exit 0, 'CLEAR structural violations - backend (size + console + db): 0'. npm test exit 0: 62 files, 521 tests passed (485 baseline + 36 sensor-model + the pure core). npm run lint exit 0; the files this batch touches produce no lint findings.",
       "notes": "CI could not be attached: no workflow is configured to run on claude/* branches, so these are local runs on the pushed commit. Already raised with Dave.",
+      "waiver": ""
+    },
+    {
+      "id": "T10",
+      "title": "One organization cannot read another's rows, and every unscoped BaseModel entry point is sealed",
+      "surface": "cli",
+      "precondition": "Both sensor tables are tenant tables (organization_id). Run the sensor model tests; the seals are additionally exercised against real PostgreSQL.",
+      "steps": [
+        "Seed TWO organizations with the same location id, keyword and run_date; read with the scoped API and confirm neither sees the other's rows.",
+        "Attempt to read a location owned by another organization, including the null-location case.",
+        "Call every sealed BaseModel entry point on both models and confirm each refuses.",
+        "Enumerate BaseModel's public static surface from source and confirm every unscoped entry point is sealed on both models."
+      ],
+      "expected": "Scoped reads return only the caller's organization's rows; a cross-org read returns undefined (indistinguishable from missing); every sealed entry point throws and cites its Article; the enumeration finds no unsealed unscoped entry point.",
+      "status": "pass",
+      "evidence": "src/__tests__/findability-sensor-model.test.ts: 36 tests pass, 24 of them new. Adversarially verified: 20 of the new tests FAIL against the unsealed model (confirmed by reverting the model and re-running: 'Tests 20 failed | 16 passed'), so they are load-bearing rather than shape assertions. Compile-time seal proven by execution, not assertion: a probe file calling the sealed methods with arguments produced 7x 'error TS2554: Expected 0 arguments, but got N' and tsc exited 2. Cross-org isolation ALSO proven against real PostgreSQL 16.14: with org 7 and org 8 holding the same location/keyword/day, latestForLocation(7,42) returned only org 7's row (solv 11.00, never org 8's 99.00); findForLocation(7,null) returned undefined against a null-location config owned ONLY by org 8 (no leak), while findForLocation(8,null) still returned it correctly.",
+      "notes": "§11.7/§5.5 sealed and §20.2 proven here rather than assumed. BaseModel's public static surface was ENUMERATED FROM SOURCE (11 methods), not from a remembered list: the 9 unscoped table entry points (findById, findOne, findMany, create, createReturningId, updateById, deleteById, count, paginate) are sealed on BOTH models; transaction and beginTransaction are deliberately left open because they open a transaction, touch no table, carry no WHERE clause and so no tenant hazard. HONEST LIMIT: count() is RUNTIME-sealed only — BaseModel.count() is callable with zero arguments, so TS2554 cannot fire on it; the probe confirmed a zero-arg count() call raises no compile error. The enumeration guard reads BaseModel.ts source deliberately, because TypeScript's `protected` is erased at runtime and reflection cannot distinguish a public entry point from a protected helper.",
       "waiver": ""
     }
   ]
