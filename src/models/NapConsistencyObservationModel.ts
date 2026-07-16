@@ -55,13 +55,19 @@ export class NapConsistencyObservationModel extends BaseModel {
       .ignore();
   }
 
+  /**
+   * Tenant-scoped read (§11.7): organizationId is a REQUIRED argument and the
+   * query filters by BOTH organization and location, so one tenant can never
+   * read another's observations even if a location_id is guessed or reused.
+   */
   static async listForLocation(
+    organizationId: number,
     locationId: number,
     limit = 100,
     trx?: QueryContext
   ): Promise<INapConsistencyObservation[]> {
     const rows = await this.table(trx)
-      .where({ location_id: locationId })
+      .where({ organization_id: organizationId, location_id: locationId })
       .orderBy("observed_at", "desc")
       .limit(limit);
     // jsonb comes back parsed under node-pg, but be explicit either way.

@@ -6,7 +6,7 @@ import {
   RecordNapObservationInput,
 } from "../../models/NapConsistencyObservationModel";
 import { collectUrlAuditSnapshot } from "../ai-seo-audit/urlCollectorService";
-import { collectExternalEntitySources } from "../ai-seo-audit/externalEntitySearchService";
+import { collectExternalEntitySourcesWithStatus } from "../ai-seo-audit/externalEntitySearchService";
 import { summarizeNapConsistency, NapSourceLike } from "./summarizer";
 
 /**
@@ -26,17 +26,30 @@ export interface NapTarget {
 export type NapTargetProvider = () => Promise<NapTarget[]>;
 
 /**
- * Returns the compared external sources for a target, or `null` when it can't
- * run (no site / no baseline → skip). An empty array means it ran but found no
- * external sources (honest "0 sources checked", still recorded).
+ * Typed outcome of one location's NAP check (§3.2) — three distinct states that
+ * must never be collapsed:
+ *
+ * - `ok`      — the check ran. `sources: []` is an HONEST zero ("we looked and
+ *               found no external sources") and IS recorded.
+ * - `skipped` — it could not run at all (no site → no baseline). Not recorded.
+ * - `provider_unavailable` — the discovery provider could not be reached, so no
+ *               measurement happened. NOT recorded: persisting it as
+ *               `sources_checked: 0` would be a silent false "we checked".
  */
-export type NapCheckRunner = (target: NapTarget) => Promise<NapSourceLike[] | null>;
+export type NapCheckOutcome =
+  | { status: "ok"; sources: NapSourceLike[] }
+  | { status: "skipped"; reason: string }
+  | { status: "provider_unavailable"; reason: string };
+
+export type NapCheckRunner = (target: NapTarget) => Promise<NapCheckOutcome>;
 
 export interface NapExecutorSummary {
   targets: number;
   locationsRecorded: number;
   totalConflicts: number;
   skipped: number;
+  /** Locations whose provider was unreachable — measurement never happened. */
+  providerUnavailable: number;
 }
 
 export interface NapExecutorDeps {
@@ -84,14 +97,19 @@ async function defaultTargetProvider(): Promise<NapTarget[]> {
   return dedupeTargetsByLocation(raw);
 }
 
-async function defaultRunner(target: NapTarget): Promise<NapSourceLike[] | null> {
-  if (!target.domain) return null; // no site → no baseline → skip
+async function defaultRunner(target: NapTarget): Promise<NapCheckOutcome> {
+  if (!target.domain) {
+    return { status: "skipped", reason: "no domain → no baseline" };
+  }
   const url = /^https?:\/\//i.test(target.domain)
     ? target.domain
     : `https://${target.domain}`;
   const snapshot = await collectUrlAuditSnapshot(url);
-  const sources = await collectExternalEntitySources(snapshot, snapshot.identity);
-  return sources;
+  const result = await collectExternalEntitySourcesWithStatus(snapshot, snapshot.identity);
+  if (result.status === "provider_unavailable") {
+    return { status: "provider_unavailable", reason: result.reason };
+  }
+  return { status: "ok", sources: result.sources };
 }
 
 export async function executeNapConsistencyAgent(
@@ -108,15 +126,26 @@ export async function executeNapConsistencyAgent(
   let locationsRecorded = 0;
   let totalConflicts = 0;
   let skipped = 0;
+  let providerUnavailable = 0;
 
   for (const target of targets) {
     try {
-      const sources = await runner(target);
-      if (sources === null) {
+      const outcome = await runner(target);
+      if (outcome.status === "skipped") {
         skipped++;
         continue;
       }
-      const summary = summarizeNapConsistency(sources);
+      // §3.2: a provider outage is NOT a zero-result. Skip persistence entirely
+      // so the time series never carries a fabricated "we checked, found none".
+      if (outcome.status === "provider_unavailable") {
+        providerUnavailable++;
+        logger.warn(
+          { locationId: target.locationId, reason: outcome.reason },
+          "[NAP-MONITOR] provider unavailable — not recording an observation"
+        );
+        continue;
+      }
+      const summary = summarizeNapConsistency(outcome.sources);
       await record({
         organizationId: target.organizationId,
         locationId: target.locationId,
@@ -143,6 +172,7 @@ export async function executeNapConsistencyAgent(
     locationsRecorded,
     totalConflicts,
     skipped,
+    providerUnavailable,
   };
   logger.info(
     { checker: "nap-consistency", ...summary },
