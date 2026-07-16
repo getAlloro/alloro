@@ -97,6 +97,13 @@ export const formSubmissionSchema = z
     // NOTE: this schema runs WARN-ONLY, so these three lines only describe the
     // contract — they do not hold it. `attributionInputSchema` below is what
     // actually enforces them; see the route.
+    //
+    // That warn-only is PINNED at the mount (`{ mode: "warn" }`), not inherited
+    // from the process-wide VALIDATION_ENFORCE default. It has to be: these three
+    // caps live on a lead-capture body, so if this schema could ever reject, a
+    // tracking parameter the visitor never typed would cost the practice the
+    // patient. Declared here for the boundary contract (§11.2), enforced by
+    // `sanitize` — never by a 400.
     source: sourceLabelField.optional(),
     utm_source: sourceLabelField.optional(),
     first_touch_referrer: referrerUrlField.optional(),

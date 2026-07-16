@@ -286,6 +286,86 @@
       "evidence": "src/__tests__/validate.middleware.test.ts - 'sanitize() - bounded subset, never rejects' block; part of the 99-test targeted run and the 544-test full suite.",
       "notes": "The fail-closed-on-the-field / fail-open-on-the-request asymmetry is the whole point: on a public lead-capture route, losing a tracking label is acceptable and losing a patient enquiry is not.",
       "waiver": ""
+    },
+    {
+      "id": "D1",
+      "title": "THE REVIEW FINDING (round 4) - a real patient's inquiry survives a hostile attribution value under the enforce flag",
+      "surface": "api",
+      "precondition": "Real Express app driven over HTTP via Supertest with VALIDATION_ENFORCE=1 set BEFORE the module graph loads (vi.stubEnv + vi.resetModules + dynamic import of src/app.ts) - `validate` computes its process-wide default mode once at module load, so the flag can only be exercised on a freshly loaded app. Real router, real middleware stack, real controller; the DB model, reCAPTCHA, and the email webhook are mocked, so the persisted payload is captured and asserted rather than written. Added in Rev 9. No local Postgres exists and the shared dev DB must not take an unmerged migration (AGENTS.md), so the row write is asserted at the model boundary.",
+      "steps": [
+        "Set VALIDATION_ENFORCE=1 and load the app fresh.",
+        "POST /api/websites/form-submission with a legitimate body (contents Name/Email) and an over-cap utm_source (300 chars), with an INTERNAL Referer.",
+        "Capture the object handed to FormSubmissionModel.create."
+      ],
+      "expected": "200; the row carries the visitor's real contents (Name='Sam Rivera', Email='sam@example.com'), and source/source_method are both null - the tracking parameter degraded to honest unknown while the LEAD landed.",
+      "status": "pass",
+      "evidence": "src/__tests__/form-submission-enforce-flag.test.ts D1 passed in the 5-test file run, the 104-test targeted run (5 files), and the 549-test full suite (64 files) on Node 22.23.1, exit codes read directly. NEGATIVE CONTROL (mutation-proved, not reasoned): with src/routes/websiteContact.ts reverted to head 482052da (`git checkout HEAD -- src/routes/websiteContact.ts`, removing both `mode: \"warn\"` pins) the file ran exit 1 with 3 failed | 2 passed. D1 failed with `AssertionError: expected 400 to be 200` - i.e. pre-fix the route answered 400 { code: VALIDATION_ERROR, fields: [\"utm_source\"], issues: [\"too_big\"] } and FormSubmissionModel.create was called 0 times. The patient's name and email never reached the database, killed by a tracking parameter they never typed.",
+      "notes": "This is the round-4 finding stated behaviorally. The Rev 8 design (sanitize, not enforce) was correct but incomplete: the three attribution fields were ALSO still declared in formSubmissionSchema, which the route mounted WITHOUT pinning a mode - so it inherited the process-wide VALIDATION_ENFORCE default and became a rejection path the moment that flag was set. Rev 8's Done criterion (b) claimed 'A12 fails if anyone flips these fields to a 400', but A12 runs under the DEFAULT mode only, so it could not see this. Fixed by pinning `mode: \"warn\"` at the mount.",
+      "waiver": ""
+    },
+    {
+      "id": "D2",
+      "title": "All three attribution fields out of contract under the enforce flag - the lead still persists, none reach the row",
+      "surface": "api",
+      "precondition": "Real Express app driven over HTTP via Supertest with VALIDATION_ENFORCE=1 set BEFORE the module graph loads (vi.stubEnv + vi.resetModules + dynamic import of src/app.ts) - `validate` computes its process-wide default mode once at module load, so the flag can only be exercised on a freshly loaded app. Real router, real middleware stack, real controller; the DB model, reCAPTCHA, and the email webhook are mocked, so the persisted payload is captured and asserted rather than written. Added in Rev 9. No local Postgres exists and the shared dev DB must not take an unmerged migration (AGENTS.md), so the row write is asserted at the model boundary.",
+      "steps": [
+        "Set VALIDATION_ENFORCE=1 and load the app fresh.",
+        "POST with an over-cap source (300 chars), an over-cap utm_source (300 chars), AND a 3,032-char first_touch_referrer, with an INTERNAL Referer.",
+        "Capture the FormSubmissionModel.create payload."
+      ],
+      "expected": "200; the row carries the visitor's contents; source and source_method are both null; no fragment of the oversized referrer appears anywhere in the row.",
+      "status": "pass",
+      "evidence": "src/__tests__/form-submission-enforce-flag.test.ts D2 passed in the same runs as D1. NEGATIVE CONTROL (mutation-proved, not reasoned): with src/routes/websiteContact.ts reverted to head 482052da (`git checkout HEAD -- src/routes/websiteContact.ts`, removing both `mode: \"warn\"` pins) the file ran exit 1 with 3 failed | 2 passed. D2 failed with `AssertionError: expected 400 to be 200`.",
+      "notes": "This is Dave's round-3 ask ('add a route regression proving over-limit source, utm_source, and first_touch_referrer cannot reach persistence') re-proved in the world round 3 could not see - with the flag ON. A9/A10/A12 cover the same ground under the default mode and still pass; this is the flag-enabled twin, not a replacement.",
+      "waiver": ""
+    },
+    {
+      "id": "D3",
+      "title": "A healthy attribution value still classifies normally under the enforce flag (the pin did not cost the feature)",
+      "surface": "api",
+      "precondition": "Real Express app driven over HTTP via Supertest with VALIDATION_ENFORCE=1 set BEFORE the module graph loads (vi.stubEnv + vi.resetModules + dynamic import of src/app.ts) - `validate` computes its process-wide default mode once at module load, so the flag can only be exercised on a freshly loaded app. Real router, real middleware stack, real controller; the DB model, reCAPTCHA, and the email webhook are mocked, so the persisted payload is captured and asserted rather than written. Added in Rev 9. No local Postgres exists and the shared dev DB must not take an unmerged migration (AGENTS.md), so the row write is asserted at the model boundary.",
+      "steps": [
+        "Set VALIDATION_ENFORCE=1 and load the app fresh.",
+        "POST with an in-contract utm_source=facebook and an INTERNAL Referer.",
+        "Capture the FormSubmissionModel.create payload."
+      ],
+      "expected": "200; source='facebook' AND source_method='client_label' - attribution still works when the value is in contract.",
+      "status": "pass",
+      "evidence": "src/__tests__/form-submission-enforce-flag.test.ts D3 passed in the same runs as D1.",
+      "notes": "HONESTY - THIS TEST PASSES WITHOUT THE FIX and is therefore NOT proof of it. It passed in the negative-control run (2 of 5 passed pre-fix; this was one). It cannot fail pre-fix because an in-contract value satisfies formSubmissionSchema, so enforce mode never rejects it. It is a LOCK, not evidence: without it, D1/D2 could be satisfied by a route that ignored attribution entirely. D1, D2, and D4 are the tests that actually fail without the fix.",
+      "waiver": ""
+    },
+    {
+      "id": "D4",
+      "title": "/contact - a patient who writes at length is not turned away by the enforce flag (the WIDER instance of the same defect)",
+      "surface": "api",
+      "precondition": "Real Express app driven over HTTP via Supertest with VALIDATION_ENFORCE=1 set BEFORE the module graph loads (vi.stubEnv + vi.resetModules + dynamic import of src/app.ts) - `validate` computes its process-wide default mode once at module load, so the flag can only be exercised on a freshly loaded app. Real router, real middleware stack, real controller; the DB model, reCAPTCHA, and the email webhook are mocked, so the persisted payload is captured and asserted rather than written. Added in Rev 9. No local Postgres exists and the shared dev DB must not take an unmerged migration (AGENTS.md), so the row write is asserted at the model boundary. reCAPTCHA verification and the email webhook are mocked for this route.",
+      "steps": [
+        "Set VALIDATION_ENFORCE=1 and load the app fresh.",
+        "POST /api/websites/contact with a valid name/phone/email/captchaToken and a message over the schema's 3,000-char cap - a patient describing their dental history in detail.",
+        "Assert the response and that the email webhook fired."
+      ],
+      "expected": "Not a 400; sendEmailWebhook called exactly once - the practice receives the inquiry.",
+      "status": "pass",
+      "evidence": "src/__tests__/form-submission-enforce-flag.test.ts D4 passed in the same runs as D1. NEGATIVE CONTROL (mutation-proved, not reasoned): with src/routes/websiteContact.ts reverted to head 482052da (`git checkout HEAD -- src/routes/websiteContact.ts`, removing both `mode: \"warn\"` pins) the file ran exit 1 with 3 failed | 2 passed. D4 failed with `AssertionError: expected 400 not to be 400` - pre-fix the route answered 400 { fields: [\"message\"], issues: [\"too_big\"] } and the practice never received the inquiry.",
+      "notes": "FOUND BY AUDITING THE FLAG'S BLAST RADIUS, not by the line the review named. /contact is the OTHER public lead-capture route in the same router and had the identical defect: an unpinned `validate` inheriting the process-wide flag. It is arguably worse than the /form-submission case, because websiteContactController imposes NO length cap of its own - so message's 3,000-char schema bound was a NEW rejection that only existed under the flag, and it fires on text the patient actually typed rather than on a tracking parameter. Fixed in the same edit. SCOPE NOTE for the reviewer: this is one line beyond the round-4 sentence. Called out explicitly so it can be rejected if unwanted - it is strictly lead-preserving and changes nothing at today's default (warn).",
+      "waiver": ""
+    },
+    {
+      "id": "D5",
+      "title": "The pin is SURGICAL - VALIDATION_ENFORCE still enforces on an unpinned route",
+      "surface": "cli",
+      "precondition": "Throwaway one-route Express app built against a freshly imported middleware/validate with VALIDATION_ENFORCE=1, mounting validate() UNPINNED exactly as the auth/billing routes do.",
+      "steps": [
+        "Set VALIDATION_ENFORCE=1 and re-import middleware/validate fresh.",
+        "Mount validate(z.object({ field: z.string().max(5) })) with no mode option.",
+        "POST an over-cap field."
+      ],
+      "expected": "400 with code VALIDATION_ERROR - the flag's default-mode wiring is intact for every route that has not deliberately opted out.",
+      "status": "pass",
+      "evidence": "src/__tests__/form-submission-enforce-flag.test.ts D5 passed in the same runs as D1.",
+      "notes": "HONESTY - THIS TEST PASSES WITHOUT THE FIX and is NOT proof of it (it was the other of the 2 that passed in the negative-control run). It tests middleware wiring this revision does not touch. Its job is to block the CHEAP fix: 'make the lead un-rejectable' must not be achieved by neutering VALIDATION_ENFORCE process-wide, because the auth/billing soak still needs to graduate to enforce one day. Kept as a guard against a future regression, not counted as evidence for this one.",
+      "waiver": ""
     }
   ]
 }
