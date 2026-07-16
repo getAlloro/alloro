@@ -43,8 +43,8 @@ import {
   executeUpdateMenu,
   executeUpdatePostMeta,
   executeUpdatePagePath,
-  executeTasteRewrite,
 } from "./service.ai-command-execute-handlers";
+import { executeTasteRewrite } from "./service.taste-profile-rewrite";
 
 function createExecutionContext(opts?: { projectId?: string; batchId?: string }): ExecutionContext {
   return {

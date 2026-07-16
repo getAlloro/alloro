@@ -24,7 +24,7 @@
  * injected dependency in generation, so no model is called there either.
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // ── Data-layer + LLM seams (module-level, hoisted) ────────────────────────
 const insertReturning = vi.fn();
@@ -93,8 +93,8 @@ import {
 import {
   generateTasteRewriteBatch,
   buildRewriteInstruction,
+  executeTasteRewrite,
 } from "../controllers/admin-websites/feature-services/service.taste-profile-rewrite";
-import { executeTasteRewrite } from "../controllers/admin-websites/feature-services/service.ai-command-execute-handlers";
 import type { TasteProfile } from "../controllers/admin-websites/feature-services/service.taste-profile";
 
 // ── Fixtures ──────────────────────────────────────────────────────────────
@@ -124,11 +124,18 @@ const makeProfileRow = (status: string) => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // B2 ships default-OFF; enable it for the generation/execution happy-path
+  // tests. The disabled-path tests override this explicitly.
+  process.env.TASTE_REWRITE_ENABLED = "true";
   insertReturning.mockResolvedValue({ id: "batch-1" });
   batchUpdateStatus.mockResolvedValue(1);
   insertRow.mockResolvedValue(undefined);
   recUpdateById.mockResolvedValue(1);
   refreshStats.mockResolvedValue(undefined);
+});
+
+afterEach(() => {
+  delete process.env.TASTE_REWRITE_ENABLED;
 });
 
 // ── 1. THE HONESTY GATE ─────────────────────────────────────────────────
@@ -292,6 +299,19 @@ describe("generateTasteRewriteBatch", () => {
     expect(insertReturning).not.toHaveBeenCalled();
   });
 
+  it("master OFF — creates NOTHING when TASTE_REWRITE_ENABLED is off (default)", async () => {
+    delete process.env.TASTE_REWRITE_ENABLED; // default: disabled
+    const rewriteFn = vi.fn();
+
+    const result = await generateTasteRewriteBatch("proj-1", {}, rewriteFn);
+
+    expect(result.status).toBe("skipped_disabled");
+    expect(result.batchId).toBeNull();
+    expect(projectFindRawById).not.toHaveBeenCalled();
+    expect(insertReturning).not.toHaveBeenCalled();
+    expect(rewriteFn).not.toHaveBeenCalled();
+  });
+
   it("skips when the project has no organization", async () => {
     projectFindRawById.mockResolvedValue({ id: "page-1-proj", organization_id: null });
     const result = await generateTasteRewriteBatch("proj-1", {}, vi.fn());
@@ -347,6 +367,18 @@ describe("executeTasteRewrite", () => {
     const update = recUpdateById.mock.calls[0][1] as any;
     expect(update.status).toBe("executed");
     // aiCommandService.editHtmlContent must NOT be called — deterministic write.
+  });
+
+  it("master OFF — an approved rec does NOT publish when TASTE_REWRITE_ENABLED is off", async () => {
+    delete process.env.TASTE_REWRITE_ENABLED; // default: disabled
+    wireDraft([{ name: "Hero", content: "<h1>OLD COPY</h1>" }]);
+
+    await executeTasteRewrite(recWith("<h1>Gentle, unhurried care.</h1>"), makeCtx());
+
+    expect(updateSectionsById).not.toHaveBeenCalled(); // nothing reaches the page
+    const update = recUpdateById.mock.calls[0][1] as any;
+    expect(update.status).toBe("failed");
+    expect(JSON.parse(update.execution_result).error).toContain("disabled");
   });
 
   it("RE-GATES the stored copy — a poisoned row is failed and never published", async () => {

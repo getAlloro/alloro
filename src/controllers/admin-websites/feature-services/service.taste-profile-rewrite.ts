@@ -42,8 +42,14 @@ import { AiCommandRecommendationModel } from "../../../models/website-builder/Ai
 import { ProjectModel } from "../../../models/website-builder/ProjectModel";
 import { TasteProfileModel } from "../../../models/website-builder/TasteProfileModel";
 import type { TasteProfile } from "./service.taste-profile";
+import { PageModel } from "../../../models/website-builder/PageModel";
 import { normalizeSections } from "../feature-utils/util.section-normalizer";
-import { resolvePages, refreshStats } from "../feature-utils/util.ai-command-shared";
+import {
+  type ExecutionContext,
+  resolvePages,
+  refreshStats,
+  resolvePageDraftId,
+} from "../feature-utils/util.ai-command-shared";
 import { gateRewrite } from "../feature-utils/util.taste-rewrite-honesty";
 import { editHtmlContent } from "../../../utils/website-utils/aiCommandService";
 import logger from "../../../lib/logger";
@@ -71,7 +77,7 @@ export interface DroppedRewrite {
 export interface TasteRewriteResult {
   batchId: string | null;
   /** "ready" = a batch of drafts awaits owner approval; "skipped_*" = nothing to do. */
-  status: "ready" | "skipped_no_org" | "skipped_no_approved_profile";
+  status: "ready" | "skipped_disabled" | "skipped_no_org" | "skipped_no_approved_profile";
   /** Sections a rewrite was attempted on. */
   generated: number;
   /** Rewrites that passed the gate and became pending recommendations. */
@@ -98,6 +104,19 @@ const defaultRewriteFn: RewriteSectionFn = async (args) => {
   const result = await editHtmlContent(args);
   return { editedHtml: result.editedHtml };
 };
+
+/**
+ * Master OFF switch (default OFF). B2 ships DISABLED and stays that way until the
+ * honesty gate's known residual is closed — the regex gate cannot cover the
+ * open-ended over-claim space, and owner approval alone is a weak backstop for a
+ * subtle over-claim on a healthcare site (the owner is not a compliance expert).
+ * So B2 does not reach a live customer site until an independent LLM honesty
+ * judge lands (v2), or owner-approval is validated to actually catch over-claims.
+ * Gated at BOTH generation (no drafts created) and execution (no publish).
+ */
+export function isTasteRewriteEnabled(): boolean {
+  return process.env.TASTE_REWRITE_ENABLED === "true";
+}
 
 // ---------------------------------------------------------------------------
 // INSTRUCTION — profile → a sourced-facts-only rewrite brief
@@ -182,6 +201,19 @@ export async function generateTasteRewriteBatch(
   opts: TasteRewriteOptions = {},
   rewriteFn: RewriteSectionFn = defaultRewriteFn
 ): Promise<TasteRewriteResult> {
+  // Master OFF switch — B2 ships default-DISABLED; create nothing when off.
+  if (!isTasteRewriteEnabled()) {
+    return {
+      batchId: null,
+      status: "skipped_disabled",
+      generated: 0,
+      kept: 0,
+      dropped: [],
+      reason:
+        "B2 taste-rewrite is disabled (TASTE_REWRITE_ENABLED off). Ships default-OFF until the honesty gate's residual is closed (LLM judge) or owner-approval is validated.",
+    };
+  }
+
   const project = await ProjectModel.findRawById(projectId);
   if (!project) throw new Error(`Project ${projectId} not found`);
 
@@ -303,4 +335,97 @@ export async function generateTasteRewriteBatch(
   logger.info(`[TasteRewrite] ✓ Batch ${batchId} ready: ${kept} kept, ${dropped.length} dropped of ${generated} generated`);
 
   return { batchId, status: "ready", generated, kept, dropped };
+}
+
+// ---------------------------------------------------------------------------
+// EXECUTION — publish the stored, pre-gated rewrite (dispatched by
+// service.ai-command-execute for target_type "taste_rewrite")
+// ---------------------------------------------------------------------------
+
+/**
+ * Publish a pre-generated, pre-gated section rewrite. Unlike page_section —
+ * which re-runs the LLM at execution — this writes the STORED copy from
+ * `target_meta.rewritten_html` verbatim. That is what makes B2's two guarantees
+ * structural: the published bytes are exactly the bytes the honesty gate passed
+ * and the owner approved (no fresh generation), and an over-claim cannot appear
+ * at publish time because the stored copy is re-asserted through `gateRewrite`
+ * here — a poisoned stored row is failed, never published.
+ *
+ * Writes to the batch's pinned draft (same mechanism as saveEditedHtml's
+ * page_section branch), so the end-of-batch auto-publish in `executeBatch` picks
+ * it up and `verifyBatchEdits` confirms it reached the published page.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function executeTasteRewrite(rec: any, ctx: ExecutionContext): Promise<void> {
+  // Master OFF switch (default OFF) — even an owner-approved taste_rewrite rec
+  // must not reach a live page while B2 is disabled. Fail visibly, never publish.
+  if (!isTasteRewriteEnabled()) {
+    await AiCommandRecommendationModel.updateById(rec.id, {
+      status: "failed",
+      execution_result: JSON.stringify({
+        success: false,
+        error: "taste_rewrite is disabled (TASTE_REWRITE_ENABLED off) — not published.",
+      }),
+    });
+    logger.warn(`[TasteRewrite] DISABLED — not publishing ${rec.target_label}`);
+    return;
+  }
+
+  const meta =
+    typeof rec.target_meta === "string" ? JSON.parse(rec.target_meta) : rec.target_meta;
+  const rewrittenHtml: string = meta?.rewritten_html ?? "";
+  const sectionIndex: number = meta?.section_index;
+
+  if (!rewrittenHtml || typeof sectionIndex !== "number") {
+    throw new Error("taste_rewrite recommendation is missing rewritten_html/section_index");
+  }
+
+  // Re-assert the honesty gate on the STORED copy — defense in depth. A stored
+  // rewrite that trips the gate (banned or subtle over-claim) is failed and
+  // never reaches the page.
+  const gate = gateRewrite(rewrittenHtml);
+  if (!gate.ok) {
+    await AiCommandRecommendationModel.updateById(rec.id, {
+      status: "failed",
+      execution_result: JSON.stringify({
+        success: false,
+        error: `Honesty gate blocked stored copy: ${gate.reasonCodes.join(", ")}`,
+      }),
+    });
+    logger.warn(`[TasteRewrite] BLOCKED at execution ${rec.target_label}: ${gate.reasonCodes.join(", ")}`);
+    return;
+  }
+
+  const origPage = await PageModel.findRawById(rec.target_id);
+  if (!origPage) throw new Error(`Page ${rec.target_id} not found`);
+
+  const draftId = await resolvePageDraftId(origPage, ctx);
+  const page = await PageModel.findRawById(draftId);
+  if (!page) throw new Error(`Draft ${draftId} disappeared for path ${origPage.path}`);
+
+  const rawSections =
+    typeof page.sections === "string" ? JSON.parse(page.sections) : page.sections;
+  const sections = normalizeSections(rawSections);
+  const section = sections[sectionIndex];
+  if (section === undefined) {
+    throw new Error(`Section ${sectionIndex} not found on ${origPage.path}`);
+  }
+
+  if (typeof section === "string") {
+    sections[sectionIndex] = rewrittenHtml;
+  } else {
+    sections[sectionIndex] = { ...section, content: rewrittenHtml };
+  }
+
+  await PageModel.updateSectionsById(page.id, JSON.stringify(sections));
+
+  await AiCommandRecommendationModel.updateById(rec.id, {
+    status: "executed",
+    execution_result: JSON.stringify({
+      success: true,
+      edited_html: rewrittenHtml,
+      source: "taste_rewrite_stored",
+    }),
+  });
+  logger.info(`[TasteRewrite] ✓ Executed (stored copy): ${rec.target_label}`);
 }
