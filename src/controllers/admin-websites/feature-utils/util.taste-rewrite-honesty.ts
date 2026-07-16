@@ -28,9 +28,29 @@
  * It composes the spine's `enforceHonesty` as an ADDITIONAL layer (union of
  * reason codes — the gate can only get stricter, never looser). A rewrite must
  * pass at generation (before it is approvable) AND at execution (before it
- * publishes). Deliberately conservative: over-blocking only costs the owner a
- * rewrite they can regenerate; under-blocking publishes an over-claim in the
- * owner's name. Value #6 errs to caution.
+ * publishes).
+ *
+ * ⛔ MEASURED STATE — DO NOT TRUST THIS GATE (independent refutation, 2026-07-16).
+ * A fresh adversary ran 96 realistic strings through `gateRewrite`. Result:
+ *   - **54/74 (73%) of realistic over-claims PASS** (`ok:true`). It is a ~60-token
+ *     denylist; any paraphrase walks through ("foremost", "in a league of their
+ *     own", "trusted by more families than any other", "your comfort is assured").
+ *   - **11/22 (50%) of HONEST lines are wrongly BLOCKED** — and they are exactly
+ *     the specific, verifiable copy this system exists to produce: a "$120" fee,
+ *     "6 new patients each Tuesday", "First Page Road", a real *Elite* Sports
+ *     Dentistry credential. Since `ok:false` DROPS the rewrite, the gate pushes
+ *     copy AWAY from checkable specifics toward vague unfalsifiable warmth —
+ *     the very Value #6 failure it was built to stop. (The earlier claim here,
+ *     that over-blocking merely costs a regenerate, was WRONG.)
+ *   - The NEGATION GUARD whitewashes real brags: "Our patients don't call us the
+ *     best dentist in town for nothing" passes WITH the banned word `best`.
+ *   - Unicode (zero-width space, homoglyphs, accents) defeats the entity/no-gap
+ *     defense entirely, which only blocks the split-tag case it was aimed at.
+ * The prior "hardened → 0 slips" note was SELF-GRADED against the first
+ * adversary's own patched strings — an answer key, not a test. This is not a
+ * residual; the gap is the majority of the space. A regex denylist cannot carry
+ * Value #6 here. B2 therefore ships DISABLED, and an independent LLM honesty
+ * judge is REQUIRED before it can be enabled — not an optional v2.
  *
  * B2-LOCAL on purpose: it does NOT mutate the spine's shared `enforceHonesty`
  * (that would destabilize #160's contract + tests). NOTE (residual, honest): a
