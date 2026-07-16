@@ -6,6 +6,34 @@ These are repo-local operating notes for `/Users/rustinedave/Desktop/alloro`. Th
 
 Write plainly for the user. Keep the technical substance accurate, but say it in simple, common words and short sentences. Lead with the main point, then the detail. No wordplay, puns, jokes, or clever phrasing — say things directly. When something has to stay technical (a file name, a command, a term), add a one-line plain explanation next to it. The goal: the user understands the answer on the first read without having to decode it.
 
+## Worktree Workflow
+
+The global `-s` and `-tw` command rules apply to Alloro with these project-specific details.
+
+### Planning Worktrees (`--start` / `-s`)
+
+- Every `-s` starts a new secondary linked worktree from the current branch's committed `HEAD` before planning, unless the user explicitly passes `--no-worktree`.
+- Put Alloro planning worktrees under `/Users/rustinedave/Desktop/alloro-worktrees/{feature-slug}`.
+- Use `codex/{feature-slug}` for the new branch unless the user explicitly names another branch.
+- Create the plan folder and perform later execution inside that linked worktree.
+- Report the source branch, source commit, new branch, and absolute worktree path.
+- Dirty source-checkout changes are not part of the new worktree. Warn about them, but never stash or copy them automatically.
+
+### Contained Acceptance (`--test-worktree` / `-tw`)
+
+- Hard-fail unless the current checkout is proven to be a secondary linked Git worktree.
+- The expected Alloro adapter command is `npm run test:worktree`. **This adapter is not assumed to exist.** If the package script is absent, refuse safely and use `-s` to plan its implementation.
+- The adapter must build a runtime from the verified worktree, use OS-assigned ports, and return a machine-readable manifest with the app origin, authenticated bootstrap URL, health URL, safety modes, logs, and teardown command.
+- Build an allowlisted runtime environment. Do not copy or activate the checkout's `.env` wholesale, and never enable commented-out production database values.
+- Use an isolated local writable database cloned from a sanitized persistent seed when useful. Never write to dev or production by default.
+- Seed deterministic local users and issue a local-only session so browser acceptance does not require manual reauthentication.
+- Route email to a local capture sink. Isolate Redis and queue namespaces. Keep workers and recurring schedules off unless a named test explicitly requires them.
+- Disable third-party writes by default. Test/sandbox integrations require an explicit user request.
+- Run acceptance against the manifest origin. For the admin flow, open `{origin}/admin`; when client-dashboard state matters, use the seeded Pilot flow into One Endodontics.
+- Update the active plan's `test-results.json` with real browser/API/CLI evidence, then tear the runtime down unless `--keep` was requested.
+
+These instructions define the safe contract. They do not implement the Docker services, database clone, seeds, auth bootstrap, email sink, browser launcher, or package script.
+
 ## Plan Specs
 
 All Alloro plan folders must use the global self-contained HTML spec artifact format:

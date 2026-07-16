@@ -2,11 +2,34 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.169] - July 2026
+
+### Project Board comments add images and targeted alerts
+
+Project Board comments now accept screenshots and other images from the file picker, clipboard, or drag-and-drop while preserving the existing chronological conversation feed. New mentions and cross-column or cross-project task moves send targeted Alloro-branded email alerts with direct links to the relevant task tab; same-column reordering stays quiet. Built on `plans/07152026-project-board-comment-emails`; 500 backend tests, 167 frontend tests, TypeScript, production builds, lint, dependency checks, strict Constitution checks, and live local API, S3, and intercepted Mailgun acceptance pass. This release is published through `dev/dave`; production has not been promoted.
+
+**Key Changes:**
+- **Image-enabled comments.** The composer accepts multiple image files through selection, paste, or drop, shows removable previews, reports upload progress, supports image-only comments, and keeps a saved comment when one of its image uploads fails.
+- **Comment-owned storage.** Comment images use the existing attachment storage boundary with explicit comment metadata, task/comment/author validation, standalone-list exclusion, transactional metadata cleanup, and best-effort S3 deletion.
+- **Targeted mention alerts.** Creating a comment alerts mentioned internal users; editing alerts only newly added mentions. Self-mentions and duplicate recipients are filtered.
+- **Useful movement alerts.** Cross-column and cross-project task moves notify the task creator and assignee after the database commit. Same-column ordering changes send no email.
+- **Direct task links.** Alert links open the named task directly on the Comments or Details tab and clear cleanly when the panel closes.
+- **Regression correction.** The Rankings recommendation fallback again maps exact generic post, review, and photo labels by position while preserving specific raw recommendation titles.
+- **Worktree workflow policy.** Repository instructions now define linked-worktree-first planning and a fail-safe contained acceptance contract without claiming an adapter that does not yet exist.
+- **Docs parity.** Checked `alloro-docs`; no matching Project Board documentation surface exists, so no docs edit was required.
+
+**Commits:**
+- PM attachment, comment, task, user, and email-service backend files plus `20260715000000_add_pm_comment_attachments.ts` — comment image persistence, cleanup, and targeted email alerts.
+- Project Board API, hooks, task panel, comment composer, deep-link utility, types, and focused tests — image interactions, preserved conversation feed, and direct task opening.
+- `frontend/src/components/dashboard/rankingsDashboard.utils.ts` and the PR 153 plan revision — generic recommendation fallback regression fix.
+- `plans/07152026-project-board-comment-emails/` — completed spec and passing acceptance record with live API, S3, Mailgun, and cleanup evidence.
+- `AGENTS.md`, `CLAUDE.md`, and `plans/07162026-test-worktree-command-and-worktree-planning-default/` — documented worktree planning and contained test safety contract.
+
 ## [0.0.168] - July 2026
 
 ### Clearer team tables and consistent role controls
 
-Organization admins and managers now get stable, easier-to-scan Team Members and Pending Invitations tables. Structural labels and actions stay on one line, long names and emails truncate safely, narrow layouts scroll horizontally, and both role-editing and invitation flows use the same animated keyboard-accessible selector. Built on `plans/07162026-settings-team-table-polish`; focused selector tests, TypeScript, production builds, scoped lint, strict Constitution checks, and Alloro Docs build pass. Five authenticated browser checks were explicitly waived by Dave for the direct local `dev/dave` merge and remain recorded as waived failures, not passes. This change is merged locally but has not been pushed or deployed.
+Organization admins and managers now get stable, easier-to-scan Team Members and Pending Invitations tables. Structural labels and actions stay on one line, long names and emails truncate safely, narrow layouts scroll horizontally, and both role-editing and invitation flows use the same animated keyboard-accessible selector. Built on `plans/07162026-settings-team-table-polish`; focused selector tests, TypeScript, production builds, scoped lint, strict Constitution checks, and Alloro Docs build pass. Five authenticated browser checks were explicitly waived by Dave for the direct `dev/dave` release and remain recorded as waived failures, not passes. This change is included in the published dev release; production has not been promoted.
 
 **Key Changes:**
 - **Stable semantic tables.** Explicit column proportions, no-wrap structural fields, safe identity truncation, alternating rows, hover states, and horizontal overflow keep member and invitation data readable.
@@ -26,7 +49,7 @@ Organization admins and managers now get stable, easier-to-scan Team Members and
 
 ### Project Board comments include the task attachment timeline
 
-The Project Board task sidebar now puts Comments before Attachments and shows task-level file activity in the same chronological conversation as comments. Files can be dropped or selected from either tab, and one shared state tracks upload progress, failures, completed files, deletion, and attachment counts across both views. Built on `plans/07162026-project-board-comment-attachment-feed`; focused feed tests, root TypeScript, the frontend production build, lint review, strict Constitution checks, and diff checks pass. The full frontend suite still has four unrelated ranking-copy failures. All six browser acceptance checks were explicitly waived by the user for the direct local `dev/dave` merge and are recorded as waived failures rather than passes. This change is not pushed or deployed.
+The Project Board task sidebar now puts Comments before Attachments and shows task-level file activity in the same chronological conversation as comments. Files can be dropped or selected from either tab, and one shared state tracks upload progress, failures, completed files, deletion, and attachment counts across both views. Built on `plans/07162026-project-board-comment-attachment-feed`; focused feed tests, root TypeScript, the frontend production build, lint review, strict Constitution checks, and diff checks pass. The previously observed ranking-copy regression is corrected in 0.0.169, and the full frontend suite now passes. All six browser acceptance checks were explicitly waived by the user for the direct `dev/dave` release and are recorded as waived failures rather than passes. This change is included in the published dev release; production has not been promoted.
 
 **Key Changes:**
 - **Comments-first task flow.** Sidebar tabs now read Details, Comments, Attachments while Details remains the default view and each count keeps its original meaning.
@@ -47,7 +70,7 @@ The Project Board task sidebar now puts Comments before Attachments and shows ta
 
 ### Consistent Alloro transactional emails
 
-Alloro's account, authentication, billing, notification, and transport-test emails now share one branded responsive shell. Headings use the serif display stack, body copy uses the sans stack, codes and temporary passwords stay monospace, and calls to action use Alloro orange instead of the legacy blue treatment. Built on `plans/07162026-transactional-email-brand-consistency`; 495 tests, TypeScript, builds, lint, strict conventions, semantic template checks, 14 responsive screenshots, and 11 controlled inbox QA sends pass. The QA envelopes were intercepted to `dave@getalloro.com` only. This work is merged into local `dev/dave` but has not been pushed or deployed.
+Alloro's account, authentication, billing, notification, and transport-test emails now share one branded responsive shell. Headings use the serif display stack, body copy uses the sans stack, codes and temporary passwords stay monospace, and calls to action use Alloro orange instead of the legacy blue treatment. Built on `plans/07162026-transactional-email-brand-consistency`; 495 tests, TypeScript, builds, lint, strict conventions, semantic template checks, 14 responsive screenshots, and 11 controlled inbox QA sends pass. The QA envelopes were intercepted to `dave@getalloro.com` only. This work is included in the published dev release; production has not been promoted.
 
 **Key Changes:**
 - **One email shell.** Invitation, verification, password-reset, temporary-password, billing, system-notification, and transport-test messages now use the shared Alloro logo, spacing, navy/orange palette, typography, footer, and responsive canvas.
@@ -67,7 +90,7 @@ Alloro's account, authentication, billing, notification, and transport-test emai
 
 ### Leadgen tracking integrity and honest admin submissions
 
-Leadgen analytics now distinguishes persisted account relationships from derived email or domain hints, requires audit-backed report progression, and measures one-minute report engagement from focused and visible time instead of page-mount time. Empty session shells were removed from local, dev, and production with verified recovery backups, while historical unaudited activity was retained and clearly classified. Built on `plans/07152026-leadgen-tracking-integrity-cleanup`; the code is committed and merged into the local `dev/dave` and leadgen `main` checkouts, but has not been pushed or deployed. Automated backend, frontend, timer, build, and convention gates pass. The positive focused-browser timer integration is an explicit user-authorized waiver and is not presented as a pass.
+Leadgen analytics now distinguishes persisted account relationships from derived email or domain hints, requires audit-backed report progression, and measures one-minute report engagement from focused and visible time instead of page-mount time. Empty session shells were removed from local, dev, and production with verified recovery backups, while historical unaudited activity was retained and clearly classified. Built on `plans/07152026-leadgen-tracking-integrity-cleanup`; the Alloro app code is included in the published dev release, while the separate leadgen checkout remains local and production app promotion is still pending. Automated backend, frontend, timer, build, and convention gates pass. The positive focused-browser timer integration is an explicit user-authorized waiver and is not presented as a pass.
 
 **Key Changes:**
 - **Audit-bound event integrity.** JSON and beacon ingestion share boundary validation, session/event writes are transactional, audit identity is write-once, and every report-surface event requires a real audit. One-minute engagement also requires prior results visibility.
