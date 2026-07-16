@@ -166,6 +166,14 @@ describe("honesty lint — GeneratedCopySafetyService.validateGeneratedCopy", ()
     "Get you to page one of results.",
     "We'll dominate local search for you.",
     "Be #1 on Google, guaranteed.",
+
+    // The page-qualifier family. Each of these was a MEASURED miss: the older
+    // qualifier set sat directly on the rank noun, so a multi-word page
+    // qualifier ("first PAGE placement") fell through the gap between the words.
+    "First page placement on Google for every service page.",
+    "Page one placement on Google, every time.",
+    "Front page of Google for implant patients.",
+    "Premium placement in Google Maps for your practice.",
   ];
 
   it.each(rejected)("REJECTS ranking/placement/visibility copy: %s", (copy) => {
@@ -357,6 +365,122 @@ describe("honesty lint — GeneratedCopySafetyService.validateGeneratedCopy", ()
     const result = GeneratedCopySafetyService.validateGeneratedCopy(copy);
     expect(result.isSafe).toBe(true);
     expect(result.status).toBe("safe");
+  });
+
+  /**
+   * POST-MODIFYING NEGATION — the negator AFTER the claim.
+   *
+   * The scope walk reads backward from a match, so a claim in SUBJECT position
+   * with the negator in its own predicate ("Permanent results are not
+   * guaranteed") was BLOCKED. That is the worst failure this gate has: a missed
+   * boast still meets owner approval before publish, but a blocked disclaimer is
+   * silent and absolute — the most honest sentence a practice can publish simply
+   * cannot ship. The first two fixtures are the measured false positives.
+   */
+  const postModifyingNegation = [
+    "Permanent results are not guaranteed.",
+    "Ranking #1 on Google is not something we promise.",
+    "First page placement is not guaranteed.",
+    "A higher ranking is not promised.",
+    "Top placement cannot be guaranteed.",
+    "Google rankings are never guaranteed.",
+    "Page one placement isn't something we control.",
+    "Higher rankings are not a promise we make.",
+    "Google rankings do not come with any promise.",
+    "A higher ranking has not been promised.",
+    "Top placement will not be promised.",
+    "No first page placement is implied.",
+    "We cannot guarantee first page placement.",
+    // The subject tail: PP modifiers continue the subject NP, so the negated
+    // predicate still governs the claim across them.
+    "Top placement in Google Maps for your practice is not guaranteed.",
+    // A matrix verb that is not an asserting verb must not disable the guard.
+    "Please note that permanent results are not guaranteed.",
+  ];
+
+  it.each(postModifyingNegation)("PASSES a disclaimer whose negator FOLLOWS the claim: %s", (copy) => {
+    const result = GeneratedCopySafetyService.validateGeneratedCopy(copy);
+    expect(result.isSafe).toBe(true);
+    expect(result.status).toBe("safe");
+  });
+
+  /**
+   * The mirror of the above, and the constraint that keeps the forward read from
+   * opening a hole: a trailing negator that modifies a DIFFERENT constituent
+   * must not launder the claim. Forward negation is only read when the claim is
+   * the subject of its own negated finite predicate — a comma, a dash, an
+   * intervening copula, or an asserting verb governing the claim all stop it.
+   */
+  const trailingNegatorDoesNotLaunder = [
+    "We guarantee first page placement, not just traffic.",
+    "We guarantee first page placement — not just traffic.",
+    "We deliver top placement, never less.",
+    "You get page one placement, not excuses.",
+    // The negator sits in a complement clause; the matrix verb still asserts.
+    "We promise top placement is not a problem.",
+    // A copula stops the subject tail, so the later negator cannot reach back.
+    "Top placement is our goal but rankings are not guaranteed.",
+  ];
+
+  it.each(trailingNegatorDoesNotLaunder)("BLOCKS a claim a trailing negator does not govern: %s", (copy) => {
+    const result = GeneratedCopySafetyService.validateGeneratedCopy(copy);
+    expect(result.isSafe).toBe(false);
+    expect(result.status).toBe("blocked");
+  });
+
+  /**
+   * The rank/placement claim family, swept adversarially. This is a conservative
+   * FILTER, not a proof of coverage — two shapes from the same sweep are known to
+   * escape and are documented as residuals on the pattern block itself: a
+   * metaphor with no rank noun ("prime real estate on Google's first page") and a
+   * paraphrase with no claim vocabulary at all ("we put your practice where
+   * patients look first"). Neither is reachable lexically.
+   */
+  const claimFamily = [
+    "Page-one placement for your practice.",
+    "First-page rankings for every service.",
+    "Page 1 placement, every time.",
+    "Position one placement on Google.",
+    "#1 placement on Google.",
+    "Top of Google for your whole service list.",
+    "Front page of the search results.",
+    "Top of the SERPs for implants.",
+    "Page one of Google Maps.",
+    "We get you in the local pack.",
+    "We put your practice in the map pack.",
+    "Land your listing in the 3-pack.",
+    "Rank above your competitors.",
+    "We put you ahead of your competitors.",
+    "Priority placement in Google Maps.",
+    "Featured placement on Google.",
+    "The top spot on Google is yours.",
+    "We land you the first slot.",
+    "Maximum exposure on Google search.",
+    "We make your practice the most visible in town.",
+    "Own the map pack in your city.",
+    "Your listing will sit at the top of the results.",
+    "Expect to be found at the very top.",
+  ];
+
+  it.each(claimFamily)("BLOCKS the rank/placement claim family: %s", (copy) => {
+    expect(GeneratedCopySafetyService.validateGeneratedCopy(copy).isSafe).toBe(false);
+  });
+
+  /**
+   * The inventory widened around the page qualifiers, NOT around the noun
+   * "position". These are ordinary English that happens to share a qualifier
+   * with a placement promise; blocking them would be a false positive, which is
+   * the failure this round exists to fix.
+   */
+  const ordinaryEnglish = [
+    "We put you in a better position to serve your patients.",
+    "Answer the question directly at the top of the page.",
+    "We will create your first listing this week.",
+    "Your hours are more visible on the page.",
+  ];
+
+  it.each(ordinaryEnglish)("PASSES ordinary English that shares a qualifier: %s", (copy) => {
+    expect(GeneratedCopySafetyService.validateGeneratedCopy(copy).isSafe).toBe(true);
   });
 });
 

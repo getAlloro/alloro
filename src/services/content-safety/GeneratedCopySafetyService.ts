@@ -93,7 +93,12 @@ const BLOCKED_WILL_RANK_PATTERNS = [
 const BLOCKED_RANK_PROMISE_PATTERNS = [
   /\brank\w*\s+(?:you\s+|your\s+\w+\s+)?(?:higher|first|top|#?\s*1\b|number\s*(?:one|1)\b|on\s+(?:the\s+first\s+page|google|page\s*(?:one|1)))/i,
   /\bout\s*-?\s*rank/i,
-  /\b(?:higher|top|first|better|improved)\s+(?:google\s+|search\s+)?(?:ranking|placement|position)s?\b/i,
+  // "position" carries a negative lookahead for the INFINITIVAL IDIOM. "A better
+  // position to serve your patients" is ordinary English, not a placement
+  // promise, and blocking it is a false positive — the failure mode that matters
+  // most here, because a blocked disclaimer cannot ship at all. "Top position on
+  // Google" is untouched: only "position TO <verb>" is exempted.
+  /\b(?:higher|top|first|better|improved)\s+(?:google\s+|search\s+)?(?:(?:ranking|placement)s?\b|positions?\b(?!\s{1,8}to\s{1,8}[a-z]))/i,
   /\b(?:get\s+(?:you\s+)?to|reach|hit|land\s+on|be\s+on|onto|climb\s+to|to)\s+page\s*(?:one|1)\b/i,
   /\bpage\s*(?:one|1)\s+of\s+(?:google|search|the\s+results|results)\b/i,
   /\b(?:dominate|own|crush|conquer)\s+(?:the\s+)?(?:local\s+)?(?:search|google|rankings?|results|competition|market)\b/i,
@@ -107,6 +112,119 @@ const BLOCKED_RANK_PROMISE_PATTERNS = [
   /\bwill\s+rank\b/i,
   /\bboost\w*\s+(?:your\s+)?(?:google\s+)?(?:ranking|visibility|placement|traffic)/i,
   /\bfreshness\s+signal/i,
+];
+
+/**
+ * The rank/placement claim FAMILY, enumerated by its parts rather than by
+ * string. The narrower arrays above are built around a qualifier set
+ * (higher|top|first|better|improved) that sits DIRECTLY on the rank noun, so
+ * every promise whose qualifier is itself a multi-word page reference — "first
+ * PAGE placement", "page one placement" — slips through the gap between the two
+ * words. These patterns close that family.
+ *
+ * They are ADDITIVE. The existing arrays are left exactly as they are: their
+ * qualifier set is deliberately narrow around the noun "position", and widening
+ * it in place (to "prime position", "best position", "leading position") would
+ * trade these misses for a crop of false positives on ordinary English, which
+ * is the worse failure.
+ *
+ * KNOWN RESIDUALS — this inventory is NOT exhaustive, and cannot be. It was
+ * attacked with a sweep of the family; three CATEGORIES still get through, and
+ * are recorded rather than papered over. (Categories only here: the repo is
+ * public, so the concrete strings live in the test fixtures, not in source.)
+ *   - POSITION METAPHOR. A promise that names position through a figure of
+ *     speech carries no rank noun for a lexical gate to match. Metaphors for
+ *     position are an open set; enumerating them is whack-a-mole.
+ *   - PARAPHRASE WITH NO CLAIM VOCABULARY. A placement promise can be written
+ *     with no rank, placement, page, or visibility token in it at all. Nothing
+ *     lexical can reach that; it needs a semantic model.
+ *   - COMPARATIVE VISIBILITY, unqualified. Left open deliberately: it is
+ *     surface-identical to honest copy about page structure, so blocking it
+ *     would over-block a true statement. The SUPERLATIVE form is caught — it is
+ *     unambiguously a competitive-position claim.
+ * These are why the gate is a conservative FILTER, not a guarantee. Owner
+ * approval, not this regex, is what stands between a boast and a publish.
+ */
+
+/** Multi-word page/position qualifiers: "first page", "page one", "position 1", "#1". */
+const PAGE_POSITION_QUALIFIER =
+  "(?:page\\s{0,2}-?\\s{0,2}(?:one|1)|(?:first|front|top)\\s{0,2}-?\\s{0,2}page|" +
+  "position\\s{0,2}-?\\s{0,2}(?:one|1)|number\\s{0,2}-?\\s{0,2}(?:one|1)|#\\s{0,2}1)";
+
+/** The engine/surface a placement promise names, sitting between qualifier and noun. */
+const RANK_SURFACE = "(?:google|search|maps|map|local|organic|serp)";
+
+/**
+ * Nouns a position promise lands on. "position" is present here because the
+ * qualifier that reaches it is always an explicit page/rank reference; it is
+ * absent from PLACEMENT_ADJECTIVE_PATTERN below, where the looser adjectives
+ * ("prime position") are ordinary English.
+ */
+const RANK_NOUN = "(?:ranking|placement|position|spot|listing|slot)s?";
+
+/** Bare position adjectives. Kept separate from the multi-word qualifiers above. */
+const BARE_RANK_QUALIFIER = "(?:higher|highest|top|first|best|leading)";
+
+const BLOCKED_RANK_INVENTORY_PATTERNS = [
+  // "first page placement", "page one placement", "#1 google ranking".
+  // The opening guard is a LOOKBEHIND, not `\b`: the "#1" branch starts with a
+  // non-word character, and `\b` never holds before it, so a leading `\b` would
+  // silently drop every "#1 placement" from this pattern.
+  new RegExp(
+    `(?<![\\w#])${PAGE_POSITION_QUALIFIER}\\s{1,8}(?:${RANK_SURFACE}\\s{1,8}){0,2}${RANK_NOUN}\\b`,
+    "i",
+  ),
+  // "top spot", "first slot" — the position nouns the higher|top|first set omits.
+  // "listing" requires an explicit search surface: an unqualified "your first
+  // listing" is ordinary onboarding copy, not a placement promise.
+  new RegExp(`\\b${BARE_RANK_QUALIFIER}\\s{1,8}(?:${RANK_SURFACE}\\s{1,8}){0,2}(?:spot|slot)s?\\b`, "i"),
+  new RegExp(`\\b${BARE_RANK_QUALIFIER}\\s{1,8}(?:${RANK_SURFACE}\\s{1,8}){1,2}listings?\\b`, "i"),
+  // Superlative/absolute visibility: "maximum exposure on Google", "the most
+  // visible practice in town".
+  new RegExp(
+    "\\b(?:maximum|maximal|max|total|complete|full|unmatched|unbeatable|guaranteed)\\s{1,8}" +
+      `(?:${RANK_SURFACE}\\s{1,8}){0,2}(?:exposure|visibility|reach|presence)\\b`,
+    "i",
+  ),
+  /\bthe\s{1,8}most\s{1,8}(?:visible|found|seen|searched)\b/i,
+  // "own the map pack" — the dominate/own verbs against the pack nouns.
+  new RegExp(
+    "\\b(?:dominate|own|crush|conquer|rule|corner)\\s{1,8}(?:the\\s{1,8})?(?:local\\s{1,8})?" +
+      "(?:map|snack|local|3|three)\\s{0,2}-?\\s{0,2}pack\\b",
+    "i",
+  ),
+  // "found at the very top". Narrow to the FOUND/rank verb on purpose: bare "at
+  // the top" is the answer-first recommendation's own honest wording ("answer
+  // the question at the top of the page") and must never trip this gate.
+  /\b(?:found|ranked|listed|placed|sitting|sits)\s{1,8}at\s{1,8}the\s{1,8}(?:very\s{1,8})?top\b/i,
+  // Placement-promise adjectives the higher|top|first set misses. "position" is
+  // deliberately NOT in this noun set — "prime position"/"best position" are
+  // ordinary English, and blocking them would be a false positive.
+  new RegExp(
+    "\\b(?:premium|prime|preferred|priority|elevated|enhanced|featured|dominant|leading)" +
+      `\\s{1,8}(?:${RANK_SURFACE}\\s{1,8}){0,2}(?:placement|ranking|listing|spot|slot)s?\\b`,
+    "i",
+  ),
+  // A position promise carrying NO rank noun at all: "front page of Google".
+  new RegExp(
+    "\\b(?:(?:front|first)\\s{0,2}-?\\s{0,2}page|page\\s{0,2}-?\\s{0,2}(?:one|1)|top)\\s{1,8}of\\s{1,8}" +
+      "(?:the\\s{1,8})?(?:google\\s{1,8}maps|google|search\\s{1,8}results|search|serps?|the\\s{1,8}results|results)\\b",
+    "i",
+  ),
+  // Maps / local-pack placement, gated behind a promise verb so honest
+  // educational copy about what a local pack IS still passes.
+  new RegExp(
+    "\\b(?:get|put|land|place|rank|appear|show\\s{1,8}up|feature)\\w*\\s{1,8}(?:you\\s{1,8}|your\\s{1,8}\\w{1,30}\\s{1,8})?" +
+      "(?:in|into|on|at\\s{1,8}the\\s{1,8}top\\s{1,8}of)\\s{1,8}(?:the\\s{1,8})?" +
+      "(?:google\\s{1,8}maps|map\\s{0,2}-?\\s{0,2}pack|local\\s{0,2}-?\\s{0,2}pack|snack\\s{0,2}-?\\s{0,2}pack|(?:3|three)\\s{0,2}-?\\s{0,2}pack)\\b",
+    "i",
+  ),
+  // Placement stated as a position relative to competitors.
+  new RegExp(
+    "\\b(?:above|ahead\\s{1,8}of|outperform\\w*|beat|beats|beating)\\s{1,8}" +
+      "(?:your\\s{1,8}|the\\s{1,8}|all\\s{1,8}|local\\s{1,8}|nearby\\s{1,8}|other\\s{1,8}){0,3}competitors?\\b",
+    "i",
+  ),
 ];
 
 /**
@@ -303,10 +421,110 @@ function lastNegationScopeBoundaryEnd(before: string): number {
 }
 
 /**
+ * POST-MODIFYING NEGATION — the negator that sits AFTER the claim.
+ *
+ * The scope walk above only reads BACKWARD from a match, so it sees a negator
+ * only when the negator precedes the phrase. English routinely puts the claim in
+ * SUBJECT position and the negator in the predicate that follows it:
+ *
+ *   "Permanent results are not guaranteed."
+ *   "Ranking #1 on Google is not something we promise."
+ *
+ * Both are the most honest sentences a practice can publish, and a backward-only
+ * gate blocks them. A blocked disclaimer is silent and absolute — the copy simply
+ * cannot ship — whereas a missed boast still meets owner approval before publish.
+ * So this direction matters more than the inventory below it.
+ *
+ * The shape recognized is narrow ON PURPOSE, because a trailing negator that
+ * modifies a DIFFERENT constituent must not launder the claim:
+ *
+ *   "We guarantee first page placement, not just traffic."   ← must still BLOCK
+ *
+ * Negation is only read forward when the claim is the SUBJECT of its own negated
+ * finite predicate. Two conditions, both required:
+ *
+ *   1. Between the claim and the negator there is only SUBJECT TAIL — at most two
+ *      prepositional phrases continuing the subject noun phrase ("on Google",
+ *      "in Google Maps for your practice"). No comma, no dash, no clause
+ *      punctuation, and no finite verb can be crossed, which is what excludes the
+ *      corrective "…, not just traffic" (a comma stops the tail) and the
+ *      concessive "Top placement is our goal but rankings are not guaranteed"
+ *      (a copula stops the tail).
+ *   2. The claim is not the OBJECT of an asserting verb. "We promise top
+ *      placement is not a problem" asserts the placement; the negator lives in a
+ *      complement clause and does not reach the matrix assertion.
+ */
+
+/** Prepositions that can open a PP continuing a subject noun phrase. */
+const SUBJECT_TAIL_PREPOSITION = "(?:on|in|for|of|at|from|to|with|across|within|near|around)";
+
+/** A tail word: must OPEN with an alphanumeric, so a bare dash is never a tail. */
+const SUBJECT_TAIL_WORD = "[A-Za-z0-9#][A-Za-z0-9'\\u2019-]{0,29}";
+
+/**
+ * At most two prepositional phrases of at most four words. Every quantifier is
+ * bounded: an anchored match with unbounded runs is what turned a 2ms scan into
+ * a 2.6s one on a previous pass.
+ */
+const SUBJECT_TAIL = `(?:\\s{1,8}${SUBJECT_TAIL_PREPOSITION}(?:\\s{1,8}${SUBJECT_TAIL_WORD}){1,4}){0,2}`;
+
+/** Adverbs that may sit inside the auxiliary complex without breaking it. */
+const PREDICATE_ADVERB =
+  "(?:ever|even|really|truly|always|simply|just|actually|necessarily|generally|" +
+  "typically|usually|currently|yet|still|likely|therefore|however)";
+
+/** Contracted negative auxiliaries: isn't, can't (ca+n't), won't (wo+n't), cannot. */
+const NEGATIVE_AUXILIARY =
+  "(?:is|are|was|were|do|does|did|has|have|had|could|would|should|must|might|need|dare|ca|wo|sha)" +
+  "n[\\u2019']?t\\b|cannot\\b";
+
+/** Auxiliaries that take an explicit negator after them. */
+const POSITIVE_AUXILIARY =
+  "(?:is|are|was|were|am|be|been|being|do|does|did|has|have|had|can|could|will|would|shall|should|may|might|must)";
+
+/**
+ * A negated finite predicate, anchored directly after the claim's subject tail.
+ * "is not", "are never", "cannot", "isn't", "do not", "has not been", "is no".
+ */
+const POST_MODIFYING_NEGATION = new RegExp(
+  `${SUBJECT_TAIL}\\s{1,8}(?:${NEGATIVE_AUXILIARY}|` +
+    `${POSITIVE_AUXILIARY}\\b(?:\\s{1,8}${PREDICATE_ADVERB}\\b){0,3}\\s{1,8}(?:not|never|no)\\b)`,
+  "iy",
+);
+
+/**
+ * An asserting verb immediately before the claim makes the claim that verb's
+ * OBJECT, so a negator inside the claim's own predicate cannot undo the
+ * assertion. Bounded to the characters just before the match — enough to see the
+ * verb, and O(1) per match rather than a slice of everything preceding.
+ */
+const ASSERTING_VERB_BEFORE_CLAIM =
+  /\b(?:guarantee|guarantees|guaranteed|promise|promises|promised|ensure|ensures|ensured|assure|assures|assured|deliver|delivers|delivered|secure|secures|secured|get|gets|give|gives)\s{1,8}(?:you\s{1,8}|your\s{1,8})?(?:that\s{1,8})?$/i;
+
+/** How far back to look for an asserting verb governing the claim. */
+const ASSERTING_VERB_LOOKBACK = 40;
+
+/**
+ * True when a negator AFTER the claim governs the claim — i.e. the claim is the
+ * subject of its own negated finite predicate, and is not the object of an
+ * asserting verb.
+ */
+function isNegatedByFollowingPredicate(text: string, matchStart: number, matchEnd: number): boolean {
+  const lookbackFrom = Math.max(0, matchStart - ASSERTING_VERB_LOOKBACK);
+  if (ASSERTING_VERB_BEFORE_CLAIM.test(text.slice(lookbackFrom, matchStart))) {
+    return false;
+  }
+  POST_MODIFYING_NEGATION.lastIndex = matchEnd;
+  return POST_MODIFYING_NEGATION.test(text);
+}
+
+/**
  * True when `pattern` matches `text` in at least one clause that is NOT negated.
  * Negation is localized to the clause governing each match (see
- * NEGATION_SCOPE_BOUNDARY), so an honest disclaimer passes while a promise
- * laundered behind an honest clause is still blocked.
+ * NEGATION_SCOPE_BOUNDARY) and read in BOTH directions — backward to the clause's
+ * negator, and forward to a negated predicate the claim is the subject of — so an
+ * honest disclaimer passes while a promise laundered behind an honest clause, or
+ * behind a trailing negator that modifies something else, is still blocked.
  */
 export function matchesUnnegated(text: string, pattern: RegExp): boolean {
   const scan = new RegExp(pattern.source, pattern.flags.includes("g") ? pattern.flags : pattern.flags + "g");
@@ -314,7 +532,10 @@ export function matchesUnnegated(text: string, pattern: RegExp): boolean {
   while ((match = scan.exec(text)) !== null) {
     const before = text.slice(0, match.index);
     const clause = before.slice(lastNegationScopeBoundaryEnd(before));
-    if (!RANK_PROMISE_NEGATORS.test(clause)) {
+    const isNegated =
+      RANK_PROMISE_NEGATORS.test(clause) ||
+      isNegatedByFollowingPredicate(text, match.index, match.index + match[0].length);
+    if (!isNegated) {
       return true;
     }
     if (match.index === scan.lastIndex) {
@@ -334,6 +555,11 @@ const SAFETY_GROUPS: Array<{ code: string; label: string; patterns: RegExp[] }> 
     code: "rank_promise_claim",
     label: "promises a higher ranking, more traffic, or search dominance",
     patterns: BLOCKED_RANK_PROMISE_PATTERNS,
+  },
+  {
+    code: "page_position_claim",
+    label: "promises a page-one, front-page, or premium placement",
+    patterns: BLOCKED_RANK_INVENTORY_PATTERNS,
   },
   { code: "visibility_claim", label: "promises search visibility", patterns: BLOCKED_VISIBILITY_PATTERNS },
   {
