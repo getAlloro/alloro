@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A6 — GBP Write-Back · Alloro Funnel Engine</title>
+<style>
+  :root{
+    color-scheme:light;
+    --paper:#ffffff; --ink:#0a0a0a; --muted:#6b6b6b; --line:#e0e0e0; --soft:#f6f6f6; --softer:#fbfbfb;
+    --ok:#0a6b2e; --ok-bg:#e7f4ec; --ok-line:#bfe0cb;
+    --warn:#8a6d00; --warn-bg:#fbf3d6; --warn-line:#ecdca0;
+    --stop:#8a1c1c; --stop-bg:#fbe9e9; --stop-line:#e6b8b8;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--paper);color:var(--ink);
+    font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    line-height:1.55;-webkit-font-smoothing:antialiased}
+  .shell{width:min(980px,calc(100% - 32px));margin:0 auto;padding:34px 0 90px}
+  h1,h2,h3{letter-spacing:-.01em}
+  code{font-family:var(--mono);font-size:.86em;background:var(--soft);border:1px solid var(--line);border-radius:4px;padding:.05rem .32rem}
+  a{color:inherit}
+
+  .hero{border:1px solid var(--ink);border-radius:14px;padding:30px 30px 26px;margin-bottom:16px}
+  .eyebrow{margin:0 0 12px;font-size:.72rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+  .hero h1{margin:0 0 8px;font-size:clamp(2rem,5.4vw,3.1rem);line-height:1.02}
+  .hero .sub{margin:0 0 20px;max-width:66ch;color:#333;font-size:1.02rem}
+  .pillrow{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+  .pill{display:inline-flex;align-items:center;gap:7px;border-radius:999px;padding:6px 14px;font-size:.78rem;font-weight:800;border:1px solid}
+  .pill.status{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+  .pill.meta{background:var(--softer);color:#333;border-color:var(--line);font-weight:700}
+  .pill .dot{width:8px;height:8px;border-radius:50%;background:currentColor;display:inline-block}
+
+  .card{border:1px solid var(--line);border-radius:12px;padding:22px 24px;margin:14px 0;background:var(--paper)}
+  .card > h2{margin:0 0 4px;font-size:1.28rem;display:flex;align-items:center;gap:10px}
+  .card > h2 .n{font-family:var(--mono);font-size:.82rem;font-weight:800;color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:2px 8px}
+  .card > .lede{margin:.2rem 0 1rem;color:var(--muted);font-size:.92rem}
+  .card h3{margin:1.3rem 0 .5rem;font-size:1rem}
+  .card p{margin:.55rem 0}
+  .card ul,.card ol{margin:.5rem 0;padding-left:1.3rem}
+  .card li{margin:.34rem 0}
+  strong{font-weight:700}
+
+  .callout{border:1px solid var(--line);border-left-width:4px;border-radius:8px;padding:12px 16px;margin:12px 0;font-size:.92rem;background:var(--softer)}
+  .callout.ok{border-left-color:var(--ok);background:var(--ok-bg);border-color:var(--ok-line)}
+  .callout.warn{border-left-color:var(--warn);background:var(--warn-bg);border-color:var(--warn-line)}
+  .callout.stop{border-left-color:var(--stop);background:var(--stop-bg);border-color:var(--stop-line)}
+  .callout.ink{border-left-color:var(--ink);background:var(--soft)}
+  .callout b{font-weight:800}
+
+  table{width:100%;border-collapse:collapse;font-size:.86rem;margin:.7rem 0;display:block;overflow-x:auto}
+  th,td{border:1px solid var(--line);padding:8px 11px;text-align:left;vertical-align:top}
+  th{background:var(--soft);text-transform:uppercase;font-size:.66rem;letter-spacing:.05em;white-space:nowrap}
+  td code{white-space:nowrap}
+
+  .cite{display:inline-block;font-family:var(--mono);font-size:.76rem;font-weight:800;background:var(--ink);color:var(--paper);border-radius:5px;padding:1px 7px;margin:0 2px 2px 0}
+  .receipt{font-family:var(--mono);font-size:.8rem;color:#333;background:var(--soft);border:1px solid var(--line);border-radius:6px;padding:2px 7px}
+
+  ol.tasks{counter-reset:t;list-style:none;padding-left:0}
+  ol.tasks > li{counter-increment:t;position:relative;padding:12px 0 12px 44px;border-top:1px solid var(--line)}
+  ol.tasks > li:first-child{border-top:0}
+  ol.tasks > li::before{content:counter(t);position:absolute;left:0;top:11px;font-family:var(--mono);font-weight:800;font-size:.8rem;
+    border:1px solid var(--ink);border-radius:6px;width:28px;height:28px;display:flex;align-items:center;justify-content:center}
+  ol.tasks .tt{font-weight:700}
+  ol.tasks .file{font-family:var(--mono);font-size:.82rem;color:#444}
+
+  .check{list-style:none;padding:0;margin:.4rem 0}
+  .check li{display:flex;gap:10px;padding:8px 2px;border-top:1px solid var(--line);font-size:.9rem}
+  .check li:first-child{border-top:0}
+  .check .box{flex:none;width:18px;height:18px;border:1.5px solid var(--ink);border-radius:4px;margin-top:2px}
+
+  .rev{border:1px solid var(--line);border-radius:9px;padding:14px 16px;margin:10px 0;background:var(--softer)}
+  .rev h3{margin:0 0 6px;font-size:.94rem}
+  .rev p{margin:.28rem 0;font-size:.88rem}
+
+  .foot{margin-top:26px;color:var(--muted);font-size:.8rem;text-align:center}
+  @media(max-width:600px){.hero,.card{padding:20px}}
+</style>
+</head>
+<body>
+<main class="shell">
+
+  <header class="hero">
+    <p class="eyebrow">Alloro Funnel Engine · Stage A (Get Found) · Feature A6</p>
+    <h1>GBP Write-Back</h1>
+    <p class="sub">Let the owner correct and complete their own Google Business Profile — categories, hours, phone, website, description — with a one-approval patch to Google, and a captured snapshot so any write is reversible. The first lever that writes to a customer's live Google presence, built to be <strong>incapable</strong> of firing without the owner's explicit yes.</p>
+    <div class="pillrow">
+      <span class="pill status"><span class="dot"></span>Pending Execution</span>
+      <span class="pill meta">Branch: <code>claude/a6-gbp-writeback</code> → <code>dev/dave</code></span>
+      <span class="pill meta">Reference analog: §6.1 <code>gbp-automation/</code></span>
+      <span class="pill meta">Rev 1 · 2026-07-15</span>
+    </div>
+  </header>
+
+  <section class="card" id="why">
+    <h2><span class="n">WHY</span> The service, then the feature</h2>
+    <p class="lede">Who this lifts, and why it belongs in the funnel.</p>
+    <p><strong>The owner is the hero; Alloro is the guide.</strong> A local practice owner is buried — running the business, not curating a Google listing. Their profile drifts: an old phone number, a missing category, hours that changed, no description. That drift quietly costs them the exact patients who were looking. They know the right answer; they don't have the time or the path to fix it across Google's clunky surface.</p>
+    <p>A6 gives them the path. Alloro already <em>sees</em> what's missing or wrong (A2 completeness scoring, live-read from Google). A6 closes the loop: the owner reviews Alloro's proposed correction, says yes once, and the fix lands on Google — done-for-them on execution, in-command on the decision. It turns "your profile is incomplete" from a nag into a fixed listing, in one click, with an undo.</p>
+    <div class="callout ink">
+      <b>Funnel role — Driver 2 (Get Found).</b> Per <code>library/canon/mvv.md</code>, findability is the second driver in service of the freedom mission. A6 improves the <b>accuracy and completeness of the owner's own profile</b>. It is <b>not</b> a rank play. See Constraints → Value #6.
+    </div>
+  </section>
+
+  <section class="card" id="what">
+    <h2><span class="n">WHAT</span> The behavior, precisely</h2>
+    <p class="lede">Dave's bar: name the behavior and the edge cases so there is zero ambiguity.</p>
+
+    <h3>The one flow</h3>
+    <ol>
+      <li><strong>Draft.</strong> A <code>business_info</code> work item is created for a location with a set of <em>proposed field values</em> (e.g. <code>{ phoneNumbers, categories, regularHours, websiteUri, profile.description }</code>) and the <code>updateMask</code> naming exactly which fields change. Status starts <code>draft</code>. Nothing is sent.</li>
+      <li><strong>Approve.</strong> The owner (or Alloro operating done-for-them, with the owner's confirmation) approves the work item. Status → <code>approved</code>, stamping <code>approved_by_user_id</code> + <code>approved_at</code>. Still nothing is sent.</li>
+      <li><strong>Deploy — capture, then write.</strong> On explicit deploy, a worker job (a) <b>reads the current live field values from Google and stores them as the rollback snapshot</b> (<code>previous_values</code>), then (b) issues a single <code>PATCH</code> to Google's <code>mybusinessbusinessinformation.googleapis.com/v1/{location}</code> with the <code>updateMask</code>, then (c) records Google's response and marks the item <code>published</code>. Status guard: the write is only reachable from <code>approved → deploying → published</code>.</li>
+      <li><strong>Revert (rollback).</strong> A published <code>business_info</code> item can be reverted: a second PATCH restores the captured <code>previous_values</code> for the same <code>updateMask</code>. The snapshot <em>is</em> the rollback — it lives on Google's side, not just in a DB down-migration.</li>
+    </ol>
+
+    <h3>Edge cases (named, so they're built not discovered)</h3>
+    <table>
+      <thead><tr><th>Case</th><th>Behavior</th></tr></thead>
+      <tbody>
+        <tr><td>Master switch off</td><td><code>business_info_writeback_enabled = false</code> (the default) → draft creation and deploy both refuse with a typed error. Ships OFF; zero behavior change on dev until Dave enables it per account.</td></tr>
+        <tr><td>Missing <code>business.manage</code> scope</td><td>Reuse <code>GbpReadinessService</code> gate → refuse before any write, surfacing "Reconnect Google." No silent failure.</td></tr>
+        <tr><td>Google 403 (role/field not writable)</td><td>The authed user lacks owner/manager rights on the location, or Google restricts that field. Caught by <code>classifyGoogleApiError</code> → item → <code>markFailedToDraft</code> with the error code; snapshot already captured, no partial state on our side.</td></tr>
+        <tr><td>Transient Google error (5xx / rate)</td><td><code>isTransientGoogleError</code> → retry via the existing <code>retry_count</code>/<code>next_retry_at</code> machinery; no duplicate write (status guard prevents re-deploy of a published item).</td></tr>
+        <tr><td>Snapshot read fails</td><td>If the pre-write live-read fails, <b>the patch does not proceed</b> (no rollback point = no write). Item → failed, owner can retry.</td></tr>
+        <tr><td>Empty / no-op patch</td><td>An empty <code>updateMask</code> is rejected at validation; nothing is sent.</td></tr>
+        <tr><td>Concurrent deploy</td><td>Status transition guarded by <code>.where({ id, status })</code> (the proven local-post/reply pattern) — a second deploy of the same item is a no-op.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Out of this slice (adjacent / backlog)</h3>
+    <ul>
+      <li><strong>Auto-suggestion of values from A2 gaps.</strong> Slice 1 accepts proposed values as input; wiring A2's gap output straight into a pre-filled draft is a follow-up slice.</li>
+      <li><strong>GBP photo / gallery upload.</strong> A separate net-new write (tracker B6's GBP half) — not A6.</li>
+      <li><strong>Recurring schedule.</strong> Business-info changes are episodic; A6 is on-demand, owner-initiated. No cron is added.</li>
+    </ul>
+  </section>
+
+  <section class="card" id="context">
+    <h2><span class="n">CONTEXT</span> Reuse-first — verified anchors</h2>
+    <p class="lede">A6 <strong>extends</strong> the shipped GBP subsystem. Every anchor below was grep/read-verified against live code on 2026-07-15, not recalled.</p>
+
+    <div class="callout ok">
+      <b>Feasibility — CONFIRMED (the load-bearing assumption).</b> The GBP connect flow already requests <code>https://www.googleapis.com/auth/business.manage</code> — <span class="receipt">OAuthFlowService.ts:28</span>, and <span class="receipt">GoogleConnectionModel.ts:6</span> ("GBP connect flows always request business.manage"). <code>business.manage</code> is Google's single read+write umbrella scope for Business Profile; it already authorizes the shipped post/reply writes <em>and</em> covers <code>mybusinessbusinessinformation.locations.patch</code>. <b>No new scope, no re-consent.</b> Runtime nuance (not a blocker): a specific field patch still depends on the authed user's owner/manager role on the location + Google's per-field rules — surfaces as a 403 at write time, already handled by <code>classifyGoogleApiError</code>.
+    </div>
+
+    <h3>Two subsystems, one write layer</h3>
+    <ul>
+      <li><code>src/controllers/gbp/</code> — the low-level Google REST layer (raw axios). <b>The write functions live here.</b></li>
+      <li><code>src/controllers/gbp-automation/</code> — the draft→approve→deploy orchestration (the §6.1 reference analog). It calls into <code>gbp/</code>. A6 spans both, exactly like posts and replies do today.</li>
+    </ul>
+
+    <h3>Verified reuse targets</h3>
+    <table>
+      <thead><tr><th>A6 need</th><th>Copy / reuse from</th><th>Receipt (verified)</th></tr></thead>
+      <tbody>
+        <tr><td>PATCH + <code>updateMask</code> write pattern</td><td><code>updateGbpLocalPost</code> (axios.patch + <code>params:{updateMask}</code>, conditional mask parts)</td><td><span class="receipt">gbp-write.service.ts:172,196,200</span></td></tr>
+        <tr><td>Host / resource / field names</td><td><code>getLocationProfileForRanking</code> (GET on the same <code>businessinformation/v1</code> resource; readMask fields line up 1:1 with the write mask)</td><td><span class="receipt">location-handler.service.ts:9,22-31</span></td></tr>
+        <tr><td>Rollback snapshot (read-before-write)</td><td>same GET — call it to capture live values before the patch</td><td><span class="receipt">location-handler.service.ts:9</span></td></tr>
+        <tr><td>Auth (OAuth2 per connection)</td><td><code>getValidOAuth2ClientByConnection(property.google_connection_id)</code></td><td><span class="receipt">oauth2Helper.ts:89</span></td></tr>
+        <tr><td>Bearer header</td><td><code>buildAuthHeaders(auth)</code></td><td><span class="receipt">gbp-api.service.ts:32</span></td></tr>
+        <tr><td>Draft→approve→deploy orchestration</td><td><code>GbpReviewReplyDeploymentService</code> (mirror the whole file)</td><td><span class="receipt">GbpReviewReplyDeploymentService.ts:81-83</span></td></tr>
+        <tr><td>Approval state machine + payload slot</td><td><code>gbp_work_items</code>: status chain + <code>local_post_payload</code> jsonb slot</td><td><span class="receipt">mig 20260524000000:66,72,76,127</span></td></tr>
+        <tr><td>Action dispatcher (extension point)</td><td><code>GbpWorkItemActionService</code> (routes by <code>content_type</code>)</td><td><span class="receipt">GbpWorkItemActionService.ts:46</span></td></tr>
+        <tr><td>Seed-disabled flag pattern</td><td><code>*_enabled boolean DEFAULT false</code> in <code>gbp_automation_settings</code></td><td><span class="receipt">mig 20260524000000:22,25</span></td></tr>
+        <tr><td>Google error classification</td><td><code>classifyGoogleApiError</code> / <code>isTransientGoogleError</code></td><td><span class="receipt">feature-utils/googleApiErrors.ts</span></td></tr>
+        <tr><td>Readiness (scope) gate</td><td><code>GbpReadinessService</code> business.manage check</td><td><span class="receipt">GbpReadinessService.ts:46</span></td></tr>
+        <tr><td>Injectable-fake test pattern</td><td>A5 findability sensor: pure core + injectable runner fed a fake result; <code>vi.mock</code> the model</td><td><span class="receipt">findability-sensor.test.ts:16</span></td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout warn">
+      <b>Correction to the tracker.</b> The funnel tracker (line 60) referred to "6 real <code>client_gbp</code> fields." <b>There is no <code>client_gbp</code> table</b> (grep-empty in <code>src/database</code> + <code>src/models</code>). The profile fields are read <b>live from Google</b>. This <em>helps</em> A6: the write target and A2's read target are the same live Google resource — <b>no local mirror to keep in sync</b>.
+    </div>
+
+    <h3>Cited Articles (Code Constitution)</h3>
+    <p>
+      <span class="cite">§6.1</span><span class="cite">§6.2</span><span class="cite">§6.3</span>
+      <span class="cite">§7.1</span><span class="cite">§7.2</span><span class="cite">§7.3</span><span class="cite">§7.4</span>
+      <span class="cite">§8.1</span><span class="cite">§8.2</span><span class="cite">§8.3</span><span class="cite">§8.4</span>
+      <span class="cite">§3.1</span><span class="cite">§3.2</span><span class="cite">§3.3</span><span class="cite">§3.4</span>
+      <span class="cite">§10.3</span><span class="cite">§10.5</span>
+      <span class="cite">§5.1</span><span class="cite">§5.4</span><span class="cite">§9.1</span><span class="cite">§11.1</span><span class="cite">§11.2</span>
+    </p>
+    <ul>
+      <li><b>§6.1 / §6.3</b> — mirror <code>gbp-automation/</code>; new logic under <code>feature-services/</code>, helpers/typed errors under <code>feature-utils/</code>.</li>
+      <li><b>§7.1–§7.4</b> — Routes → Controllers → Services → Models; <b>all DB access in models/</b> (mechanized-strict). The new draft/status writes go through <code>GbpWorkItemModel</code>, never inline SQL.</li>
+      <li><b>§8.1–§8.4 / §3.1–§3.4</b> — <code>{success,data,error}</code> via the existing <code>ok()/fail()</code> builders; typed <code>GbpAutomationError</code>; every async wrapped; no internal Google detail leaked to the client.</li>
+      <li><b>§10.3 / §10.5</b> — schema change via a reversible migration; multi-row state writes on the deploy path are transaction-guarded.</li>
+      <li><b>§5.1 / §5.4 / §11.1 / §11.2</b> — Google creds via config only; the approval + enabled + scope checks are all re-enforced server-side; the draft/approve/deploy routes carry the existing <code>authenticateToken, rbacMiddleware, locationScopeMiddleware</code> stack + boundary validation.</li>
+      <li><b>§9.1</b> — Pino only, no <code>console.*</code>.</li>
+    </ul>
+  </section>
+
+  <section class="card" id="constraints">
+    <h2><span class="n">CONSTRAINTS</span> The non-negotiables for a live-write lever</h2>
+
+    <div class="callout stop">
+      <b>1 · Owner-approval is a STRUCTURAL gate, not a step (Option B canon).</b> The write path must be <b>incapable</b> of firing without an explicit owner approval + explicit deploy. Enforced by the status machine: the Google PATCH is only reachable from <code>approved → deploying</code>, each transition guarded by <code>.where({ id, status })</code> and stamping a user id. There is <b>no</b> code path that patches Google from a <code>draft</code> item, and <b>no</b> auto-send / no cron. Mirrors the shipped post/reply gate verbatim.
+    </div>
+    <div class="callout stop">
+      <b>2 · No live writes in sandbox / build / tests / adversary.</b> The write fn takes an <b>injected http dependency</b> (A5 pattern). Every test and the adversary pass feed a <b>fake Google client</b> that records the call and returns a canned response. A real <code>axios.patch</code> to Google fires <b>only</b> post-merge, owner-approved, on a real account — never during this work.
+    </div>
+    <div class="callout warn">
+      <b>3 · Rollback = capture-before-write.</b> Before the patch, the deploy job reads and stores the live field values (<code>previous_values</code>) for exactly the fields in the <code>updateMask</code>. If the read fails, the write does not proceed. Revert = a second PATCH restoring the snapshot. The rollback lives on Google's side, not only as a DB down-migration.
+    </div>
+    <div class="callout warn">
+      <b>4 · Value #6 — no rank/visibility/guarantee framing.</b> All labels/copy say "correct / complete your profile information on Google" — accuracy &amp; completeness only. Never "improve your ranking," "get found higher," or any visibility promise. The honesty cap is on the <em>claim</em>, not just the output.
+    </div>
+    <div class="callout ink">
+      <b>5 · Ships DISABLED, per account.</b> <code>business_info_writeback_enabled</code> defaults <code>false</code>. Draft creation and deploy both refuse when off. Flagged for Dave in the PR: enable per account only after a real owner-walk. Additive + reversible migration; no data rewrite; existing <code>review_reply</code>/<code>local_post</code> rows untouched.
+    </div>
+  </section>
+
+  <section class="card" id="risk">
+    <h2><span class="n">RISK</span> Production-safety review</h2>
+    <table>
+      <thead><tr><th>Risk</th><th>Level</th><th>Mitigation</th></tr></thead>
+      <tbody>
+        <tr><td>Writing wrong/unwanted data to a customer's live Google profile</td><td>High</td><td>Structural approval gate (owner says yes once) + capture-before-write snapshot + revert. Ships disabled. No auto-send.</td></tr>
+        <tr><td>A live write firing during build/adversary</td><td>High</td><td>Injected fake client; no real credentials in sandbox; the write fn cannot reach Google without the injected real http dep, which tests never supply.</td></tr>
+        <tr><td>Migration risk</td><td>Low</td><td>Additive only: widen a CHECK constraint to add <code>'business_info'</code>; add one boolean column default <code>false</code>. Reversible <code>down</code>. No backfill, no lock on large tables, no data rewrite. Existing rows unaffected.</td></tr>
+        <tr><td>Partial / duplicate write</td><td>Low</td><td>Status-guarded transitions (proven pattern); single PATCH per deploy; transient-retry is idempotent because a <code>published</code> item can't re-deploy.</td></tr>
+        <tr><td>Scope/permission gap at runtime</td><td>Low</td><td>Readiness gate pre-checks <code>business.manage</code>; a per-field 403 is caught + surfaced, snapshot preserved.</td></tr>
+        <tr><td>Over-claim (Value #6)</td><td>Med</td><td>Copy review in the Done checklist; adversary told to hunt any rank/visibility implication.</td></tr>
+      </tbody>
+    </table>
+    <p><b>Migration safety statement:</b> the migration touches only schema (a CHECK-constraint widen + a defaulted boolean). No production rows are rewritten. Rollback is a clean drop-and-restore of the original CHECK + drop of the column. Runs first on <code>dev/dave</code> against the dev DB, then on production only after Dave merges to <code>main</code>.</p>
+  </section>
+
+  <section class="card" id="tasks">
+    <h2><span class="n">TASKS</span> Build order (≤ ~14 files — reviewable, independently valid on dev)</h2>
+    <ol class="tasks">
+      <li><span class="tt">Migration (additive, reversible).</span><br>
+        <span class="file">src/database/migrations/&lt;ts&gt;_add_gbp_business_info_writeback.ts</span><br>
+        Widen <code>gbp_work_items_content_type_check</code> to include <code>'business_info'</code>; add <code>business_info_writeback_enabled boolean NOT NULL DEFAULT false</code> to <code>gbp_automation_settings</code>. Reversible <code>down</code>. <span class="cite">§10.3</span></li>
+
+      <li><span class="tt">Low-level write fn — <code>patchGbpBusinessInformation(auth, locationName, patch, updateMask, deps?)</code>.</span><br>
+        <span class="file">src/controllers/gbp/gbp-services/gbp-write.service.ts</span><br>
+        Mirror <code>updateGbpLocalPost</code>: <code>axios.patch</code> to <code>businessinformation/v1/{location}</code> with <code>params:{updateMask}</code>; validate name (<code>assertGoogleLocationName</code>); wrap errors with <code>classifyGoogleApiError</code>. <b>Injectable http dep</b> defaulting to real axios. <span class="cite">§3.1</span><span class="cite">§3.3</span></li>
+
+      <li><span class="tt">Snapshot capture — reuse the live-read.</span><br>
+        <span class="file">gbp/gbp-services/location-handler.service.ts</span> (reuse <code>getLocationProfileForRanking</code>; add a focused helper only if needed)<br>
+        Read current values for the masked fields → return the <code>previous_values</code> snapshot object.</li>
+
+      <li><span class="tt">Deployment service — <code>GbpBusinessInfoDeploymentService</code>.</span><br>
+        <span class="file">gbp-automation/feature-services/GbpBusinessInfoDeploymentService.ts</span><br>
+        Mirror <code>GbpReviewReplyDeploymentService</code>: <code>enqueueDeployment</code> (guard approved→deploying), <code>deployNow</code> (capture snapshot → patch → markPublished, storing <code>google_response</code> + <code>previous_values</code>), <code>revert</code> (patch back the snapshot), failure → <code>markFailedToDraft</code>. <span class="cite">§6.3</span><span class="cite">§7.3</span></li>
+
+      <li><span class="tt">Draft service — <code>GbpBusinessInfoDraftService</code>.</span><br>
+        <span class="file">gbp-automation/feature-services/GbpBusinessInfoDraftService.ts</span><br>
+        Create a <code>business_info</code> work item from proposed values + updateMask (status <code>draft</code>); refuse when the master switch is off or scope missing.</li>
+
+      <li><span class="tt">Dispatcher branch.</span><br>
+        <span class="file">gbp-automation/feature-services/GbpWorkItemActionService.ts</span><br>
+        Add the <code>business_info</code> case to approve/reject/enqueueDeployment/retry → route to the new services.</li>
+
+      <li><span class="tt">Controller method + route (draft creation).</span><br>
+        <span class="file">gbp-automation/GbpAutomationController.ts</span> · <span class="file">src/routes/gbpAutomation.ts</span><br>
+        Thin controller method; route carries the existing <code>authenticateToken, rbacMiddleware, locationScopeMiddleware</code> stack. Approve/deploy reuse the existing endpoints. <span class="cite">§7.2</span><span class="cite">§11.1</span></li>
+
+      <li><span class="tt">Boundary validation schema.</span><br>
+        <span class="file">src/validation/… (mirror existing gbp-automation schemas)</span><br>
+        Validate proposed fields + non-empty updateMask at the route. <span class="cite">§11.2</span></li>
+
+      <li><span class="tt">Worker processor branch.</span><br>
+        <span class="file">src/workers/processors/gbpAutomation.processor.ts</span><br>
+        Handle the <code>business_info</code> deploy job (mirror local-post/reply). No new repeatable cron.</li>
+
+      <li><span class="tt">Model helpers (if needed) — through <code>GbpWorkItemModel</code> only.</span><br>
+        <span class="file">src/models/GbpWorkItemModel.ts</span><br>
+        Any new query for <code>business_info</code> items or the <code>previous_values</code> read/write lives in the model. <span class="cite">§7.4</span></li>
+
+      <li><span class="tt">Types.</span><br>
+        <span class="file">src/types/… (or in-domain types)</span><br>
+        <code>BusinessInfoPatch</code>, <code>PreviousValuesSnapshot</code>, the injectable-http dep type.</li>
+
+      <li><span class="tt">Tests — injected fake, no live write.</span><br>
+        <span class="file">src/__tests__/gbp-business-info-writeback.test.ts</span><br>
+        Pure-core + injectable-fake (A5 pattern), <code>vi.mock</code> the model. Cover: gate-off refusal, missing-scope refusal, snapshot-then-patch order, revert restores snapshot, 403 → failed (snapshot preserved), empty-mask rejection, no-real-axios assertion.</li>
+    </ol>
+  </section>
+
+  <section class="card" id="done">
+    <h2><span class="n">DONE</span> Acceptance — evidence, not vibes</h2>
+    <ul class="check">
+      <li><span class="box"></span><b>Feasibility proven</b> — cited scope receipt in the spec; readiness gate reused (not a new scope).</li>
+      <li><span class="box"></span><b>Structural approval gate</b> — a test proves no Google write is reachable from a <code>draft</code> item; write only from approved→deploying.</li>
+      <li><span class="box"></span><b>Capture-before-write</b> — a test proves the snapshot read happens before the patch, and revert restores it; if snapshot read fails, no patch.</li>
+      <li><span class="box"></span><b>No live write in build/test/adversary</b> — the write fn only reaches Google via the injected real http dep; tests never supply it; an explicit assertion guards it.</li>
+      <li><span class="box"></span><b>Ships disabled</b> — <code>business_info_writeback_enabled</code> defaults false; draft + deploy refuse when off (tested). Flagged for Dave in the PR.</li>
+      <li><span class="box"></span><b>Value #6</b> — no rank/visibility/guarantee copy anywhere; adversary found none.</li>
+      <li><span class="box"></span><b>Constitution clean</b> — <code>npm run check:conventions --strict</code> = 0 backend violations; <code>npx tsc --noEmit</code> = 0; full <code>npm test</code> green (Node 22).</li>
+      <li><span class="box"></span><b>Adversary passed</b> — two fresh adversaries on models different from the builder (Fable + Opus); every finding fixed + re-verified.</li>
+      <li><span class="box"></span><b>Migration safety</b> — additive + reversible confirmed; verified up + down on dev DB.</li>
+      <li><span class="box"></span><b>PR to <code>dev/dave</code></b> — never main; body links this spec + verification receipts + the "enable per account after owner-walk" note. Honest status: "PR'd, not landed."</li>
+    </ul>
+  </section>
+
+  <section class="card" id="revision-log">
+    <h2><span class="n">LOG</span> Revision Log</h2>
+    <article class="rev">
+      <h3>Rev 1 - 2026-07-15</h3>
+      <p><strong>Change:</strong> Initial spec for A6 — GBP write-back. Scoped slice 1: owner-approved <code>business_info</code> PATCH to Google via a new <code>business_info</code> work-item content type, capture-before-write rollback snapshot, ships disabled. Reuse map, feasibility (business.manage scope), and every code anchor verified live against the repo. Cites §6.1 reference analog + the structural/response/security Articles. Folds in the four live-write mandates (feasibility, capture-rollback, structural approval gate, no live writes in tests) and the different-model adversary discipline (Fable + Opus for A6).</p>
+      <p><strong>Reason:</strong> Scope addition: A6 is the next feature in the funnel sequence; it is the first lever that writes to a customer's live Google presence, so the spec carries its own rollback + no-live-write design.</p>
+      <p><strong>Updated Done criteria:</strong> the ten checks in the Done card above.</p>
+    </article>
+  </section>
+
+  <p class="foot">Alloro Funnel Engine · A6 · plans/07152026-gbp-writeback/spec.html · Pending Execution</p>
+</main>
+</body>
+</html>
