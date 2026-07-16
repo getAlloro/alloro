@@ -27,11 +27,18 @@ export interface ITasteProfile {
  *
  * Tenant-scoped per §11.7/§5.5 — `organizationId` is a REQUIRED parameter on
  * every read and every mutation, never an optional filter a caller can skip.
- * The unscoped `BaseModel` entry points (`findById`, `deleteById`) are sealed
- * rather than inherited, so the scope cannot be bypassed by accident; use
- * `findByIdForOrg` / `deleteByIdForOrg` / `markApproved(id, organizationId, …)`.
+ * EVERY unscoped `BaseModel` entry point is sealed rather than inherited
+ * (`findById`, `findOne`, `findMany`, `updateById`, `deleteById`, `count`,
+ * `paginate`, `createReturningId`), so the scope cannot be bypassed by accident
+ * or on purpose; use `findByIdForOrg` / `findLatestByOrgAndLocation` /
+ * `deleteByIdForOrg` / `markApproved(id, organizationId, …)`.
  * `location_id` is a nullable dimension (null = organization-level profile),
  * handled explicitly like `PracticeFactModel.findByOrgAndLocation`.
+ *
+ * Status is not a caller-supplied field: `create()` always writes a `draft`, and
+ * `approved` is reachable ONLY through `markApproved()`, which stamps
+ * `approved_by`/`approved_at` in the same write (§5.4 — the owner sign-off is
+ * enforced here on the server, never assumed from the caller's input).
  *
  * Persisted JSONB shapes come from the neutral `types/tasteProfile` module —
  * never from the composition service, which is a controller-layer module (§7.1).
@@ -46,25 +53,49 @@ export class TasteProfileModel extends BaseModel {
   // JSONB columns — serialized on write / parsed on read by BaseModel.
   protected static jsonFields = ["profile", "source_summary"];
 
-  /** Insert a new (draft) taste-profile record. */
+  /**
+   * Insert a new taste-profile record. ALWAYS a `draft` (§5.4).
+   *
+   * `status` is deliberately NOT part of the input type: a profile that is
+   * `approved` must carry the owner who signed it off and when. Letting a caller
+   * pass `status: "approved"` here would mint an approved row with a null
+   * `approved_by`/`approved_at` — an unsigned approval that later reads as a
+   * real one. The only route to `approved` is {@link markApproved}, which sets
+   * the status and the sign-off stamp in one write. Fields are copied
+   * explicitly (never spread), so no extra column can ride in on the object.
+   */
   static async create(
     data: Omit<
       ITasteProfile,
       "id" | "status" | "approved_by" | "approved_at" | "created_at" | "updated_at"
-    > & { status?: TasteProfileStatus },
+    >,
     trx?: QueryContext
   ): Promise<ITasteProfile> {
     return super.create(
       {
         organization_id: data.organization_id,
         location_id: data.location_id,
-        status: data.status ?? "draft",
+        status: "draft",
         business_name: data.business_name,
         business_category: data.business_category,
         profile: data.profile,
         source_summary: data.source_summary,
       },
       trx
+    );
+  }
+
+  /**
+   * SEALED (§11.7/§5.4) — `BaseModel.createReturningId` inserts an arbitrary
+   * record, which would bypass BOTH guarantees {@link create} enforces: the
+   * always-`draft` status and the explicit column copy. Disabled at compile time
+   * so the only way into this table is the checked `create()` above.
+   *
+   * @deprecated Use {@link create}.
+   */
+  static async createReturningId(): Promise<never> {
+    throw new Error(
+      "TasteProfileModel.createReturningId bypasses the draft-only create contract and is disabled — use create() (§5.4)."
     );
   }
 
@@ -170,6 +201,72 @@ export class TasteProfileModel extends BaseModel {
   static async deleteById(): Promise<never> {
     throw new Error(
       "TasteProfileModel.deleteById is unscoped and disabled — use deleteByIdForOrg(id, organizationId) (§11.7)."
+    );
+  }
+
+  // ── Sealed generic entry points (§11.7) ──────────────────────────────────
+  // `BaseModel` exposes condition-based reads and an id-based update whose WHERE
+  // clause is whatever the CALLER passes. On a tenant table that is a
+  // cross-tenant read/write with no organization predicate — the isolation
+  // guarantee above would only hold for callers who remembered to add one. Each
+  // is overridden to take no arguments, so any real call is a COMPILE error
+  // (TS2554) and the org scope cannot be forgotten; the runtime throw is the
+  // backstop for untyped/JS callers. Scoped siblings above cover every use.
+
+  /**
+   * SEALED (§11.7). `findOne({ id })` would read any tenant's row.
+   * @deprecated Use {@link findByIdForOrg} or {@link findLatestByOrgAndLocation}.
+   */
+  static async findOne(): Promise<never> {
+    throw new Error(
+      "TasteProfileModel.findOne is unscoped and disabled — use findByIdForOrg(id, organizationId) or findLatestByOrgAndLocation(organizationId, locationId) (§11.7)."
+    );
+  }
+
+  /**
+   * SEALED (§11.7). `findMany({})` would return EVERY tenant's rows.
+   * @deprecated Use {@link findLatestByOrgAndLocation}.
+   */
+  static async findMany(): Promise<never> {
+    throw new Error(
+      "TasteProfileModel.findMany is unscoped and disabled — use findLatestByOrgAndLocation(organizationId, locationId) (§11.7)."
+    );
+  }
+
+  /**
+   * SEALED (§11.7/§5.4). An unscoped update-by-id is the cross-tenant WRITE:
+   * it could mutate another org's profile, and — writing arbitrary columns — set
+   * `status: "approved"` with no owner sign-off, defeating {@link markApproved}.
+   * @deprecated Use {@link markApproved}.
+   */
+  static async updateById(): Promise<never> {
+    throw new Error(
+      "TasteProfileModel.updateById is unscoped and disabled — use markApproved(id, organizationId, approvedBy) (§11.7/§5.4)."
+    );
+  }
+
+  /**
+   * SEALED (§11.7). An unscoped count leaks the size of other tenants' data.
+   * NOTE: `BaseModel.count()` is callable with zero arguments, so this seal is
+   * enforced at RUNTIME rather than by TS2554 — the honest exception to the
+   * compile-time rule. Add a `countForOrg(organizationId)` when a caller needs
+   * one; none does today.
+   * @deprecated No scoped counterpart yet — add one rather than unsealing this.
+   */
+  static async count(): Promise<never> {
+    throw new Error(
+      "TasteProfileModel.count is unscoped and disabled — add a tenant-scoped countForOrg(organizationId) instead (§11.7)."
+    );
+  }
+
+  /**
+   * SEALED (§11.7). `paginate` runs a caller-built query with no enforced
+   * organization predicate — a paged cross-tenant read.
+   * @deprecated Add a tenant-scoped lister rather than unsealing this.
+   */
+  static async paginate(): Promise<never> {
+    throw new Error(
+      "TasteProfileModel.paginate is unscoped and disabled — add a tenant-scoped lister that requires organizationId instead (§11.7)."
     );
   }
 }

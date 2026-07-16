@@ -90,6 +90,18 @@ function makeQueryBuilder(): any {
     }),
     orderBy: vi.fn(() => builder),
     first: vi.fn(() => Promise.resolve(apply()[0])),
+    // Inserts land in the same in-memory table, so create()'s persisted column
+    // values (notably `status`) can be asserted as written, not as intended.
+    insert: vi.fn((data: Record<string, unknown>) => ({
+      returning: vi.fn(() => {
+        const row = {
+          id: `tp-generated-${rows.length + 1}`,
+          ...data,
+        } as unknown as ITasteProfile;
+        rows.push(row);
+        return Promise.resolve([row]);
+      }),
+    })),
     update: vi.fn((data: Record<string, unknown>) => {
       const targets = apply();
       targets.forEach((r) => Object.assign(r, data));
@@ -236,5 +248,148 @@ describe("TasteProfileModel — the scope cannot be forgotten (§11.7)", () => {
     await expect(TasteProfileModel.findById()).rejects.toThrow(/unscoped/i);
     await expect(TasteProfileModel.deleteById()).rejects.toThrow(/unscoped/i);
     expect(rows).toHaveLength(1); // nothing was read or destroyed.
+  });
+});
+
+/**
+ * The generic `BaseModel` surface is the other half of the seal. Sealing only
+ * `findById`/`deleteById` still left a caller able to read or mutate this tenant
+ * table with no organization predicate via the condition-based entry points, so
+ * the isolation guarantee was bypassable. Each test below asserts BOTH halves:
+ * the sealed method throws, AND the other tenant's row is neither returned nor
+ * modified. Compile-time (TS2554) is the primary enforcement — these prove the
+ * runtime backstop and that no data escapes.
+ */
+describe("TasteProfileModel — sealed generic entry points (§11.7/§20.2)", () => {
+  it("findOne cannot read another org's row by condition", async () => {
+    rows = [makeRow({ id: "tp-b", organization_id: ORG_B })];
+
+    // @ts-expect-error §11.7: sealed — findOne takes no arguments (TS2554).
+    await expect(TasteProfileModel.findOne({ id: "tp-b" })).rejects.toThrow(
+      /unscoped/i
+    );
+    expect(rows).toHaveLength(1); // org B's row was never read out.
+  });
+
+  it("findMany cannot list every org's rows", async () => {
+    rows = [
+      makeRow({ id: "tp-a", organization_id: ORG_A }),
+      makeRow({ id: "tp-b", organization_id: ORG_B }),
+    ];
+
+    // @ts-expect-error §11.7: sealed — findMany takes no arguments (TS2554).
+    await expect(TasteProfileModel.findMany({})).rejects.toThrow(/unscoped/i);
+  });
+
+  it("updateById cannot mutate another org's row", async () => {
+    rows = [makeRow({ id: "tp-b", organization_id: ORG_B, status: "draft" })];
+
+    await expect(
+      // @ts-expect-error §11.7: sealed — updateById takes no arguments (TS2554).
+      TasteProfileModel.updateById("tp-b", { business_name: "Overwritten" })
+    ).rejects.toThrow(/unscoped/i);
+    expect(rows[0].business_name).toBe("Cedar Park Dental"); // untouched.
+  });
+
+  it("updateById cannot forge an approval without the owner sign-off (§5.4)", async () => {
+    rows = [makeRow({ id: "tp-a", organization_id: ORG_A, status: "draft" })];
+
+    await expect(
+      // @ts-expect-error §5.4: sealed — approval only via markApproved (TS2554).
+      TasteProfileModel.updateById("tp-a", { status: "approved" })
+    ).rejects.toThrow(/unscoped/i);
+    // Still an unsigned draft — approval must carry approved_by/approved_at.
+    expect(rows[0].status).toBe("draft");
+    expect(rows[0].approved_by).toBeNull();
+    expect(rows[0].approved_at).toBeNull();
+  });
+
+  it("count and paginate are sealed against unscoped tenant reads", async () => {
+    rows = [
+      makeRow({ id: "tp-a", organization_id: ORG_A }),
+      makeRow({ id: "tp-b", organization_id: ORG_B }),
+    ];
+
+    // count() is callable with zero args on the base, so the seal is enforced at
+    // runtime here rather than by TS2554 — hence no @ts-expect-error.
+    await expect(TasteProfileModel.count()).rejects.toThrow(/unscoped/i);
+    // @ts-expect-error §11.7: sealed — paginate takes no arguments (TS2554).
+    await expect(TasteProfileModel.paginate((qb) => qb, {})).rejects.toThrow(
+      /unscoped/i
+    );
+  });
+
+  it("createReturningId cannot bypass the draft-only create contract (§5.4)", async () => {
+    await expect(
+      // @ts-expect-error §5.4: sealed — createReturningId takes no arguments.
+      TasteProfileModel.createReturningId({
+        organization_id: ORG_A,
+        status: "approved",
+      })
+    ).rejects.toThrow(/draft-only|disabled/i);
+    expect(rows).toHaveLength(0); // nothing was inserted.
+  });
+});
+
+/**
+ * Owner sign-off (§5.4). `approved` is a claim that a human staked their name
+ * on. A row that says `approved` with no `approved_by`/`approved_at` is an
+ * unsigned approval that reads, downstream, exactly like a signed one — so the
+ * ONLY route to that status is markApproved(), which writes the status and the
+ * signature together.
+ */
+describe("TasteProfileModel — create is always a draft (§5.4)", () => {
+  function validCreateInput() {
+    return {
+      organization_id: ORG_A,
+      location_id: null,
+      business_name: "Cedar Park Dental",
+      business_category: "Dentist",
+      profile: makeProfile(),
+      source_summary: makeAudit(),
+    };
+  }
+
+  it("status is not part of create()'s input type at all", () => {
+    // Compile-time proof, robust to excess-property-check subtleties: if
+    // `status` ever re-enters the input type, this type resolves to `never` and
+    // `npx tsc --noEmit` fails on the assignment below. tsc passing IS the
+    // assertion; the runtime expect is just the vitest carrier.
+    type CreateInput = Parameters<typeof TasteProfileModel.create>[0];
+    const statusIsNotCallerSupplied: "status" extends keyof CreateInput
+      ? never
+      : true = true;
+
+    expect(statusIsNotCallerSupplied).toBe(true);
+  });
+
+  it("writes status=draft with no sign-off stamp, regardless of the caller", async () => {
+    const created = await TasteProfileModel.create(validCreateInput());
+
+    expect(created.status).toBe("draft");
+    expect(rows).toHaveLength(1);
+    expect(rows[0].status).toBe("draft");
+    expect(rows[0].approved_by ?? null).toBeNull();
+    expect(rows[0].approved_at ?? null).toBeNull();
+  });
+
+  it("a caller smuggling status=approved still gets a draft row", async () => {
+    // An untyped/JS caller (or a cast) can hand over an extra `status` key. The
+    // explicit column copy in create() ignores it: what reaches the DB is a
+    // draft. This is the runtime backstop behind the compile-time proof above.
+    const smuggled = {
+      ...validCreateInput(),
+      status: "approved",
+      approved_by: "attacker@example.test",
+      approved_at: new Date("2026-07-16T00:00:00Z"),
+    } as unknown as Parameters<typeof TasteProfileModel.create>[0];
+
+    const created = await TasteProfileModel.create(smuggled);
+
+    expect(created.status).toBe("draft");
+    expect(rows[0].status).toBe("draft");
+    // The smuggled sign-off never reached the row.
+    expect(rows[0].approved_by ?? null).toBeNull();
+    expect(rows[0].approved_at ?? null).toBeNull();
   });
 });

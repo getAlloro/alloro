@@ -4,11 +4,13 @@
  * Pure, dependency-free text scanners that decide whether a candidate claim is
  * allowed into a persisted Taste Profile. Two independent checks:
  *
- *   1. isRealSource()  — a claim survives only if it carries a real source
- *      reference (review id / GBP field / page URL / intake ref). No source, a
- *      placeholder token, or a labeled source with an empty payload (e.g.
- *      `page_content: ""`) → dropped. This is the "every line traces to a real
- *      source" discipline.
+ *   1. isRealSource()  — a claim survives only if it carries one of the
+ *      RECOGNIZED forms of receipt this system actually produces: a review
+ *      reference (`review:<id>`), an http(s) URL, or a labeled excerpt from a
+ *      known source field (`page_content: "…"`). No source, a placeholder
+ *      token, an empty payload, or an UNRECOGNIZED label → dropped. This is the
+ *      "every line traces to a real source" discipline: the allowlist is what
+ *      makes it trace to a real one rather than merely to a string.
  *
  *   2. enforceHonesty() — the claim's TEXT must not make a rank/visibility
  *      promise, a guarantee, or an invented dollar/multiplier metric (the one
@@ -57,14 +59,42 @@ const PLACEHOLDER_SOURCES = new Set([
 ]);
 
 /**
- * A claim is source-linked only if its source is a non-empty, non-placeholder
- * reference whose meaningful payload is not empty. Anything else means we
- * cannot trace the line to a real receipt, so the claim must be dropped (never
- * fabricated into a source).
+ * The `field:` labels a source may legitimately carry. These are exactly the
+ * `PracticeFactSourceField` values the fact extractor emits and
+ * `PracticeFactModel` persists (`business_data` / `page_content` /
+ * `post_content`) — the vocabulary is mirrored here rather than imported so this
+ * gate stays a dependency-free pure scanner. Keep in sync with
+ * `models/website-builder/PracticeFactModel.PracticeFactSourceField`.
+ */
+const RECOGNIZED_SOURCE_FIELDS = new Set<string>([
+  "business_data",
+  "page_content",
+  "post_content",
+]);
+
+/** `review:<id>` — a reference to a real synced review. */
+const REVIEW_REF_PATTERN = /^review:\s*\S+/i;
+
+/** An http(s) URL — a page/profile the reader can open. */
+const URL_PATTERN = /^https?:\/\/\S+/i;
+
+/**
+ * A claim is source-linked only if its source is one of the RECOGNIZED forms of
+ * receipt this system can actually produce and a reader could actually follow:
  *
- * A "labeled" source has the `field: payload` shape the adapter builds (e.g.
- * `page_content: "…"`). When the payload after the label — with quotes and
- * whitespace stripped — is empty, the source is hollow and rejected.
+ *   1. `review:<id>`            — a real synced review.
+ *   2. `https://…`              — a real page/profile url.
+ *   3. `<known_field>: "<payload>"` — a labeled excerpt whose field is one of
+ *      RECOGNIZED_SOURCE_FIELDS and whose payload is non-empty.
+ *
+ * Anything else is not a source, so the claim is dropped (never fabricated into
+ * one). This is an ALLOWLIST on purpose. Checking only that *some* string is
+ * present would accept any invented label — an arbitrary `field: "value"` pair
+ * would read as provenance in the audit trail while pointing at nothing, which
+ * is worse than an empty field: it is an unfollowable citation that looks
+ * followable. Unrecognized forms therefore fail CLOSED, and a genuinely new
+ * source kind is added here deliberately (with the code that emits it) rather
+ * than arriving unannounced.
  */
 export function isRealSource(source: string | null | undefined): boolean {
   if (typeof source !== "string") return false;
@@ -72,15 +102,19 @@ export function isRealSource(source: string | null | undefined): boolean {
   if (trimmed.length === 0) return false;
   if (PLACEHOLDER_SOURCES.has(trimmed.toLowerCase())) return false;
 
-  // Reject a labeled source whose payload after the field label is empty,
-  // e.g. `page_content: ""` — structurally present, but no real excerpt.
+  if (REVIEW_REF_PATTERN.test(trimmed)) return true;
+  if (URL_PATTERN.test(trimmed)) return true;
+
+  // A labeled `field: payload` source from a recognized field. The payload is
+  // stripped of quotes/whitespace, so `page_content: ""` is hollow → rejected.
   const colonIdx = trimmed.indexOf(":");
-  if (colonIdx !== -1) {
+  if (colonIdx > 0) {
+    const label = trimmed.slice(0, colonIdx).trim().toLowerCase();
     const payload = trimmed.slice(colonIdx + 1).replace(/["'\s]/g, "");
-    if (payload.length === 0) return false;
+    if (RECOGNIZED_SOURCE_FIELDS.has(label) && payload.length > 0) return true;
   }
 
-  return true;
+  return false;
 }
 
 // Guarantees / outcome + medical promises — lifted from

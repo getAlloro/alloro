@@ -142,6 +142,105 @@
       "evidence": "Confirmed BOTH ways. Directly: `gh pr checks 160` returns \"no checks reported on the 'claude/taste-profile-spine' branch\" against PR head da282309. Structurally: `grep -rn pull_request .github/workflows/` returns nothing, and the three workflow files carry push-only triggers - deploy-sandbox.yml [sandbox], dev.yml [dev/dave], main.yml [main]. The structural proof is the load-bearing one: with no trigger, no check CAN exist to report, so this is not a transient empty result that would fill in later.",
       "notes": "HONEST LIMIT, not a gap this PR can close. This is an infrastructure absence already raised with Dave, not something the branch did wrong; adding a pull_request CI workflow is its own change, out of scope here. Recorded as pending rather than waived to green so the package cannot roll up 'Passed' on a check nobody ran. Every gate CI would have proven was instead run locally on Node 22.23.1 and is recorded in T8 with exit codes.",
       "waiver": ""
+    },
+    {
+      "id": "T10",
+      "title": "Every inherited unscoped BaseModel entry point is sealed (§11.7/§5.5)",
+      "surface": "model",
+      "precondition": "Rev 1 sealed findById/deleteById only. BaseModel also exposes condition-based reads, an id-based update, count, paginate, and createReturningId, whose WHERE clause is whatever the caller passes - so the isolation guarantee held only for callers who remembered to add an organization predicate. Full public surface enumerated from src/models/BaseModel.ts rather than from the review's list.",
+      "steps": [
+        "Override findOne, findMany, updateById, count, paginate and createReturningId to take no arguments, so a real call is a compile error (TS2554); keep a runtime throw as the backstop for untyped callers.",
+        "Add cross-org tests asserting each sealed method throws AND that the other tenant's row is neither returned nor modified.",
+        "Mutation-check: stash the model fix and re-run the new tests against the pre-fix source.",
+        "Run `npx tsc --noEmit` with the @ts-expect-error directives in place."
+      ],
+      "expected": "Each sealed entry point is unreachable at compile time; no cross-tenant row is read or mutated at runtime; the scoped siblings (findByIdForOrg / findLatestByOrgAndLocation / markApproved / deleteByIdForOrg) remain the only way in.",
+      "status": "pass",
+      "evidence": "vitest: 43/43 passing across the two taste-profile suites (was 25/25). Mutation-verified: against the pre-fix model the new tests fail 14/14 and `tsc --noEmit` reports TS2578 'Unused @ts-expect-error directive' at each seal call site - i.e. those calls compiled before the fix and do not compile after it. Against the fixed model `tsc --noEmit` exits 0, which is only possible if every directive is firing.",
+      "notes": "createReturningId was NOT in the review's list; it was found by enumerating BaseModel's public surface directly, and it is a write path that also bypassed create()'s draft-only contract. count() is the one honest exception to the compile-time rule: BaseModel.count() is callable with zero arguments, so its seal is enforced at runtime only - documented in the model. No countForOrg/lister was added because no caller needs one (YAGNI); the seals name the scoped replacement to add when one does.",
+      "waiver": ""
+    },
+    {
+      "id": "T11",
+      "title": "A profile can only be created as a draft; approval requires the owner sign-off (§5.4)",
+      "surface": "model",
+      "precondition": "create() accepted an optional status and wrote it directly, so an approved row could be minted at insert time with no approved_by/approved_at - an unsigned approval that reads downstream exactly like a signed one.",
+      "steps": [
+        "Remove status from create()'s input type and always write 'draft'; keep the explicit column copy so no extra column can ride in on the object.",
+        "Add a type-level assertion that 'status' is not in keyof Parameters<typeof create>[0].",
+        "Add a behavioural test that create() persists status=draft with a null sign-off stamp.",
+        "Add a test where an untyped caller smuggles status/approved_by/approved_at through a cast."
+      ],
+      "expected": "status is not expressible in the create input; the persisted row is always a draft with a null approved_by/approved_at; the only route to 'approved' is markApproved(), which writes the status and the signature in one update.",
+      "status": "pass",
+      "evidence": "vitest: the three §5.4 tests pass against the fixed model. Mutation-verified: against the pre-fix model the smuggling test fails and `tsc --noEmit` reports TS2322 'Type true is not assignable to type never' on the type-level assertion (status WAS in the input type). The mock query builder now records inserts, so status is asserted as WRITTEN, not as intended.",
+      "notes": "The insert assertion runs against an in-memory table, not Postgres - it proves the column value the model sends, which is where the rule lives. markApproved()'s own cross-org coverage is unchanged (T3).",
+      "waiver": ""
+    },
+    {
+      "id": "T12",
+      "title": "A review source is attached only to words that review actually said",
+      "surface": "service",
+      "precondition": "resolveReviewSource's docstring promised 'we never fabricate a source', but it resolved a source on the reviewer NAME alone (never examining the quote), and its containment test ran in BOTH directions, so a long claim that merely wrapped a short review ('Great!') inherited that review's receipt. Both produced a clean, followable link in the audit trail for words the review never said - independently found and verified against the code, not reported by the review.",
+      "steps": [
+        "Require one-directional containment: the quote must be a verbatim (whitespace-normalized) substring OF the review's text - the same structural check extractPracticeFacts.processor.verifyFacts already applies to fact excerpts.",
+        "Stop treating a reviewer name as evidence; use it only to disambiguate between real origins, or to veto a contradicting attribution.",
+        "Drop the claim when several reviews contain the quote and the name cannot narrow it to exactly one.",
+        "Add regression tests for each path, plus the honest cases that must still resolve.",
+        "Mutation-check against the pre-fix service."
+      ],
+      "expected": "A source is returned only when exactly one review is provably the origin of the quote; every other case returns null and the gate drops the claim with reason 'no_source' - which is what the docstring already promised.",
+      "status": "pass",
+      "evidence": "vitest: 7 new tests in 'a source is the origin, not a lookalike' pass against the fixed service. Mutation-verified: 5 of them fail against the pre-fix service (the name-only path, the wrapped-short-review path, the contradicting attribution, the ambiguous quote, and the name-as-disambiguator case). The two pre-existing resolution tests still pass unchanged, so honest sourced claims are not dropped.",
+      "notes": "Ambiguity now drops the claim rather than picking the first origin: the words are real but which review said them is unknown, and a guess presented as a receipt is the failure this function exists to prevent.",
+      "waiver": ""
+    },
+    {
+      "id": "T13",
+      "title": "Only recognized forms of receipt count as a source",
+      "surface": "service",
+      "precondition": "isRealSource checked string presence and a non-empty payload only, so any invented label (an arbitrary `field: value` pair) counted as provenance - an unfollowable citation that reads in the audit trail exactly like a followable one.",
+      "steps": [
+        "Restrict to the three forms the system actually produces: review:<id>, an http(s) URL, or a labeled excerpt whose field is one of the PracticeFactSourceField values (business_data / page_content / post_content).",
+        "Fail closed on anything unrecognized.",
+        "Add unit tests for each accepted and rejected form, plus an end-to-end drop through the gate."
+      ],
+      "expected": "Recognized forms pass; an invented label, a bare reference with no payload, and free prose are all rejected, so the claim is dropped with reason 'no_source' rather than carrying a citation that points at nothing.",
+      "status": "pass",
+      "evidence": "vitest: the two new isRealSource tests pass against the fixed util and fail against the pre-fix util (mutation-verified). All pre-existing isRealSource expectations still pass unchanged. An unrecognized practice-fact source_field is now dropped by the gate as a consequence, with no separate filter in the adapter.",
+      "notes": "The field vocabulary is mirrored from PracticeFactModel.PracticeFactSourceField rather than imported, to keep this gate a dependency-free pure scanner; the model is named in a keep-in-sync comment. Adding a genuinely new source kind is now a deliberate edit here alongside the code that emits it.",
+      "waiver": ""
+    },
+    {
+      "id": "T14",
+      "title": "fact_text is supported by its own source_excerpt",
+      "surface": "service",
+      "precondition": "OPEN LIMIT, recorded rather than closed. The composition layer attaches a receipt to each practice fact but never checks that fact_text - a distilled restatement, not a verbatim span - is actually supported by the excerpt it cites. A fact could overstate its excerpt and still pass, caught only if the overstatement trips enforceHonesty's banned language.",
+      "steps": [
+        "Verify where the excerpt is checked today: extractPracticeFacts.processor.verifyFacts confirms it is verbatim against the real scraped/GBP input.",
+        "Determine whether the composition layer can re-derive that support from its own inputs."
+      ],
+      "expected": "Support for a restatement is verified where the source text lives (the extractor), which is the only layer that holds the original input.",
+      "status": "pending",
+      "evidence": "Verified by reading the code: the excerpt IS verified verbatim upstream (extractPracticeFacts.processor.ts verifyFacts, which also requires source_field to be a known PracticeFactSourceField). The composition service receives only the extractor's output, so it cannot re-derive whether the restatement is supported. The boundary is now documented at the practice-fact mapping in service.taste-profile.ts.",
+      "notes": "Deliberately NOT closed with a heuristic. A token-overlap test would pass almost any restatement reusing a couple of the excerpt's words, so it would not catch the overstatement it appears to guard against - it would only make an unverified claim LOOK verified, which is the exact failure this gate exists to prevent. Closing it for real belongs in the extractor, where the source text is. Recorded as pending so the package cannot roll up 'Passed' on a check nobody can run here.",
+      "waiver": ""
+    },
+    {
+      "id": "T15",
+      "title": "No regression across the backend suite (round 2)",
+      "surface": "static",
+      "precondition": "Node 22.23.1, `npm ci` in the /tmp/fix-160 worktree. There is NO live database in this environment (no Postgres, no Docker), so every DB-backed proof stays pending - see T7.",
+      "steps": [
+        "npx tsc --noEmit",
+        "npx vitest run",
+        "npm run check:conventions -- --strict"
+      ],
+      "expected": "All three gates green with no new violations attributable to this branch.",
+      "status": "pass",
+      "evidence": "tsc --noEmit exit 0. vitest: 62 files / 499 tests passed (up from 481; +18 from this round's regression tests). check:conventions --strict exit 0, 'CLEAR structural violations - backend (size + console + db): 0'; no taste-profile file appears in ANY check, including the §11.7 tenant-scope heuristic. File sizes within §2.4 tiers (model 272, service 470, util 227); resolveReviewSource is 41 lines (§2.2) at nesting depth 3 (§2.3).",
+      "notes": "Local runs on Node 22.23.1, not CI - no pull_request workflow exists to attach checks to the PR head (T9). These are the same gates CI would have run.",
+      "waiver": ""
     }
   ]
 }
