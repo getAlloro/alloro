@@ -183,8 +183,52 @@ describe("detectAppearance — identity not resemblance (round-3 adversary)", ()
       ["a LEFT-extended longer name", "Bright Smile Dental is great."],
       ["a left-extended name mid-sentence", "Book at Bright Smile Dental today."],
       ["an all-lowercase left extension", "the bright smile dental option"],
+      ["a LEFT extension in ALL CAPS", "BRIGHT SMILE DENTAL is great."],
+      ["a left extension hidden by partial markdown bold", "**Bright** Smile Dental is great."],
+      ["a left extension joined by an em-dash", "Bright — Smile Dental is great."],
+      ["a left extension joined by a hyphen", "Bright-Smile Dental is great."],
+      ["a left extension hidden by a zero-width space", "Bright​Smile Dental is great."],
+      ["a left extension joined by an ampersand", "Bright & Smile Dental is great."],
+      ["a DIGIT-leading competitor prefix", "Austin options: 32 Smile Dental is a boutique studio."],
+      ["an alphanumeric competitor prefix", "Austin options: 3D Smile Dental uses digital scans."],
+      ["a PLURAL suffix word (clinics)", "Smile Dental clinics are common in this area."],
+      ["a plural suffix word (groups)", "Smile Dental groups are common in this area."],
+      ["a plural suffix word (practices)", "Smile Dental practices are common in this area."],
+      ["a plural suffix word (centers)", "Smile Dental centers are common in this area."],
+      ["markdown bolding only the tail of a longer name", "Try Bright **Smile Dental** downtown."],
+      ["markdown italicising only the head of a longer name", "Try *Bright* Smile Dental downtown."],
     ])("does NOT record a mention for %s", (_label, text) => {
       expect(detectAppearance(answer(text), ID).mentioned).toBe(false);
+    });
+
+    it("does NOT record a mention from generic prose that names NOBODY", () => {
+      // The worst case: no competitor is even involved. The answer recommends
+      // someone else entirely, and the practice's generically-worded name
+      // appears only as English prose. The owner would be told "you were
+      // mentioned" about an answer that never mentioned them.
+      const d = detectAppearance(
+        answer("Family dental practices in Austin are plentiful. Try Bright Smile Dental."),
+        { name: "Family Dental", domain: "familydental.com" }
+      );
+      expect(d.mentioned).toBe(false);
+      expect(d.position).toBeNull();
+    });
+
+    it("does NOT record a mention when prose merely reuses a common-phrase name", () => {
+      expect(
+        detectAppearance(answer("Perfect smile outcomes vary by provider. Visit Bright Ortho."), {
+          name: "Perfect Smile",
+          domain: "perfectsmile.com",
+        }).mentioned
+      ).toBe(false);
+    });
+
+    it("does NOT cite a root-relative URL whose first path segment looks like our host", () => {
+      // "https:///smiledental.com/reviews" collapses to hostname smiledental.com.
+      // No current adapter emits this shape; it is closed for the next one.
+      expect(
+        detectAppearance(sources([{ url: "/smiledental.com/reviews", title: null }]), ID).cited
+      ).toBe(false);
     });
 
     it("does NOT cite a third party whose TITLE carries our domain in prose", () => {
@@ -315,6 +359,42 @@ describe("detectAppearance — identity not resemblance (round-3 adversary)", ()
           domain: "smiledental.com",
         }).mentioned
       ).toBe(true);
+    });
+
+    it("matches a registered name ending in a period — 'Smile Dental P.C.'", () => {
+      // A \b after the trailing "." never fires, which made every "… P.C." /
+      // "Inc." / "D.D.S." practice permanently undetectable TO ITSELF. Over-
+      // rejection is a gap, not a lie — but a practice invisible to its own
+      // name is an absurd gap, not a conservative one.
+      expect(
+        detectAppearance(answer("Smile Dental P.C. is great."), {
+          name: "Smile Dental P.C.",
+          domain: "smiledental.com",
+        }).mentioned
+      ).toBe(true);
+    });
+
+    it("tolerates stray whitespace in the STORED name", () => {
+      expect(
+        detectAppearance(answer("Smile Dental is great."), {
+          name: "Smile  Dental",
+          domain: "smiledental.com",
+        }).mentioned
+      ).toBe(true);
+    });
+
+    it("records an ALL-CAPS rendering of a title-case name", () => {
+      expect(detectAppearance(answer("SMILE DENTAL is great."), ID).mentioned).toBe(true);
+    });
+
+    it("records a mention in a dash-bulleted list after another practice", () => {
+      // The newline is a hard entity boundary, so the previous line's business
+      // name must not swallow this one — the dominant shape of engine answers.
+      expect(detectAppearance(answer("- Bright Ortho\n- Smile Dental"), ID).mentioned).toBe(true);
+    });
+
+    it("records a mention bolded whole, with a trailing dash blurb", () => {
+      expect(detectAppearance(answer("1. **Smile Dental** — 4.8 stars"), ID).mentioned).toBe(true);
     });
   });
 });

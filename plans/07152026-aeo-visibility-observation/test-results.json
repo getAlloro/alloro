@@ -14,7 +14,7 @@
       ],
       "expected": "Two prompts (generic + contextualized) carrying the category and city; an empty set when either input is missing, so the runner skips instead of asking a meaningless question.",
       "status": "pass",
-      "evidence": "src/__tests__/ai-visibility.test.ts — 2 buildPromptSet cases passed in the 61-test A3 run and the 517-test full suite (Node 22).",
+      "evidence": "src/__tests__/ai-visibility.test.ts — 2 buildPromptSet cases passed in the 83-test A3 run and the 539-test full suite (Node 22).",
       "notes": "",
       "waiver": ""
     },
@@ -45,7 +45,7 @@
       ],
       "expected": "cited=true only when a PARSED citation URL's hostname is the practice's own (or a subdomain), and citedSource stores the field that proved it. A domain sitting in a third party's title prose proves nothing and records nothing. A bare name match never implies a citation.",
       "status": "pass",
-      "evidence": "src/__tests__/ai-visibility.test.ts — host-match, non-canonical-title, and ambiguity-guard cases passed in the 61-test A3 run and the 517-test full suite (Node 22).",
+      "evidence": "src/__tests__/ai-visibility.test.ts — host-match, non-canonical-title, and ambiguity-guard cases passed in the 83-test A3 run and the 539-test full suite (Node 22).",
       "notes": "CHANGED IN ROUND 4. The previous version of this test asserted the FABRICATION: a citation {url:null, title:'Bright Smiles — brightsmiles.com'} was expected to record cited=true. The test encoded the bug, so it was corrected, not preserved.",
       "waiver": ""
     },
@@ -62,7 +62,7 @@
       ],
       "expected": "Every lookalike is rejected; only the genuine subdomain citation counts. The detector prefers a MISSED positive over a FABRICATED one.",
       "status": "pass",
-      "evidence": "src/__tests__/ai-visibility.test.ts — 6 anti-fabrication regression cases passed in the 61-test A3 run and the 517-test full suite (Node 22).",
+      "evidence": "src/__tests__/ai-visibility.test.ts — 6 anti-fabrication regression cases passed in the 83-test A3 run and the 539-test full suite (Node 22).",
       "notes": "Binding honesty rule (spec + research/aeo-measurement-spec.md §3): never record a mention/citation that isn't genuinely the practice.",
       "waiver": ""
     },
@@ -245,7 +245,7 @@
       ],
       "expected": "Every resemblance case records NOTHING (no mention, no citation, no fabricated citedSource). Every identity case still records. `position` points at the identity-verified line (3), never the lookalike's (1).",
       "status": "pass",
-      "evidence": "src/__tests__/ai-visibility.test.ts — describe('detectAppearance — identity not resemblance (round-3 adversary)'), 24 cases (15 resemblance + 9 real-evidence), all passed in the 61-test A3 run (Node 22, vitest exit 0). NON-VACUITY PROVEN BY REVERT: restoring the previous appearanceDetector.ts at this test set fails 17 of 61 tests (vitest exit 1); restoring the fix returns 61/61 (exit 0). Before the fix a standalone probe of the 13 core cases showed 10 fabrications recorded and only the 3 real-evidence cases passing.",
+      "evidence": "src/__tests__/ai-visibility.test.ts — describe('detectAppearance — identity not resemblance (round-3 adversary)'), 46 cases (32 resemblance + 14 real-evidence), all passed in the 83-test A3 run (Node 22, vitest exit 0). NON-VACUITY PROVEN BY REVERT: restoring the detector Dave reviewed (7e15e6af) fails 36 of 83 A3 tests (vitest exit 1); restoring the fix returns 83/83 (exit 0).",
       "notes": "The class is 'a match decided by resemblance rather than identity'. Dave named 2 cases; the sweep of the branch found 6 more that were also live fabrications: (1) LEFT-extension was entirely unguarded, so 'Bright Smile Dental' recorded a mention for 'Smile Dental'; (2) URL hosts were regex-scraped from the raw URL STRING, so a domain in a query param or path recorded a citation; (3) the same for the URL path; (4) `position` used the raw unguarded regex and pointed at the lookalike's line; (5) a TLD-only/garbage practice domain ('com') matched EVERY host under that TLD via the suffix check — a mass-fabrication amplifier; (6) all-lowercase prose gave no boundary signal at all. The runner, model, registry and prompt builder were swept too: they match on IDs, not text, so the class is confined to appearanceDetector.ts.",
       "waiver": ""
     },
@@ -264,6 +264,23 @@
       "status": "pass",
       "evidence": "src/__tests__/ai-visibility.test.ts — describe('GeminiVisibilityAdapter — the ONLY engine that may prove a citation by title') passed, plus the SerpApi title-only case asserting cited=false.",
       "notes": "HONEST LIMIT: the client is mocked, so this proves the MAPPING against the documented grounding shape, NOT the live API — T18 (live Gemini) stays pending. Title authority is default-deny: an adapter that says nothing gets titleIsCanonicalHost=undefined and its titles can never prove a citation. The detector independently requires a canonical title to BE a bare host, so even a mis-declaring adapter cannot smuggle prose through. RESIDUAL: that Gemini's grounding title is always the bare source domain is a documented-shape assumption, unverified live.",
+      "waiver": ""
+    },
+    {
+      "id": "T25",
+      "title": "Independent adversary round — the first fix was INCOMPLETE, and what closed it",
+      "surface": "cli",
+      "precondition": "Pure detector. A fresh agent, given no stake in the fix, tasked ONLY to refute it.",
+      "steps": [
+        "Task an independent adversary to break the fixed detector empirically (run it, not read it).",
+        "Re-probe every CONFIRMED break it reported.",
+        "Fix the root cause, not the individual inputs.",
+        "Re-run both directions and the full gates."
+      ],
+      "expected": "Every confirmed fabrication closes, every real-evidence case still records, and the absurd over-rejections are repaired.",
+      "status": "pass",
+      "evidence": "All confirmed breaks re-probed and now record NOTHING: generic prose naming nobody ('Family dental practices in Austin are plentiful.' for identity 'Family Dental') → false; plurals ('Smile Dental clinics/groups/practices/centers/studios are common') → false; digit-leading prefixes ('1st Family Dental', '32 Smile Dental', '3D Smile Dental') → false; hyphen/em-dash/markdown/zero-width left extensions → false; common-phrase reuse ('Perfect smile outcomes vary' for identity 'Perfect Smile') → false; root-relative URL '/smiledental.com/reviews' → cited false. Over-rejections repaired: 'Smile Dental P.C.' now matches ITSELF (was permanently undetectable), and a double-spaced stored name matches. Real evidence still records: plain mention, whole-name bold, numbered list, dash-bulleted list after another practice, ALL-CAPS heading, possessive, comma clause, lookalike-first, own longer name, position=3.",
+      "notes": "HONEST RECORD: the adversary's verdict on the first fix was 'does NOT close the fabrication class — the citation side is near-airtight; the name side is broken.' Its structural diagnosis was correct and is why the fix changed shape: the name path ENUMERATED surface forms (a word list, a capital letter, a space) while the citation path PARSES and compares a structured host. A word list is beaten by adding 's'; a capital-letter test is beaten by a digit; a space test is beaten by a hyphen. The remedy was an identity signal a list cannot express — CASE-PATTERN AGREEMENT with the stored name (prose 'Family dental' is not the name 'Family Dental'), plus plural-tolerant suffixes, a digit-aware left guard, and lookaround-based matching. The adversary ALSO confirmed what held: it could not bypass titleIsCanonicalHost default-deny, nor break URL host parsing (userinfo @, query, path, fragment, homoglyph, superstring, ccTLD, 'com'). It reported two of its own hypotheses as wrong rather than dress them up.",
       "waiver": ""
     },
     {
@@ -355,7 +372,7 @@
       ],
       "expected": "Zero type errors, a green suite, and zero structural backend violations.",
       "status": "pass",
-      "evidence": "tsc --noEmit exited 0 (no output). Full suite: 61 files, 517 tests passed (491 before this round; +26 new A3 identity/adapter tests), captured from vitest's OWN exit code, not a piped grep. check:conventions --strict exited 0 with 'CLEAR structural violations — backend (size + console + db): 0'; no ai-visibility file appears in any finding, advisory or otherwise.",
+      "evidence": "tsc --noEmit exited 0 (no output). Full suite: 61 files, 539 tests passed (491 at the reviewed head), captured from vitest's OWN exit code, not a piped grep. check:conventions --strict exited 0 with 'CLEAR structural violations — backend (size + console + db): 0'; no ai-visibility file appears in any finding, advisory or otherwise.",
       "notes": "The §11.7 heuristic lists 102 models repo-wide; AiVisibilityObservationModel is NOT among them (it references organization_id). That heuristic is a backstop, not proof — the real tenant proof is T15/T22.",
       "waiver": ""
     },

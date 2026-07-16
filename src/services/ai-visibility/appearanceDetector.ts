@@ -108,8 +108,26 @@ const NAME_SUFFIX_WORDS = [
  */
 const NAME_CONNECTOR_WORDS = ["of", "at", "and", "on"];
 
+/**
+ * What can sit between a preceding name token and our match without ending the
+ * entity. Horizontal whitespace is not enough: an adversarial (or merely
+ * markdown-formatted) answer separates the tokens with emphasis markers, a dash,
+ * an ampersand, or a zero-width character, and a space-only guard looks straight
+ * past them — "**Bright** Smile Dental" and "Bright — Smile Dental" are the same
+ * lookalike as "Bright Smile Dental". A NEWLINE is deliberately excluded: an
+ * entity never spans lines, and treating it as a joiner would reject the genuine
+ * list mentions ("- Bright Ortho\n- Smile Dental") that dominate engine answers.
+ */
+const LEFT_SEP = "[ \\t\\u00a0*_`~&+/\\-\\u2010-\\u2015\\u200b-\\u200d\\ufeff]";
+/**
+ * A preceding name token. Starts `[A-Z0-9]`, not `[A-Z]`: real practices lead
+ * with a digit ("1st Family Dental", "3D Smile Dental"), and a capital-only test
+ * is blind to them. "." is excluded from the token body so a LIST MARKER ("1. ",
+ * "2. ") is not mistaken for a name token — the marker's "." is not a joiner, so
+ * "1. Smile Dental" still reads as the practice.
+ */
 const LEFT_CAPITALIZED_TOKEN = new RegExp(
-  `(^|[^A-Za-z0-9])[A-Z][A-Za-z0-9'’.\\-]*${H}+$`
+  `(^|[^A-Za-z0-9])[A-Z0-9][A-Za-z0-9'’\\-]*${LEFT_SEP}+$`
 );
 const LEFT_SYMBOL_JOIN = new RegExp(`[&+]${H}*$`);
 const LEFT_ANY_WORD = new RegExp(`[A-Za-z0-9]${H}+$`);
@@ -117,8 +135,11 @@ const RIGHT_SYMBOL_JOIN = new RegExp(`^${H}*[&+]${H}*[A-Za-z0-9]`);
 const RIGHT_CAPITALIZED_TOKEN = new RegExp(
   `^(${H}+|${H}*[-\\u2010-\\u2015]${H}*)[A-Z0-9]`
 );
+/** Plural-tolerant: a word list that knows "clinic" but not "clinics" is beaten
+ * by typing one letter — "Smile Dental clinics are common" is generic prose, not
+ * a mention of the practice. */
 const RIGHT_SUFFIX_WORD = new RegExp(
-  `^${H}+(${NAME_SUFFIX_WORDS.join("|")})\\b`,
+  `^${H}+(${NAME_SUFFIX_WORDS.join("|")})s?\\b`,
   "i"
 );
 const RIGHT_CONNECTOR_NAME = new RegExp(
@@ -128,6 +149,54 @@ const RIGHT_CONNECTOR_NAME = new RegExp(
 
 function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** The name's significant tokens, whitespace-normalized. */
+function nameTokens(name: string): string[] {
+  return name.trim().split(/\s+/).filter(Boolean);
+}
+
+/**
+ * A matcher for the name, tolerant of whitespace but not of identity.
+ *
+ * Uses LOOKAROUNDS rather than `\b`: a name ending in a period ("Smile Dental
+ * P.C.") has no word boundary after it, so `\b` made the practice's OWN
+ * registered name undetectable — every "… P.C." / "Inc." / "D.D.S." practice was
+ * permanently invisible to itself. Tokens are joined on flexible horizontal
+ * whitespace so a double space in the stored name still matches the answer.
+ */
+function buildNameMatcher(name: string): RegExp | null {
+  const tokens = nameTokens(name);
+  if (!tokens.length) return null;
+  const body = tokens.map(escapeRegex).join(`${H}+`);
+  return new RegExp(`(?<![A-Za-z0-9])${body}(?![A-Za-z0-9])`, "gi");
+}
+
+/**
+ * Does the text render this as a PROPER NAME, agreeing with the identity's own
+ * capitalization?
+ *
+ * This is an identity signal a word list cannot express. "Perfect smile outcomes
+ * vary by provider" is generic English — it does not name the practice "Perfect
+ * Smile", and no list of suffix words will ever tell you so. "Family dental
+ * practices are plentiful" is not the practice "Family Dental". The engine
+ * capitalizes a business name; prose does not.
+ *
+ * Skipped when the STORED name carries no case signal (all-lowercase), because
+ * then there is nothing to agree with. ALL-CAPS text still matches a title-case
+ * name — every uppercase-in-identity token is uppercase there too.
+ */
+function capitalizationAgrees(matched: string, name: string): boolean {
+  if (!/[A-Z]/.test(name)) return true;
+  const idTokens = nameTokens(name);
+  const matchedTokens = nameTokens(matched);
+  if (idTokens.length !== matchedTokens.length) return true;
+  for (let i = 0; i < idTokens.length; i++) {
+    if (/^[A-Z]/.test(idTokens[i]) && !/^[A-Z]/.test(matchedTokens[i])) {
+      return false;
+    }
+  }
+  return true;
 }
 
 /**
@@ -173,10 +242,13 @@ function isWholeEntity(text: string, index: number, matched: string): boolean {
 function findIdentityMatch(text: string, rawName: string): number | null {
   const name = rawName.trim();
   if (!name) return null;
-  const re = new RegExp(`\\b${escapeRegex(name)}\\b`, "gi");
+  const re = buildNameMatcher(name);
+  if (!re) return null;
   let m: RegExpExecArray | null;
   while ((m = re.exec(text)) !== null) {
-    if (isWholeEntity(text, m.index, m[0])) return m.index;
+    if (capitalizationAgrees(m[0], name) && isWholeEntity(text, m.index, m[0])) {
+      return m.index;
+    }
     if (m.index === re.lastIndex) re.lastIndex++;
   }
   return null;
@@ -199,8 +271,15 @@ function normalizeHost(host: string): string {
 function hostFromUrl(raw: string): string | null {
   const s = raw.trim();
   if (!s) return null;
+  const hasScheme = /^[a-z][a-z0-9+.\-]*:\/\//i.test(s);
+  // A schemeless value may only be a BARE HOST. Without this, a root-relative
+  // path ("/smiledental.com/reviews") becomes "https:///smiledental.com/reviews",
+  // whose slashes collapse to hostname smiledental.com — a path segment
+  // promoted into a citation of us. No current adapter emits that shape; this
+  // closes it for the next one.
+  if (!hasScheme && !/^[a-z0-9]/i.test(s)) return null;
   try {
-    const u = new URL(/^[a-z][a-z0-9+.\-]*:\/\//i.test(s) ? s : `https://${s}`);
+    const u = new URL(hasScheme ? s : `https://${s}`);
     const host = normalizeHost(u.hostname);
     return HOSTNAME_RE.test(host) ? host : null;
   } catch {
