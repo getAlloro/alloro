@@ -482,6 +482,177 @@ describe("honesty lint — GeneratedCopySafetyService.validateGeneratedCopy", ()
   it.each(ordinaryEnglish)("PASSES ordinary English that shares a qualifier: %s", (copy) => {
     expect(GeneratedCopySafetyService.validateGeneratedCopy(copy).isSafe).toBe(true);
   });
+
+  /**
+   * ENCODING BOUNDARIES. Every pattern in this gate is ASCII, and copy a reader
+   * sees as "guarantee" need not be ASCII "guarantee". Before normalization the
+   * gate matched one ENCODING of the text rather than the text; each fixture
+   * below was a MEASURED bypass on the reviewed head.
+   *
+   * These are CATEGORY representatives — an invisible character, a cross-script
+   * confusable, a compatibility letter form, an entity, an inline tag — not a
+   * list of strings to block. The fold, not a pattern, is what closes them; see
+   * copy-normalization.test.ts for the fold's own unit coverage.
+   */
+  const encodingBypasses = [
+    // The three boundaries Dave named: the negator must not leak across them.
+    "We do not make ranking claims。 We guarantee first page placement.",
+    "We do not make ranking claims； We guarantee first page placement.",
+    "We do not make ranking claims<br> We guarantee first page placement.",
+    // The same boundary class in other scripts and in HTML block tags.
+    "We do not make ranking claims। We guarantee first page placement.",
+    "We do not make ranking claims؟ We guarantee first page placement.",
+    "We do not make ranking claims！ We guarantee first page placement.",
+    "<p>We do not make ranking claims</p><p>We guarantee first page placement.</p>",
+    "<li>We do not make ranking claims</li><li>We guarantee first page placement.</li>",
+    // A claim broken apart by something that renders as nothing.
+    "Top pla​cement on Google for your practice.",
+    "Top pla­cement on Google for your practice.",
+    "Top pla<wbr>cement on Google for your practice.",
+    "Top pla<b>cement</b> on Google for your practice.",
+    "Top pla&#99;ement on Google for your practice.",
+    "Top pla<!-- x -->cement on Google for your practice.",
+    // A claim written in letters that are not the ASCII they look like.
+    "#1 on Gооgle for implants.",
+    "Ｔｏｐ　ｐｌａｃｅｍｅｎｔ　ｏｎ　Ｇｏｏｇｌｅ．",
+  ];
+
+  it.each(encodingBypasses)("BLOCKS a claim whose ENCODING hid it from an ASCII pattern: %s", (copy) => {
+    const result = GeneratedCopySafetyService.validateGeneratedCopy(copy);
+    expect(result.isSafe).toBe(false);
+    expect(result.status).toBe("blocked");
+  });
+
+  /**
+   * A NEGATOR THAT NEGATES NOTHING. Finding a negator token in the clause used to
+   * BE the negation test, so a token bound to something that is not a predicate
+   * laundered the claim after it. Each fixture was a MEASURED bypass; the first
+   * two are Dave's.
+   */
+  const falseNegators = [
+    // Compound-bound: the negator belongs to a hyphenated modifier.
+    "No-hassle guaranteed top placement on Google.",
+    "No-obligation first page placement for your practice.",
+    "No-risk page one placement, every time.",
+    // Idiom-bound: a fixed adverbial that negates nothing — several ASSERT.
+    "Without delay guaranteed top placement on Google.",
+    "Without fail we get you first page placement.",
+    "Without a doubt the top spot on Google is yours.",
+    "No doubt we get you page one placement.",
+    "You can't beat our guaranteed top placement.",
+    "Don't miss our guaranteed first page placement.",
+    "Not to worry guaranteed top placement on Google.",
+    "Never fear guaranteed top placement on Google.",
+    // The FORWARD direction of the same class: the claim IS the subject of a
+    // negated predicate, so the grammar guard fires — but the idiom asserts the
+    // claim rather than denying it. Found by attacking this round's own fix.
+    "Ranking #1 on Google has never been easier.",
+    "Top placement is no problem.",
+    "First page placement is never a problem.",
+    // An independent adversary broke the first version of the "no problem"
+    // demotion: it only fired clause-finally, so a trailing prepositional phrase
+    // — the MORE natural way to write the boast — laundered the claim.
+    "A higher ranking is no problem for us.",
+    "Top placement is no problem at all.",
+    "Page one placement is no issue for our team.",
+    "First page placement is no sweat for us.",
+    "Getting you to page one is no trouble at all.",
+    "Ranking #1 on Google is no problem for a practice like yours.",
+    // Fragment-bound: a verbless NP fragment juxtaposed against the claim.
+    // NOTE the residual documented on the rules: this is caught at TWO
+    // intervening words, not one. "No obligation first page placement" (one
+    // noun) is surface-identical to "No guaranteed higher ranking" (one
+    // participle), which must PASS — separating them needs a POS tagger. The
+    // hyphenated form above is caught structurally.
+    "No hassle guaranteed top placement on Google.",
+  ];
+
+  it.each(falseNegators)("BLOCKS a claim behind a negator that governs nothing: %s", (copy) => {
+    const result = GeneratedCopySafetyService.validateGeneratedCopy(copy);
+    expect(result.isSafe).toBe(false);
+    expect(result.status).toBe("blocked");
+  });
+
+  /**
+   * The mirror, and the constraint that makes the false-negator rules
+   * non-trivial: a REAL negator must keep governing. Over-blocking an honest
+   * disclaimer is the worse failure — a missed boast still meets owner approval,
+   * a blocked disclaimer is silent and absolute.
+   *
+   * The curly-apostrophe fixtures were MEASURED FALSE POSITIVES on the reviewed
+   * head: the negator inventory spells `don't` in ASCII and generated copy spells
+   * it with U+2019, so the negator silently failed to match and the most honest
+   * sentence a practice can publish could not ship.
+   */
+  const negatorStillGoverns = [
+    "We don’t guarantee a higher ranking.",
+    "First page placement isn’t guaranteed.",
+    "We can’t guarantee first page placement.",
+    "We don’t promise page one placement.",
+    // A determiner-"no" whose complement IS the claim.
+    "We make no promises about your google ranking.",
+    "We have no control over your google ranking.",
+    "We offer no guarantee of first page placement.",
+    "There is no such thing as guaranteed first page placement.",
+    "No guaranteed higher ranking is implied.",
+    // A false negator and a real one in one clause: the real one still governs.
+    "There is no doubt that we cannot guarantee a higher ranking.",
+    "Without a doubt, we do not guarantee rankings.",
+    // Normalized copy must not lose a boundary an honest disclaimer relies on.
+    "We do not guarantee rankings。 We complete your schema.",
+    "We do not guarantee rankings<br>We complete your schema.",
+    "<p>We do <b>not</b> guarantee a higher ranking.</p>",
+    "Café Dental does not guarantee a higher ranking.",
+
+    /*
+     * MEASURED OVER-BLOCKS FROM THIS ROUND'S OWN FIX, caught by attacking it
+     * before shipping. Each was an idiom demotion that was simply WRONG — the
+     * "idiom" negates normally, so demoting its negator silently blocked an
+     * honest disclaimer. They are pinned here because the idiom inventory is the
+     * part of this gate most likely to be widened again later, and widening it
+     * carelessly fails SILENTLY in the direction nothing catches.
+     */
+    "We make no other guarantees about your google ranking.",
+    "We make no less binding a promise about your google ranking.",
+    "We make no fewer promises about your google ranking.",
+    "Google rankings are never better than honest structure.",
+    "No matter what, we do not guarantee a higher ranking.",
+    // The "no problem" demotion must not reach a genuine denial that merely
+    // starts the same way — a finite clause after the noun proves it is a real
+    // predicate, not the idiom.
+    "First page placement is not a problem we can solve.",
+
+    /*
+     * MEASURED OVER-BLOCKS FOUND BY AN INDEPENDENT ADVERSARY against this
+     * round's fix. Both are the same mistake in two places: treating something
+     * as a non-negator when it genuinely negates.
+     *
+     * <br> was folded to a PARAGRAPH break, which the gate reads as a hard
+     * clause end — so it cut the negator off the claim it governs and blocked
+     * the disclaimer. <br> renders as ONE line break, and a lone line break is
+     * deliberately a soft wrap here. It now folds to "\n", which still ends
+     * scope before a new subject (so the boast form above still blocks) without
+     * splitting a negated verb phrase.
+     */
+    "We do not <br> guarantee a higher ranking.",
+    "Structured data does not <br/> guarantee a higher ranking.",
+    "<p>We do not<br>guarantee a higher ranking.</p>",
+    "We cannot<br />promise a higher ranking.",
+    /*
+     * "not only" negates EXCLUSIVITY and really does scope over what follows, so
+     * demoting it blocked honest copy that makes no ranking promise at all.
+     */
+    "Good dentistry is not only about your google rankings.",
+    "Your success is not only about a higher ranking.",
+    "Choosing a dentist is not only about who ranks #1 on Google.",
+    "We are not only unable to guarantee rankings, we say so up front.",
+  ];
+
+  it.each(negatorStillGoverns)("PASSES an honest disclaimer whose negator DOES govern: %s", (copy) => {
+    const result = GeneratedCopySafetyService.validateGeneratedCopy(copy);
+    expect(result.isSafe).toBe(true);
+    expect(result.status).toBe("safe");
+  });
 });
 
 describe("AEO-incomplete gates nothing and is never owner-facing", () => {

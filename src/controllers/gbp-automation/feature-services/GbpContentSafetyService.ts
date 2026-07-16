@@ -2,6 +2,7 @@ import {
   OUTCOME_CLAIM_PATTERNS,
   type ContentSafetyResult,
 } from "../../../services/content-safety/GeneratedCopySafetyService";
+import { normalizeForMatching } from "../../../services/content-safety/copyNormalization";
 
 /**
  * GBP review-reply safety result. Alias of the neutral ContentSafetyResult so
@@ -45,6 +46,15 @@ export class GbpContentSafetyService {
     const trimmed = content.trim();
     const byteLength = Buffer.byteLength(trimmed, "utf8");
 
+    // This gate's patterns are ASCII, so the same encoding fold the generated-copy
+    // gate needs applies here: a zero-width character or a homoglyph inside
+    // "guarantee" renders identically and defeats every pattern below.
+    //
+    // The LIMITS above stay measured on `trimmed`, never on the normalized text:
+    // Google's 4096-byte ceiling and Alloro's 900-character ceiling apply to the
+    // reply that actually ships. Only MATCHING reads the normalized view.
+    const normalized = normalizeForMatching(trimmed);
+
     if (!trimmed) {
       reasonCodes.push("required");
       reasons.push("Reply content is required.");
@@ -59,7 +69,7 @@ export class GbpContentSafetyService {
     }
 
     for (const pattern of BLOCKED_PATIENT_CONFIRMATION) {
-      if (pattern.test(trimmed)) {
+      if (pattern.test(normalized)) {
         reasonCodes.push("private_detail_confirmation");
         reasons.push("Reply appears to confirm patient relationship or private details.");
         break;
@@ -67,7 +77,7 @@ export class GbpContentSafetyService {
     }
 
     for (const pattern of OUTCOME_CLAIM_PATTERNS) {
-      if (pattern.test(trimmed)) {
+      if (pattern.test(normalized)) {
         reasonCodes.push("medical_or_outcome_claim");
         reasons.push("Reply appears to make a medical or outcome claim.");
         break;
@@ -85,7 +95,7 @@ export class GbpContentSafetyService {
       };
     }
 
-    const needsReview = NEEDS_REVIEW_PATTERNS.some((pattern) => pattern.test(trimmed));
+    const needsReview = NEEDS_REVIEW_PATTERNS.some((pattern) => pattern.test(normalized));
     if (needsReview) {
       return {
         isSafe: true,

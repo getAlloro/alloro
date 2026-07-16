@@ -23,15 +23,15 @@
       "id": "T2",
       "title": "Honesty gate blocks rank/placement/visibility copy without false positives",
       "surface": "service",
-      "precondition": "GbpContentSafetyService.validateGeneratedCopy run over the rejected and honest copy sets",
+      "precondition": "GeneratedCopySafetyService.validateGeneratedCopy run over the rejected and honest copy sets",
       "steps": [
-        "1. Submit 10 ranking/placement/visibility promises",
+        "1. Submit 14 ranking/placement/visibility promises",
         "2. Submit 6 honest copy lines, including negated disclaimers"
       ],
       "expected": "Every promise returns isSafe false / status blocked with reason codes; every honest line returns isSafe true / status safe",
       "status": "pass",
-      "evidence": "src/__tests__/get-found-checker.test.ts > 'honesty lint — GbpContentSafetyService.validateGeneratedCopy' — 16/16 passed (10 rejected, 6 honest) in the 31-test focused run.",
-      "notes": "Extends the existing bounded-regex scanner; the negation guard keeps 'does not guarantee a higher ranking' passing. Value #6 — no ranking promises.",
+      "evidence": "src/__tests__/get-found-checker.test.ts > 'honesty lint — GeneratedCopySafetyService.validateGeneratedCopy' — 20/20 passed (14 rejected, 6 honest) inside the 751-test full suite on the round-6 head.",
+      "notes": "Extends the existing bounded-regex scanner; the negation guard keeps 'does not guarantee a higher ranking' passing. Value #6 — no ranking promises. The service is the neutral shared one under src/services/content-safety/ (moved out of the GBP domain in round 4 per §7.1).",
       "waiver": ""
     },
     {
@@ -129,8 +129,8 @@
       ],
       "expected": "tsc exit 0; 0 clear structural violations; the full suite shows no new failures against the pre-change baseline",
       "status": "pass",
-      "evidence": "tsc --noEmit exit 0. check:conventions -- --strict: 'CLEAR structural violations — backend (size + console + db): 0'. npm test: 62 files / 487 tests, 0 failures, on two consecutive runs. Pre-change baseline was 478 tests (477 pass / 1 fail); +9 new tests (6 answer-first boundary + 3 production wiring) = 487.",
-      "notes": "Flake characterised, not hidden: the pre-change baseline run failed once in src/__tests__/admin-organizations-pms-type.test.ts (expected 200, got 404). It did NOT reproduce — that file passes 6/6 standalone on the unmodified branch, and the full suite passed twice in a row after the change. It is a pre-existing order/parallelism-dependent flake in a file this PR does not touch, not a regression.",
+      "evidence": "Round 6, exit codes read directly from each command (never through a pipe). npx tsc --noEmit: exit 0. npm run check:conventions -- --strict: exit 0, 'CLEAR structural violations — backend (size + console + db): 0'. npx vitest run (full suite): exit 0, 63 files / 751 tests, 0 failures. npm run lint: exit 0 (warn-level advisory baseline, §18). npm run depcruise: exit 0 (38 warnings, advisory baseline, §18). Baseline on the reviewed head c56797e9 was 62 files / 637 tests / exit 0; this round adds +114 (honesty/normalization regressions + the new copy-normalization unit).",
+      "notes": "check:all is NOT used as the receipt: it chains its steps with ';', so only the last command's exit code survives and a mid-chain failure reads as green. Each gate was run separately and its own exit code recorded. Round 6 also fixed a §2.4 violation it had itself introduced — GeneratedCopySafetyService.ts reached 859 lines, past the ~800 ceiling — by extracting the negation model to claimNegation.ts (317 + 560 lines).",
       "waiver": ""
     },
     {
@@ -147,6 +147,38 @@
       "evidence": "Not possible. No CI is configured for claude/* branches — the workflows trigger on dev/dave (dev.yml) and main (main.yml) only, so PR #158 has no check runs to attach.",
       "notes": "Raised with Dave separately; not a defect in this PR.",
       "waiver": "No CI exists for this branch pattern, so there are no checks to attach. The equivalent evidence is T8: the same gates run locally on Node 22 with their exact output recorded."
+    },
+    {
+      "id": "T10",
+      "title": "The two round-5 bypass classes are closed, and the fix is proven non-vacuous",
+      "surface": "service",
+      "precondition": "GeneratedCopySafetyService.validateGeneratedCopy on the round-6 head, Node 22.23.1",
+      "steps": [
+        "1. Measure every named bypass against the REVIEWED head (c56797e9) before changing anything",
+        "2. Apply the encoding fold + the governing-negator rules",
+        "3. Re-measure; then revert the fix with the fixtures kept and confirm they fail"
+      ],
+      "expected": "Every measured bypass blocks after the fix; no honest-copy fixture regresses; the new fixtures fail against the pre-fix service",
+      "status": "pass",
+      "evidence": "MEASURED ON THE REVIEWED HEAD FIRST: all 5 of Dave's cases passed (isSafe=true) plus 10/13 encoding probes — 'no boundary' (。 ； <br>) and 'negator that negates nothing' (no-hassle, without delay) confirmed live. AFTER: 0/14 and 0/13 defects. NON-VACUOUS: with the two source files reverted to c56797e9 and the fixtures kept, vitest exits 1 with 42 failures; restoring gives exit 0 / 751 passed.",
+      "notes": "Both classes are fixed as CLASSES, not as the named strings: the boundary fix is a normalization pass (Unicode Sentence_Terminal property — not an enumerated list of terminators — plus NFKC, Cf-stripping, entity decoding, confusable folding, HTML break/inline tag handling) applied BEFORE matching; the negator fix demotes a negator that governs nothing (hyphen-compound / fixed idiom / juxtaposed NP fragment) instead of treating any token as a clause flag. Residuals are NAMED in claimNegation.ts and copyNormalization.ts, not papered over. This remains a conservative FILTER — no exhaustiveness is claimed anywhere.",
+      "waiver": ""
+    },
+    {
+      "id": "T11",
+      "title": "Round 6 found and fixed 11 defects in its OWN fix before shipping",
+      "surface": "service",
+      "precondition": "The round-6 fix, attacked in both directions by the author and then by an independent adversary against the already-fixed version",
+      "steps": [
+        "1. Attack the fix for over-blocks (honest copy wrongly blocked) and under-blocks",
+        "2. Have an independent adversary attack the FIXED version",
+        "3. Fix every confirmed defect and pin it as a regression fixture"
+      ],
+      "expected": "No self-found or adversary-found defect ships unfixed or unrecorded",
+      "status": "pass",
+      "evidence": "11 defects, all fixed and pinned; 5 were OVER-BLOCKS — the silent failure direction. SELF-ATTACK (7): demoting 'no other'/'no less'/'no fewer' as idioms wrongly BLOCKED honest disclaimers ('We make no other guarantees about your google ranking') — those entries were wrong, removed or narrowed to the comparative-THAN forms; four under-blocks in the forward negation path and idiom inventory ('Top placement is no problem', 'has never been easier'). Also self-found: an O(n^2) this round introduced in its own negator walk — 375ms on an 18KB many-negator input, now 2.1ms. INDEPENDENT ADVERSARY against the fixed version (4 more): (a) OVER-BLOCK — '<br>' folded to a PARAGRAPH break (a hard clause end) blocked 'We do not <br> guarantee a higher ranking'; '<br>' renders as ONE line break and is the HTML soft wrap, so it now folds to a single '\\n', which still ends scope before a new subject so Dave's boast form still blocks. One change satisfies both. (b) OVER-BLOCK — 'not only' negates exclusivity and genuinely scopes over what follows, so demoting it blocked 'Good dentistry is not only about your google rankings'; entry removed. (c) UNDER-BLOCK — the 'no problem' demotion fired only clause-finally, so 'is no problem for us' (the MORE natural boast) laundered; it now accepts a trailing PP or the clause end but never a finite clause, so 'is not a problem we can solve' still passes. (d) UNDER-BLOCK — confusable folding covered only Cyrillic/Greek; Latin Extended-IPA, Armenian and Cherokee look-alikes now fold too.",
+      "notes": "Recorded because the idiom inventory is the part of this gate most likely to be widened again, and widening it carelessly fails SILENTLY in the direction nothing downstream catches — 5 of 11 defects this round were exactly that. Every over-block is pinned as a must-pass fixture in get-found-checker.test.ts. The 'not only' reversal is a deliberate accepted MISS ('We not only guarantee top placement' now passes) taken to avoid the over-block, and is named as a residual rather than hidden.",
+      "waiver": ""
     }
   ]
 }
