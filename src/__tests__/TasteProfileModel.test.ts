@@ -72,7 +72,27 @@ let lastWhereConditions: Array<Record<string, unknown>> = [];
 /** Builds a chainable query-builder bound to the in-memory `rows` array. */
 function makeQueryBuilder(): any {
   const filters: Array<(r: ITasteProfile) => boolean> = [];
-  const apply = (): ITasteProfile[] => rows.filter((r) => filters.every((f) => f(r)));
+  // `orderBy` records its intent here and `apply()` honours it on the RESULT VIEW.
+  // The sort must never touch the `rows` store: the tests assert positionally
+  // (`rows[0]`), so re-ordering the store would make those assertions describe a
+  // different row than the author meant.
+  let sortSpec: { col: string; dir: string } | null = null;
+
+  const sortKey = (r: ITasteProfile, col: string): number => {
+    const v = (r as unknown as Record<string, unknown>)[col];
+    if (v instanceof Date) return v.getTime();
+    if (v === null || v === undefined) return -Infinity; // nulls sort last under desc
+    return Number(v);
+  };
+
+  const apply = (): ITasteProfile[] => {
+    const matched = rows.filter((r) => filters.every((f) => f(r)));
+    if (!sortSpec) return matched;
+    const { col, dir } = sortSpec;
+    return [...matched].sort((a, b) =>
+      dir === "desc" ? sortKey(b, col) - sortKey(a, col) : sortKey(a, col) - sortKey(b, col)
+    );
+  };
 
   const builder: any = {
     where: vi.fn((cond: Record<string, unknown>) => {
@@ -89,16 +109,10 @@ function makeQueryBuilder(): any {
       return builder;
     }),
     orderBy: vi.fn((col: string, dir: string) => {
-      // Ordering matters to the assertions now: findCurrentApprovedByOrgAndLocation
-      // orders by approved_at desc. Sorting a filtered copy keeps `rows` stable.
-      const sorted = [...rows].sort((a, b) => {
-        const av = (a as unknown as Record<string, unknown>)[col];
-        const bv = (b as unknown as Record<string, unknown>)[col];
-        const an = av instanceof Date ? av.getTime() : av === null ? -Infinity : Number(av);
-        const bn = bv instanceof Date ? bv.getTime() : bv === null ? -Infinity : Number(bv);
-        return dir === "desc" ? bn - an : an - bn;
-      });
-      rows = sorted;
+      // Ordering is load-bearing now: findCurrentApprovedByOrgAndLocation orders by
+      // approved_at desc. Recorded, then applied to the returned view only — the
+      // `rows` store keeps its insertion order (see sortSpec above).
+      sortSpec = { col, dir };
       return builder;
     }),
     // `forUpdate()` is a row lock in Postgres. Here it is a chainable no-op:
@@ -706,6 +720,38 @@ describe("TasteProfileModel — approvals are append-only (§5.4)", () => {
     const current = await TasteProfileModel.findCurrentApprovedByOrgAndLocation(ORG_A, null);
 
     expect(current).toBeUndefined();
+  });
+
+  it("with two approved rows, the consumer read returns the most recent stake", async () => {
+    // The documented concurrency bound (see the class docstring): two CONCURRENT
+    // approvals of different drafts for one org+location can leave two approved
+    // rows. That is an ambiguity, not a lost signature — both rows carry a real
+    // human's stake — and the read resolves it to the LATEST real stake rather
+    // than an arbitrary row. This test exists because the docstring makes that
+    // claim; without it the `orderBy("approved_at", "desc")` is unproven.
+    //
+    // The rows are seeded in the "wrong" order on purpose: the newer stake is
+    // FIRST in the store, so returning it cannot be an accident of insertion
+    // order. It has to be the ordering doing the work.
+    rows = [
+      seedApproved({
+        id: "tp-newer",
+        approved_by: "later@org-a.test",
+        approved_at: new Date("2026-07-09T00:00:00Z"),
+      }),
+      seedApproved({
+        id: "tp-older",
+        approved_by: "earlier@org-a.test",
+        approved_at: new Date("2026-07-02T00:00:00Z"),
+      }),
+    ];
+
+    const current = await TasteProfileModel.findCurrentApprovedByOrgAndLocation(ORG_A, null);
+
+    expect(current?.id).toBe("tp-newer");
+    expect(current?.approved_by).toBe("later@org-a.test");
+    // Both stakes are still on the record — the ambiguity loses no signature.
+    expect(rows).toHaveLength(2);
   });
 
   it("a full lifecycle leaves every stake on the record, in order", async () => {

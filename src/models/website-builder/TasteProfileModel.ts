@@ -374,7 +374,7 @@ export class TasteProfileModel extends BaseModel {
 
       // Stake the new record. Still draft-only, still one-way.
       return this.table(ctx)
-        .where({ id, organization_id: organizationId, status: "draft" })
+        .where({ id, organization_id: organizationId })
         .update({
           status: "approved",
           approved_by: approvedBy,
