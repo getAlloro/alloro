@@ -1,7 +1,29 @@
 import { BaseModel, QueryContext } from "../BaseModel";
 import type { TasteProfile, TasteProfileAudit } from "../../types/tasteProfile";
 
-export type TasteProfileStatus = "draft" | "approved";
+/**
+ * The profile lifecycle. Every transition is one-way and guarded in a WHERE
+ * clause (§5.4):
+ *
+ *   draft ──markApproved()──> approved ──(a newer approval)──> superseded
+ *
+ *  - `draft` ..... AI's output. Nothing staked yet, so a draft is disposable:
+ *                  it is the ONLY status this model will delete.
+ *  - `approved` .. a human put their name on it. This is the RECORD. It is
+ *                  never deleted, never re-approved, and its signature is never
+ *                  rewritten. At most one per org+location (see the concurrency
+ *                  bound in the class docstring).
+ *  - `superseded`. a former record, retired by a NEWER approval. It keeps its
+ *                  own `approved_by`/`approved_at` forever — that is the
+ *                  approval history, not a copy of it.
+ *
+ * `superseded` needs no migration: `status` is a plain `text` column with no
+ * CHECK constraint, and the migration says so in its own notes ("an app-level
+ * enum stored as text — a new status never needs a migration"). This union is
+ * the authoritative set; the migration's inline `// draft | approved` comment
+ * enumerates the statuses that existed when the table was authored.
+ */
+export type TasteProfileStatus = "draft" | "approved" | "superseded";
 
 export interface ITasteProfile {
   id: string;
@@ -30,8 +52,9 @@ export interface ITasteProfile {
  * EVERY unscoped `BaseModel` entry point is sealed rather than inherited
  * (`findById`, `findOne`, `findMany`, `updateById`, `deleteById`, `count`,
  * `paginate`, `createReturningId`), so the scope cannot be bypassed by accident
- * or on purpose; use `findByIdForOrg` / `findLatestByOrgAndLocation` /
- * `deleteByIdForOrg` / `markApproved(id, organizationId, …)`.
+ * or on purpose; use `findByIdForOrg` / `findCurrentApprovedByOrgAndLocation` /
+ * `findLatestByOrgAndLocation` / `deleteByIdForOrg` /
+ * `markApproved(id, organizationId, …)`.
  * `location_id` is a nullable dimension (null = organization-level profile),
  * handled explicitly like `PracticeFactModel.findByOrgAndLocation`.
  *
@@ -40,41 +63,76 @@ export interface ITasteProfile {
  * `approved_by`/`approved_at` in the same write (§5.4 — the owner sign-off is
  * enforced here on the server, never assumed from the caller's input).
  *
- * The owner signature is WRITE-ONCE PER ROW (§5.4). `draft -> approved` is a
- * one-way transition guarded in the WHERE clause, so an approved ROW can never
- * be re-approved and its `approved_by`/`approved_at` can never be reattributed
- * to a different person or time. Through this model's typed public API, the
- * column-writing paths are `create()` (draft-only, explicit column copy),
- * `markApproved()` (draft-only transition) and `deleteByIdForOrg()` (removes
- * the row) — every other inherited writer is sealed.
- * `TasteProfileModel.test.ts` enforces that list by enumerating the class's
- * whole callable surface, so a newly added or newly inherited write path FAILS
- * the suite until it is audited against this rule.
+ * APPROVALS ARE APPEND-ONLY (§5.4). A business tool's output is a RECORD, and a
+ * record you can delete is not a record. Two guards, together, make that true:
  *
- * READ THE SCOPE OF THAT GUARANTEE HONESTLY — it is per-row and per-typed-API,
- * and it is NOT a claim that an org's approval history cannot be laundered:
+ *  1. `markApproved()` is a one-way `draft -> approved` transition guarded in
+ *     the WHERE clause, so an approved ROW can never be re-approved and its
+ *     `approved_by`/`approved_at` can never be reattributed.
+ *  2. `deleteByIdForOrg()` deletes DRAFTS ONLY. An approved or superseded row
+ *     cannot be deleted through this model at all.
  *
- *  1. DELETE-AND-REPLACE IS NOT BLOCKED, and it is not a row rewrite: an
- *     `deleteByIdForOrg()` + `create()` + `markApproved()` sequence — every
- *     call tenant-scoped, typed, and legitimate on its own — yields a NEW
- *     approved row signed by whoever ran it. Because consumers read by
- *     org+location via `findLatestByOrgAndLocation` (not by id), the
- *     ORGANIZATION-LEVEL profile is then signed by that person with no trace of
- *     the previous signature. Whether an owner may delete and re-approve their
- *     own org's profile is a POLICY question for the surface that exposes
- *     delete — there is no such surface yet (this model has no importers), so
- *     no policy is invented here. It is recorded, not silently implied away.
+ * Guard 1 alone was not enough, and the reason is the whole point of this
+ * design: it protected the ROW, but a record's identity here is ORG+LOCATION,
+ * not row id. Consumers read by org+location, so `deleteByIdForOrg()` +
+ * `create()` + `markApproved()` — every call typed, tenant-scoped and
+ * individually legitimate — used to yield a new approved row signed by whoever
+ * ran it, with the previous signature gone entirely. Sealing every method left
+ * that hole wide open because it needed ZERO type violations to walk through.
+ * Guard 2 closes it at the model layer, in the DELETE's own predicate, rather
+ * than by asking callers not to do it.
+ *
+ * SUPERSESSION IS HOW A PROFILE CHANGES. Approving a new draft for an
+ * org+location does not delete the incumbent — it retires it to `superseded`,
+ * in the same transaction, keeping its `approved_by`/`approved_at` intact. So
+ * the table IS its own approval ledger: the rows for an org+location, ordered by
+ * `approved_at`, ARE the history of who staked what and when. There is no shadow
+ * audit table, deliberately — a second table recording the same fact is a second
+ * write that can drift from the first, and a log that merely OBSERVES a deletion
+ * does not prevent the laundering; it narrates it. The record is the row.
+ *
+ * WHAT THIS DOES AND DOES NOT PREVENT — read it precisely. It does NOT prevent a
+ * different person from becoming the current approver: owner B composing a new
+ * profile and signing it is a legitimate, staked act, and it is allowed. What it
+ * prevents is doing that INVISIBLY. After the fix, owner A's signature is still
+ * on a `superseded` row; before it, owner A's signature no longer existed. The
+ * threat was never "someone else approves" — it was "someone else approves and
+ * the previous stake disappears".
+ *
+ * REMAINING BOUNDS, named rather than implied away:
+ *
+ *  1. CONCURRENCY. Sequentially, at most one row per org+location is `approved`.
+ *     Two CONCURRENT approvals of two DIFFERENT drafts for the same org+location
+ *     can both commit, leaving two approved rows — a resolution ambiguity, NOT a
+ *     lost signature: nothing is deleted and nothing is reattributed, and both
+ *     rows carry a real human's stake. `findCurrentApprovedByOrgAndLocation`
+ *     returns the most recently approved, which is still a profile a human
+ *     staked. This is strictly NARROWER than the pre-fix behaviour, where two
+ *     approved rows could also arise SEQUENTIALLY (nothing retired an
+ *     incumbent). Closing it for real is a partial unique index on
+ *     (organization_id, location_id) WHERE status = 'approved' — which needs TWO
+ *     indexes, since Postgres treats NULLs as distinct and `location_id` is
+ *     nullable. That is a schema change this branch cannot execute or verify
+ *     (no live database here), and it would void the byte-identical basis of
+ *     T18's owner waiver, so it is recorded for the wiring PR rather than
+ *     guessed at now.
  *  2. RAW-HANDLE WRITES BYPASS THIS MODEL ENTIRELY. `table()` is `protected` in
  *     TypeScript only, so at runtime `(Model as any).table()` returns a live
  *     knex builder; `transaction()`/`beginTransaction()` likewise hand back a
  *     handle that can write any table. Neither is guarded here. This is true of
  *     every model in the repo — the model is the enforcement boundary for
  *     TYPED callers, not the database. Real enforcement against a raw writer
- *     would be a DB-level CHECK/trigger, which this table does not have.
+ *     would be a DB-level CHECK/trigger, which this table does not have (T21).
  *
- * So: no TYPED caller can rewrite an existing row's signature. That is the
- * guarantee, and it is the one Dave's finding asked for. It is not "the audit
- * trail is tamper-proof".
+ * Through this model's typed public API, the column-writing paths are `create()`
+ * (draft-only, explicit column copy), `markApproved()` (draft-only transition +
+ * supersession) and `deleteByIdForOrg()` (draft-only delete) — every other
+ * inherited writer is sealed. `TasteProfileModel.test.ts` enforces that list by
+ * enumerating the class's whole callable surface, so a newly added or newly
+ * inherited write path FAILS the suite until it is audited against this rule.
+ *
+ * So: no TYPED caller can erase or reattribute a stake. That is the guarantee.
+ * It is not "the audit trail is tamper-proof" — bound 2 above is why.
  *
  * Persisted JSONB shapes come from the neutral `types/tasteProfile` module —
  * never from the composition service, which is a controller-layer module (§7.1).
@@ -172,9 +230,16 @@ export class TasteProfileModel extends BaseModel {
   }
 
   /**
-   * Latest profile for an organization (+ optional location), newest first.
-   * Tenant-scoped: `organizationId` is required. `location_id === null` selects
-   * the organization-level profile explicitly (never a wildcard).
+   * Newest profile row for an organization (+ optional location) of ANY status,
+   * by `created_at`. Tenant-scoped: `organizationId` is required.
+   * `location_id === null` selects the organization-level profile explicitly
+   * (never a wildcard).
+   *
+   * NOT THE CONSUMER READ — use {@link findCurrentApprovedByOrgAndLocation} for
+   * that. This method returns whatever row is newest, INCLUDING an unapproved
+   * draft, so serving its result to a visitor would publish AI output no human
+   * ever staked and defeat the whole approval gate. It exists for a drafting/
+   * editor surface that needs to show the working row regardless of status.
    */
   static async findLatestByOrgAndLocation(
     organizationId: number,
@@ -203,21 +268,33 @@ export class TasteProfileModel extends BaseModel {
    * update predicate the moment it is approved. A second call — by the same
    * owner or a different one — matches 0 rows and cannot rewrite `approved_by`
    * or `approved_at`. THIS ROW's original signature cannot be rewritten by any
-   * typed caller. (It is not a claim that the org's approval history is
-   * tamper-proof — see the class docstring: delete-and-replace and raw-handle
-   * writes are both outside this guarantee, and are recorded, not implied away.)
+   * typed caller. (It is not a claim that the audit trail is tamper-proof — see
+   * the class docstring: raw-handle writes are outside this guarantee and are
+   * recorded, not implied away.)
    *
-   * The guard is one atomic guarded UPDATE rather than a read-then-write check,
-   * which would race: two concurrent approvals could both read `draft` and both
-   * write, the second silently reattributing the signature the first recorded.
-   * Under Postgres READ COMMITTED a second concurrent UPDATE blocks on the
-   * first's row lock and, on commit, re-evaluates its WHERE against the updated
-   * row (EvalPlanQual); it no longer matches `status = 'draft'` and reports 0.
-   * Under REPEATABLE READ/SERIALIZABLE it raises a serialization failure
-   * instead. Either way the signature is not overwritten — only the observable
-   * differs. NOTE: that concurrency behaviour is reasoned from documented
-   * Postgres semantics, not observed — there is no live database in this
-   * branch's environment, so no test here executes concurrent transactions.
+   * APPEND-ONLY (§5.4). Approving supersedes the incumbent approved profile for
+   * the same org+location rather than replacing or deleting it — see the class
+   * docstring. The incumbent keeps its own signature on a `superseded` row, so a
+   * new approval ADDS to the history instead of overwriting it.
+   *
+   * THE GUARD IS THE UPDATE'S PREDICATE, NOT THE READ. This method does read the
+   * draft first (to learn which org+location scope to retire), and a
+   * read-then-write check WOULD race: two concurrent approvals could both read
+   * `draft` and both write, the second silently reattributing the first's
+   * signature. That is not what happens here, because the read is not load-
+   * bearing for the guarantee — the final UPDATE still carries `status =
+   * 'draft'` in its own WHERE. A stale read costs 0 rows, never a signature.
+   * `forUpdate()` additionally locks the draft for the transaction's duration.
+   * Under Postgres READ COMMITTED a second concurrent approval blocks on that
+   * lock and, on commit, re-evaluates its predicate against the updated row
+   * (EvalPlanQual); it no longer matches `status = 'draft'` and reports 0. Under
+   * REPEATABLE READ/SERIALIZABLE it raises a serialization failure instead.
+   * Either way the signature is not overwritten — only the observable differs.
+   * NOTE: that concurrency behaviour is reasoned from documented Postgres
+   * semantics, NOT observed — there is no live database in this branch's
+   * environment, and the unit suite's in-memory table has no locks, no isolation
+   * and no real transaction, so no test here proves it. See also the concurrency
+   * bound in the class docstring, which this does NOT close.
    *
    * Why that matters: `approved_by`/`approved_at` are the audit record of WHO
    * staked this profile and WHEN. A signature that a later caller can silently
@@ -263,27 +340,132 @@ export class TasteProfileModel extends BaseModel {
     approvedBy: string,
     trx?: QueryContext
   ): Promise<number> {
-    return this.table(trx)
-      .where({ id, organization_id: organizationId, status: "draft" })
-      .update({
+    const run = async (ctx: QueryContext): Promise<number> => {
+      // Read the draft's OWN location scope to find the incumbent it retires.
+      // The scope is taken from the row, never from a caller-supplied argument:
+      // a caller passing a location could otherwise retire a different scope's
+      // record. `forUpdate()` locks the row for the rest of the transaction.
+      //
+      // This read is NOT the guard — the guarded UPDATE below still carries
+      // `status: "draft"`, so a stale read cannot approve twice. The read only
+      // answers "which incumbent?", and a wrong answer costs 0 rows, not a
+      // signature.
+      const draft = await this.table(ctx)
+        .where({ id, organization_id: organizationId, status: "draft" })
+        .forUpdate()
+        .first();
+      if (!draft) return 0;
+
+      // Retire the incumbent record for this org+location. Guarded UPDATE
+      // (`status: "approved"`), so it self-serializes on the row lock and
+      // touches nothing else. `approved_by`/`approved_at` are deliberately NOT
+      // cleared — a superseded row keeps the signature of the person who staked
+      // it. That retained stake IS the approval history.
+      const incumbent = this.table(ctx).where({
+        organization_id: organizationId,
         status: "approved",
-        approved_by: approvedBy,
-        approved_at: new Date(),
-        updated_at: new Date(),
       });
+      if (draft.location_id === null) {
+        incumbent.whereNull("location_id");
+      } else {
+        incumbent.where({ location_id: draft.location_id });
+      }
+      await incumbent.update({ status: "superseded", updated_at: new Date() });
+
+      // Stake the new record. Still draft-only, still one-way.
+      return this.table(ctx)
+        .where({ id, organization_id: organizationId, status: "draft" })
+        .update({
+          status: "approved",
+          approved_by: approvedBy,
+          approved_at: new Date(),
+          updated_at: new Date(),
+        });
+    };
+
+    // Retiring the incumbent and staking its replacement must be ONE atomic
+    // step: a crash between them would leave an org+location with either two
+    // approved records or none. A caller-supplied `trx` owns the boundary
+    // (§6.1 — the orchestration layer decides); otherwise open one here, so an
+    // unwrapped call is still atomic rather than atomic-if-you-remembered.
+    return trx ? run(trx) : this.transaction(run);
   }
 
   /**
-   * Delete one profile by id, scoped to its owning organization (§11.7).
-   * `organizationId` is REQUIRED — a caller cannot delete another org's row.
-   * Returns the number of rows deleted (0 = wrong org, or already gone).
+   * The CURRENT approved profile for an org (+ optional location) — the record
+   * consumers read. Only `status = "approved"` ever matches, so an unapproved
+   * draft can never be served as though a human had staked it, and a superseded
+   * profile stops being served the moment its replacement is approved.
+   *
+   * This, not {@link findLatestByOrgAndLocation}, is the consumer read. Ordered
+   * by `approved_at` desc so that if the concurrency bound in the class
+   * docstring ever produces two approved rows, this returns the most recent real
+   * stake rather than an arbitrary one.
+   */
+  static async findCurrentApprovedByOrgAndLocation(
+    organizationId: number,
+    locationId: number | null,
+    trx?: QueryContext
+  ): Promise<ITasteProfile | undefined> {
+    const query = this.table(trx).where({
+      organization_id: organizationId,
+      status: "approved",
+    });
+    if (locationId === null) {
+      query.whereNull("location_id");
+    } else {
+      query.where({ location_id: locationId });
+    }
+    const row = await query.orderBy("approved_at", "desc").first();
+    return row ? this.deserializeJsonFields(row) : undefined;
+  }
+
+  /**
+   * Delete one DRAFT profile by id, scoped to its owning organization
+   * (§11.7/§5.4). `organizationId` is REQUIRED — a caller cannot delete another
+   * org's row.
+   *
+   * DRAFTS ONLY. The WHERE carries `status: "draft"`, so an approved or
+   * superseded profile cannot be deleted through this model at all. This is the
+   * second half of the append-only guarantee (see the class docstring): without
+   * it, `deleteByIdForOrg()` + `create()` + `markApproved()` re-signs an
+   * org+location's profile using nothing but the public typed API, and the
+   * previous owner's signature is gone rather than superseded. Sealing every
+   * method did not stop that, because a record's identity here is org+location,
+   * not row id — so the block has to live in this predicate.
+   *
+   * Why a draft may be deleted and an approval may not: a draft is AI output
+   * that nobody staked, so discarding it destroys no record. An approved profile
+   * is a human's signature — a record. "AI drafts, humans stake"; a stake you can
+   * erase by delete-and-recreate is not a stake.
+   *
+   * This does NOT block the legitimate cases it might look like it blocks:
+   *  - A MISTAKEN approved profile is fixed by composing a new one and approving
+   *    it — supersession retires the mistake and keeps it visible as history.
+   *    That is the correct outcome for a record: superseded, not vanished.
+   *  - An ERASURE REQUEST (an org offboarding, a data-deletion request) is an
+   *    org-lifecycle operation over all of that org's data, not a taste-profile
+   *    CRUD call. It belongs to a deliberate, audited path at a higher layer;
+   *    this method is not that path and should not be widened into it.
+   *
+   * The guard is POSITIVE (`status = draft`), not `whereNot status = approved`,
+   * so it fails closed: any status added later is undeletable until this
+   * predicate is deliberately widened.
+   *
+   * Returns the number of rows deleted. A 0 deliberately does NOT distinguish
+   * "wrong organization" from "no such id" from "not a draft": the first two MUST
+   * stay indistinguishable — telling them apart is the cross-tenant existence
+   * leak {@link findByIdForOrg} avoids by design — and a caller that needs to
+   * know reads the row back within its own org scope.
    */
   static async deleteByIdForOrg(
     id: string,
     organizationId: number,
     trx?: QueryContext
   ): Promise<number> {
-    return this.table(trx).where({ id, organization_id: organizationId }).del();
+    return this.table(trx)
+      .where({ id, organization_id: organizationId, status: "draft" })
+      .del();
   }
 
   /**

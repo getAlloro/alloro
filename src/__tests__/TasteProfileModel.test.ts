@@ -88,7 +88,24 @@ function makeQueryBuilder(): any {
       filters.push((r) => (r as unknown as Record<string, unknown>)[col] === null);
       return builder;
     }),
-    orderBy: vi.fn(() => builder),
+    orderBy: vi.fn((col: string, dir: string) => {
+      // Ordering matters to the assertions now: findCurrentApprovedByOrgAndLocation
+      // orders by approved_at desc. Sorting a filtered copy keeps `rows` stable.
+      const sorted = [...rows].sort((a, b) => {
+        const av = (a as unknown as Record<string, unknown>)[col];
+        const bv = (b as unknown as Record<string, unknown>)[col];
+        const an = av instanceof Date ? av.getTime() : av === null ? -Infinity : Number(av);
+        const bn = bv instanceof Date ? bv.getTime() : bv === null ? -Infinity : Number(bv);
+        return dir === "desc" ? bn - an : an - bn;
+      });
+      rows = sorted;
+      return builder;
+    }),
+    // `forUpdate()` is a row lock in Postgres. Here it is a chainable no-op:
+    // an in-memory array has no locks, no isolation and no concurrency, so this
+    // mock CANNOT prove the locking behaviour markApproved's docstring reasons
+    // about — it only lets the same call chain run. Stated, not glossed.
+    forUpdate: vi.fn(() => builder),
     first: vi.fn(() => Promise.resolve(apply()[0])),
     // Inserts land in the same in-memory table, so create()'s persisted column
     // values (notably `status`) can be asserted as written, not as intended.
@@ -119,9 +136,19 @@ function makeQueryBuilder(): any {
   return builder;
 }
 
-vi.mock("../database/connection", () => ({
-  db: vi.fn(() => makeQueryBuilder()),
-}));
+// `markApproved` now opens a transaction when the caller supplies none, so the
+// mocked `db` needs `.transaction()`. It hands the SAME callable back as the
+// "trx", so model calls threaded through it hit the same in-memory table.
+//
+// HONEST LIMIT: this is a transaction in NAME only. There is no atomicity, no
+// isolation, no rollback. It proves the SEQUENCE of writes markApproved issues;
+// it proves nothing about what Postgres does when two of them race, and no test
+// below claims otherwise.
+vi.mock("../database/connection", () => {
+  const db: any = vi.fn(() => makeQueryBuilder());
+  db.transaction = vi.fn((cb: (trx: unknown) => unknown) => Promise.resolve(cb(db)));
+  return { db };
+});
 
 // Import after the mock is registered.
 import { TasteProfileModel } from "../models/website-builder/TasteProfileModel";
@@ -519,6 +546,202 @@ describe("TasteProfileModel — the owner signature is write-once (§5.4)", () =
 });
 
 /**
+ * APPROVALS ARE APPEND-ONLY (§5.4) — the delete guard + supersession.
+ *
+ * The write-once guard protected the ROW. It did not protect the RECORD, because
+ * a record's identity here is org+location, not row id: deleting the approved
+ * row and approving a fresh one re-signed the org's profile through the public
+ * typed API with no type violation at all. These are the two-call lifecycle
+ * regressions for the fix.
+ */
+describe("TasteProfileModel — approvals are append-only (§5.4)", () => {
+  const OWNER_A = "owner-a@org-a.test";
+  const OWNER_B = "owner-b@org-a.test";
+  const APPROVED_AT = new Date("2026-07-01T12:00:00Z");
+
+  function seedApproved(overrides: Partial<ITasteProfile> = {}) {
+    return makeRow({
+      id: "tp-approved",
+      organization_id: ORG_A,
+      location_id: null,
+      status: "approved",
+      approved_by: OWNER_A,
+      approved_at: APPROVED_AT,
+      ...overrides,
+    });
+  }
+
+  it("an approved profile cannot be deleted", async () => {
+    rows = [seedApproved()];
+
+    const deleted = await TasteProfileModel.deleteByIdForOrg("tp-approved", ORG_A);
+
+    expect(deleted).toBe(0);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].approved_by).toBe(OWNER_A);
+    // The block is in the DELETE's own predicate, not in caller discipline.
+    expect(lastWhereConditions).toContainEqual({
+      id: "tp-approved",
+      organization_id: ORG_A,
+      status: "draft",
+    });
+  });
+
+  it("a superseded profile cannot be deleted either — history is not disposable", async () => {
+    rows = [seedApproved({ status: "superseded" })];
+
+    const deleted = await TasteProfileModel.deleteByIdForOrg("tp-approved", ORG_A);
+
+    expect(deleted).toBe(0);
+    expect(rows).toHaveLength(1);
+  });
+
+  it("a draft IS deletable — nothing was staked, so no record is destroyed", async () => {
+    rows = [makeRow({ id: "tp-draft", organization_id: ORG_A, status: "draft" })];
+
+    const deleted = await TasteProfileModel.deleteByIdForOrg("tp-draft", ORG_A);
+
+    expect(deleted).toBe(1);
+    expect(rows).toHaveLength(0);
+  });
+
+  it("approving a replacement supersedes the incumbent instead of replacing it", async () => {
+    rows = [seedApproved()];
+    const replacement = makeRow({
+      id: "tp-new",
+      organization_id: ORG_A,
+      location_id: null,
+      status: "draft",
+    });
+    rows.push(replacement);
+
+    const updated = await TasteProfileModel.markApproved("tp-new", ORG_A, OWNER_B);
+
+    expect(updated).toBe(1);
+    const incumbent = rows.find((r) => r.id === "tp-approved");
+    // Retired, NOT deleted — and it keeps its own signature. That retained stake
+    // IS the approval history; there is no shadow audit table.
+    expect(incumbent?.status).toBe("superseded");
+    expect(incumbent?.approved_by).toBe(OWNER_A);
+    expect(incumbent?.approved_at).toEqual(APPROVED_AT);
+    expect(rows.find((r) => r.id === "tp-new")?.status).toBe("approved");
+  });
+
+  it("supersession does not reach across locations within the same org", async () => {
+    // A location-1 approval must not retire the org-level record, and vice
+    // versa: they are different records, keyed by different org+location pairs.
+    rows = [
+      seedApproved({ id: "tp-org-level", location_id: null }),
+      makeRow({ id: "tp-loc-1", organization_id: ORG_A, location_id: 1, status: "draft" }),
+    ];
+
+    await TasteProfileModel.markApproved("tp-loc-1", ORG_A, OWNER_B);
+
+    expect(rows.find((r) => r.id === "tp-org-level")?.status).toBe("approved");
+    expect(rows.find((r) => r.id === "tp-loc-1")?.status).toBe("approved");
+  });
+
+  it("supersession does not reach across organizations", async () => {
+    rows = [
+      makeRow({
+        id: "tp-b-approved",
+        organization_id: ORG_B,
+        location_id: null,
+        status: "approved",
+        approved_by: "owner@org-b.test",
+        approved_at: APPROVED_AT,
+      }),
+      makeRow({ id: "tp-a-draft", organization_id: ORG_A, location_id: null, status: "draft" }),
+    ];
+
+    await TasteProfileModel.markApproved("tp-a-draft", ORG_A, OWNER_A);
+
+    // Org B's record is untouched by org A's approval (§11.7).
+    const orgB = rows.find((r) => r.id === "tp-b-approved");
+    expect(orgB?.status).toBe("approved");
+    expect(orgB?.approved_by).toBe("owner@org-b.test");
+  });
+
+  it("the org+location read serves the current approved profile, never a draft", async () => {
+    // A newer DRAFT must not shadow the approved record — serving it would
+    // publish AI output no human staked. This is why the consumer read filters
+    // on status rather than taking the newest row.
+    rows = [
+      seedApproved(),
+      makeRow({
+        id: "tp-newer-draft",
+        organization_id: ORG_A,
+        location_id: null,
+        status: "draft",
+        created_at: new Date("2026-07-10T00:00:00Z"),
+      }),
+    ];
+
+    const current = await TasteProfileModel.findCurrentApprovedByOrgAndLocation(ORG_A, null);
+
+    expect(current?.id).toBe("tp-approved");
+    expect(current?.approved_by).toBe(OWNER_A);
+  });
+
+  it("the org+location read stops serving a superseded profile", async () => {
+    rows = [seedApproved({ status: "superseded" })];
+
+    const current = await TasteProfileModel.findCurrentApprovedByOrgAndLocation(ORG_A, null);
+
+    expect(current).toBeUndefined();
+  });
+
+  it("the consumer read never crosses organizations", async () => {
+    rows = [
+      makeRow({
+        id: "tp-b",
+        organization_id: ORG_B,
+        location_id: null,
+        status: "approved",
+        approved_by: "owner@org-b.test",
+        approved_at: APPROVED_AT,
+      }),
+    ];
+
+    const current = await TasteProfileModel.findCurrentApprovedByOrgAndLocation(ORG_A, null);
+
+    expect(current).toBeUndefined();
+  });
+
+  it("a full lifecycle leaves every stake on the record, in order", async () => {
+    // draft -> approved -> superseded, twice over: the table is its own ledger.
+    rows = [];
+    const first = await TasteProfileModel.create({
+      organization_id: ORG_A,
+      location_id: null,
+      business_name: "Cedar Park Dental",
+      business_category: "Dentist",
+      profile: makeProfile(),
+      source_summary: makeAudit(),
+    });
+    expect(await TasteProfileModel.markApproved(first.id, ORG_A, OWNER_A)).toBe(1);
+
+    const second = await TasteProfileModel.create({
+      organization_id: ORG_A,
+      location_id: null,
+      business_name: "Cedar Park Dental",
+      business_category: "Dentist",
+      profile: makeProfile(),
+      source_summary: makeAudit(),
+    });
+    expect(await TasteProfileModel.markApproved(second.id, ORG_A, OWNER_B)).toBe(1);
+
+    // Both stakes survive; exactly one is current.
+    expect(rows).toHaveLength(2);
+    expect(rows.filter((r) => r.status === "approved")).toHaveLength(1);
+    expect(rows.find((r) => r.id === first.id)?.approved_by).toBe(OWNER_A);
+    expect(rows.find((r) => r.id === second.id)?.approved_by).toBe(OWNER_B);
+    const current = await TasteProfileModel.findCurrentApprovedByOrgAndLocation(ORG_A, null);
+    expect(current?.id).toBe(second.id);
+  });
+});
+
+/**
  * THE CLASS, NOT THE INSTANCE (§5.4/§11.7).
  *
  * Guarding `markApproved` only fixes the write path we happened to look at. The
@@ -529,13 +752,12 @@ describe("TasteProfileModel — the owner signature is write-once (§5.4)", () =
  * until someone audits it against the write-once rule.
  *
  * The answer is bounded, and the bound is asserted rather than hidden. What
- * holds: no TYPED caller can rewrite an existing row's signature. What does NOT
- * hold, each pinned by its own test or classification below rather than left to
- * a reader's optimism: `delete + create + approve` re-signs the ORG-LEVEL
- * profile (T20 — a policy question, not a bug to patch blind), and the raw
+ * holds: no TYPED caller can erase or reattribute a stake — `delete + create +
+ * approve` no longer re-signs the org-level profile, because the delete is
+ * draft-only (T20, pinned by its own test above). What does NOT hold: the raw
  * escape hatches (`table`, `transaction`, `beginTransaction`) hand back a knex
  * handle that writes the row directly (T21 — the table has no CHECK constraint,
- * so the model, not the DB, is the boundary). An adversary found all three by
+ * so the model, not the DB, is the boundary). An adversary found both by
  * attacking an earlier draft of these very tests; they are recorded here so the
  * next reader inherits the limits along with the guarantee.
  */
@@ -562,13 +784,19 @@ describe("TasteProfileModel — no write path can reattribute a signature (§5.4
     // Each name below is classified against the write-once rule. `protected` in
     // TypeScript is compile-time only, so the helpers are listed too: at runtime
     // they are reachable, and this test is about what CAN be called.
-    const scopedReaders = ["findByIdForOrg", "findLatestByOrgAndLocation"];
+    const scopedReaders = [
+      "findByIdForOrg",
+      "findLatestByOrgAndLocation",
+      "findCurrentApprovedByOrgAndLocation",
+    ];
     // The paths on the TYPED API that write columns on this table:
     //  - create ............ draft-only, explicit column copy (never a signature)
-    //  - markApproved ...... draft-only one-way transition (writes it once)
-    //  - deleteByIdForOrg .. removes the row. NOTE: this does not make the org's
-    //    history immutable — delete + create + approve re-signs the org-level
-    //    profile (pinned by its own test above, recorded as T20).
+    //  - markApproved ...... draft-only one-way transition (writes it once) +
+    //    supersedes the incumbent for the same org+location, atomically
+    //  - deleteByIdForOrg .. DRAFT-ONLY delete. An approved or superseded row
+    //    cannot be removed, which is what makes approvals append-only: the
+    //    delete + create + approve re-signing route is closed in this
+    //    predicate, not by caller discipline (T20).
     const auditedWriters = ["create", "markApproved", "deleteByIdForOrg"];
     const sealed = [
       "count",
@@ -610,23 +838,19 @@ describe("TasteProfileModel — no write path can reattribute a signature (§5.4
     expect(callableSurface()).toEqual(audited);
   });
 
-  it("delete + create + approve DOES re-sign the org-level profile — a known, recorded gap", async () => {
-    // NOT a passing guarantee — this test PINS REAL, CURRENT BEHAVIOUR that the
-    // write-once guard does NOT prevent, so it cannot be quietly forgotten.
+  it("delete + create + approve CANNOT erase the original signature (T20)", async () => {
+    // THE THREAT THIS BRANCH EXISTS TO CLOSE. Every call below is typed,
+    // tenant-scoped and individually legitimate — this exploit needs ZERO type
+    // violations, which is exactly why sealing every method did not stop it.
+    // The approved ROW was never rewritten; it was DELETED, and a new row signed
+    // by whoever ran the sequence. Consumers read by org+location, not by id, so
+    // the record's identity is org+location — and deleting the row destroyed the
+    // record while satisfying every per-row guarantee.
     //
-    // Every call below is typed, tenant-scoped and individually legitimate. The
-    // approved ROW is never rewritten — it is deleted, and a NEW row is signed
-    // by whoever ran the sequence. But consumers read by org+location (see
-    // findLatestByOrgAndLocation), not by id, so the ORGANIZATION-LEVEL profile
-    // is now signed by the second person with no trace of the first. That is
-    // Dave's underlying threat — a second party taking credit — reached without
-    // a single type violation.
-    //
-    // Deliberately NOT "fixed" here: whether an owner may delete and re-approve
-    // their own org's profile is a POLICY question (a mistaken profile and a
-    // deletion request are both legitimate), and it belongs to the surface that
-    // exposes delete. No such surface exists (this model has zero importers), so
-    // inventing a rule now would be guessing. Recorded as T20.
+    // Now: the delete is refused (drafts only), so the sequence degrades into
+    // plain supersession. Owner B DOES become the current approver — that is a
+    // real, staked, legitimate act and it is allowed. What is no longer possible
+    // is doing it invisibly.
     rows = [
       makeRow({
         id: "tp-a",
@@ -638,7 +862,13 @@ describe("TasteProfileModel — no write path can reattribute a signature (§5.4
       }),
     ];
 
-    await TasteProfileModel.deleteByIdForOrg("tp-a", ORG_A);
+    // 1. The delete is refused at the model layer — not by asking the caller.
+    const deleted = await TasteProfileModel.deleteByIdForOrg("tp-a", ORG_A);
+    expect(deleted).toBe(0);
+    expect(rows).toHaveLength(1);
+
+    // 2. Creating + approving a replacement still works (this is the legitimate
+    //    re-approval path — a record changes by supersession, not by erasure).
     const replacement = await TasteProfileModel.create({
       organization_id: ORG_A,
       location_id: null,
@@ -647,14 +877,33 @@ describe("TasteProfileModel — no write path can reattribute a signature (§5.4
       profile: makeProfile(),
       source_summary: makeAudit(),
     });
-    await TasteProfileModel.markApproved(replacement.id, ORG_A, "second-owner@org-a.test");
+    const approved = await TasteProfileModel.markApproved(
+      replacement.id,
+      ORG_A,
+      "second-owner@org-a.test"
+    );
+    expect(approved).toBe(1);
 
-    const current = await TasteProfileModel.findLatestByOrgAndLocation(ORG_A, null);
-    // The org-level profile is now signed by the second party. Asserting the
-    // gap, not endorsing it.
+    // 3. THE GUARANTEE: the original signature survives, with its own approver
+    //    and its own timestamp — retired to `superseded`, not erased.
+    const original = rows.find((r) => r.id === "tp-a");
+    expect(original).toBeDefined();
+    expect(original?.approved_by).toBe("original-owner@org-a.test");
+    expect(original?.approved_at).toEqual(new Date("2026-07-01T12:00:00Z"));
+    expect(original?.status).toBe("superseded");
+
+    // 4. The org+location read resolves to the CURRENT approved profile.
+    const current = await TasteProfileModel.findCurrentApprovedByOrgAndLocation(ORG_A, null);
+    expect(current?.id).toBe(replacement.id);
     expect(current?.approved_by).toBe("second-owner@org-a.test");
-    // ...and the original signature is gone entirely, not overwritten.
-    expect(rows.some((r) => r.approved_by === "original-owner@org-a.test")).toBe(false);
+
+    // 5. The history is reconstructible from the table itself — no shadow audit
+    //    table. Both stakes are present, each with the person who made it.
+    const history = rows
+      .filter((r) => r.approved_by !== null)
+      .map((r) => r.approved_by)
+      .sort();
+    expect(history).toEqual(["original-owner@org-a.test", "second-owner@org-a.test"]);
   });
 
   it("no reachable entry point can alter an approved row's signature", async () => {
@@ -681,8 +930,8 @@ describe("TasteProfileModel — no write path can reattribute a signature (§5.4
     // `table()` / `transaction()` / `beginTransaction()` — those return a raw
     // knex handle that CAN write the row, and asserting otherwise would be
     // false. They are classified as raw escape hatches above, not as guarded
-    // paths. Nor does it cover delete+create+approve, which is real and pinned
-    // by its own test directly above.
+    // paths. delete+create+approve IS now closed, and is proved by its own test
+    // directly above rather than absorbed into this loop.
     const untyped = TasteProfileModel as unknown as Record<
       string,
       (...args: unknown[]) => Promise<unknown>
@@ -695,6 +944,9 @@ describe("TasteProfileModel — no write path can reattribute a signature (§5.4
 
     const attempts: Array<[string, () => Promise<unknown>]> = [
       ["markApproved", () => TasteProfileModel.markApproved("tp-a", ORG_A, "attacker@example.test")],
+      // Deleting the row is the other way to destroy a signature — it is now a
+      // no-op on an approved row, so it belongs in this sweep.
+      ["deleteByIdForOrg", () => TasteProfileModel.deleteByIdForOrg("tp-a", ORG_A)],
       ["updateById", () => untyped.updateById("tp-a", forgedSignature)],
       ["createReturningId", () => untyped.createReturningId({ id: "tp-a", ...forgedSignature })],
       ["findOne", () => untyped.findOne({ id: "tp-a" })],
