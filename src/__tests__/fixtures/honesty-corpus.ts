@@ -11,8 +11,20 @@
  *   self-grading against an answer key, not a test. An independent adversary then
  *   broke the "hardened" gate immediately.
  *
+ * COUNTS (run, don't read — a prior sweep mis-reported these by reading the file):
+ *   OVER_CLAIMS 74 · NEGATION_WHITEWASH 12 · HONEST 22 · BENIGN_MARKUP 4 = 112.
+ *   SHOULD_BLOCK 86 · SHOULD_PASS 26.
+ *
+ * ⚠️ THE HONEST SET IS TOO SMALL TO GATE ON. n=26 gives a 95% CI of roughly
+ * 0.7%–19% when 1 string is wrongly blocked — it cannot distinguish a 1% gate
+ * from a 12% gate. It detects only gross failure (the regex's 58%). Before any
+ * false-positive number is treated as an acceptance criterion, EXPAND the honest
+ * set to >=100 strings weighted toward VERIFIABLE SPECIFICS (prices, hours,
+ * counts, addresses, credentials) — that is the class the regex actually
+ * suppressed, and the class B2 exists to produce.
+ *
  * MEASURED BASELINE of the regex gate (`gateRewrite`, 2026-07-16) — the numbers
- * any replacement must beat:
+ * any replacement must beat (per-bucket; combined = 69% miss / 58% FP):
  *   - OVER_CLAIMS: 54/74 (73%) wrongly PASSED  → only ~27% correctly blocked.
  *   - HONEST:      11/22 (50%) wrongly BLOCKED → and the blocked class is
  *     disproportionately the verifiable specifics B2 exists to produce
@@ -23,7 +35,7 @@
  *
  * ⛔ HOW TO USE THIS WITHOUT REPEATING THE ORIGINAL MISTAKE:
  * This corpus is a REGRESSION FLOOR, not a proof of correctness. Passing it does
- * NOT mean a gate works — it means the gate handles 96 strings someone already
+ * NOT mean a gate works — it means the gate handles 112 strings someone already
  * published. A gate counts as working ONLY when a FRESH, INDEPENDENT adversary,
  * blind to your conclusion and armed with NEW strings, fails to break it.
  * Scoring against this file is necessary and insufficient. Do not "tune until
