@@ -120,8 +120,26 @@ const IDENTITY_SCHEMA_KEYS = new Set(["name", "alternateName", "legalName"]);
 const NAME_MAX_WORDS = 6;
 const NAME_DISQUALIFYING_PRONOUN = /\b(?:we|our|ours|us|you|your|yours|i|my|mine|they|their)\b/i;
 
+/**
+ * A PROMISE is never softened, wherever it sits.
+ *
+ * The outcome family mixes two different things: DESCRIPTORS a practice may
+ * genuinely be named for ("Pain-Free Dental Studio"), and a GUARANTEE, which is
+ * a commitment Alloro cannot back (Value #6). A business cannot name its way
+ * into a guarantee, so the carve-out never covers one.
+ *
+ * This also stops the carve-out becoming the weakest link. Softening is applied
+ * per reason code, so whenever a value reaches the gate with the outcome code as
+ * the ONLY surviving reason, softening it publishes that value outright — no
+ * matter which family the claim really came from. The carve-out must never be
+ * the last thing standing between a promise and a live page. Fixtures live in
+ * `src/__tests__/get-found-write.test.ts`.
+ */
+const PROMISE_NEVER_SOFTENED = /\bguarantee(?:s|d|ing)?\b/i;
+
 export function isProperNameShaped(text: string): boolean {
   if (NAME_DISQUALIFYING_PRONOUN.test(text)) return false;
+  if (PROMISE_NEVER_SOFTENED.test(text)) return false;
   return text.trim().split(/\s+/).filter(Boolean).length <= NAME_MAX_WORDS;
 }
 

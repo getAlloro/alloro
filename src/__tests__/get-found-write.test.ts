@@ -424,6 +424,18 @@ describe("honesty gate — identity carve-out is bounded by NAME shape", () => {
     ["an outcome SENTENCE in `name`", { "@type": "Dentist", name: "We cure gum disease permanently" }, "failed"],
     ["an outcome SENTENCE in `alternateName`", { "@type": "Dentist", alternateName: "We guarantee a cure for gum disease" }, "failed"],
     ["an outcome claim addressed to the reader", { "@type": "Dentist", name: "Cure your gum disease permanently" }, "failed"],
+    // A PROMISE is never softened, wherever it sits. Found by an adversary run
+    // against the value-shape fix: these are short and pronoun-free, so the
+    // name-shape rule alone called them names and published them.
+    ["a guarantee wearing a name's key", { "@type": "Dentist", name: "Guaranteed Cure Dental" }, "failed"],
+    ["a guarantee in a longer name", { "@type": "Dentist", name: "Guaranteed Cure For Gum Disease" }, "failed"],
+    ["a guarantee in `alternateName`", { "@type": "Dentist", alternateName: "Pain-Free Guarantee Dentistry" }, "failed"],
+    ["a slogan shaped like a name", { "@type": "Dentist", name: "Guaranteed Cure. Permanent Results." }, "failed"],
+    ["a guarantee carried in a `name` ARRAY", { "@type": "Dentist", name: ["Guaranteed Cure Dental"] }, "failed"],
+    // The nastiest: hyphens defeat the \s+ in every rank pattern, leaving only
+    // the medical code — which the carve-out would then soften, laundering a
+    // RANK claim through the MEDICAL carve-out.
+    ["a rank claim laundered through the medical carve-out", { "@type": "Dentist", name: "Rank-#1-On-Google-Guaranteed-Or-Free" }, "failed"],
   ];
 
   for (const [label, entry, expected] of cases) {
