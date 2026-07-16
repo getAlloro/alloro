@@ -368,19 +368,26 @@ export function findPreviewProvisioningContextByIdQuery(
       custom_domain: string | null;
       status: string | null;
       archived_at: Date | null;
+      org_archived_at: Date | null;
     }
   | undefined
 > {
   return table(trx)
-    .select(
-      "id",
-      "hostname",
-      "generated_hostname",
-      "custom_domain",
-      "status",
-      "archived_at",
+    .leftJoin(
+      "organizations as o",
+      "website_builder.projects.organization_id",
+      "o.id",
     )
-    .where("id", projectId)
+    .select(
+      "website_builder.projects.id",
+      "website_builder.projects.hostname",
+      "website_builder.projects.generated_hostname",
+      "website_builder.projects.custom_domain",
+      "website_builder.projects.status",
+      "website_builder.projects.archived_at",
+      "o.archived_at as org_archived_at",
+    )
+    .where("website_builder.projects.id", projectId)
     .first();
 }
 

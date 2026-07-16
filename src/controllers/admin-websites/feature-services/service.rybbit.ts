@@ -25,8 +25,11 @@ export interface PreviewAnalyticsResult {
     | "gate_disabled"
     | "not_found"
     | "archived"
+    | "org_archived"
     | "not_live"
+    | "has_custom_domain"
     | "no_hostname"
+    | "integration_revoked"
     | "provision_failed";
 }
 
@@ -183,29 +186,58 @@ export async function provisionPreviewAnalytics(
   if (project.archived_at) {
     return { enabled: true, provisioned: false, reason: "archived" };
   }
+  if (project.org_archived_at) {
+    return { enabled: true, provisioned: false, reason: "org_archived" };
+  }
   if (project.status !== "LIVE") {
     return { enabled: true, provisioned: false, reason: "not_live" };
   }
+  // Preview-only by contract: a project with a custom domain is owned by the
+  // custom-domain provisioning path (service.custom-domain -> provisionRybbitSite
+  // keyed on the custom domain). Provisioning here would mint a preview-labelled
+  // Rybbit site and then block that path from registering the domain correctly
+  // (its dedup short-circuits on the now-existing integration). Defer to it.
+  if (project.custom_domain) {
+    return { enabled: true, provisioned: false, reason: "has_custom_domain" };
+  }
 
-  const previewHost = project.hostname ?? project.generated_hostname;
-  if (!previewHost) {
+  // hostname may be an empty string, not just null — fall back to the always-set
+  // generated_hostname rather than deriving a bare ".sites.getalloro.com".
+  const previewHost =
+    project.hostname && project.hostname.trim()
+      ? project.hostname
+      : project.generated_hostname;
+  if (!previewHost || !previewHost.trim()) {
     return { enabled: true, provisioned: false, reason: "no_hostname" };
   }
   const previewDomain = `${previewHost}${PREVIEW_HOST_SUFFIX}`;
 
+  // If a rybbit integration exists but is NOT active (e.g. an admin revoked it),
+  // refuse rather than silently re-enabling it — and do NOT call
+  // provisionRybbitSite, whose existing-site branch would re-sync the project row
+  // to the revoked site id. Re-enabling a revoked integration must be deliberate.
+  const existing = await WebsiteIntegrationModel.findByProjectAndPlatform(
+    projectId,
+    "rybbit",
+  );
+  if (existing && existing.status !== "active") {
+    return { enabled: true, provisioned: false, reason: "integration_revoked" };
+  }
+
   // Reuse the proven, idempotent, per-project provisioning path (non-throwing).
   await provisionRybbitSite(projectId, previewDomain);
 
-  // Report the actual persisted state — never assume the provision succeeded.
-  const after = await ProjectModel.findRybbitSiteIdById(projectId);
-  const siteId = after?.rybbit_site_id;
-  if (siteId) {
-    return {
-      enabled: true,
-      provisioned: true,
-      siteId: String(siteId),
-      previewDomain,
-    };
+  // Report the ACTUAL invariant the renderer keys on — an ACTIVE rybbit
+  // integration row carrying a site id — not merely the project column (which
+  // can be re-synced from a stale row) and never an assumed success.
+  const after = await WebsiteIntegrationModel.findByProjectAndPlatform(
+    projectId,
+    "rybbit",
+  );
+  const siteId =
+    after && after.status === "active" ? after.metadata?.siteId : undefined;
+  if (typeof siteId === "string" && siteId.trim()) {
+    return { enabled: true, provisioned: true, siteId, previewDomain };
   }
   return {
     enabled: true,

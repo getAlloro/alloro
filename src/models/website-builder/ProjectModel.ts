@@ -315,6 +315,7 @@ export class ProjectModel extends BaseModel {
         custom_domain: string | null;
         status: string | null;
         archived_at: Date | null;
+        org_archived_at: Date | null;
       }
     | undefined
   > {

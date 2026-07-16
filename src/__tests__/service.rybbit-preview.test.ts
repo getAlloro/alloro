@@ -33,6 +33,7 @@ const findPreviewProvisioningContextById = vi.fn<
         custom_domain: string | null;
         status: string | null;
         archived_at: Date | null;
+        org_archived_at: Date | null;
       }
     | undefined
   >
@@ -92,7 +93,9 @@ const fetchMock = vi.fn(
     return {
       ok: true,
       status: 200,
-      json: async () => ({ siteId: `site-${body.domain}` }),
+      json: async (): Promise<{ siteId?: string }> => ({
+        siteId: `site-${body.domain}`,
+      }),
       text: async () => "",
     };
   },
@@ -111,6 +114,7 @@ const LIVE_PREVIEW = {
   custom_domain: null,
   status: "LIVE",
   archived_at: null,
+  org_archived_at: null,
 };
 
 beforeEach(() => {
@@ -127,6 +131,9 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals();
   delete process.env.PREVIEW_ANALYTICS_ENABLED;
+  delete process.env.RYBBIT_API_URL;
+  delete process.env.RYBBIT_API_KEY;
+  delete process.env.RYBBIT_ORG_ID;
 });
 
 describe("provisionPreviewAnalytics — gate (ships DISABLED)", () => {
@@ -320,5 +327,89 @@ describe("provisionPreviewAnalytics — guards (no provisioning, no beacon)", ()
 
     expect(result.reason).toBe("no_hostname");
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("defers a project that has a custom domain to the custom-domain path", async () => {
+    findPreviewProvisioningContextById.mockResolvedValue({
+      ...LIVE_PREVIEW,
+      custom_domain: "smilesofaustin.com",
+    });
+    const { provisionPreviewAnalytics } = await loadService();
+
+    const result = await provisionPreviewAnalytics("proj-a");
+
+    expect(result.reason).toBe("has_custom_domain");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("skips a project under an archived organization", async () => {
+    findPreviewProvisioningContextById.mockResolvedValue({
+      ...LIVE_PREVIEW,
+      org_archived_at: new Date("2026-01-01"),
+    });
+    const { provisionPreviewAnalytics } = await loadService();
+
+    const result = await provisionPreviewAnalytics("proj-a");
+
+    expect(result.reason).toBe("org_archived");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("falls back to the generated hostname when hostname is an empty string", async () => {
+    findPreviewProvisioningContextById.mockResolvedValue({
+      ...LIVE_PREVIEW,
+      hostname: "",
+      generated_hostname: "fallback-999",
+    });
+    const { provisionPreviewAnalytics } = await loadService();
+
+    const result = await provisionPreviewAnalytics("proj-a");
+
+    expect(result.previewDomain).toBe("fallback-999.sites.getalloro.com");
+    expect(result.provisioned).toBe(true);
+  });
+});
+
+describe("provisionPreviewAnalytics — active-row invariant (no false success)", () => {
+  it("refuses a project whose rybbit integration was revoked, and does not re-sync it", async () => {
+    findPreviewProvisioningContextById.mockResolvedValue(LIVE_PREVIEW);
+    // An admin previously revoked this project's rybbit integration.
+    integrationByProject.set("proj-a", {
+      id: "int-proj-a",
+      project_id: "proj-a",
+      status: "revoked",
+      metadata: { siteId: "old-site" },
+    } as never);
+    const { provisionPreviewAnalytics } = await loadService();
+
+    const result = await provisionPreviewAnalytics("proj-a");
+
+    expect(result).toEqual({
+      enabled: true,
+      provisioned: false,
+      reason: "integration_revoked",
+    });
+    // No provisioning fired, and the deliberate revoke was NOT undone.
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(updateRybbitSiteId).not.toHaveBeenCalled();
+    expect(rybbitSiteIdByProject.has("proj-a")).toBe(false);
+  });
+
+  it("reports provisioned:false when no active integration row results", async () => {
+    findPreviewProvisioningContextById.mockResolvedValue(LIVE_PREVIEW);
+    // Rybbit answers OK but returns no siteId — provisionRybbitSite creates no row.
+    fetchMock.mockImplementationOnce(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({}),
+      text: async () => "",
+    }));
+    const { provisionPreviewAnalytics } = await loadService();
+
+    const result = await provisionPreviewAnalytics("proj-a");
+
+    // The read-back finds no active row, so we do NOT claim a false success.
+    expect(result.provisioned).toBe(false);
+    expect(result.reason).toBe("provision_failed");
   });
 });
