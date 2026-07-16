@@ -150,6 +150,22 @@
     <p><b>Honesty posture:</b> every path returns <code>null</code> when there is no confident signal; the column is nullable with no default and no backfill. Unknown is never folded into a real channel.</p>
   </div>
 
+  <h2>Sender contract (the unbuilt other half — capture, not build)</h2>
+  <hr class="rule" />
+  <div class="spec-card">
+    <p>M0 stores <code>source</code> server-side, but the strongest signal is the visitor's <b>first touch</b>, which only the hosted-site contact form can capture and forward. That form lives in the generated-site templates, <b>outside this repo</b> (same access blocker as B1-R) — so this is the <b>contract the sender must honor</b>, recorded so it isn't lost as a vague "someday." It is <b>not buildable here</b>; this is capture, not a build spec.</p>
+    <p><b>Endpoint:</b> <code>POST /api/websites/form-submission</code> (mounted <code>/api/websites</code>, route <code>/form-submission</code>; controller <code>handleFormSubmission</code>). The public contact form on the rendered site.</p>
+    <p><b>Fields the sender should add to the POST body</b> (all optional; all first-touch):</p>
+    <ul>
+      <li><code>source</code> — a first-touch channel label the site already resolved. Stored <b>only if</b> it matches M0's recognized channel vocabulary (else dropped to null). Use canonical channel words (<code>google</code>, <code>facebook</code>, <code>email</code>, <code>sms</code>, <code>google_business_profile</code>, …), never a raw or free-text value.</li>
+      <li><code>utm_source</code> — the entry link's <code>utm_source</code> (same vocabulary rule).</li>
+      <li><code>first_touch_referrer</code> — the <b>raw referrer URL of the visitor's first landing page</b> (captured on landing, persisted client-side, forwarded at submit) — <b>not</b> the submit page. Classified to a channel server-side (host&rarr;fixed label); internal/unparseable &rarr; skipped. This is the real entry channel for organic/referral traffic.</li>
+    </ul>
+    <p><b>What M0 already does without the sender:</b> it classifies the submit <code>Referer</code> header. For a same-site submit that is the practice's own page &rarr; internal &rarr; <code>null</code>. So without the sender, <code>source</code> is null for the common "landed via Google days ago, submitted from the own page" path — honest (unknown), but blind to organic/referral first-touch. <b>The sender is what turns that null into a real channel.</b></p>
+    <p><b>Server-side precedence (already built, deterministic):</b> explicit label (<code>source</code>/<code>utm_source</code>, vocabulary-checked) &rarr; <code>first_touch_referrer</code> (classified) &rarr; submit <code>Referer</code> (classified) &rarr; <code>null</code>. Never guessed.</p>
+    <p><b>Owner:</b> the <b>M0-SENDER</b> item in the funnel tracker (<code>funnel-feature-sequence.md</code>, PR #169 branch). Blocked on hosted-site template access, like B1-R.</p>
+  </div>
+
   <h2>Risk (production + most-likely-wrong)</h2>
   <hr class="rule" />
   <div class="spec-card">
@@ -213,6 +229,12 @@
       <p><strong>Change:</strong> Ran the Fable-5 confirm pass; it re-reviewed the changes and returned <b>clean</b> &mdash; the three hardening changes confirmed effective (unrecognized claim inputs &rarr; null; look-alike host baits &rarr; referral), no ReDoS. Applied its two in-PR recommendations + the safe half of a third; added 4 tests (targeted 35&rarr;39, full 491&rarr;495). <b>(N1, low)</b> a <em>double</em> trailing dot half-reopened F4 &rarr; trailing-dot strip is now <code>/\.+$/</code> (a run). <b>(N2, med)</b> the claim vocabulary was a <code>Set</code> that stored aliases verbatim, splintering by-source counts (<code>fb</code> vs <code>facebook</code>) &rarr; now a canonical <code>Map</code> folding unambiguous abbreviations to one bucket (fb/meta&rarr;facebook, x&rarr;twitter, yt&rarr;youtube, gmb&rarr;google_business_profile). <b>(N3, med &mdash; mechanism only)</b> hyphens now fold to underscores before lookup (<code>google-ads</code>&rarr;<code>google_ads</code>) and the dental patient-comms stack (birdeye, podium, weave, mailchimp, klaviyo, solutionreach, lighthouse360, smile_reminder&hellip;) is now recognized as real channels instead of dropped to unknown. <b>Deferred (product taxonomy, flagged for Dave):</b> collapsing a specific tool to a coarser channel (e.g. <code>podium</code>&rarr;<code>sms</code>) &mdash; kept self-canonical (honest as-is); and N4 (adding directory domains like yelp/healthgrades to the referer classifier) &mdash; a referer from those still classifies as the honest-coarse <code>referral</code>.</p>
       <p><strong>Reason:</strong> Adversary confirm pass (DoD step 3, re-verify). N2 directly serves NS1 &mdash; fragmented labels corrupt the very by-source counts M0 exists to make honest &mdash; and the file hadn't shipped, so the fix is free now and costly later.</p>
       <p><strong>Updated Done criteria:</strong> all execution-lane items closed &mdash; adversary SHIP, tests green (39 targeted / 495 full), conventions --strict exit 0, #156 refreshed. Only Dave's review + merge (and the deferred fidelity follow-ups) remain, both out of Claude's lane.</p>
+    </article>
+    <article class="revision-entry">
+      <h3>Rev 4 - 2026-07-15</h3>
+      <p><strong>Change:</strong> Added the "Sender contract" section &mdash; the precise backend contract the hosted-site form must honor to make <code>source</code> fill with real data (endpoint <code>POST /api/websites/form-submission</code>; body fields <code>source</code> / <code>utm_source</code> / <code>first_touch_referrer</code>; the vocabulary rule; the server-side precedence already built; what M0 classifies without it). Explicitly a <b>capture</b>, not a buildable spec &mdash; the sender lives in the generated-site templates outside this repo (blocked on the same access as B1-R).</p>
+      <p><strong>Reason:</strong> Force-multiplier follow-on (Corey-directed): M0's column stores nothing real until a sender forwards first-touch, so the contract is the highest-value next domino &mdash; captured precisely now so it isn't lost as a vague "someday," without over-speccing template work this repo can't see.</p>
+      <p><strong>Updated Done criteria:</strong> none for M0 itself (unchanged); the contract hands off to the M0-SENDER tracker item.</p>
     </article>
   </section>
 </main>
