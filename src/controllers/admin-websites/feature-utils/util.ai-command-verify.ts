@@ -100,17 +100,67 @@ export function schemaEntryMatches(expected: unknown, actual: unknown): boolean 
 
 /**
  * True when every approved JSON-LD entry is present in the published
- * `schema_json` array. Order-independent across entries — the handler writes the
- * approved array verbatim, but a consumer re-ordering it must not read as a
- * failure.
+ * `schema_json` array under a ONE-TO-ONE assignment: each approved entry must be
+ * satisfied by its OWN published candidate, never by one candidate shared across
+ * several approved entries.
+ *
+ * The one-to-one requirement is load-bearing, not pedantry. `schemaEntryMatches`
+ * is CONTAINMENT, so a candidate satisfies every approved entry it contains — an
+ * approved entry and the more specific approved entry that extends it can both
+ * point at the same published object. A per-entry "does some candidate match?"
+ * test therefore reads a published array that LOST an entry as a pass, which is
+ * the one failure this module refuses: claiming structured data is live when it
+ * is not (see the strictness note in the module doc).
+ *
+ * Assignment is a maximum bipartite matching (augmenting paths), deliberately
+ * NOT a greedy first-fit. Greedy depends on array order — a general approved
+ * entry can consume the one candidate a more specific approved entry needed,
+ * reporting a failure even though a valid one-to-one assignment exists. That
+ * would break this function's order-independence contract below, so the matching
+ * is worth its ~15 lines. Both arrays are a handful of JSON-LD entries, so the
+ * O(V·E) cost is irrelevant.
+ *
+ * Order-independent across entries: the handler writes the approved array
+ * verbatim, but a consumer re-ordering it must not read as a failure. EXTRA
+ * published entries, and extra keys inside a matched entry, remain allowed — the
+ * question is "did every approved entry land?", not "is the published array
+ * exactly the approved array".
  */
 export function publishedSchemaContains(
   approved: Record<string, unknown>[],
   publishedSchema: unknown
 ): boolean {
   if (!Array.isArray(publishedSchema)) return false;
-  return approved.every((entry) =>
-    publishedSchema.some((candidate) => schemaEntryMatches(entry, candidate))
+  // Pigeonhole: more approved entries than candidates can never be one-to-one.
+  if (approved.length > publishedSchema.length) return false;
+
+  // candidates[i] = every published index that could satisfy approved[i].
+  const candidates = approved.map((entry) =>
+    publishedSchema.reduce<number[]>((acc, candidate, i) => {
+      if (schemaEntryMatches(entry, candidate)) acc.push(i);
+      return acc;
+    }, [])
+  );
+
+  // Kuhn's algorithm: give each approved entry a distinct published entry,
+  // re-homing an earlier claim along an augmenting path when one is contested.
+  const claimedBy = new Array<number>(publishedSchema.length).fill(-1);
+  const claim = (entryIdx: number, visited: boolean[]): boolean => {
+    for (const candidateIdx of candidates[entryIdx]) {
+      if (visited[candidateIdx]) continue;
+      visited[candidateIdx] = true;
+      if (claimedBy[candidateIdx] === -1 || claim(claimedBy[candidateIdx], visited)) {
+        claimedBy[candidateIdx] = entryIdx;
+        return true;
+      }
+    }
+    return false;
+  };
+
+  // An entry that cannot be claimed leaves the matching short of every approved
+  // entry, and no later assignment can recover it — so a short-circuit is exact.
+  return approved.every((_entry, entryIdx) =>
+    claim(entryIdx, new Array<boolean>(publishedSchema.length).fill(false))
   );
 }
 

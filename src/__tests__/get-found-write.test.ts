@@ -546,6 +546,80 @@ describe("schema containment helpers", () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// One-to-one assignment. `schemaEntryMatches` is CONTAINMENT, so one published
+// object satisfies every approved entry it contains. Without a distinct
+// candidate per approved entry, a published array that DROPPED an entry reads as
+// a pass and the owner is told structured data is live when it is not.
+//
+// Tests marked NON-VACUOUS fail against a per-entry `.some(...)` check; they are
+// the proof of the fix. Tests marked GUARD already pass without it — they are
+// not evidence of the fix, they pin behavior a careless fix would break (a
+// greedy assignment, or a multiset-EQUALITY comparison that dropped the
+// documented containment tolerance).
+// ---------------------------------------------------------------------------
+
+describe("publishedSchemaContains — one approved entry may not share a published entry", () => {
+  it("NON-VACUOUS: a dropped entry is not covered by a survivor that contains it", () => {
+    // Two approved entries, one published object. The general entry and the
+    // specific entry both match that object, so a per-entry check passes.
+    expect(
+      publishedSchemaContains(
+        [{ "@type": "Dentist" }, { "@type": "Dentist", name: "X" }],
+        [{ "@type": "Dentist", name: "X" }]
+      )
+    ).toBe(false);
+  });
+
+  it("NON-VACUOUS: two identical approved entries need two published copies", () => {
+    const entry = { "@type": "Dentist", name: "Bright Smiles Dental" };
+    expect(publishedSchemaContains([entry, entry], [{ ...entry }])).toBe(false);
+  });
+
+  it("NON-VACUOUS: a subset chain is not satisfied by its most specific member", () => {
+    expect(
+      publishedSchemaContains(
+        [
+          { "@type": "Dentist" },
+          { "@type": "Dentist", name: "X" },
+          { "@type": "Dentist", name: "X", telephone: "+1-512-555-0100" },
+        ],
+        [{ "@type": "Dentist", name: "X", telephone: "+1-512-555-0100" }]
+      )
+    ).toBe(false);
+  });
+
+  it("NON-VACUOUS: a partial publish of a duplicate set fails", () => {
+    const entry = { "@type": "Dentist", name: "Bright Smiles Dental" };
+    expect(publishedSchemaContains([entry, entry, entry], [{ ...entry }, { ...entry }])).toBe(
+      false
+    );
+  });
+
+  it("GUARD: two identical approved entries pass when both copies published", () => {
+    const entry = { "@type": "Dentist", name: "Bright Smiles Dental" };
+    expect(publishedSchemaContains([entry, entry], [{ ...entry }, { ...entry }])).toBe(true);
+  });
+
+  it("GUARD: a general entry must not steal the candidate a specific entry needs", () => {
+    // A greedy first-fit walks approved in order: the general entry takes the
+    // named object, leaving the specific entry nothing — a false failure, and
+    // order-dependent, which the order-independence contract forbids.
+    const approved = [{ "@type": "Dentist" }, { "@type": "Dentist", name: "X" }];
+    expect(publishedSchemaContains(approved, [{ "@type": "Dentist", name: "X" }, { "@type": "Dentist" }])).toBe(true);
+    expect(publishedSchemaContains(approved, [{ "@type": "Dentist" }, { "@type": "Dentist", name: "X" }])).toBe(true);
+  });
+
+  it("GUARD: extra published entries and extra keys stay allowed (containment, not equality)", () => {
+    expect(
+      publishedSchemaContains(NEW_SCHEMA, [
+        { "@type": "WebSite", name: "unrelated" },
+        { ...NEW_SCHEMA[0], extra: "added-by-a-consumer" },
+      ])
+    ).toBe(true);
+  });
+});
+
 describe("verifyBatchEdits — page_seo_schema is verified against the live page", () => {
   const schemaRec = {
     id: "rec-1",
@@ -617,5 +691,36 @@ describe("verifyBatchEdits — page_seo_schema is verified against the live page
     const [, patch] = vi.mocked(AiCommandRecommendationModel.updateById).mock.calls[0];
     expect(patch.status).toBe("failed");
     expect(JSON.parse(patch.execution_result as string).verify_reason).toMatch(/connection lost/);
+  });
+
+  // NON-VACUOUS. The owner-facing shape of the one-to-one defect: the publish
+  // dropped an approved entry, the surviving entry contains the dropped one, and
+  // the batch reported a success the page does not support.
+  it("FAILS when the publish dropped an approved entry a survivor's shape covers", async () => {
+    vi.mocked(AiCommandRecommendationModel.findByBatchId).mockResolvedValue([
+      {
+        ...schemaRec,
+        target_meta: JSON.stringify({
+          page_path: "/x",
+          schema_json: [{ "@type": "Dentist" }, { "@type": "Dentist", name: "Bright Smiles Dental" }],
+        }),
+      },
+    ] as never);
+    vi.mocked(PageModel.findRawByProjectPathStatus).mockResolvedValue({
+      id: "pub-1",
+      seo_data: JSON.stringify({
+        schema_json: [{ "@type": "Dentist", name: "Bright Smiles Dental" }],
+      }),
+    } as never);
+
+    const result = await verifyBatchEdits("b1");
+
+    expect(result).toEqual({ verified: 0, downgraded: 1 });
+    const [, patch] = vi.mocked(AiCommandRecommendationModel.updateById).mock.calls[0];
+    expect(patch.status).toBe("failed");
+    const stored = JSON.parse(patch.execution_result as string);
+    expect(stored.success).toBe(false);
+    expect(stored.schema_written).toBe(false);
+    expect(stored.verify_reason).toMatch(/does not contain the approved schema/);
   });
 });
