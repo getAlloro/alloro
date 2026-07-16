@@ -14,25 +14,27 @@
       ],
       "expected": "schema_json is written as a non-empty array and the pre-existing seo_data keys survive (no clobber).",
       "status": "pass",
-      "evidence": "src/__tests__/get-found-write.test.ts passed in the focused 15-test run and the 496-test full suite (Node 22).",
+      "evidence": "src/__tests__/get-found-write.test.ts passed in the focused 51-test run and the 557-test / 64-file full suite (npx vitest run, exit 0, Node 22.23.1).",
       "notes": "The write lands on the batch's pinned draft, which the batch auto-publishes as one reversible page version.",
       "waiver": ""
     },
     {
       "id": "T2",
-      "title": "The honesty gate blocks a rank/placement claim before any write",
+      "title": "The honesty gate blocks a claim regardless of the KEY it sits under",
       "surface": "api",
-      "precondition": "Run the Slice 1b tests with claim text on descriptive, non-enumerated, nested, and identifier keys.",
+      "precondition": "Run the Slice 1b tests with claim text on descriptive, non-enumerated, nested, identifier, and every structural key.",
       "steps": [
         "Execute the recommendation with a rank-claiming description.",
-        "Execute with a rank claim on serviceType, on an unenumerated award key, on a nested makesOffer.description, and on an identifier name.",
-        "Execute with an honest serviceType and with a claim-like URL.",
+        "Execute with a rank claim on serviceType, on an unenumerated award key, and on a nested makesOffer.description.",
+        "Execute with the claim sentence 'We guarantee first page placement on Google' parked under EACH structural key in turn: @context, @id, @type, identifier, url, sameAs, image, logo, telephone, faxNumber, email.",
+        "Execute with that claim smuggled inside a sameAs ARRAY member.",
+        "Execute with an honest serviceType, a claim-like URL, and a full honest LocalBusiness schema.",
         "Inspect the recommendation status and whether the page was written."
       ],
-      "expected": "Every rank-claiming case fails the recommendation and PageModel.updateSeoDataById is never called; the honest cases still execute.",
+      "expected": "Every claim-bearing case fails the recommendation and PageModel.updateSeoDataById is never called; the honest cases still execute.",
       "status": "pass",
-      "evidence": "src/__tests__/get-found-write.test.ts passed the honesty-gate cases, including the new 'honesty gate scans non-enumerated keys' suite (serviceType, award, nested makesOffer.description, identifier name). Verified as REAL regression tests: restoring the old allowlist fails exactly those cases (6 failed / 26 passed).",
-      "notes": "Rewritten after the second-round review. The gate now scans by DEFAULT and skips only narrowly structural keys/values (@context, @id, @type, identifier, url, sameAs, image, logo, telephone, faxNumber, email, and whole-value URLs). The previous allowlist of six descriptive keys silently passed every key nobody enumerated, serviceType among them. Identifier keys (name, alternateName, legalName) are still scanned for rank/placement/visibility claims; only a medical/outcome-ONLY match is softened there, so a real practice named 'Pain-Free Dental Studio' is not false-blocked while 'Rank #1 Dental Implants' is.",
+      "evidence": "src/__tests__/get-found-write.test.ts passed all 11 per-key cases, the sameAs-array case, and the full-honest-schema no-false-positive guard (51/51 in the file; 557/557 full suite, exit 0). Verified as REAL regression tests: reverting the handler to the key-denylist head fails 15 of them (15 failed / 36 passed of 51), while the 'must still publish' guards pass in both states.",
+      "notes": "Rewritten in round 3. The exclusion axis is now the VALUE, never the key. The round-2 gate skipped a denylist of structural KEYS without looking at the value, so {\"url\": \"We guarantee first page placement on Google\"} and a claim inside sameAs both returned ZERO violations — the key name is caller-supplied input (§5.2), so trusting it let any claim ride inside it. A value is now skipped only when it is actually structural for its key: a whole-value URL/mailto:/tel:/urn: under any key, a schema.org type token for @type/@context, a fragment or blank-node ref for @id, a phone shape for telephone/faxNumber, an addr-spec for email. Unknown key => scanned; known key with a non-structural value => scanned. Both directions fail CLOSED. `identifier` is deliberately absent from the shape table: a real identifier ('NPI-1234567890') trips no claim pattern, so scanning it is free.",
       "waiver": ""
     },
     {
@@ -48,7 +50,7 @@
       ],
       "expected": "Every malformed case fails the recommendation with a typed reason and performs no write; the all-objects array still executes.",
       "status": "pass",
-      "evidence": "src/__tests__/get-found-write.test.ts passed the array-shape cases plus the new 'schema_json member validation' suite (8 malformed shapes + 1 valid multi-entry). Verified as REAL regression tests: restoring the old length-only check fails exactly the 7 member cases (7 failed / 25 passed).",
+      "evidence": "src/__tests__/get-found-write.test.ts passed the array-shape cases plus the 'schema_json member validation' suite (8 malformed shapes + 1 valid multi-entry). Re-verified as REAL regression tests at this head: restoring the old length-only check fails exactly the 7 member cases (7 failed / 44 passed of 51).",
       "notes": "Strengthened after the second-round review. The old check required only a non-empty array, so [null], ['text'], scalar members, and nested arrays passed and were published. Consumers dereference each entry as an object, so a null/scalar member crashes the schema scorer downstream (§5.2 — never trust client input). Every member is now required to be a non-null, non-array object.",
       "waiver": ""
     },
@@ -142,6 +144,22 @@
       "status": "pass",
       "evidence": "src/__tests__/get-found-write.test.ts passed all three downgrade cases.",
       "notes": "Deliberately stricter than the HTML token heuristic: the approved schema is exact JSON, so presence is decidable. A false failure costs one idempotent re-run; a false success would claim structured data is live when it is not.",
+      "waiver": ""
+    },
+    {
+      "id": "T11",
+      "title": "The identity carve-out is bounded by NAME shape, not by the key alone",
+      "surface": "api",
+      "precondition": "Run the Slice 1b tests with real practice names and with claim sentences parked under identity keys.",
+      "steps": [
+        "Execute with name 'Pain-Free Dental Studio' and legalName 'Cure Dental Group'.",
+        "Execute with name 'Rank #1 Dental Implants'.",
+        "Execute with name 'We cure gum disease permanently', alternateName 'We guarantee a cure for gum disease', and name 'Cure your gum disease permanently'."
+      ],
+      "expected": "The two real names publish; the rank claim and all three outcome sentences fail the recommendation and write nothing.",
+      "status": "pass",
+      "evidence": "src/__tests__/get-found-write.test.ts 'identity carve-out is bounded by NAME shape' passed 6/6. Verified non-vacuous: against the round-2 handler the three outcome-sentence cases fail (they published), while the two must-publish guards pass in both states, proving they guard the carve-out rather than passing trivially.",
+      "notes": "Found by the round-3 class sweep, NOT named in the review. The round-2 carve-out softened the medical/outcome reason code on the KEY alone, so a claim SENTENCE under name/alternateName/legalName was published: name='We cure gum disease permanently' returned zero violations. Same defect class as T2 — trusting a key name — so it is fixed on the same axis: the carve-out now applies only to a value that is genuinely name-shaped (no first/second-person pronoun, at most 6 words). A real practice name still publishes; prose wearing a name's key is judged as prose. Rank/placement/visibility/will-rank families were never softened and still block under identity keys.",
       "waiver": ""
     },
     {

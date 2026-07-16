@@ -312,6 +312,138 @@ describe("executeUpdatePageSeoSchema — honesty gate scans non-enumerated keys"
   });
 });
 
+// ---------------------------------------------------------------------------
+// §5.2 — the exclusion axis is the VALUE, not the key. A key name is
+// caller-supplied input: every key the gate may skip must still block a claim
+// SENTENCE parked under it. One regression per excluded key — the whole class,
+// not the two keys the review happened to name.
+// ---------------------------------------------------------------------------
+
+describe("honesty gate — a claim under a structural KEY is still blocked", () => {
+  const CLAIM = "We guarantee first page placement on Google";
+  // Every key in the handler's structural-shape table, plus `identifier` (which
+  // that table deliberately omits). A claim sentence is not a URL / phone /
+  // token, so none of these may earn a skip.
+  const structuralKeys = [
+    "@context",
+    "@id",
+    "@type",
+    "identifier",
+    "url",
+    "sameAs",
+    "image",
+    "logo",
+    "telephone",
+    "faxNumber",
+    "email",
+  ];
+
+  for (const key of structuralKeys) {
+    it(`BLOCKS a claim sentence in \`${key}\` and writes nothing`, async () => {
+      const store = seedStore();
+      await executeUpdatePageSeoSchema(
+        {
+          id: `struct-${key}`,
+          target_id: "page-1",
+          target_meta: JSON.stringify({ schema_json: [{ "@type": "Dentist", [key]: CLAIM }] }),
+        },
+        ctx(),
+      );
+      expect(parseSeo(store.get("draft-1")!.seo_data).schema_json).toBeUndefined();
+      expect(AiCommandRecommendationModel.updateById as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(
+        `struct-${key}`,
+        expect.objectContaining({ status: "failed" }),
+      );
+      expect(PageModel.updateSeoDataById).not.toHaveBeenCalled();
+    });
+  }
+
+  it("BLOCKS a claim smuggled inside a `sameAs` ARRAY member", async () => {
+    const store = seedStore();
+    await executeUpdatePageSeoSchema(
+      {
+        id: "same-as-arr",
+        target_id: "page-1",
+        target_meta: JSON.stringify({
+          schema_json: [{ "@type": "Dentist", sameAs: ["https://facebook.com/x", CLAIM] }],
+        }),
+      },
+      ctx(),
+    );
+    expect(parseSeo(store.get("draft-1")!.seo_data).schema_json).toBeUndefined();
+    expect(PageModel.updateSeoDataById).not.toHaveBeenCalled();
+  });
+
+  it("still PUBLISHES a full, honest LocalBusiness schema — no false positives", async () => {
+    const store = seedStore();
+    await executeUpdatePageSeoSchema(
+      {
+        id: "honest-full",
+        target_id: "page-1",
+        target_meta: JSON.stringify({
+          schema_json: [
+            {
+              "@context": "https://schema.org",
+              "@type": "Dentist",
+              "@id": "https://painfreedental.com/#dentist",
+              name: "Pain-Free Dental Studio",
+              url: "https://painfreedental.com",
+              telephone: "+1 (512) 555-0100 ext. 42",
+              faxNumber: "512-555-0101",
+              email: "hello@painfreedental.com",
+              logo: "https://painfreedental.com/logo.png",
+              sameAs: ["https://facebook.com/pfds"],
+              identifier: "NPI-1234567890",
+              description: "Gentle family dentistry in Austin, TX.",
+            },
+          ],
+        }),
+      },
+      ctx(),
+    );
+    expect(parseSeo(store.get("draft-1")!.seo_data).schema_json).toHaveLength(1);
+    expect(AiCommandRecommendationModel.updateById as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(
+      "honest-full",
+      expect.objectContaining({ status: "executed" }),
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The identity carve-out is value-shaped too. Both directions stay locked: a
+// real practice name publishes; a claim wearing `name`'s key does not.
+// ---------------------------------------------------------------------------
+
+describe("honesty gate — identity carve-out is bounded by NAME shape", () => {
+  const cases: Array<[string, Record<string, unknown>, "executed" | "failed"]> = [
+    ["a real practice name", { "@type": "Dentist", name: "Pain-Free Dental Studio" }, "executed"],
+    ["a short legalName carrying an outcome word", { "@type": "Dentist", legalName: "Cure Dental Group" }, "executed"],
+    ["a rank claim in `name`", { "@type": "Dentist", name: "Rank #1 Dental Implants" }, "failed"],
+    // The carve-out's own bypass: a medical/outcome SENTENCE under an identity
+    // key was softened on the key alone and published.
+    ["an outcome SENTENCE in `name`", { "@type": "Dentist", name: "We cure gum disease permanently" }, "failed"],
+    ["an outcome SENTENCE in `alternateName`", { "@type": "Dentist", alternateName: "We guarantee a cure for gum disease" }, "failed"],
+    ["an outcome claim addressed to the reader", { "@type": "Dentist", name: "Cure your gum disease permanently" }, "failed"],
+  ];
+
+  for (const [label, entry, expected] of cases) {
+    it(`${expected === "failed" ? "BLOCKS" : "PUBLISHES"} ${label}`, async () => {
+      const store = seedStore();
+      await executeUpdatePageSeoSchema(
+        { id: `id-${label}`, target_id: "page-1", target_meta: JSON.stringify({ schema_json: [entry] }) },
+        ctx(),
+      );
+      expect(AiCommandRecommendationModel.updateById as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(
+        `id-${label}`,
+        expect.objectContaining({ status: expected }),
+      );
+      const written = parseSeo(store.get("draft-1")!.seo_data).schema_json;
+      if (expected === "failed") expect(written).toBeUndefined();
+      else expect(written).toHaveLength(1);
+    });
+  }
+});
+
 describe("collectSchemaCopy — honesty-gate input selection", () => {
   const values = (value: unknown) => collectSchemaCopy(value).map((entry) => entry.value);
 

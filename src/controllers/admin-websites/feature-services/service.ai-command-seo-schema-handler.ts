@@ -17,9 +17,14 @@
  *
  * Honesty gate (spec Constraint / Value #6): every claim-bearing free-text value in
  * the proposed schema is run through `GeneratedCopySafetyService` before the write; a
- * rank/placement/visibility claim FAILS the recommendation and writes nothing. The
- * gate scans by DEFAULT and skips only narrowly structural values, so a key nobody
- * enumerated cannot smuggle claim text past it.
+ * rank/placement/visibility claim FAILS the recommendation and writes nothing.
+ *
+ * The gate scans by DEFAULT and excludes on the VALUE, never on the key: a value is
+ * skipped only when it is actually structural — URL-shaped, phone-shaped, an
+ * `@id`/`@type` token — for the key it sits under. A key name is caller-supplied
+ * input (§5.2), so trusting one would let `{"url": "<claim sentence>"}` ride past a
+ * gate that never looked at the value. Unknown key ⇒ scanned; known key with a
+ * non-structural value ⇒ scanned. Both directions fail CLOSED.
  * No new autonomy — the row executes only because a human already approved it.
  */
 
@@ -35,44 +40,93 @@ import {
 } from "../feature-utils/util.ai-command-shared";
 
 /**
- * Schema.org keys whose values are STRUCTURAL — identifiers, machine references,
- * and contact endpoints that cannot carry an owner-facing claim. These are the
- * ONLY keys the honesty gate skips.
+ * The exclusion axis is the VALUE, never the key.
  *
- * This is deliberately a DENYLIST, not an allowlist. An allowlist of "descriptive"
- * keys silently passes every key nobody thought of (`serviceType`, `award`,
- * `makesOffer`, …), and schema.org has hundreds — any one of them can carry claim
- * text and would bypass the gate. Scanning by default fails CLOSED: an unknown key
- * is scanned, not trusted.
+ * A key name is a claim from the caller, not a fact: `{"url": "We guarantee first
+ * page placement on Google"}` is claim text sitting under a structural key, and a
+ * key-name denylist waves it straight through. So a value is skipped only when it
+ * is ACTUALLY structural — the shape its key REQUIRES. A claim sentence in a `url`
+ * field is not a URL, so it is scanned like any other prose.
+ *
+ * A whole-value URL / mailto: / tel: / urn: is structural under ANY key (a real
+ * page URL such as `https://example.com/we-guarantee-x` is machine data, not a
+ * promise, and scanning it would false-positive on the practice's own links).
  */
-const STRUCTURAL_SCHEMA_KEYS = new Set([
-  "@context",
-  "@id",
-  "@type",
-  "identifier",
-  "url",
-  "sameAs",
-  "image",
-  "logo",
-  "telephone",
-  "faxNumber",
-  "email",
-]);
+const URL_VALUE = /^(?:https?:\/\/|mailto:|tel:|urn:)\S*$/i;
+
+/** A bare schema.org type token — "Dentist", "LocalBusiness". Never a sentence. */
+const TYPE_TOKEN = /^[A-Za-z][A-Za-z0-9]*$/;
+/** A fragment or blank-node reference — "#business", "_:b0". */
+const NODE_REF = /^(?:#|_:)[A-Za-z0-9._~%!$&'()*+,;=:@/?-]*$/;
+/** Digits and phone punctuation only, optional extension. Never prose. */
+const PHONE_VALUE = /^[+(]?\d[\d\s().+-]*(?:(?:ext|x|extension)\.?\s*\d+)?$/i;
+/** A single addr-spec — no whitespace either side of the @. */
+const EMAIL_VALUE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+const isUrlValue = (text: string): boolean => URL_VALUE.test(text);
+
+/**
+ * The audit table: every key the gate may skip, and the shape its value must
+ * ACTUALLY have to earn that skip. A key absent from this table is always
+ * scanned, and a key present here is scanned whenever its value fails the shape —
+ * both directions fail CLOSED.
+ *
+ * `identifier` is deliberately NOT here: a real identifier ("NPI-1234567890") trips
+ * no claim pattern, so scanning it is free, while a URL identifier is already
+ * covered by the whole-value URL rule. It needs no key-level trust.
+ */
+const STRUCTURAL_VALUE_SHAPE: Record<string, (text: string) => boolean> = {
+  "@context": (text) => isUrlValue(text) || TYPE_TOKEN.test(text),
+  "@id": (text) => isUrlValue(text) || NODE_REF.test(text),
+  "@type": (text) => TYPE_TOKEN.test(text) || isUrlValue(text),
+  url: isUrlValue,
+  sameAs: isUrlValue,
+  image: isUrlValue,
+  logo: isUrlValue,
+  telephone: (text) => PHONE_VALUE.test(text),
+  faxNumber: (text) => PHONE_VALUE.test(text),
+  email: (text) => EMAIL_VALUE.test(text),
+};
+
+/**
+ * True only when `text` is genuinely structural. A missing key means nothing is
+ * known about the value, so it is scanned — never trusted.
+ */
+export function isStructuralValue(key: string | null, text: string): boolean {
+  if (isUrlValue(text)) return true;
+  if (!key) return false;
+  const shape = STRUCTURAL_VALUE_SHAPE[key];
+  return shape ? shape(text) : false;
+}
 
 /**
  * Identifier keys carrying a proper NAME. They are scanned (a name can still carry
  * a rank claim — "Rank #1 Dental Implants"), but a medical/outcome-only match does
- * not block them: a real practice named "Pain-Free Dental Studio" is stating its
- * name, not a claim Alloro is making. Every rank/placement/visibility/will-rank
- * family still blocks here.
+ * not block a value that is genuinely NAME-SHAPED: a real practice named
+ * "Pain-Free Dental Studio" is stating its name, not a claim Alloro is making.
+ * Every rank/placement/visibility/will-rank family still blocks here.
  */
 const IDENTITY_SCHEMA_KEYS = new Set(["name", "alternateName", "legalName"]);
 
+/**
+ * The identity carve-out is value-shaped too — same axis as the structural skip,
+ * for the same reason. Softening on the key alone lets a sentence ride inside
+ * `name` ("We cure gum disease permanently") straight past the gate.
+ *
+ * A proper name is a short noun phrase: it does not address the reader or speak
+ * as the practice, and it does not run on. A value that does either is prose
+ * wearing a name's key, and is judged as prose.
+ */
+const NAME_MAX_WORDS = 6;
+const NAME_DISQUALIFYING_PRONOUN = /\b(?:we|our|ours|us|you|your|yours|i|my|mine|they|their)\b/i;
+
+export function isProperNameShaped(text: string): boolean {
+  if (NAME_DISQUALIFYING_PRONOUN.test(text)) return false;
+  return text.trim().split(/\s+/).filter(Boolean).length <= NAME_MAX_WORDS;
+}
+
 /** Reason code from `validateGeneratedCopy` for the guarantee/cure/pain-free family. */
 const MEDICAL_OUTCOME_REASON_CODE = "medical_or_outcome_claim";
-
-/** A value that is ENTIRELY a URL/contact endpoint — structural regardless of key. */
-const STRUCTURAL_VALUE = /^(?:https?:\/\/|mailto:|tel:)\S*$/i;
 
 export interface SchemaCopyEntry {
   key: string;
@@ -81,7 +135,7 @@ export interface SchemaCopyEntry {
 
 /**
  * Recursively collect claim-bearing free-text values for the honesty gate: every
- * string EXCEPT those under a structural key or whose whole value is a URL.
+ * string EXCEPT those whose VALUE is actually structural for its key.
  */
 export function collectSchemaCopy(
   value: unknown,
@@ -90,8 +144,8 @@ export function collectSchemaCopy(
 ): SchemaCopyEntry[] {
   if (typeof value === "string") {
     const text = value.trim();
-    if (key && text && !STRUCTURAL_SCHEMA_KEYS.has(key) && !STRUCTURAL_VALUE.test(text)) {
-      acc.push({ key, value });
+    if (text && !isStructuralValue(key, text)) {
+      acc.push({ key: key ?? "", value });
     }
   } else if (Array.isArray(value)) {
     for (const item of value) collectSchemaCopy(item, key, acc);
@@ -119,7 +173,10 @@ export function findSchemaCopyViolations(schemaJson: unknown): string[] {
   for (const entry of collectSchemaCopy(schemaJson)) {
     const result = GeneratedCopySafetyService.validateGeneratedCopy(entry.value);
     if (result.isSafe) continue;
-    const isIdentity = IDENTITY_SCHEMA_KEYS.has(entry.key);
+    // Value-shaped, not key-shaped: an identity key only softens a value that is
+    // genuinely a proper name. A sentence under `name` is judged as prose.
+    const isIdentity =
+      IDENTITY_SCHEMA_KEYS.has(entry.key) && isProperNameShaped(entry.value);
     // reasonCodes/reasons are pushed in lockstep by validateGeneratedCopy.
     result.reasonCodes.forEach((code, index) => {
       if (isIdentity && code === MEDICAL_OUTCOME_REASON_CODE) return;
