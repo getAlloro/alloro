@@ -97,8 +97,17 @@ export interface NapExecutorDeps {
  * Thrown when the run measured locations successfully but could not PERSIST one
  * or more of them (§3.2). A measurement failure is a per-location fact the run
  * survives; a database failure means the run did not do its job, so it must not
- * resolve — the scheduler's catch marks the run FAILED
- * (`workers/processors/scheduleExec.processor.ts` → `ScheduleRunModel.failRun`).
+ * resolve.
+ *
+ * What throwing this now buys (round 3, §21.2): the scheduler's exec processor
+ * (`workers/processors/scheduleExec.processor.ts`) marks the run FAILED and
+ * RETHROWS, so BullMQ retries with bounded backoff and retains an exhausted job
+ * in the failed set for inspection. Persistence failures are typically
+ * transient (a connection blip), which is exactly what a retry is for. Before
+ * that fix the processor swallowed this error, so throwing it marked a row
+ * failed and nothing else — no retry, no signal. Do not weaken this to a
+ * warning: the throw is the only thing that makes a dropped write visible.
+ *
  * Carries the summary so an operator sees what did land.
  */
 export class NapPersistenceError extends Error {

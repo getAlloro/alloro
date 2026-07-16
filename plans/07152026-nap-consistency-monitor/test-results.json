@@ -167,49 +167,53 @@
     },
     {
       "id": "T11",
-      "title": "The schedule seed cannot throw or clobber on a re-run",
+      "title": "The migration NEVER writes to `schedules` — ownership safety by construction (§10.3)",
       "surface": "none",
-      "precondition": "Drive up() with the mocked knex harness and inspect the insert chain.",
+      "precondition": "Drive up() with the mocked knex harness, which records every table name knex is called with.",
       "steps": [
-        "Run up() and inspect the schedules insert.",
-        "Assert the conflict target and the conflict action."
+        "Run up().",
+        "Assert `schedules` is absent from the recorded table list.",
+        "Assert insert / onConflict / merge were never called at all — not merely 'guarded'.",
+        "Assert up() touches NO table other than the one it creates."
       ],
-      "expected": "The seed uses onConflict('agent_key').ignore() — never .merge(), so re-running can neither error nor overwrite a schedule an operator has already enabled or re-timed.",
+      "expected": "up() writes only the table it creates. It seeds no `schedules` row, so no row exists whose ownership could be ambiguous on rollback.",
       "status": "pass",
-      "evidence": "src/__tests__/nap-consistency-migration.test.ts — onConflict/ignore case passed. MUTATION-VERIFIED: removing the onConflict chain fails this test.",
-      "notes": "PREMISE CORRECTION for Dave review #166 item 3: a DUPLICATE row was never possible — schedules.agent_key carries a UNIQUE constraint (20260315000001_create_schedules_tables.ts:8). A blind insert would ERROR on a pre-existing row, not duplicate it. The guard converts that hard failure into a no-op; the stated risk was real but by a different mechanism.",
+      "evidence": "src/__tests__/nap-consistency-migration.test.ts — 'up() NEVER writes to `schedules`' and 'up() touches no table other than the one it creates' passed (Node 22, 2026-07-16).",
+      "notes": "Rev 6, replacing the Rev 3 item 'The schedule seed cannot throw or clobber on a re-run'. Dave round 3 item 1 rejected the seed outright: `.onConflict('agent_key').ignore()` means a pre-existing operator row is NOT created by up(), yet down() deleted it by key anyway. The seed is now gone rather than guarded, so ownership is structural, not conditional. MUTATION-VERIFIED by reverting: restoring the seeding migration fails this test.",
       "waiver": "",
       "layer": 1
     },
     {
       "id": "T12",
-      "title": "The schedule ships DISABLED — merging incurs no SerpApi cost",
+      "title": "Merging creates NO schedule at all — zero SerpApi cost by construction",
       "surface": "none",
-      "precondition": "Drive up() with the mocked knex harness and read the seeded row.",
+      "precondition": "Drive up() with the mocked knex harness.",
       "steps": [
-        "Run up() and capture the row passed to insert.",
-        "Inspect agent_key and enabled."
+        "Run up().",
+        "Assert no insert into `schedules` occurs."
       ],
-      "expected": "agent_key is 'nap_consistency' and enabled is false — the monitor ships ready but costs nothing until Corey intentionally enables it.",
+      "expected": "The merge adds one empty table and nothing else. No schedule exists to run, so no provider cost is possible until an operator deliberately creates one.",
       "status": "pass",
-      "evidence": "src/__tests__/nap-consistency-migration.test.ts — disabled-seed case passed.",
-      "notes": "Dave: this row is deliberately disabled; do not enable on merge. The spec's 'disabled schedule is not dispatched' claim is covered here only at the seed level — the dispatcher's own skip is pre-existing behaviour this PR does not change or re-prove.",
+      "evidence": "src/__tests__/nap-consistency-migration.test.ts — 'up() NEVER writes to `schedules`' passed (Node 22, 2026-07-16).",
+      "notes": "Rev 6. Previously this asserted the seeded row carried enabled=false. With the seed removed the cost guarantee is stronger and needs no runtime flag to hold: there is no row. An operator who wants the monitor creates it via POST /api/admin/schedules (AdminSchedulesController.createSchedule); the `nap_consistency` handler stays registered in agentRegistry, so an operator-created row resolves immediately.",
       "waiver": "",
       "layer": 1
     },
     {
       "id": "T13",
-      "title": "down() reverses cleanly",
+      "title": "down() drops ONLY the table it created — it never deletes a `schedules` row (§10.3)",
       "surface": "none",
       "precondition": "Drive down() with the mocked knex harness.",
       "steps": [
         "Run down().",
-        "Inspect the schedule delete and the table drop."
+        "Assert `schedules` is absent from the recorded table list.",
+        "Assert .where() and .del() were never called.",
+        "Assert dropTableIfExists was called exactly once, with nap_consistency_observation."
       ],
-      "expected": "The seeded schedule row is deleted by agent_key and the table is dropped with dropTableIfExists (itself guarded).",
+      "expected": "down() reverses only what up() created. A rollback cannot destroy data this migration did not create.",
       "status": "pass",
-      "evidence": "src/__tests__/nap-consistency-migration.test.ts — down() case passed.",
-      "notes": "KNOWN EDGE: if up() ignored the conflict because the row pre-existed from another source, down() still deletes it. Accepted — down is the declared reverse of this migration and the row is agent-specific.",
+      "evidence": "src/__tests__/nap-consistency-migration.test.ts — 'down() NEVER deletes from `schedules`' and 'down() drops ONLY the table this migration created' passed (Node 22, 2026-07-16). MUTATION-VERIFIED by reverting: restoring `knex('schedules').where({agent_key}).del()` fails these tests (3 of 6 in the file fail).",
+      "notes": "Rev 6. This item previously read 'down() reverses cleanly / pass' and its own notes ACCEPTED the defect: 'KNOWN EDGE: if up() ignored the conflict because the row pre-existed from another source, down() still deletes it. Accepted — down is the declared reverse of this migration and the row is agent-specific.' Dave round 3 item 1 rejected that reasoning, correctly: 'agent-specific' is not the same as 'ours'. The artifact named the hole and waved it through; that judgement is withdrawn and the delete is gone.",
       "waiver": "",
       "layer": 1
     },
@@ -295,25 +299,86 @@
       ],
       "expected": "Every unscoped BaseModel read/write entry point is unreachable on this tenant-scoped table. §20.2: proven here, not assumed — the CONTROL demonstrates the leak the seals close, so the assertions are not vacuous.",
       "status": "pass",
-      "evidence": "src/__tests__/nap-consistency.test.ts — 10 cases passed (Node 22, 2026-07-16). MUTATION-VERIFIED by reverting: renaming the findById seal makes tsc fail TS2578 'Unused @ts-expect-error' (exit 2) AND fails exactly 2 runtime tests — 'findById is sealed' with `AssertionError: promise resolved \"{ id: 'row-org8', …(3) }\" instead of rejecting` (org 8's row literally comes back), and the CLASS GUARD with `expected [ 'findById' ] to deeply equal []`. Seal restored; full suite 62 files / 495 tests passed, real exit 0; A4 focused run 39/39.",
+      "evidence": "src/__tests__/nap-consistency.test.ts — 10 cases passed (Node 22, 2026-07-16). MUTATION-VERIFIED by reverting: renaming the findById seal makes tsc fail TS2578 'Unused @ts-expect-error' (exit 2) AND fails exactly 2 runtime tests — 'findById is sealed' with `AssertionError: promise resolved \"{ id: 'row-org8', …(3) }\" instead of rejecting` (org 8's row literally comes back), and the CLASS GUARD with `expected [ 'findById' ] to deeply equal []`. Seal restored; full suite (at Rev 5) 62 files / 495 tests passed, real exit 0; A4 focused run 39/39. Re-verified at Rev 6 (Node 22, 2026-07-16): full suite 63 files / 508 tests passed, real exit 0 — the Rev 6 scheduler/migration changes regress none of the Rev 5 seals.",
       "notes": "Rev 4. Closes the gap that made the Rev 3 §11.7 fix on listForLocation bypassable: the scoped read was worth nothing while 9 unscoped inherited methods reached the same rows. The sealed set was derived by ENUMERATING BaseModel's public statics (11 total), not from a supplied list — which is what surfaced `transaction`/`beginTransaction` as public statics absent from the review list. Both are deliberately NOT sealed and the reasoning is recorded in the model docblock and the CLASS GUARD's exemption set: neither touches this table, sealing them is theater (the identical handle is one AnyOtherModel.transaction() away), and the §6.1 trx-threading pattern that record(input, trx?)/listForLocation(…, trx?) rely on needs them. HONEST LIMIT 1: `count` is RUNTIME-sealed only — BaseModel.count(conditions?, trx?) takes all-optional args, so a bare count() type-checks against the zero-arg override and TS2554 cannot fire; the throw is the only guard. Documented, not papered over. HONEST LIMIT 2: still not Postgres — these drive fakes, so they cannot catch a BaseModel-level bug that drops a WHERE. RESIDUAL: a caller holding a raw trx can query any table unscoped; that is a models/-layer property, not something a per-model seal can close.",
       "waiver": "",
       "layer": 1
     },
     {
+      "id": "T21",
+      "title": "A failing scheduled run REJECTS — bounded retry with backoff, terminal handling, dead-letter (§21.2 / §21.4)",
+      "surface": "none",
+      "precondition": "Drive the real processScheduleExec with mocked models/registry/logger and a BullMQ job double. No Redis, no DB.",
+      "steps": [
+        "Agent handler rejects on attempt 1 of 3 → assert processScheduleExec REJECTS (it used to resolve) and that next_run_at is NOT advanced.",
+        "Agent handler rejects on attempt 2 of 3 → assert still no advance.",
+        "Agent handler rejects on attempt 3 of 3 (terminal) → assert it rejects AND next_run_at IS advanced to a future date.",
+        "Assert the original error object is propagated by identity, not re-wrapped.",
+        "Assert the attempt's run row is still marked failed before the rethrow.",
+        "Assert a job with no `attempts` option (in flight across a deploy) is treated as terminal.",
+        "Assert the failure log carries jobName, scheduleId, runId, agentKey, attempt, maxAttempts, terminal (§21.4).",
+        "Assert a distinct DEAD-LETTERED line is emitted only when retries are exhausted.",
+        "Assert the success path still completes the run, advances next_run_at, and resolves."
+      ],
+      "expected": "A failed scheduled run reaches BullMQ as a failure, so bounded retry/backoff engages and an exhausted job is retained in the failed set for inspection. next_run_at advances only on the terminal attempt.",
+      "status": "pass",
+      "evidence": "src/__tests__/schedule-exec-failure-contract.test.ts — 12/12 passed (Node 22, 2026-07-16, exit 0). NON-VACUOUS, proven by reverting: restoring the original swallowing processor (git checkout 99bcc8f3 -- scheduleExec.processor.ts) fails 10 of the 12, with the headline assertion reading `AssertionError: promise resolved \"undefined\" instead of rejecting` — literally Dave's defect. The 2 that still pass are the success-path cases, which the fix does not change. Fixed processor restored; full suite re-run 64 files / 514 tests, exit 0.",
+      "notes": "Rev 6, Dave round 3 item 2. The processor marked the run failed, advanced next_run_at, then SWALLOWED — so BullMQ saw the job resolve, retry never engaged, nothing reached the failed set, and a 14-day agent could fail every cycle and read as healthy. It now logs with full context and RETHROWS. WHETHER a rethrow is retried is decided per agent (see T23), not queue-wide. Two BullMQ facts were read from source rather than assumed, and are cited in the code: (a) attemptsMade is 0-based during processing — incremented only in moveToFailed/moveToCompleted (dist/cjs/classes/job.js:549) — and shouldRetryJob retries iff attemptsMade + 1 < opts.attempts (job.js:484, evaluated at :506 on the same pre-increment value), so isTerminal = (attemptsMade+1) >= maxAttempts is the exact logical complement of BullMQ's own predicate and cannot drift from it; (b) Queue.add with an explicit jobId early-returns handleDuplicatedJob when EXISTS <prefix><jobId> == 1 (dist/cjs/scripts/addStandardJob-9.js:421-426) — a state-agnostic check on the job hash, which is why a delayed retry safely absorbs the tick's re-enqueue AND why a retained exhausted job would wedge a still-due schedule forever if next_run_at were not advanced on terminal. SCOPE HONESTY: this is a mocked-collaborator unit proof of the processor's contract. It does NOT prove BullMQ actually retries — that needs Redis and a live worker, and is a dev-deploy observation. What it proves is the precondition BullMQ needs: the promise rejects. Note also that makeJob() FABRICATES attemptsMade, so this suite is self-consistent with the 0-based premise and could not catch an off-by-one on its own — the BullMQ source, not these 12 green tests, is what establishes that premise. ROBUSTNESS: both failRun() and the terminal advance are individually guarded, because the failure most worth surviving is a DB outage (exactly what NapPersistenceError reports), which is when those writes are most likely to throw too; unguarded, a thrown failRun would skip the advance and replace the swallow with a wedge.",
+      "waiver": "",
+      "layer": 1
+    },
+    {
+      "id": "T22",
+      "title": "A failed MANUAL run is no longer invisible, and cannot corrupt the response (§21.4 / §3.2)",
+      "surface": "none",
+      "precondition": "Code review of AdminSchedulesController.triggerRun at this head.",
+      "steps": [
+        "Inspect the background block that runs after res.json().",
+        "Confirm a handler failure is logged with scheduleId, runId, agentKey and the error.",
+        "Confirm a failRun() failure is itself caught and logged rather than escaping to handleError() on an already-sent response."
+      ],
+      "expected": "An operator-triggered run that fails leaves a log line with full context, and no ERR_HTTP_HEADERS_SENT is possible.",
+      "status": "pass",
+      "evidence": "Static review of src/controllers/admin-schedules/AdminSchedulesController.ts at this head — the background block is self-contained (void async IIFE) and logs on both the handler-failure and failRun-failure paths.",
+      "notes": "Rev 6. NOT named in Dave's review — found by sweeping the class he pointed at ('every scheduled path for swallowed failures'). This is the manual-trigger twin of item 2: it called failRun() and swallowed, logging NOTHING, so a failed 'Run now' was invisible outside the runs table; and if failRun() itself threw, the error escaped to handleError() AFTER res.json() had already replied, producing ERR_HTTP_HEADERS_SENT instead of a diagnosis. HONEST LIMIT: this item is a STATIC review receipt, not an executed test — there is no existing controller-level harness for this file and building one was out of scope for a review round. It cannot rethrow into BullMQ retry (it is an in-process operator action, not a job), so the §21.2 half it can meet is 'never drop the failure silently'; the operator is the retry. The deeper fix — routing manual triggers through the exec queue so they inherit retry/backoff — is named as a follow-on, not done here.",
+      "waiver": "",
+      "layer": 1
+    },
+    {
+      "id": "T23",
+      "title": "Retry is opt-in PER AGENT — a shared-queue blanket retry would corrupt production ranking data (§21.1)",
+      "surface": "none",
+      "precondition": "Import services/agentRegistry for real — no mocks — and read the declared policy for every registered agent.",
+      "steps": [
+        "Assert getAgentRetryPolicy('ranking').attempts === 1 (no retry).",
+        "Assert getAgentRetryPolicy('proofline').attempts === 1 (no retry).",
+        "Assert getAgentRetryPolicy('nap_consistency') === { attempts: 3, backoffMs: 60000 }.",
+        "Assert an unknown agent defaults to { attempts: 1, backoffMs: 0 } — opt-in, never opt-out.",
+        "WHOLE-REGISTRY SWEEP: assert the set of agents with attempts > 1 is exactly ['nap_consistency'].",
+        "Assert the registry is non-empty, so the sweep cannot pass vacuously."
+      ],
+      "expected": "Only an agent whose repeat run is safe (§21.1) is retried. Everything else fails terminally on the first failure — visible and retained, but run exactly once.",
+      "status": "pass",
+      "evidence": "src/__tests__/agent-retry-policy.test.ts — 6/6 passed (Node 22, 2026-07-16, exit 0). NON-VACUOUS, proven by reverting: adding `retry: { attempts: 3, backoffMs: 60000 }` to the ranking entry fails 2 of the 6, including the whole-registry sweep. Reverted; full suite 64 files / 514 tests, exit 0.",
+      "notes": "Rev 6. NOT named in Dave's review — found by an adversary pass on our OWN fix, and it was a real production-data defect we were about to introduce. The first cut of the §21.2 fix put `attempts: 3` on the tick's enqueue, which is SHARED by every scheduled agent. `executeRankingAgent` is not idempotent: no top-level try/catch, and setupRankingBatches runs first, minting a fresh batch_id = uuidv4() and blind-inserting one practice_rankings row per location via insertReturningId (.insert(), no onConflict, no covering unique constraint). A later throw — e.g. the unguarded OrganizationModel.findById in processRankingWork's per-org loop — would on retry re-run from the top and lay down a SECOND full batch of orphaned 'pending' rows, plus another round of paid SerpApi/Gemini. That schedule is seeded enabled: true and has been live in production since 20260315000001. So the blanket retry violated §21.1 ('design every job so a repeat run is safe') and would have corrupted prod data. Retry is now a property an agent EARNS, declared on its registry entry with a recorded reason; the default is no retry. Making ranking repeat-safe (upsert on a natural key, or mint the batch only after the work succeeds) is the prerequisite for ever retrying it — a named follow-on, not this PR. This test lives in its own file deliberately: schedule-exec-failure-contract.test.ts vi.mocks agentRegistry, so importing it there would resolve to the mock and assert nothing about the real policy.",
+      "waiver": "",
+      "layer": 1
+    },
+    {
       "id": "T14",
-      "title": "The disabled-seed insert lands against a real database",
+      "title": "The migration lands against a real database — and writes no `schedules` row",
       "surface": "cli",
       "precondition": "Merge to dev/dave and let the deploy run npm run db:migrate against the dev database.",
       "steps": [
         "Run the migration against dev.",
-        "Confirm nap_consistency_observation exists.",
-        "Confirm exactly one schedules row for agent_key 'nap_consistency' with enabled = false."
+        "Confirm nap_consistency_observation exists with the expected columns, unique index and FKs.",
+        "Confirm NO schedules row for agent_key 'nap_consistency' was created by the migration.",
+        "Confirm the migration re-runs cleanly against the now-partial state (resumability)."
       ],
-      "expected": "The table is created and the schedule row lands DISABLED, with no duplicate and no error.",
+      "expected": "The table is created; `schedules` is untouched; no error.",
       "status": "pending",
       "evidence": "",
-      "notes": "HONESTLY NOT RUN. This is the one path never exercised locally — the sandbox lacks the schedules table and this suite is DB-mocked, so every migration proof above (T10-T13) asserts SHAPE via a mocked knex, not real DDL. The spec's 'rolled-back sandbox proof' was therefore NOT performed. This is the post-merge dev smoke test named in the get-found chain merge brief. It must NOT be marked pass until someone runs it against dev.",
+      "notes": "HONESTLY NOT RUN — and note the changed shape at Rev 6: with the seed removed there is no longer a seed-insert to verify, so this item now verifies real DDL plus the ABSENCE of a schedules write. Every migration proof in this file (T10-T13) asserts SHAPE via a mocked knex — they prove which knex calls are made, NOT that the DDL is valid PostgreSQL. This is the post-merge dev smoke test named in the get-found chain merge brief. It must NOT be marked pass until someone runs it against dev.",
       "waiver": "",
       "layer": 2
     },
@@ -321,19 +386,20 @@
       "id": "T15",
       "title": "A live end-to-end run against real SerpApi",
       "surface": "ui",
-      "precondition": "Enable the nap_consistency schedule on dev and let one run execute.",
+      "precondition": "On dev, an operator CREATES the nap_consistency schedule (POST /api/admin/schedules — it is no longer seeded), enables it, and lets one run execute.",
       "steps": [
-        "Enable the schedule.",
+        "Create the schedule for agent_key 'nap_consistency' via the admin Schedules page.",
+        "Enable it.",
         "Observe one run for an onboarded location.",
         "Inspect the recorded observation against the live listings."
       ],
       "expected": "The monitor records an observation whose conflicts match what the live listings actually show.",
       "status": "pending",
       "evidence": "",
-      "notes": "HONESTLY NOT RUN and deliberately deferred — the spec lists this as the post-merge Dave/dev smoke test. Enabling incurs real SerpApi cost and is Corey's call, not a merge step. Every proof in this file is unit-level with injected seams; no live provider call has been made.",
+      "notes": "HONESTLY NOT RUN and deliberately deferred — the post-merge Dave/dev smoke test. Rev 6 changed step 1: the schedule is no longer seeded, so an operator creates it first. Creating AND enabling incur real SerpApi cost and are Corey's call, not a merge step. Every proof in this file is unit-level with injected seams; no live provider call has been made.",
       "waiver": "",
       "layer": 2
     }
   ],
-  "layerNote": "§20.5 defines this artifact as the Layer 2 acceptance checklist — behavioural validation against the RUNNING app. Every item marked `layer: 1` is a Layer 1 automated-test receipt (vitest, injected seams, no network and no database); it is listed here for traceability and is NOT behavioural validation. NO Layer 2 validation has been performed for this plan: both layer-2 items (T14, T15) are pending. The roll-up therefore stays In Progress and must not be read as an accepted feature."
+  "layerNote": "§20.5 defines this artifact as the Layer 2 acceptance checklist — behavioural validation against the RUNNING app. Every item marked `layer: 1` is a Layer 1 automated-test receipt (vitest, injected seams or mocked collaborators; no network, no Redis and no database); it is listed here for traceability and is NOT behavioural validation. T22 is weaker still: a static code-review receipt, not an executed test — it says so in its notes. NO Layer 2 validation has been performed for this plan: both layer-2 items (T14, T15) are pending. The roll-up therefore stays In Progress and must not be read as an accepted feature. Specifically NOT proven anywhere in this file: that the migration's DDL is valid PostgreSQL (T10-T13 assert which knex calls are made, via a mocked knex), and that BullMQ actually retries a rejected job (T21 proves only the precondition — that the promise rejects)."
 }

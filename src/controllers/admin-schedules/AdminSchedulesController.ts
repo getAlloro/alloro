@@ -221,14 +221,56 @@ export async function triggerRun(req: Request, res: Response): Promise<any> {
     // Return immediately — run executes in background
     res.json({ success: true, data: { runId: run.id, message: `"${schedule.display_name}" triggered` } });
 
-    // Background execution
-    try {
-      const result = await agent.handler();
-      await ScheduleRunModel.completeRun(run.id, result.summary);
-      await ScheduleModel.updateById(schedule.id, { last_run_at: new Date() });
-    } catch (error: any) {
-      await ScheduleRunModel.failRun(run.id, error.message || String(error));
-    }
+    // ---- Background execution. Everything past the response above MUST be
+    // self-contained: the reply is already sent, so an error escaping to the
+    // outer catch would call handleError() on a finished response and throw
+    // ERR_HTTP_HEADERS_SENT instead of reporting anything useful.
+    //
+    // This is the manual-trigger twin of the scheduler's failure contract
+    // (workers/processors/scheduleExec.processor.ts). It cannot rethrow into
+    // BullMQ retry/backoff — it is not a job, it is an operator pressing "run
+    // now" in-process — so the §21.2 obligation it CAN meet is the other half:
+    // never drop the failure silently. It used to call failRun() and swallow,
+    // logging nothing at all, so a failed manual run was invisible outside the
+    // runs table. It now logs with full context (§21.4) and can no longer
+    // corrupt the response.
+    void (async () => {
+      try {
+        const result = await agent.handler();
+        await ScheduleRunModel.completeRun(run.id, result.summary);
+        await ScheduleModel.updateById(schedule.id, { last_run_at: new Date() });
+        logger.info(
+          { scheduleId: schedule.id, runId: run.id, agentKey: schedule.agent_key },
+          `[ADMIN-SCHEDULES] manual run of "${schedule.agent_key}" completed`
+        );
+      } catch (error: any) {
+        const message = error?.message || String(error);
+        // §21.4 — identifiers + the error. No retry: a manual trigger is
+        // operator-initiated, so the operator is the retry, and this log plus
+        // the failed run row is what tells them.
+        logger.error(
+          { err: message, scheduleId: schedule.id, runId: run.id, agentKey: schedule.agent_key },
+          `[ADMIN-SCHEDULES] manual run of "${schedule.agent_key}" FAILED`
+        );
+        try {
+          await ScheduleRunModel.failRun(run.id, message);
+        } catch (markError: any) {
+          // The run row is now stuck 'running' and hasActiveRun() will block
+          // re-triggering this schedule. Say so loudly — this is the one that
+          // needs a human.
+          logger.error(
+            {
+              err: markError?.message || String(markError),
+              originalErr: message,
+              scheduleId: schedule.id,
+              runId: run.id,
+              agentKey: schedule.agent_key,
+            },
+            `[ADMIN-SCHEDULES] could not mark run ${run.id} failed — the run row may be stranded 'running' and block re-triggering`
+          );
+        }
+      }
+    })();
   } catch (error) {
     return handleError(res, error, "triggerRun");
   }
