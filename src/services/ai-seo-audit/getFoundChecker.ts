@@ -10,7 +10,10 @@
  *   - identityExtractionService.extractIdentityFromHtml → parse ld+json (incl.
  *     @graph), extract the entity, discover sameAs (NOT re-implemented here),
  *   - entityConsistencyService.compareExternalIdentity → GBP↔page consistency,
- *   - GbpContentSafetyService.validateGeneratedCopy → the honesty gate,
+ *   - GeneratedCopySafetyService.validateGeneratedCopy → the honesty gate
+ *     (neutral shared service under src/services/, consumed by both this
+ *     checker and the GBP domain — §7.1 forbids importing another domain's
+ *     controller-scoped feature-service),
  * and adds only the thin new logic (schema completeness, answer-first lint,
  * recommendation assembly, observability).
  */
@@ -26,7 +29,7 @@ import {
   lintAnswerFirstStructure,
   type AnswerFirstLintResult,
 } from "./answerFirstStructureLint";
-import { GbpContentSafetyService } from "../../controllers/gbp-automation/feature-services/GbpContentSafetyService";
+import { GeneratedCopySafetyService } from "../content-safety/GeneratedCopySafetyService";
 import type { ExtractedBusinessIdentity, AiSeoExternalMatchState } from "./types";
 
 /** Internal-only signal string. NEVER placed in owner-facing recommendation copy. */
@@ -116,11 +119,11 @@ export function runGetFoundChecker(
   // 3. Answer-first structure lint.
   const answerFirst = lintAnswerFirstStructure(html);
 
-  // 4. Honesty gate over any proposed copy (EXTENDS GbpContentSafetyService).
+  // 4. Honesty gate over any proposed copy (shared GeneratedCopySafetyService).
   const blockedReasons: string[] = [];
   let honestyPassed = true;
   for (const copy of candidateCopy) {
-    const result = GbpContentSafetyService.validateGeneratedCopy(copy);
+    const result = GeneratedCopySafetyService.validateGeneratedCopy(copy);
     if (!result.isSafe) {
       honestyPassed = false;
       blockedReasons.push(...result.reasons);
