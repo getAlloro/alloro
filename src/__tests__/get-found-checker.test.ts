@@ -8,7 +8,7 @@ import {
   INTERNAL_AEO_INCOMPLETE_SIGNAL,
 } from "../services/ai-seo-audit/getFoundChecker";
 import { lintAnswerFirstStructure } from "../services/ai-seo-audit/answerFirstStructureLint";
-import { GbpContentSafetyService } from "../controllers/gbp-automation/feature-services/GbpContentSafetyService";
+import { GeneratedCopySafetyService } from "../services/content-safety/GeneratedCopySafetyService";
 
 /**
  * Alloro Funnel Engine — Slice 1a (get-found) proofs. Locks the three behaviors
@@ -154,7 +154,7 @@ describe("answer-first lint — document-order boundary", () => {
   });
 });
 
-describe("honesty lint — GbpContentSafetyService.validateGeneratedCopy", () => {
+describe("honesty lint — GeneratedCopySafetyService.validateGeneratedCopy", () => {
   const rejected = [
     "We will get you to rank #1 on Google.",
     "Your practice page will be at the top of google in weeks.",
@@ -169,7 +169,7 @@ describe("honesty lint — GbpContentSafetyService.validateGeneratedCopy", () =>
   ];
 
   it.each(rejected)("REJECTS ranking/placement/visibility copy: %s", (copy) => {
-    const result = GbpContentSafetyService.validateGeneratedCopy(copy);
+    const result = GeneratedCopySafetyService.validateGeneratedCopy(copy);
     expect(result.isSafe).toBe(false);
     expect(result.status).toBe("blocked");
     expect(result.reasonCodes.length).toBeGreaterThan(0);
@@ -185,7 +185,57 @@ describe("honesty lint — GbpContentSafetyService.validateGeneratedCopy", () =>
   ];
 
   it.each(honest)("PASSES honest copy (no false positive): %s", (copy) => {
-    const result = GbpContentSafetyService.validateGeneratedCopy(copy);
+    const result = GeneratedCopySafetyService.validateGeneratedCopy(copy);
+    expect(result.isSafe).toBe(true);
+    expect(result.status).toBe("safe");
+  });
+
+  /**
+   * Negation is scoped to the clause that governs the matched phrase. An honest
+   * clause must not launder a promise that follows it: a negator before an
+   * adversative conjunction ("but", "however", …) or before a new coordinated
+   * subject does not reach the later clause, so the promise is still blocked.
+   */
+  const negationScoped = [
+    "We do not use shortcuts, but we guarantee first page placement.",
+    "We do not use shortcuts, however we guarantee first page placement.",
+    "We don't cut corners and we guarantee first page placement.",
+    "We never inflate results, though we will rank you #1 on Google.",
+    // A leading subordinate clause is closed by its comma: the negator lives in
+    // the subordinate clause and does not reach the main clause.
+    "While we do not use shortcuts, we guarantee first page placement.",
+    "Whereas we do not use shortcuts, we guarantee first page placement.",
+    "Even though we avoid tricks, we guarantee first page placement.",
+    "We do not use shortcuts. We guarantee first page placement.",
+    "We don't cut corners; we guarantee first page placement.",
+    "We make no promises, yet we guarantee first page placement.",
+  ];
+
+  it.each(negationScoped)("REJECTS a promise in a later clause the negator does not govern: %s", (copy) => {
+    const result = GeneratedCopySafetyService.validateGeneratedCopy(copy);
+    expect(result.isSafe).toBe(false);
+    expect(result.status).toBe("blocked");
+    expect(result.reasonCodes.length).toBeGreaterThan(0);
+  });
+
+  /**
+   * The mirror of the above: negation that GENUINELY distributes across a
+   * coordinated verb phrase sharing the negated auxiliary must still pass, so
+   * the scoping fix does not over-block honest disclaimers.
+   */
+  const negationDistributes = [
+    "We will not rank you #1 or get you to page one.",
+    "We do not and will not guarantee a higher ranking.",
+    "We never make claims about your google ranking.",
+    "Although we do not guarantee a higher ranking, we do complete your schema.",
+    // "yet" as an adverb shares the negated auxiliary — not an adversative.
+    "We have not yet guaranteed a higher ranking.",
+    // The negator governs the phrase in the main clause.
+    "While we do complete your schema, we make no google ranking promises.",
+  ];
+
+  it.each(negationDistributes)("PASSES an honest disclaimer whose negator governs the phrase: %s", (copy) => {
+    const result = GeneratedCopySafetyService.validateGeneratedCopy(copy);
     expect(result.isSafe).toBe(true);
     expect(result.status).toBe("safe");
   });
