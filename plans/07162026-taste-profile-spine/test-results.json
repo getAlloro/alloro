@@ -1,7 +1,7 @@
 {
   "plan": "plans/07162026-taste-profile-spine",
   "generatedAt": "2026-07-16",
-  "status": "In Progress",
+  "status": "Passed",
   "items": [
     {
       "id": "T1",
@@ -110,7 +110,7 @@
       "status": "pending",
       "evidence": "Verified by grep on the branch head: the only callers of the composition functions are in src/__tests__/taste-profile-composition.test.ts; no src/ module imports TasteProfileModel.",
       "notes": "This is review finding #3 restated as an acceptance gap. It is recorded as pending - NOT waived to green - so the package rolls up 'In Progress' rather than 'Passed'. Substituting the Layer-1 unit runs for Layer-2 here would be exactly the over-claim the honesty gate exists to prevent.",
-      "waiver": ""
+      "waiver": "WAIVED as out of scope for this PR, per Dave's round-3 review (2026-07-16T19:44:56Z): \"Because this branch deliberately has no production caller, either scope the artifact as an internal-only foundation with an honest N/A behavioral item, or wire/run the claimed surface.\" This artifact takes the first option: PR #160 is scoped as an internal-only foundation (model + migration + composition, zero importers), so a Layer-2 behavioral run is N/A here - not deferred, not skipped, but genuinely not expressible until a consuming surface exists. NOTE: the live-PostgreSQL waiver does NOT cover this item and is not claimed for it - T7 would be unrunnable even with a live database, because no route, job, or consumer composes and persists a profile. The blocker is the absent caller, not the absent DB. This item must be executed by the PR that wires the surface (the stacked #171), against the running app; it is recorded here rather than deleted so that obligation cannot be lost."
     },
     {
       "id": "T8",
@@ -141,7 +141,7 @@
       "status": "pending",
       "evidence": "Confirmed BOTH ways. Directly: `gh pr checks 160` returns \"no checks reported on the 'claude/taste-profile-spine' branch\" against PR head da282309. Structurally: `grep -rn pull_request .github/workflows/` returns nothing, and the three workflow files carry push-only triggers - deploy-sandbox.yml [sandbox], dev.yml [dev/dave], main.yml [main]. The structural proof is the load-bearing one: with no trigger, no check CAN exist to report, so this is not a transient empty result that would fill in later.",
       "notes": "HONEST LIMIT, not a gap this PR can close. This is an infrastructure absence already raised with Dave, not something the branch did wrong; adding a pull_request CI workflow is its own change, out of scope here. Recorded as pending rather than waived to green so the package cannot roll up 'Passed' on a check nobody ran. Every gate CI would have proven was instead run locally on Node 22.23.1 and is recorded in T8 with exit codes.",
-      "waiver": ""
+      "waiver": "WAIVED as N/A on Dave's explicit round-2 ruling (2026-07-16T16:21:48Z): \"The absence of PR CI itself is N/A, not a blocker.\" Structurally unsatisfiable on any branch - no pull_request trigger exists in .github/workflows/, so no check CAN attach to a PR head. Every gate CI would have run was run locally on Node 22.23.1 with exit codes recorded (T19). Kept as an item rather than deleted because the underlying infrastructure gap is real and still open; it is simply not this PR's to close."
     },
     {
       "id": "T10",
@@ -224,7 +224,7 @@
       "status": "pending",
       "evidence": "Verified by reading the code: the excerpt IS verified verbatim upstream (extractPracticeFacts.processor.ts verifyFacts, which also requires source_field to be a known PracticeFactSourceField). The composition service receives only the extractor's output, so it cannot re-derive whether the restatement is supported. The boundary is now documented at the practice-fact mapping in service.taste-profile.ts.",
       "notes": "Deliberately NOT closed with a heuristic. A token-overlap test would pass almost any restatement reusing a couple of the excerpt's words, so it would not catch the overstatement it appears to guard against - it would only make an unverified claim LOOK verified, which is the exact failure this gate exists to prevent. Closing it for real belongs in the extractor, where the source text is. Recorded as pending so the package cannot roll up 'Passed' on a check nobody can run here.",
-      "waiver": ""
+      "waiver": "WAIVED as an accepted upstream limitation, per Dave's round-3 review (2026-07-16T19:44:56Z): \"If T14 is an accepted upstream limitation, record an explicit waiver rather than leaving finalization ambiguous.\" It is one. Support for a distilled restatement can only be checked where the original source text lives - extractPracticeFacts.processor.verifyFacts, which already verifies the excerpt verbatim against the real scraped/GBP input. The composition layer receives only the extractor's OUTPUT, so it cannot re-derive that support no matter what this PR does; closing it here would require a token-overlap heuristic that would pass almost any restatement reusing a few of the excerpt's words - making an unverified claim LOOK verified, the exact failure the honesty gate exists to prevent. The boundary is documented in code at the practice-fact mapping in service.taste-profile.ts. Closing it for real is an extractor change, out of scope for this branch. Waived deliberately, NOT converted to pass: nothing here proves fact_text is supported by its excerpt, and this artifact does not claim it does."
     },
     {
       "id": "T15",
@@ -239,6 +239,73 @@
       "expected": "All three gates green with no new violations attributable to this branch.",
       "status": "pass",
       "evidence": "tsc --noEmit exit 0. vitest: 62 files / 499 tests passed (up from 481; +18 from this round's regression tests). check:conventions --strict exit 0, 'CLEAR structural violations - backend (size + console + db): 0'; no taste-profile file appears in ANY check, including the §11.7 tenant-scope heuristic. File sizes within §2.4 tiers (model 272, service 470, util 227); resolveReviewSource is 41 lines (§2.2) at nesting depth 3 (§2.3).",
+      "notes": "Local runs on Node 22.23.1, not CI - no pull_request workflow exists to attach checks to the PR head (T9). These are the same gates CI would have run.",
+      "waiver": ""
+    },
+    {
+      "id": "T16",
+      "title": "The owner approval signature is write-once - a second approval cannot overwrite it (§5.4)",
+      "surface": "cli",
+      "precondition": "Round-3 finding #1. markApproved() filtered only by { id, organization_id }, so calling it on an ALREADY-APPROVED row re-ran the UPDATE and overwrote approved_by/approved_at. A later caller in the same org could silently reattribute the owner sign-off to a different person and time. The approval gate is the point where a human stakes what the AI drafted; a signature that can be overwritten is not a signature, and the audit trail would name someone who never approved.",
+      "steps": [
+        "Add `status: \"draft\"` to markApproved()'s WHERE clause, making draft -> approved a one-way transition: an approved row stops matching its own update predicate.",
+        "Test the transition BOTH ways: the first approval records the signature; a second approver (same org, same id, correct scope) cannot rewrite it.",
+        "Test that the SAME owner re-approving is an idempotent no-op that does not restamp approved_at.",
+        "Test that the guard lives in the WHERE clause the DB evaluates, not in caller-side code.",
+        "Test that the guard is POSITIVE (status = draft) and so fails closed on any future status.",
+        "Mutation-check: strip the guard and re-run."
+      ],
+      "expected": "First approval returns 1 and stamps approved_by/approved_at. Every subsequent call returns 0 and leaves the original approver and timestamp untouched.",
+      "status": "pass",
+      "evidence": "vitest exit 0, 26/26 in src/__tests__/TasteProfileModel.test.ts (was 19). MUTATION-VERIFIED and non-vacuous: with `status: \"draft\"` stripped from the WHERE, `npx vitest run` on this suite exits 1 with 6 failed | 20 passed (26). The decisive failure is \"a SECOND approver cannot rewrite the original signature\" - AssertionError: expected 1 to be +0, i.e. WITHOUT the fix the re-approval updates the row, which is the reported bug reproduced. Also failing on the mutant: the idempotent re-approval test, the WHERE-shape test, the fail-closed test, and the T17 class sweep. Precision check: \"records the signature on the FIRST approval\" PASSES on the mutant - correct, because the guard only blocks the SECOND call, so the suite is discriminating rather than blunt. Model restored byte-identical after the mutation (diff clean); tsc --noEmit exit 0 and 26/26 green again.",
+      "notes": "DESIGN DECISION - no-op returning 0, not a typed error. Justification: (1) re-approval is not a crash, and §21.1 requires a repeat run to be SAFE rather than loud (\"a job may run more than once (retries, at-least-once delivery); design every job so a repeat run is safe\") - a guarded UPDATE is precisely the idempotency guard that Article asks for - an at-least-once job, a retried request, or a double-clicked Approve button all re-issue the call and the desired end state already holds, so the idempotent answer is \"0 rows changed\", not an exception every caller must catch to behave correctly; (2) whether a 0 should surface as a 404, a 409, or a benign no-op is a POLICY question that depends on the calling surface, and this is a thin DB-correctness layer with no business logic in it (§6.1) - the model makes the illegal write impossible and reports what it did, the caller reads back with findByIdForOrg to decide what a 0 means; (3) returning 0 uniformly for wrong-org / no-such-id / already-approved preserves the no-existence-leak property (§11.7) that findByIdForOrg is deliberately built around. The guard is positive rather than `whereNot status = approved` so a future status ('revoked', 'archived') cannot transition to approved and mint a fresh signature - it fails closed until the predicate is deliberately widened. The guard is a single atomic UPDATE predicate rather than a read-then-write check, which would race: two concurrent approvals could both read 'draft' and both write. HONEST LIMIT ON CONCURRENCY: the suite asserts the draft-only predicate is IN the WHERE clause; it does NOT execute concurrent transactions - there is no live Postgres here (T18), so no test proves the two-writer race. The single guarded UPDATE is the right shape per Postgres's documented READ COMMITTED behaviour (a second UPDATE blocks on the first's row lock, re-evaluates its WHERE against the updated row on commit via EvalPlanQual, no longer matches status='draft', and reports 0; under REPEATABLE READ/SERIALIZABLE it raises a serialization failure instead - either way the signature is not overwritten, only the observable differs). That is REASONED from documented semantics, not observed, and is labelled as such in the code rather than claimed as a receipt.",
+      "waiver": ""
+    },
+    {
+      "id": "T17",
+      "title": "THE CLASS: no entry point reachable on the model can reattribute a signature (§5.4/§11.7)",
+      "surface": "cli",
+      "precondition": "Guarding markApproved alone fixes the named instance. The class question is whether ANY callable path on this model can rewrite a finalized approved_by/approved_at - and whether a path added later would be caught. Every prior round of this PR failed by fixing only the reported instance, so the surface is enumerated at RUNTIME rather than trusted to a hand-written list.",
+      "steps": [
+        "Enumerate every function-valued static reachable on TasteProfileModel by walking the prototype chain (own + inherited), and assert it equals a frozen, classified set.",
+        "Seed an APPROVED row and drive every candidate write against it - markApproved plus each sealed path called untyped, with a forged signature and the correct org/id - asserting the signature survives each one.",
+        "Mutation-check both halves: strip the markApproved guard; and separately add an unaudited write method to the class."
+      ],
+      "expected": "The callable surface matches the audited classification exactly, and no reachable path leaves the row present-but-reattributed. A new or newly inherited entry point fails the suite until classified.",
+      "status": "pass",
+      "evidence": "vitest exit 0 against the fixed model. THE SWEEP FOUND NO SECOND INSTANCE: enumerating the runtime surface yields 20 callables and every one is accounted for - 2 scoped readers (findByIdForOrg, findLatestByOrgAndLocation); 3 audited writers (create = draft-only + explicit column copy, markApproved = draft-only transition, deleteByIdForOrg = removes the row, and deletion is not reattribution); 8 sealed (count, createReturningId, deleteById, findById, findMany, findOne, paginate, updateById); 2 non-table (transaction, beginTransaction - they delegate to db.transaction() and return a handle, never querying this table); 5 BaseModel internals (table, parseJson, toJson, serializeJsonFields, deserializeJsonFields - `protected` is compile-time only, so they are listed because at runtime they ARE reachable). markApproved was the only unsealed path that could rewrite a signature, and it is now guarded. MUTATION-VERIFIED both halves: (a) with the guard stripped, \"no reachable entry point can alter an approved row's signature\" fails; (b) adding a `static touchApproval()` that updates approved_by makes the surface test fail with `+ \"touchApproval\"` in the diff, exit 1 - proving a future unaudited write path cannot land silently. Model restored byte-identical after both mutations.",
+      "notes": "This is the durable half of the fix: it converts \"we swept the write paths once\" into \"the sweep is enforced on every run\". The prior rounds' work is regression-covered rather than re-litigated - the sealed-entry-point tests, the draft-only create tests, and the forged-source/isRealSource fixes (T12/T13) all still pass unchanged, and the full-suite count only grew. The one honest gap this cannot close: a caller holding a raw knex/trx handle can write the table directly, bypassing the model entirely. That is true of every model in the repo and is out of this PR's control; the model is the enforcement boundary, not the database.",
+      "waiver": ""
+    },
+    {
+      "id": "T18",
+      "title": "The taste_profiles migration runs (and rolls back) against a live PostgreSQL",
+      "surface": "cli",
+      "precondition": "RECORDED, NOT RUN. This PR ships a SQL migration (20260714000000_create_taste_profiles.ts), so migration execution is a real acceptance surface. It was missing from this artifact through rounds 1-3, which is itself a gap: the package asserted migration SAFETY while listing no item for actually executing it. Added now so the obligation is visible rather than implied. There is NO live database in this environment - no PostgreSQL, no Docker - so it cannot be executed here.",
+      "steps": [
+        "Run `npm run db:migrate` against a PostgreSQL instance and confirm taste_profiles is created with its indexes.",
+        "Run `npm run db:rollback` and confirm the table is dropped cleanly.",
+        "Confirm the up() hasTable guard makes a re-run a no-op."
+      ],
+      "expected": "Additive create with no locks on existing tables; idempotent up(); reversible down(). No existing table or row is touched.",
+      "status": "pending",
+      "evidence": "NOT EXECUTED - no live PostgreSQL in this environment, so there is no execution receipt and none is claimed. What IS verified, by reading the migration: up() is guarded by `hasTable` and returns early if the table exists (idempotent); it only calls createTable on a NEW table, so it takes no lock on any existing table and rewrites no existing data; down() is a plain dropTableIfExists (reversible, and destructive only to the table this migration created). Risk to production data is therefore structural-only: a new empty table. This reading is NOT a substitute for a run and is not recorded as one.",
+      "notes": "Per the waiver, the first real execution may occur during the dev deployment and must be checked through the deployment result, migration status, and DB health check (`/api/health/db`) - that check is the outstanding obligation this item hands to the deploy, not something this branch closed.",
+      "waiver": "Owner waiver, Dave, PR #160 comment 2026-07-16T17:54:36Z, issued for head 18742ebe: \"Dave explicitly waives a local/disposable PostgreSQL execution receipt as a pre-merge requirement... Pending live-PostgreSQL acceptance items may be marked waived with this reason.\" The waiver names head 18742ebe; this head is a descendant of it and `git diff 18742ebe c337cb0a` touches ONLY plan docs (spec.html, test-results.json) - no src/ change - so the code the waiver was issued against is unchanged. Round-3 adds the markApproved guard on top; that is TypeScript, not schema, and the migration file is byte-identical to the waived head."
+    },
+    {
+      "id": "T19",
+      "title": "No regression across the backend suite (round 3)",
+      "surface": "cli",
+      "precondition": "Node 22.23.1 in the /tmp/fix-160 worktree. Exit codes read directly from the command, never through a pipe (`$?` immediately after the process, with output redirected to a file) - a piped exit status reports the tail's, not the runner's. No live database, so DB-backed proofs stay pending (T7, T18).",
+      "steps": [
+        "npx tsc --noEmit",
+        "npx vitest run",
+        "npm run check:conventions -- --strict"
+      ],
+      "expected": "All three gates green with no new violations attributable to this branch.",
+      "status": "pass",
+      "evidence": "tsc --noEmit: exit 0. vitest (full suite): exit 0, 62 files / 506 tests passed, 0 failed - up from 499 at c337cb0a (+7 from this round's write-once and class-sweep tests); no previously passing test changed status. check:conventions -- --strict: exit 0, 'CLEAR structural violations - backend (size + console + db): 0'; no taste-profile file appears in any check. File sizes within §2.4 tiers after the change (model 313 lines, test 632). Prior rounds' verified work is intact and regression-covered: the 8 seals, draft-only create, and the resolveReviewSource/isRealSource honesty fixes all still pass unchanged.",
       "notes": "Local runs on Node 22.23.1, not CI - no pull_request workflow exists to attach checks to the PR head (T9). These are the same gates CI would have run.",
       "waiver": ""
     }

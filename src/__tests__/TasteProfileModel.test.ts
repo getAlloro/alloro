@@ -199,9 +199,12 @@ describe("TasteProfileModel — cross-org isolation: mutations (§11.7/§20.2)",
     expect(updated).toBe(1);
     expect(rows[0].status).toBe("approved");
     expect(rows[0].approved_by).toBe("owner@org-a.test");
+    // The predicate carries the tenant scope (§11.7) AND the draft-only
+    // transition guard (§5.4) — both are part of this one WHERE clause.
     expect(lastWhereConditions).toContainEqual({
       id: "tp-a",
       organization_id: ORG_A,
+      status: "draft",
     });
   });
 
@@ -391,5 +394,252 @@ describe("TasteProfileModel — create is always a draft (§5.4)", () => {
     // The smuggled sign-off never reached the row.
     expect(rows[0].approved_by ?? null).toBeNull();
     expect(rows[0].approved_at ?? null).toBeNull();
+  });
+});
+
+/**
+ * The owner signature is WRITE-ONCE (§5.4).
+ *
+ * `approved_by`/`approved_at` are the audit record of WHO staked a profile and
+ * WHEN. If a later call can overwrite them, the sign-off gate is decorative: the
+ * trail would attribute an approval to someone who never made it, and there
+ * would be no way to tell from the row that it happened. A stake you can
+ * overwrite is not a stake. These tests assert the transition BOTH ways — the
+ * first approval records, the second cannot rewrite it.
+ */
+describe("TasteProfileModel — the owner signature is write-once (§5.4)", () => {
+  const FIRST_OWNER = "owner@org-a.test";
+  const SECOND_OWNER = "someone-else@org-a.test";
+  const APPROVED_AT = new Date("2026-07-01T12:00:00Z");
+
+  it("records the signature on the FIRST approval", async () => {
+    rows = [makeRow({ id: "tp-a", organization_id: ORG_A, status: "draft" })];
+
+    const updated = await TasteProfileModel.markApproved("tp-a", ORG_A, FIRST_OWNER);
+
+    expect(updated).toBe(1);
+    expect(rows[0].status).toBe("approved");
+    expect(rows[0].approved_by).toBe(FIRST_OWNER);
+    expect(rows[0].approved_at).toBeInstanceOf(Date);
+  });
+
+  it("a SECOND approver cannot rewrite the original signature", async () => {
+    // The row is already signed by FIRST_OWNER.
+    rows = [
+      makeRow({
+        id: "tp-a",
+        organization_id: ORG_A,
+        status: "approved",
+        approved_by: FIRST_OWNER,
+        approved_at: APPROVED_AT,
+      }),
+    ];
+
+    // Same org, same id — this caller passes every tenant check. Only the
+    // draft-only transition guard stands between them and the audit trail.
+    const updated = await TasteProfileModel.markApproved("tp-a", ORG_A, SECOND_OWNER);
+
+    expect(updated).toBe(0); // no-op: the row no longer matches the predicate.
+    expect(rows[0].approved_by).toBe(FIRST_OWNER); // NOT reattributed.
+    expect(rows[0].approved_at).toBe(APPROVED_AT); // NOT restamped.
+    expect(rows[0].status).toBe("approved");
+  });
+
+  it("the SAME owner re-approving is an idempotent no-op, not a restamp", async () => {
+    // A retried job or a double-clicked Approve button must not move the
+    // recorded approval time — `approved_at` is when the owner actually staked
+    // it, not when the last duplicate request arrived.
+    rows = [
+      makeRow({
+        id: "tp-a",
+        organization_id: ORG_A,
+        status: "approved",
+        approved_by: FIRST_OWNER,
+        approved_at: APPROVED_AT,
+      }),
+    ];
+
+    const updated = await TasteProfileModel.markApproved("tp-a", ORG_A, FIRST_OWNER);
+
+    expect(updated).toBe(0);
+    expect(rows[0].approved_at).toBe(APPROVED_AT); // the original instant stands.
+    expect(rows[0].approved_by).toBe(FIRST_OWNER);
+  });
+
+  it("carries the draft-only guard in the WHERE clause, not in caller code", async () => {
+    // The guard must live in the predicate the DB evaluates, not in a
+    // read-then-write check in the model or the caller: two concurrent
+    // approvals could both read 'draft' and both then write, and the second
+    // write would silently reattribute the signature the first just recorded.
+    //
+    // HONEST LIMIT ON THE CONCURRENCY CLAIM: this test asserts only that the
+    // predicate is IN the WHERE clause — that is all an in-memory table can
+    // show. It does NOT execute concurrent transactions; there is no Postgres
+    // here (see T18). The reason a single guarded UPDATE is the right shape is
+    // Postgres's documented READ COMMITTED behaviour: a second UPDATE blocks on
+    // the first transaction's row lock, and on commit re-evaluates its WHERE
+    // against the UPDATED row (EvalPlanQual). The row is 'approved' by then, no
+    // longer matches `status = 'draft'`, and is skipped — so it reports 0 rows.
+    // Under REPEATABLE READ/SERIALIZABLE the second call instead raises a
+    // serialization failure. Either way the signature is not overwritten, which
+    // is the property that matters; only the observable differs. That is
+    // reasoned from documented semantics, NOT observed here — the claim in this
+    // suite is the predicate's presence, nothing more.
+    rows = [makeRow({ id: "tp-a", organization_id: ORG_A, status: "draft" })];
+
+    await TasteProfileModel.markApproved("tp-a", ORG_A, FIRST_OWNER);
+
+    expect(lastWhereConditions).toContainEqual({
+      id: "tp-a",
+      organization_id: ORG_A,
+      status: "draft",
+    });
+  });
+
+  it("the guard is positive (status=draft), so it fails closed on a new status", async () => {
+    // A `whereNot({ status: 'approved' })` guard would let ANY future status
+    // (e.g. 'revoked', 'archived') transition straight to approved and stamp a
+    // fresh signature. The positive `status = draft` predicate refuses anything
+    // it was not explicitly designed for.
+    rows = [
+      makeRow({
+        id: "tp-a",
+        organization_id: ORG_A,
+        status: "archived" as unknown as "draft",
+        approved_by: null,
+      }),
+    ];
+
+    const updated = await TasteProfileModel.markApproved("tp-a", ORG_A, SECOND_OWNER);
+
+    expect(updated).toBe(0);
+    expect(rows[0].status).toBe("archived");
+    expect(rows[0].approved_by).toBeNull();
+  });
+});
+
+/**
+ * THE CLASS, NOT THE INSTANCE (§5.4/§11.7).
+ *
+ * Guarding `markApproved` only fixes the write path we happened to look at. The
+ * durable question is: can ANY entry point reachable on this model reattribute a
+ * finalized signature? These two tests answer it by enumerating the class's
+ * whole runtime surface rather than trusting a hand-written list — so a method
+ * added later, or a new static inherited from a future `BaseModel`, FAILS this
+ * suite until someone audits it against the write-once rule.
+ */
+describe("TasteProfileModel — no write path can reattribute a signature (§5.4)", () => {
+  /** Every function-valued static reachable on the model, own + inherited. */
+  function callableSurface(): string[] {
+    const found = new Set<string>();
+    for (
+      let target: unknown = TasteProfileModel;
+      target && target !== Function.prototype;
+      target = Object.getPrototypeOf(target)
+    ) {
+      for (const key of Object.getOwnPropertyNames(target)) {
+        if (["length", "name", "prototype"].includes(key)) continue;
+        if (typeof (target as Record<string, unknown>)[key] === "function") {
+          found.add(key);
+        }
+      }
+    }
+    return [...found].sort();
+  }
+
+  it("has no callable static beyond the audited set", () => {
+    // Each name below is classified against the write-once rule. `protected` in
+    // TypeScript is compile-time only, so the helpers are listed too: at runtime
+    // they are reachable, and this test is about what CAN be called.
+    const scopedReaders = ["findByIdForOrg", "findLatestByOrgAndLocation"];
+    // The only paths that write columns on this table:
+    //  - create ............ draft-only, explicit column copy (never a signature)
+    //  - markApproved ...... draft-only one-way transition (writes it once)
+    //  - deleteByIdForOrg .. removes the row; deletion is not reattribution
+    const auditedWriters = ["create", "markApproved", "deleteByIdForOrg"];
+    const sealed = [
+      "count",
+      "createReturningId",
+      "deleteById",
+      "findById",
+      "findMany",
+      "findOne",
+      "paginate",
+      "updateById",
+    ];
+    // Delegate to db.transaction() and hand back a handle; they never query
+    // this table, so there is no predicate to enforce on them.
+    const nonTable = ["beginTransaction", "transaction"];
+    const internals = [
+      "table",
+      "parseJson",
+      "toJson",
+      "serializeJsonFields",
+      "deserializeJsonFields",
+    ];
+
+    const audited = [
+      ...scopedReaders,
+      ...auditedWriters,
+      ...sealed,
+      ...nonTable,
+      ...internals,
+    ].sort();
+
+    // An unfamiliar name here means a new entry point exists that this rule has
+    // never been checked against. Classify it above — do not just append it.
+    expect(callableSurface()).toEqual(audited);
+  });
+
+  it("no reachable entry point can alter an approved row's signature", async () => {
+    const ORIGINAL_AT = new Date("2026-07-01T12:00:00Z");
+    const seedApproved = () => {
+      rows = [
+        makeRow({
+          id: "tp-a",
+          organization_id: ORG_A,
+          status: "approved",
+          approved_by: "owner@org-a.test",
+          approved_at: ORIGINAL_AT,
+        }),
+      ];
+    };
+
+    // Every candidate write, driven with the arguments an attacker would use:
+    // the correct org, the correct id, and a forged signature. Sealed paths are
+    // called untyped (a JS caller / a cast) so the runtime backstop is exercised
+    // rather than assumed — tsc already blocks the typed call (TS2554).
+    const untyped = TasteProfileModel as unknown as Record<
+      string,
+      (...args: unknown[]) => Promise<unknown>
+    >;
+    const forgedSignature = {
+      status: "approved",
+      approved_by: "attacker@example.test",
+      approved_at: new Date("2026-07-16T00:00:00Z"),
+    };
+
+    const attempts: Array<[string, () => Promise<unknown>]> = [
+      ["markApproved", () => TasteProfileModel.markApproved("tp-a", ORG_A, "attacker@example.test")],
+      ["updateById", () => untyped.updateById("tp-a", forgedSignature)],
+      ["createReturningId", () => untyped.createReturningId({ id: "tp-a", ...forgedSignature })],
+      ["findOne", () => untyped.findOne({ id: "tp-a" })],
+      ["findMany", () => untyped.findMany({})],
+      ["findById", () => untyped.findById("tp-a")],
+      ["count", () => untyped.count()],
+      ["paginate", () => untyped.paginate({}, 1, 10)],
+    ];
+
+    for (const [name, attempt] of attempts) {
+      seedApproved();
+      // Sealed paths reject; markApproved resolves to 0. Either is acceptable —
+      // what must hold is that the signature survives, so failures are absorbed
+      // and the ROW is the assertion.
+      await attempt().catch(() => undefined);
+
+      expect(rows[0].approved_by, `${name} reattributed the signature`).toBe("owner@org-a.test");
+      expect(rows[0].approved_at, `${name} restamped the signature`).toBe(ORIGINAL_AT);
+      expect(rows[0].status, `${name} changed the status`).toBe("approved");
+    }
   });
 });

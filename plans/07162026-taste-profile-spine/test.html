@@ -54,10 +54,19 @@
     let data = null;
     const $ = id => document.getElementById(id);
     const esc = s => String(s).replace(/[&<>\"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
+    // A waiver is an explicit owner decision that an item does not block
+    // finalization (§20.5). It resolves the item whether that item RAN AND
+    // FAILED (fail + waiver) or was NEVER RUN (pending + waiver) — the shared
+    // template only recognized the first, so a deliberately-unrunnable item
+    // waived by the owner left the package stuck at "In Progress" no matter
+    // what the owner decided, and the JSON rollup and this pill disagreed.
+    // An item is resolved iff it passed or carries a waiver; an unwaived fail
+    // still blocks, and an unwaived pending is still unfinished work.
     const rollup = d => {
       if (!d.items || !d.items.length) return "Not Run";
+      const resolved = i => i.status === "pass" || Boolean(i.waiver);
       if (d.items.some(i => i.status === "fail" && !i.waiver)) return "Failed";
-      if (d.items.every(i => i.status === "pass" || (i.status === "fail" && i.waiver))) return "Passed";
+      if (d.items.every(resolved)) return "Passed";
       if (d.items.some(i => i.status !== "pending")) return "In Progress";
       return "Not Run";
     };

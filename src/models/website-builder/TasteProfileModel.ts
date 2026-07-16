@@ -40,6 +40,17 @@ export interface ITasteProfile {
  * `approved_by`/`approved_at` in the same write (§5.4 — the owner sign-off is
  * enforced here on the server, never assumed from the caller's input).
  *
+ * The owner signature is WRITE-ONCE (§5.4). `draft -> approved` is a one-way
+ * transition guarded in the WHERE clause, so an approved row can never be
+ * re-approved and its `approved_by`/`approved_at` can never be reattributed to
+ * a different person or time. Every column-writing path into this table is
+ * therefore audited: `create()` (draft-only, explicit column copy),
+ * `markApproved()` (draft-only transition), and `deleteByIdForOrg()` (removes
+ * the row; deletion is not reattribution) — every other inherited writer is
+ * sealed. `TasteProfileModel.test.ts` enforces that list by enumerating the
+ * class's whole callable surface, so a newly added or newly inherited write
+ * path FAILS the suite until it is audited against this rule.
+ *
  * Persisted JSONB shapes come from the neutral `types/tasteProfile` module —
  * never from the composition service, which is a controller-layer module (§7.1).
  *
@@ -160,8 +171,54 @@ export class TasteProfileModel extends BaseModel {
    * stakes — nothing publishes until this flips `status` to `approved`.
    *
    * Tenant-scoped (§11.7): `organizationId` is REQUIRED and part of the WHERE
-   * clause, so an owner can only ever approve their OWN profile. Returns the
-   * number of rows updated — 0 when the id belongs to another organization.
+   * clause, so an owner can only ever approve their OWN profile.
+   *
+   * WRITE-ONCE (§5.4). The WHERE also carries `status: "draft"`, so this is a
+   * one-way `draft -> approved` transition: the row STOPS matching its own
+   * update predicate the moment it is approved. A second call — by the same
+   * owner or a different one — matches 0 rows and cannot rewrite `approved_by`
+   * or `approved_at`. The original signature is immutable through this model.
+   *
+   * The guard is one atomic guarded UPDATE rather than a read-then-write check,
+   * which would race: two concurrent approvals could both read `draft` and both
+   * write, the second silently reattributing the signature the first recorded.
+   * Under Postgres READ COMMITTED a second concurrent UPDATE blocks on the
+   * first's row lock and, on commit, re-evaluates its WHERE against the updated
+   * row (EvalPlanQual); it no longer matches `status = 'draft'` and reports 0.
+   * Under REPEATABLE READ/SERIALIZABLE it raises a serialization failure
+   * instead. Either way the signature is not overwritten — only the observable
+   * differs. NOTE: that concurrency behaviour is reasoned from documented
+   * Postgres semantics, not observed — there is no live database in this
+   * branch's environment, so no test here executes concurrent transactions.
+   *
+   * Why that matters: `approved_by`/`approved_at` are the audit record of WHO
+   * staked this profile and WHEN. A signature that a later caller can silently
+   * overwrite is not a signature — the whole owner-approval gate would be
+   * decorative, and the audit trail would attribute a sign-off to someone who
+   * never made it. The guard is POSITIVE (`status = draft`), not a negative
+   * `whereNot status = approved`, so it fails closed: any status added later is
+   * non-transitionable until this predicate is deliberately widened.
+   *
+   * Returns the number of rows updated: 1 when the transition happened, 0 when
+   * it did not. A 0 deliberately does NOT distinguish "wrong organization" from
+   * "no such id" from "already approved":
+   *  - The first two MUST stay indistinguishable — telling them apart is the
+   *    cross-tenant existence leak {@link findByIdForOrg} avoids by design.
+   *  - Choosing a no-op over a thrown `AlreadyApprovedError` is deliberate.
+   *    Re-approval is not a crash: an at-least-once job, a retried request, or a
+   *    double-clicked Approve button all re-issue the call, and the desired end
+   *    state already holds — so the safe, idempotent answer is "0 rows changed",
+   *    not an exception the caller must catch to behave correctly. §21.1 is
+   *    explicit that a repeat run must be SAFE, not loud: "a job may run more
+   *    than once (retries, at-least-once delivery); design every job so a repeat
+   *    run is safe." A guarded UPDATE is exactly the idempotency guard it asks
+   *    for, and this transition is the kind of thing a job will retry. Whether a 0
+   *    is a 404, a 409, or a benign no-op is a POLICY question that depends on
+   *    the surface asking, and this is a thin DB-correctness layer with no
+   *    business logic in it (§6.1). The model's job is to make the illegal write
+   *    impossible and report what it did; the caller reads the row back with
+   *    {@link findByIdForOrg} — within its own org scope — to decide what a 0
+   *    means for its user.
    */
   static async markApproved(
     id: string,
@@ -170,7 +227,7 @@ export class TasteProfileModel extends BaseModel {
     trx?: QueryContext
   ): Promise<number> {
     return this.table(trx)
-      .where({ id, organization_id: organizationId })
+      .where({ id, organization_id: organizationId, status: "draft" })
       .update({
         status: "approved",
         approved_by: approvedBy,
