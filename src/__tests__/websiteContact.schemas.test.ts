@@ -20,7 +20,11 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { formSubmissionSchema } from "../validation/websiteContact.schemas";
+import {
+  formSubmissionSchema,
+  attributionInputSchema,
+  ATTRIBUTION_FIELDS,
+} from "../validation/websiteContact.schemas";
 
 /** Mirrors the caps in the schema (capture contract + browser URL cap). */
 const SOURCE_LABEL_MAX = 100;
@@ -157,5 +161,80 @@ describe("formSubmissionSchema — first-touch attribution boundary (§11.2)", (
       "Custom Question 4": "yes",
     });
     expect(result.success).toBe(true);
+  });
+});
+
+/**
+ * The ENFORCED subset. `formSubmissionSchema` above only DESCRIBES the
+ * attribution contract (it runs warn-only, so its bounds do not hold);
+ * `attributionInputSchema` is what the route actually enforces via `sanitize`.
+ * Its defining property is that it is TOTAL — it can never reject, because a
+ * rejection on this route means a lost lead.
+ */
+describe("attributionInputSchema — the total, enforced subset", () => {
+  it("C1: NEVER fails — not for over-cap, wrong-type, or junk input", () => {
+    // The property the whole design rests on. If this schema can fail, `sanitize`
+    // could not guarantee the submission survives.
+    const hostile = [
+      { source: "g".repeat(5000) },
+      { utm_source: { nested: "object" } },
+      { first_touch_referrer: 12345 },
+      { source: null, utm_source: [], first_touch_referrer: false },
+      {},
+    ];
+    for (const input of hostile) {
+      expect(attributionInputSchema.safeParse(input).success).toBe(true);
+    }
+  });
+
+  it("C2: keeps an in-contract value verbatim", () => {
+    const parsed = attributionInputSchema.parse({
+      source: "facebook",
+      utm_source: "google",
+      first_touch_referrer: "https://www.google.com/search?q=dentist",
+    });
+    expect(parsed.source).toBe("facebook");
+    expect(parsed.utm_source).toBe("google");
+    expect(parsed.first_touch_referrer).toBe("https://www.google.com/search?q=dentist");
+  });
+
+  it("C3: drops an over-cap value to undefined rather than truncating it", () => {
+    // Truncating would fabricate a label/URL the visitor never sent.
+    const parsed = attributionInputSchema.parse({
+      source: "x".repeat(101), // one over the 100-char label cap
+      first_touch_referrer: "https://e.com/" + "y".repeat(2048), // over 2048
+    });
+    expect(parsed.source).toBeUndefined();
+    expect(parsed.first_touch_referrer).toBeUndefined();
+  });
+
+  it("C4: boundary values AT the cap stay in contract", () => {
+    const parsed = attributionInputSchema.parse({
+      source: "x".repeat(100),
+      first_touch_referrer: "h".repeat(2048),
+    });
+    expect(parsed.source).toHaveLength(100);
+    expect(parsed.first_touch_referrer).toHaveLength(2048);
+  });
+
+  it("C5: each field catches INDEPENDENTLY — one bad field keeps its siblings", () => {
+    // A whole-object .catch() would silently discard the good utm_source here.
+    const parsed = attributionInputSchema.parse({
+      source: "z".repeat(400),
+      utm_source: "facebook",
+    });
+    expect(parsed.source).toBeUndefined();
+    expect(parsed.utm_source).toBe("facebook");
+  });
+
+  it("C6: ATTRIBUTION_FIELDS matches the schema's keys and the controller's reads", () => {
+    // Guards the one silent-omission risk: adding a field to the schema but
+    // forgetting to list it here would leave it unsanitized at the route.
+    expect([...ATTRIBUTION_FIELDS].sort()).toEqual(
+      Object.keys(attributionInputSchema.shape).sort(),
+    );
+    expect([...ATTRIBUTION_FIELDS].sort()).toEqual(
+      ["first_touch_referrer", "source", "utm_source"],
+    );
   });
 });

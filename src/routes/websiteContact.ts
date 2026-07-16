@@ -11,10 +11,12 @@ import multer from "multer";
 import { handleContactSubmission } from "../controllers/websiteContact/websiteContactController";
 import { handleFormSubmission } from "../controllers/websiteContact/formSubmissionController";
 import { handleNewsletterConfirm } from "../controllers/websiteContact/newsletterConfirmController";
-import { validate } from "../middleware/validate";
+import { validate, sanitize } from "../middleware/validate";
 import {
   contactSubmissionSchema,
   formSubmissionSchema,
+  attributionInputSchema,
+  ATTRIBUTION_FIELDS,
 } from "../validation/websiteContact.schemas";
 
 const router = express.Router();
@@ -40,11 +42,20 @@ router.post("/contact", validate(contactSubmissionSchema), handleContactSubmissi
 // TODO: Re-enable formSubmissionLimiter once protections are restored.
 // `validate` runs AFTER multer so req.body is populated from the multipart
 // payload (contents may still be a JSON string — the schema tolerates that).
+// The attribution subset is SANITIZED, not warn-logged and not rejected. This
+// route captures leads for practices: a 400 here costs a real patient inquiry,
+// so an out-of-contract tracking value must never fail the submission. `sanitize`
+// bounds the three fields (dropping what doesn't fit → honest "unknown") and
+// always lets the lead through — the enforcement `validate`'s warn mode cannot
+// give (§5.2, §11.2). Mounted as its own middleware, AFTER the warn-only soak
+// and BEFORE the controller, so it still holds on requests where the legacy form
+// schema fails for an unrelated reason.
 router.post(
   "/form-submission",
   // formSubmissionLimiter,
   formUpload.array("files", 10),
   validate(formSubmissionSchema),
+  sanitize(attributionInputSchema, ATTRIBUTION_FIELDS),
   handleFormSubmission,
 );
 router.get("/confirm-newsletter", handleNewsletterConfirm);

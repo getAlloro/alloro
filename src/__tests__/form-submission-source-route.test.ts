@@ -180,12 +180,10 @@ describe("POST /api/websites/form-submission — stored source provenance (§5.2
 
   // A8 in the acceptance artifact is the (waived) real-DB migration item — no
   // test can exist for it here, so the route-level series resumes at A9.
-  it("A9: an out-of-contract oversized label is warn-logged AND never stored (both layers)", async () => {
-    // The schema now DEFINES source/utm_source/first_touch_referrer (§11.2), but
-    // the route mounts `validate` in warn-only mode — so an out-of-contract value
-    // is logged, not rejected, and still reaches the controller. This is exactly
-    // why the closed allow-list stays: it is what actually keeps the value out of
-    // the row today. Assert BOTH halves, so neither can be removed unnoticed.
+  it("A9: an oversized utm_source is DROPPED at the boundary — never stored, lead still saved", async () => {
+    // Was: this asserted warn-only pass-through as correct, i.e. it codified the
+    // gap. The bound is now enforced by `sanitize`, so the value never reaches
+    // the controller at all — and the submission still succeeds (see A12).
     const oversized = "facebook".padEnd(200, "x"); // > the 100-char label cap
 
     const res = await request(app)
@@ -193,25 +191,135 @@ describe("POST /api/websites/form-submission — stored source provenance (§5.2
       .set("Referer", "https://drpavanendo.com/contact")
       .send({ ...BASE_BODY, utm_source: oversized });
 
-    // Layer 1 — the boundary saw it and warned (field names + codes only).
+    // The boundary dropped it, and logged the field NAME only — never the value.
     expect(logger.warn).toHaveBeenCalledWith(
-      expect.objectContaining({
-        fields: expect.arrayContaining(["utm_source"]),
-        issues: expect.arrayContaining(["too_big"]),
-      }),
-      expect.stringContaining("[VALIDATION]"),
+      expect.objectContaining({ fields: expect.arrayContaining(["utm_source"]) }),
+      expect.stringContaining("sanitize"),
     );
-    // ...and never logged the value itself.
     const warnedPayload = JSON.stringify(vi.mocked(logger.warn).mock.calls);
     expect(warnedPayload).not.toContain(oversized);
 
-    // Layer 2 — warn-only means the request proceeds; the allow-list is what
-    // keeps the unrecognized label out of the persisted row.
+    // The lead landed; the out-of-contract label reached neither column.
     expect(res.status).toBe(200);
     const row = persisted();
     expect(row.source).toBeNull();
     expect(row.source_method).toBeNull();
     expect(JSON.stringify(row)).not.toContain(oversized);
+  });
+
+  it("A10: THE REVIEW FINDING — an oversized first_touch_referrer cannot reach persistence", async () => {
+    // The exact case the review named: a 3,000-character Google referrer was
+    // rejected by Zod and still derived { source: "google", method:
+    // "client_referrer" }, because warn-only let it reach the controller and
+    // `hostOf` parses a URL of any length. The bound now actually holds, so the
+    // signal is dropped and the honest answer is unknown.
+    const oversizedReferrer = "https://www.google.com/search?q=" + "a".repeat(3000);
+
+    const res = await request(app)
+      .post(ROUTE)
+      .set("Referer", "https://drpavanendo.com/contact") // internal → no fallback
+      .send({ ...BASE_BODY, first_touch_referrer: oversizedReferrer });
+
+    expect(res.status).toBe(200);
+    const row = persisted();
+    expect(row.source).not.toBe("google");
+    expect(row.source).toBeNull();
+    expect(row.source_method).toBeNull();
+  });
+
+  it("A11: an oversized source label cannot reach persistence", async () => {
+    // HONESTY: this one passes with OR without the sanitize middleware — the
+    // closed allow-list already blocks it (normalizeSource truncates to 100
+    // chars, and a 100-char string is never an allow-list key). It is a
+    // defense-in-depth lock on the end state, NOT proof of the new guard. A10
+    // and A13 are the tests that actually fail without it.
+    const oversized = "google".padEnd(150, "z");
+
+    const res = await request(app)
+      .post(ROUTE)
+      .set("Referer", "https://drpavanendo.com/contact")
+      .send({ ...BASE_BODY, source: oversized });
+
+    expect(res.status).toBe(200);
+    const row = persisted();
+    expect(row.source).toBeNull();
+    expect(row.source_method).toBeNull();
+    expect(JSON.stringify(row)).not.toContain(oversized);
+  });
+
+  it("A12: THE LEAD IS NEVER LOST — all three fields out of contract, submission still persists", async () => {
+    // The reason this endpoint sanitizes instead of enforcing. If anyone later
+    // flips these three to hard 400s, THIS test fails — and it should, because a
+    // practice losing a real patient inquiry over a tracking parameter is a far
+    // worse outcome than a null source.
+    const res = await request(app)
+      .post(ROUTE)
+      .set("Referer", "https://drpavanendo.com/contact")
+      .send({
+        ...BASE_BODY,
+        source: "x".repeat(300),
+        utm_source: "y".repeat(300),
+        first_touch_referrer: "https://www.google.com/?q=" + "z".repeat(4000),
+      });
+
+    // 200, not 400 — and the visitor's actual message is in the row.
+    expect(res.status).toBe(200);
+    const row = persisted();
+    expect(row.contents).toMatchObject({ Name: "Sam Rivera" });
+    expect(row.source).toBeNull();
+    expect(row.source_method).toBeNull();
+  });
+
+  it("A13: sanitizing holds even when the legacy form schema fails for an unrelated reason", async () => {
+    // The trap this design avoids. `hostname` here is over its 255-char cap, so
+    // `formSubmissionSchema` fails as a whole and warn-mode passes the body
+    // through untouched. If the attribution bound rode along inside THAT parse,
+    // an unrelated long hostname would silently switch the guard off. It is its
+    // own middleware precisely so this request is still sanitized.
+    const res = await request(app)
+      .post(ROUTE)
+      .set("Referer", "https://drpavanendo.com/contact")
+      .send({
+        ...BASE_BODY,
+        hostname: "h".repeat(400), // busts formSubmissionSchema
+        first_touch_referrer: "https://www.google.com/x?q=" + "a".repeat(3000),
+      });
+
+    expect(res.status).toBe(200);
+    const row = persisted();
+    expect(row.source).not.toBe("google");
+    expect(row.source).toBeNull();
+  });
+
+  it("A14: one out-of-contract field does not discard a healthy sibling", async () => {
+    // Each field catches independently — a garbage `source` must not cost us a
+    // perfectly good `utm_source`. (Also passes pre-fix, via the derivation's
+    // own fall-through; it locks that `sanitize` did not REGRESS it — a
+    // whole-object schema without per-field `.catch` would fail here.)
+    const res = await request(app)
+      .post(ROUTE)
+      .set("Referer", "https://drpavanendo.com/contact")
+      .send({ ...BASE_BODY, source: "s".repeat(300), utm_source: "facebook" });
+
+    expect(res.status).toBe(200);
+    const row = persisted();
+    expect(row.source).toBe("facebook");
+    expect(row.source_method).toBe("client_label");
+  });
+
+  it("A15: a non-string attribution value is dropped, not coerced", async () => {
+    // Also passes pre-fix — the controller's own `typeof === "string"` checks
+    // backstop this. Kept as a lock so a future refactor that trusts the
+    // boundary (per §11.2) cannot quietly regress it.
+    const res = await request(app)
+      .post(ROUTE)
+      .set("Referer", "https://drpavanendo.com/contact")
+      .send({ ...BASE_BODY, utm_source: { evil: "object" }, source: 12345 });
+
+    expect(res.status).toBe(200);
+    const row = persisted();
+    expect(row.source).toBeNull();
+    expect(row.source_method).toBeNull();
   });
 
   it("A7: the row never carries a 'verified' provenance value", async () => {

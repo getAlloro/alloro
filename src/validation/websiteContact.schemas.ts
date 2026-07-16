@@ -40,6 +40,15 @@ const SOURCE_LABEL_MAX = 100;
 const REFERRER_URL_MAX = 2048;
 
 /**
+ * The attribution bounds, defined ONCE and used twice: as the contract inside
+ * `formSubmissionSchema` (what the warn-only soak logs), and as the enforced
+ * subset in `attributionInputSchema` (what actually holds). One definition, so
+ * the logged contract and the enforced contract can never drift apart.
+ */
+const sourceLabelField = z.string().max(SOURCE_LABEL_MAX);
+const referrerUrlField = z.string().max(REFERRER_URL_MAX);
+
+/**
  * POST /api/websites/contact
  * Controller hard-requires name, phone, email, captchaToken; service/message
  * optional. Kept loose (presence + caps); reCAPTCHA + sanitize stay in the
@@ -84,11 +93,60 @@ export const formSubmissionSchema = z
     // label is a real channel — the closed allow-list + server-side classifier
     // in sourceAttribution.ts stays the authority on that (defense in depth), so
     // an in-bounds but unrecognized claim is still dropped to null, never stored.
-    source: z.string().max(SOURCE_LABEL_MAX).optional(),
-    utm_source: z.string().max(SOURCE_LABEL_MAX).optional(),
-    first_touch_referrer: z.string().max(REFERRER_URL_MAX).optional(),
+    //
+    // NOTE: this schema runs WARN-ONLY, so these three lines only describe the
+    // contract — they do not hold it. `attributionInputSchema` below is what
+    // actually enforces them; see the route.
+    source: sourceLabelField.optional(),
+    utm_source: sourceLabelField.optional(),
+    first_touch_referrer: referrerUrlField.optional(),
   })
   .passthrough();
 
+/**
+ * The three first-touch attribution fields, ENFORCED — the sanitizing subset.
+ *
+ * WHY A SECOND SCHEMA INSTEAD OF ENFORCING `formSubmissionSchema`:
+ * this is a PUBLIC lead-capture endpoint. Flipping the whole form schema to
+ * enforce would 400 a submission whose only sin is a long tracking parameter —
+ * the practice loses a real patient inquiry to protect a metadata field. That
+ * trade is never worth it. A lead is the asset; attribution is a note about the
+ * asset. So we bound the note and ALWAYS keep the lead.
+ *
+ * Every field is `.catch(undefined)`, which makes this schema TOTAL: it cannot
+ * fail, so parsing it can never reject a request. An out-of-contract value
+ * resolves to `undefined` (absent) and the `sanitize` middleware drops it before
+ * the controller reads it. A bad `source` does not take down a good
+ * `utm_source` — each field catches independently.
+ *
+ * DROPPED, NOT TRUNCATED, on purpose. Truncating a 200-char label to 100 chars
+ * would fabricate a label the visitor never sent, and truncating a URL would
+ * have us classify a string we invented. Absent → the derivation reads
+ * "unknown" and falls through to the next signal, which is true (Value #6).
+ *
+ * This schema is NOT a replacement for the closed allow-list / classifier in
+ * sourceAttribution.ts — that stays the authority on whether a label names a
+ * real channel. This is the type/length floor, enforced (§5.2, §11.2).
+ */
+export const attributionInputSchema = z.object({
+  source: sourceLabelField.optional().catch(undefined),
+  utm_source: sourceLabelField.optional().catch(undefined),
+  first_touch_referrer: referrerUrlField.optional().catch(undefined),
+});
+
+/**
+ * The exact body keys `sanitize` rewrites for the attribution subset — the same
+ * three the controller reads (formSubmissionController.ts ~439-450). Listed
+ * explicitly rather than derived from the schema's internals so that adding a
+ * field to the schema without wiring it here is a visible omission, not a
+ * silent one.
+ */
+export const ATTRIBUTION_FIELDS = [
+  "source",
+  "utm_source",
+  "first_touch_referrer",
+] as const;
+
 export type ContactSubmissionBody = z.infer<typeof contactSubmissionSchema>;
 export type FormSubmissionBody = z.infer<typeof formSubmissionSchema>;
+export type AttributionInput = z.infer<typeof attributionInputSchema>;
