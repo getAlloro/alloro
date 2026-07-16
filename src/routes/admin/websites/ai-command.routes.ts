@@ -25,6 +25,10 @@ router.get("/:id/ai-command", controller.listAiCommandBatches);
 // POST /:id/ai-command — Create a new AI command batch
 router.post("/:id/ai-command", controller.createAiCommandBatch);
 
+// POST /:id/ai-command/taste-rewrite — B2: draft Taste-Profile rewrites (literal
+// path before the :batchId matcher below)
+router.post("/:id/ai-command/taste-rewrite", controller.generateTasteRewriteBatchHandler);
+
 // PATCH /:id/ai-command/:batchId — Rename a batch
 router.patch("/:id/ai-command/:batchId", controller.renameAiCommandBatch);
 

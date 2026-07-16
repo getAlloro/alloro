@@ -33,7 +33,9 @@ import {
   type ExecutionContext,
   getExistingPaths,
   getExistingPostSlugs,
+  resolvePageDraftId,
 } from "../feature-utils/util.ai-command-shared";
+import { gateRewrite } from "../feature-utils/util.taste-rewrite-honesty";
 
 export async function executeCreateRedirect(rec: any): Promise<void> {
   const meta = typeof rec.target_meta === "string" ? JSON.parse(rec.target_meta) : rec.target_meta;
@@ -712,4 +714,86 @@ export async function executeUpdatePagePath(rec: any): Promise<void> {
     execution_result: JSON.stringify({ success: true, page_id: meta.page_id }),
   });
   logger.info(`[AiCommand] ✓ Updated page path: ${page.path} → ${meta.new_path}`);
+}
+
+// ---------------------------------------------------------------------------
+// B2 — taste_rewrite (Taste-Profile-driven CRO-lift rewrite)
+// ---------------------------------------------------------------------------
+
+/**
+ * Publish a pre-generated, pre-gated section rewrite (B2). Unlike page_section —
+ * which re-runs the LLM at execution — this writes the STORED copy from
+ * `target_meta.rewritten_html` verbatim. That is what makes B2's two guarantees
+ * structural: the published bytes are exactly the bytes the honesty gate passed
+ * and the owner approved (no fresh generation), and an over-claim cannot appear
+ * at publish time because the stored copy is re-asserted through `gateRewrite`
+ * here — a poisoned stored row is failed, never published.
+ *
+ * Writes to the batch's pinned draft (same mechanism as saveEditedHtml's
+ * page_section branch), so the end-of-batch auto-publish in `executeBatch`
+ * picks it up and `verifyBatchEdits` confirms it reached the published page.
+ */
+export async function executeTasteRewrite(
+  rec: any,
+  ctx: ExecutionContext
+): Promise<void> {
+  const meta =
+    typeof rec.target_meta === "string" ? JSON.parse(rec.target_meta) : rec.target_meta;
+  const rewrittenHtml: string = meta?.rewritten_html ?? "";
+  const sectionIndex: number = meta?.section_index;
+
+  if (!rewrittenHtml || typeof sectionIndex !== "number") {
+    throw new Error("taste_rewrite recommendation is missing rewritten_html/section_index");
+  }
+
+  // Re-assert the honesty gate on the STORED copy — defense in depth. A stored
+  // rewrite that trips the gate (banned or subtle over-claim) is failed and
+  // never reaches the page.
+  const gate = gateRewrite(rewrittenHtml);
+  if (!gate.ok) {
+    await AiCommandRecommendationModel.updateById(rec.id, {
+      status: "failed",
+      execution_result: JSON.stringify({
+        success: false,
+        error: `Honesty gate blocked stored copy: ${gate.reasonCodes.join(", ")}`,
+      }),
+    });
+    logger.warn(
+      `[TasteRewrite] BLOCKED at execution ${rec.target_label}: ${gate.reasonCodes.join(", ")}`
+    );
+    return;
+  }
+
+  const origPage = await PageModel.findRawById(rec.target_id);
+  if (!origPage) throw new Error(`Page ${rec.target_id} not found`);
+
+  const draftId = await resolvePageDraftId(origPage, ctx);
+  const page = await PageModel.findRawById(draftId);
+  if (!page) throw new Error(`Draft ${draftId} disappeared for path ${origPage.path}`);
+
+  const rawSections =
+    typeof page.sections === "string" ? JSON.parse(page.sections) : page.sections;
+  const sections = normalizeSections(rawSections);
+  const section = sections[sectionIndex];
+  if (section === undefined) {
+    throw new Error(`Section ${sectionIndex} not found on ${origPage.path}`);
+  }
+
+  if (typeof section === "string") {
+    sections[sectionIndex] = rewrittenHtml;
+  } else {
+    sections[sectionIndex] = { ...section, content: rewrittenHtml };
+  }
+
+  await PageModel.updateSectionsById(page.id, JSON.stringify(sections));
+
+  await AiCommandRecommendationModel.updateById(rec.id, {
+    status: "executed",
+    execution_result: JSON.stringify({
+      success: true,
+      edited_html: rewrittenHtml,
+      source: "taste_rewrite_stored",
+    }),
+  });
+  logger.info(`[TasteRewrite] ✓ Executed (stored copy): ${rec.target_label}`);
 }
