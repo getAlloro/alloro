@@ -135,7 +135,7 @@
       ],
       "expected": "200 (the lead is saved); logger.warn is called with fields containing 'utm_source' and the sanitize message, and never logs the value; the persisted row carries source=null, source_method=null, and no trace of the value. The field is deleted from req.body before the controller reads it, so the controller now genuinely can trust it (11.2).",
       "status": "pass",
-      "evidence": "src/__tests__/form-submission-source-route.test.ts A9 passed in the focused 14-test route run, the 85-test targeted run (3 files), and the 538-test full suite (63 files) on Node 22.23.1. NEGATIVE CONTROL: with the sanitize() line unmounted from the route, A9 FAILS (along with A10/A12/A13) - 4 route failures. The route file was restored byte-identical afterward.",
+      "evidence": "src/__tests__/form-submission-source-route.test.ts A9 passed in the focused 14-test route run, the 99-test targeted run (4 files), and the 544-test full suite (63 files) on Node 22.23.1. NEGATIVE CONTROL: with the sanitize() line unmounted from the route, A9 FAILS (along with A10/A12/A13) - 4 route failures. The route file was restored byte-identical afterward.",
       "notes": "The honest scope of the Rev 8 fix: the bound now HOLDS, it does not merely log. The closed allow-list remains in place as defense in depth (5.2), but it is no longer the only thing keeping an out-of-contract value out of the row.",
       "waiver": ""
     },
@@ -150,7 +150,7 @@
       ],
       "expected": "200; source is NOT 'google'; source=null and source_method=null. The over-cap signal is dropped, so the derivation honestly reads unknown instead of laundering an out-of-contract URL into a real channel.",
       "status": "pass",
-      "evidence": "src/__tests__/form-submission-source-route.test.ts A10 passed in the focused 14-test route run, the 85-test targeted run (3 files), and the 538-test full suite (63 files) on Node 22.23.1. NEGATIVE CONTROL: with sanitize() unmounted, A10 fails with 'expected \"google\" not to be \"google\"' - reproducing the reviewer's exact finding.",
+      "evidence": "src/__tests__/form-submission-source-route.test.ts A10 passed in the focused 14-test route run, the 99-test targeted run (4 files), and the 544-test full suite (63 files) on Node 22.23.1. NEGATIVE CONTROL: with sanitize() unmounted, A10 fails with 'expected \"google\" not to be \"google\"' - reproducing the reviewer's exact finding.",
       "notes": "This was the one field where the declared bound was neither enforced NOR backstopped: unlike source/utm_source (which the allow-list blocks) the referrer path classifies by hostname, which is unaffected by length. It was the real defect behind the review's finding.",
       "waiver": ""
     },
@@ -165,7 +165,7 @@
       ],
       "expected": "200; source=null, source_method=null, and no trace of the oversized value in the row.",
       "status": "pass",
-      "evidence": "src/__tests__/form-submission-source-route.test.ts A11 passed in the focused 14-test route run, the 85-test targeted run (3 files), and the 538-test full suite (63 files) on Node 22.23.1.",
+      "evidence": "src/__tests__/form-submission-source-route.test.ts A11 passed in the focused 14-test route run, the 99-test targeted run (4 files), and the 544-test full suite (63 files) on Node 22.23.1.",
       "notes": "HONESTY: this item passes with OR without the sanitize middleware - the closed allow-list already blocked it (normalizeSource truncates to 100 chars, and a 100-char string is never an allow-list key). It is a defense-in-depth lock on the end state, NOT proof of the new guard. A10 and A13 are the discriminating checks.",
       "waiver": ""
     },
@@ -180,7 +180,7 @@
       ],
       "expected": "200, NOT 400. The persisted row still carries the visitor's contents (Name: 'Sam Rivera'), with source=null and source_method=null. A practice never loses a real patient enquiry because a marketing tool appended a long tracking parameter - the lead is the asset, attribution is a note about the asset.",
       "status": "pass",
-      "evidence": "src/__tests__/form-submission-source-route.test.ts A12 passed in the focused 14-test route run, the 85-test targeted run (3 files), and the 538-test full suite (63 files) on Node 22.23.1. NEGATIVE CONTROL: with sanitize() unmounted, A12 fails (the oversized referrer derives 'google').",
+      "evidence": "src/__tests__/form-submission-source-route.test.ts A12 passed in the focused 14-test route run, the 99-test targeted run (4 files), and the 544-test full suite (63 files) on Node 22.23.1. NEGATIVE CONTROL: with sanitize() unmounted, A12 fails (the oversized referrer derives 'google').",
       "notes": "The answer to the open question Rev 7 raised and the third-round review posed as 'enforce OR sanitize'. Enforce would 400 this request and drop the patient. Sanitize bounds the metadata and keeps the lead, which is why it was chosen.",
       "waiver": ""
     },
@@ -195,7 +195,7 @@
       ],
       "expected": "200; source is NOT 'google'; source=null. Because sanitize() is mounted as its OWN middleware rather than folded into formSubmissionSchema, an unrelated warn-mode parse failure cannot silently switch the guard off.",
       "status": "pass",
-      "evidence": "src/__tests__/form-submission-source-route.test.ts A13 passed in the focused 14-test route run, the 85-test targeted run (3 files), and the 538-test full suite (63 files) on Node 22.23.1. NEGATIVE CONTROL: with sanitize() unmounted, A13 fails - the oversized referrer derives 'google'.",
+      "evidence": "src/__tests__/form-submission-source-route.test.ts A13 passed in the focused 14-test route run, the 99-test targeted run (4 files), and the 544-test full suite (63 files) on Node 22.23.1. NEGATIVE CONTROL: with sanitize() unmounted, A13 fails - the oversized referrer derives 'google'.",
       "notes": "Had the three bounds been enforced by folding .catch() into formSubmissionSchema, this request would have gone unsanitized: warn mode only assigns the parsed body back on SUCCESS, so any unrelated field failure would pass the untouched body through. A guard whose operation depends on the rest of the body being clean is a guard that guards nothing - the exact class of error this round was correcting.",
       "waiver": ""
     },
@@ -210,7 +210,7 @@
       ],
       "expected": "200; source='facebook' and source_method='client_label' - the good claim survives its bad sibling.",
       "status": "pass",
-      "evidence": "src/__tests__/form-submission-source-route.test.ts A14 passed in the focused 14-test route run, the 85-test targeted run (3 files), and the 538-test full suite (63 files) on Node 22.23.1.",
+      "evidence": "src/__tests__/form-submission-source-route.test.ts A14 passed in the focused 14-test route run, the 99-test targeted run (4 files), and the 544-test full suite (63 files) on Node 22.23.1.",
       "notes": "HONESTY: also passes pre-fix, via the derivation's own fall-through. It locks that sanitize did not REGRESS this - a whole-object .catch() (instead of per-field) would fail here by discarding the good utm_source.",
       "waiver": ""
     },
@@ -225,7 +225,7 @@
       ],
       "expected": "200; source=null, source_method=null.",
       "status": "pass",
-      "evidence": "src/__tests__/form-submission-source-route.test.ts A15 passed in the focused 14-test route run, the 85-test targeted run (3 files), and the 538-test full suite (63 files) on Node 22.23.1.",
+      "evidence": "src/__tests__/form-submission-source-route.test.ts A15 passed in the focused 14-test route run, the 99-test targeted run (4 files), and the 544-test full suite (63 files) on Node 22.23.1.",
       "notes": "HONESTY: also passes pre-fix - the controller's own typeof==='string' checks backstop it. Kept as a lock so a future refactor that trusts the boundary (as 11.2 entitles it to) cannot quietly regress it.",
       "waiver": ""
     },
@@ -244,7 +244,7 @@
       ],
       "expected": "All 8 checks pass: the three fields are defined and bounded (source/utm_source at SOURCE_LABEL_MAX=100, mirroring MAX_SOURCE_LEN in the capture contract; first_touch_referrer at REFERRER_URL_MAX=2048, the browser URL cap), all remain optional, boundary values are inclusive, and the permissive-first posture for unknown keys is unchanged.",
       "status": "pass",
-      "evidence": "src/__tests__/websiteContact.schemas.test.ts - B1-B8 passed (14 tests in the file incl. the new C-series) in the 538-test full suite (63 files) on Node 22.23.1. NEGATIVE CONTROL (Rev 6, still valid): with the three field definitions stripped, B1/B4/B5/B6/B7 fail; B2/B3/B8 correctly still pass - they are not fix-dependent.",
+      "evidence": "src/__tests__/websiteContact.schemas.test.ts - B1-B8 passed (14 tests in the file incl. the new C-series) in the 544-test full suite (63 files) on Node 22.23.1. NEGATIVE CONTROL (Rev 6, still valid): with the three field definitions stripped, B1/B4/B5/B6/B7 fail; B2/B3/B8 correctly still pass - they are not fix-dependent.",
       "notes": "B7 guards the same PII floor as A6 at the schema layer: a personalized utm can carry a patient name/DOB, so the zod issue summary must stay value-free before the middleware logs it. The caps are local constants rather than an import from the controller's feature-utils, so validation/ does not depend on a controller (6.2). Rev 8: these definitions now live as single shared constants (sourceLabelField / referrerUrlField) reused by attributionInputSchema, so the contract the warn soak LOGS and the contract sanitize ENFORCES cannot drift apart. formSubmissionSchema still runs warn-only, so B1-B8 describe the contract; C1 proves what holds.",
       "waiver": ""
     },
@@ -263,7 +263,7 @@
       ],
       "expected": "All 6 pass. The schema never fails (C1), so mounting it via sanitize() cannot reject a submission; out-of-contract values become absent rather than truncated (C3), because a truncated label/URL would be one the visitor never sent; and the key list cannot silently drift from the schema (C6).",
       "status": "pass",
-      "evidence": "src/__tests__/websiteContact.schemas.test.ts C1-C6 - 14 tests passed in the file; part of the 538-test full suite.",
+      "evidence": "src/__tests__/websiteContact.schemas.test.ts C1-C6 - 14 tests passed in the file; part of the 544-test full suite.",
       "notes": "C1 is the property the whole design rests on: sanitize() can only promise 'bound the field, keep the request' if the schema it parses cannot fail.",
       "waiver": ""
     },
@@ -283,7 +283,7 @@
       ],
       "expected": "All 9 pass. No status is ever set by the middleware; out-of-contract keys are deleted from req.body so downstream code cannot read them; on an internal error the metadata is lost but the submission is not.",
       "status": "pass",
-      "evidence": "src/__tests__/validate.middleware.test.ts - 'sanitize() - bounded subset, never rejects' block; part of the 85-test targeted run and the 538-test full suite.",
+      "evidence": "src/__tests__/validate.middleware.test.ts - 'sanitize() - bounded subset, never rejects' block; part of the 99-test targeted run and the 544-test full suite.",
       "notes": "The fail-closed-on-the-field / fail-open-on-the-request asymmetry is the whole point: on a public lead-capture route, losing a tracking label is acceptable and losing a patient enquiry is not.",
       "waiver": ""
     }
