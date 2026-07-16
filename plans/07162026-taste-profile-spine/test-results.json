@@ -6,7 +6,7 @@
     {
       "id": "T1",
       "title": "Model no longer imports upward from a controller (§7.1)",
-      "surface": "static",
+      "surface": "cli",
       "precondition": "Run dependency-cruiser's mechanized models-no-upward-imports rule on the branch head and on the pre-fix baseline.",
       "steps": [
         "Stash the fix and run `npm run depcruise` against the original commit 3c8aa614.",
@@ -22,7 +22,7 @@
     {
       "id": "T2",
       "title": "Org A cannot READ org B's taste profile by id (§11.7)",
-      "surface": "model",
+      "surface": "cli",
       "precondition": "In-memory taste_profiles table whose query builder actually applies the model's .where() conditions (mirrors PracticeFactModel.test.ts).",
       "steps": [
         "Seed a single row owned by org B (id tp-b).",
@@ -37,7 +37,7 @@
     {
       "id": "T3",
       "title": "Org A cannot APPROVE org B's taste profile (§11.7)",
-      "surface": "model",
+      "surface": "cli",
       "precondition": "Seed one draft row owned by org B.",
       "steps": [
         "Call TasteProfileModel.markApproved('tp-b', ORG_A, 'owner@org-a.test').",
@@ -52,7 +52,7 @@
     {
       "id": "T4",
       "title": "Org A cannot DELETE org B's taste profile (§11.7)",
-      "surface": "model",
+      "surface": "cli",
       "precondition": "Seed rows owned by org A and org B.",
       "steps": [
         "Call TasteProfileModel.deleteByIdForOrg('tp-b', ORG_A).",
@@ -67,7 +67,7 @@
     {
       "id": "T5",
       "title": "The isolation suite is non-vacuous (mutation-tested)",
-      "surface": "model",
+      "surface": "cli",
       "precondition": "A passing isolation suite proves nothing if its assertions cannot fail. Mutate the model to remove the tenant scope and re-run.",
       "steps": [
         "Strip `organization_id: organizationId` from all three scoped WHERE clauses in TasteProfileModel.",
@@ -83,7 +83,7 @@
     {
       "id": "T6",
       "title": "The tenant scope cannot be forgotten at compile time (§11.7)",
-      "surface": "static",
+      "surface": "cli",
       "precondition": "BaseModel exposes unscoped findById/deleteById statics that TasteProfileModel would otherwise inherit.",
       "steps": [
         "Attempt to widen findById with a required organizationId parameter and run tsc.",
@@ -99,7 +99,7 @@
     {
       "id": "T7",
       "title": "Layer-2: compose -> persist end-to-end against the running app",
-      "surface": "e2e",
+      "surface": "api",
       "precondition": "BLOCKED. Requires a production entry point that composes a profile and persists it - a route, job, or consumer running against the app.",
       "steps": [
         "Trigger a taste-profile compose for a real organization/location through a production surface.",
@@ -115,7 +115,7 @@
     {
       "id": "T8",
       "title": "No regression across the backend suite",
-      "surface": "api",
+      "surface": "cli",
       "precondition": "Node 22.23.1 (Node 20 throws ERR_REQUIRE_ESM in vitest). Run the full suite on the branch head.",
       "steps": [
         "Run `npx tsc --noEmit`.",
@@ -131,7 +131,7 @@
     {
       "id": "T9",
       "title": "Current GitHub checks attached to the PR head (review finding 4, part 3)",
-      "surface": "ci",
+      "surface": "cli",
       "precondition": "NOT SATISFIABLE ON ANY BRANCH. The review asked for tenant-isolation tests (T2-T5), the acceptance artifacts (this file), and current GitHub checks. This item records the third part rather than letting it go unrecorded.",
       "steps": [
         "Inspect every trigger in .github/workflows/.",
@@ -146,7 +146,7 @@
     {
       "id": "T10",
       "title": "Every inherited unscoped BaseModel entry point is sealed (§11.7/§5.5)",
-      "surface": "model",
+      "surface": "cli",
       "precondition": "Rev 1 sealed findById/deleteById only. BaseModel also exposes condition-based reads, an id-based update, count, paginate, and createReturningId, whose WHERE clause is whatever the caller passes - so the isolation guarantee held only for callers who remembered to add an organization predicate. Full public surface enumerated from src/models/BaseModel.ts rather than from the review's list.",
       "steps": [
         "Override findOne, findMany, updateById, count, paginate and createReturningId to take no arguments, so a real call is a compile error (TS2554); keep a runtime throw as the backstop for untyped callers.",
@@ -156,14 +156,14 @@
       ],
       "expected": "Each sealed entry point is unreachable at compile time; no cross-tenant row is read or mutated at runtime; the scoped siblings (findByIdForOrg / findLatestByOrgAndLocation / markApproved / deleteByIdForOrg) remain the only way in.",
       "status": "pass",
-      "evidence": "vitest: 43/43 passing across the two taste-profile suites (was 25/25). Mutation-verified: against the pre-fix model the new tests fail 14/14 and `tsc --noEmit` reports TS2578 'Unused @ts-expect-error directive' at each seal call site - i.e. those calls compiled before the fix and do not compile after it. Against the fixed model `tsc --noEmit` exits 0, which is only possible if every directive is firing.",
-      "notes": "createReturningId was NOT in the review's list; it was found by enumerating BaseModel's public surface directly, and it is a write path that also bypassed create()'s draft-only contract. count() is the one honest exception to the compile-time rule: BaseModel.count() is callable with zero arguments, so its seal is enforced at runtime only - documented in the model. No countForOrg/lister was added because no caller needs one (YAGNI); the seals name the scoped replacement to add when one does.",
+      "evidence": "vitest: 43/43 passing across the two taste-profile suites (was 25/25). Mutation-verified by restoring the pre-fix model from HEAD~1 and re-running BOTH gates, which catch different halves of the seal. RUNTIME half - `npx vitest run` on the two suites: 7 failed | 36 passed (43); the failures are exactly the seal tests (findOne, findMany, updateById x2, count+paginate, createReturningId, and the §5.4 smuggling test). COMPILE half - `npx tsc --noEmit`: 7 errors, being 6x TS2578 'Unused @ts-expect-error directive' at the seal call sites plus 1x TS2322 on T11's type-level status assertion; i.e. those calls compiled before the fix and do not compile after it. Against the fixed model vitest is 43/43 and `tsc --noEmit` exits 0, which is only possible if every directive is firing. The model was restored byte-identical afterward (`git diff --quiet` clean).",
+      "notes": "createReturningId was NOT in the review's list; it was found by enumerating BaseModel's public surface directly, and it is a write path that also bypassed create()'s draft-only contract. count() is the one honest exception to the compile-time rule: BaseModel.count() is callable with zero arguments, so its seal is enforced at runtime only - documented in the model. No countForOrg/lister was added because no caller needs one (YAGNI); the seals name the scoped replacement to add when one does. THE ENUMERATION, so 'every' is auditable rather than unbounded: BaseModel exposes 11 public statics - beginTransaction, count, create, createReturningId, deleteById, findById, findMany, findOne, paginate, transaction, updateById. 8 are sealed (count, createReturningId, deleteById, findById, findMany, findOne, paginate, updateById); create is replaced with the draft-only override (T11); the remaining 2 - transaction and beginTransaction - are deliberately NOT sealed because they only delegate to db.transaction() and return a handle, never querying this table, so there is no tenant predicate to enforce on them.",
       "waiver": ""
     },
     {
       "id": "T11",
       "title": "A profile can only be created as a draft; approval requires the owner sign-off (§5.4)",
-      "surface": "model",
+      "surface": "cli",
       "precondition": "create() accepted an optional status and wrote it directly, so an approved row could be minted at insert time with no approved_by/approved_at - an unsigned approval that reads downstream exactly like a signed one.",
       "steps": [
         "Remove status from create()'s input type and always write 'draft'; keep the explicit column copy so no extra column can ride in on the object.",
@@ -180,7 +180,7 @@
     {
       "id": "T12",
       "title": "A review source is attached only to words that review actually said",
-      "surface": "service",
+      "surface": "cli",
       "precondition": "resolveReviewSource's docstring promised 'we never fabricate a source', but it resolved a source on the reviewer NAME alone (never examining the quote), and its containment test ran in BOTH directions, so a long claim that merely wrapped a short review ('Great!') inherited that review's receipt. Both produced a clean, followable link in the audit trail for words the review never said - independently found and verified against the code, not reported by the review.",
       "steps": [
         "Require one-directional containment: the quote must be a verbatim (whitespace-normalized) substring OF the review's text - the same structural check extractPracticeFacts.processor.verifyFacts already applies to fact excerpts.",
@@ -198,7 +198,7 @@
     {
       "id": "T13",
       "title": "Only recognized forms of receipt count as a source",
-      "surface": "service",
+      "surface": "cli",
       "precondition": "isRealSource checked string presence and a non-empty payload only, so any invented label (an arbitrary `field: value` pair) counted as provenance - an unfollowable citation that reads in the audit trail exactly like a followable one.",
       "steps": [
         "Restrict to the three forms the system actually produces: review:<id>, an http(s) URL, or a labeled excerpt whose field is one of the PracticeFactSourceField values (business_data / page_content / post_content).",
@@ -214,7 +214,7 @@
     {
       "id": "T14",
       "title": "fact_text is supported by its own source_excerpt",
-      "surface": "service",
+      "surface": "none",
       "precondition": "OPEN LIMIT, recorded rather than closed. The composition layer attaches a receipt to each practice fact but never checks that fact_text - a distilled restatement, not a verbatim span - is actually supported by the excerpt it cites. A fact could overstate its excerpt and still pass, caught only if the overstatement trips enforceHonesty's banned language.",
       "steps": [
         "Verify where the excerpt is checked today: extractPracticeFacts.processor.verifyFacts confirms it is verbatim against the real scraped/GBP input.",
@@ -229,7 +229,7 @@
     {
       "id": "T15",
       "title": "No regression across the backend suite (round 2)",
-      "surface": "static",
+      "surface": "cli",
       "precondition": "Node 22.23.1, `npm ci` in the /tmp/fix-160 worktree. There is NO live database in this environment (no Postgres, no Docker), so every DB-backed proof stays pending - see T7.",
       "steps": [
         "npx tsc --noEmit",
