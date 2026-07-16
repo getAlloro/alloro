@@ -690,3 +690,101 @@ describe("§3.2 — a failed compensation event is logged, never swallowed", () 
     expect((logged?.[0] as { err?: Error })?.err).toBeInstanceOf(Error);
   });
 });
+
+/** A published item carrying the rollback snapshot — the only revertable shape. */
+function revertableItem(overrides: Record<string, unknown> = {}) {
+  return deployingItem({
+    status: "published",
+    business_info_payload: {
+      patch: { phoneNumbers: { primaryPhone: "+1 555 100 2000" } },
+      updateMask: ["phoneNumbers"],
+      previousValues: { phoneNumbers: { primaryPhone: "+1 555 000 0000" } },
+    },
+    ...overrides,
+  });
+}
+
+/**
+ * §3.2 — the REST of the swallow class in this service. The compensation swallows
+ * were sealed in the prior round; these cover every remaining path that catches and
+ * returns instead of re-throwing: the post-revert bookkeeping writes, the
+ * deploy-failure notification, and both branches of the deployNow catch.
+ *
+ * The bookkeeping writes stay best-effort ON PURPOSE — the revert already landed on
+ * Google and the claim is released, so throwing would only trigger a re-PATCH — but
+ * best-effort must never mean silent.
+ */
+describe("§3.2 — revert + deploy-failure bookkeeping is logged, never swallowed", () => {
+  it("logs a failed revert event write with workItemId + event type, and still completes the revert", async () => {
+    h.findWorkItem.mockResolvedValue(revertableItem());
+    h.eventCreate.mockRejectedValue(new Error("event insert failed"));
+
+    await expect(GbpBusinessInfoDeploymentService.revertNow("wi-1", 5)).resolves.toBeDefined();
+
+    const logged = h.loggerError.mock.calls.find(
+      (call) => (call[0] as { eventType?: string })?.eventType === "business_info_reverted"
+    );
+    expect(logged).toBeDefined();
+    expect(logged?.[0]).toMatchObject({ workItemId: "wi-1" });
+    expect((logged?.[0] as { err?: Error })?.err).toBeInstanceOf(Error);
+    // The Google PATCH must not be re-issued because bookkeeping failed.
+    expect(h.patchBusinessInfo).toHaveBeenCalledTimes(1);
+  });
+
+  it("logs a failed revert notification with workItemId + kind, and still completes the revert", async () => {
+    h.findWorkItem.mockResolvedValue(revertableItem());
+    h.notificationCreate.mockRejectedValue(new Error("notify insert failed"));
+
+    await expect(GbpBusinessInfoDeploymentService.revertNow("wi-1", 5)).resolves.toBeDefined();
+
+    const logged = h.loggerError.mock.calls.find(
+      (call) => (call[0] as { kind?: string })?.kind === "gbp_business_info_reverted"
+    );
+    expect(logged).toBeDefined();
+    expect(logged?.[0]).toMatchObject({ workItemId: "wi-1" });
+    expect((logged?.[0] as { err?: Error })?.err).toBeInstanceOf(Error);
+  });
+
+  it("logs a failed deploy-failure notification with workItemId + kind", async () => {
+    h.findWorkItem.mockResolvedValue(deployingItem());
+    h.patchBusinessInfo.mockRejectedValue(new Error("google rejected the patch"));
+    h.notificationCreate.mockRejectedValue(new Error("notify insert failed"));
+
+    await GbpBusinessInfoDeploymentService.deployNow("wi-1", 5, { isFinalAttempt: true });
+
+    const logged = h.loggerError.mock.calls.find(
+      (call) => (call[0] as { kind?: string })?.kind === "gbp_business_info_deploy_failed"
+    );
+    expect(logged).toBeDefined();
+    expect(logged?.[0]).toMatchObject({ workItemId: "wi-1" });
+    expect((logged?.[0] as { err?: Error })?.err).toBeInstanceOf(Error);
+  });
+
+  it("logs the underlying error when a deployment fails terminally and returns to draft", async () => {
+    h.findWorkItem.mockResolvedValue(deployingItem());
+    h.patchBusinessInfo.mockRejectedValue(new Error("google rejected the patch"));
+
+    await GbpBusinessInfoDeploymentService.deployNow("wi-1", 5, { isFinalAttempt: true });
+
+    const logged = h.loggerError.mock.calls.find((call) =>
+      String(call[1]).includes("deployment failed")
+    );
+    expect(logged).toBeDefined();
+    expect(logged?.[0]).toMatchObject({ workItemId: "wi-1", attemptId: "att-1" });
+    expect((logged?.[0] as { err?: Error })?.err).toBeInstanceOf(Error);
+  });
+
+  it("logs the divergence when Google accepted the patch but local sync failed", async () => {
+    h.findWorkItem.mockResolvedValue(deployingItem());
+    // The PATCH lands, then the local write fails — our record and the customer's
+    // real profile now disagree. This is the one state an operator MUST see.
+    h.markPublished.mockRejectedValue(new Error("local sync write failed"));
+
+    await GbpBusinessInfoDeploymentService.deployNow("wi-1", 5, { isFinalAttempt: true });
+
+    const logged = h.loggerError.mock.calls.find((call) => String(call[1]).includes("diverged"));
+    expect(logged).toBeDefined();
+    expect(logged?.[0]).toMatchObject({ workItemId: "wi-1", attemptId: "att-1" });
+    expect((logged?.[0] as { err?: Error })?.err).toBeInstanceOf(Error);
+  });
+});

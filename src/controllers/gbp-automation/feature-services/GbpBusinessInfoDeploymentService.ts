@@ -420,6 +420,14 @@ export class GbpBusinessInfoDeploymentService {
     } catch (error) {
       const err = error as { code?: string; message?: string; details?: unknown };
       if (googleResult) {
+        // §3.2 — this branch returns a work item rather than re-throwing, so the
+        // error MUST be logged: Google accepted the live write but Alloro could not
+        // finish local sync, which is the one state where our record and the
+        // customer's real profile have diverged. An operator has to see it.
+        logger.error(
+          { err: error, workItemId: item.id, attemptId: attempt.id, updateMask: payload.updateMask },
+          "[GBP] business-info patch applied on Google but local sync failed; profile and Alloro state diverged"
+        );
         await GbpDeploymentAttemptModel.markSucceeded(attempt.id, googleResult);
         await GbpWorkItemModel.updateById(item.id, {
           status: "published",
@@ -440,22 +448,37 @@ export class GbpBusinessInfoDeploymentService {
         err.details ? { details: err.details as Record<string, unknown> } : null
       );
       if (isTransientGoogleError(error) && options?.isFinalAttempt === false) {
+        // Re-thrown for the queue to retry — §3.2 is satisfied by the re-throw.
         throw error;
       }
 
+      // §3.2 — terminal failure: this path returns the item instead of throwing, so
+      // the underlying error is logged here, not just persisted onto the attempt row.
+      logger.error(
+        { err: error, workItemId: item.id, attemptId: attempt.id },
+        "[GBP] business-info deployment failed; returning item to draft"
+      );
       await GbpWorkItemModel.markFailedToDraft(
         item.id,
         err.code || "DEPLOY_FAILED",
         err.message || "Deployment failed."
       );
+      const deployFailedNotification = "gbp_business_info_deploy_failed";
       await GbpNotificationService.create({
         organizationId: item.organization_id,
         locationId: item.location_id,
         workItemId: item.id,
-        kind: "gbp_business_info_deploy_failed",
+        kind: deployFailedNotification,
         title: "Google profile update failed",
         message: err.message || "A Google profile update failed to publish and returned to draft.",
-      }).catch(() => undefined);
+      }).catch((notifyError) => {
+        // §3.2 — best-effort (the item is already back in draft either way), but never
+        // silent: a dropped failure notice means the owner is never told it failed.
+        logger.error(
+          { err: notifyError, workItemId: item.id, kind: deployFailedNotification },
+          "[GBP] business-info deploy-failed notification write failed"
+        );
+      });
       return (await GbpWorkItemModel.findById(item.id))!;
     }
   }
@@ -504,20 +527,37 @@ export class GbpBusinessInfoDeploymentService {
       },
       google_response: googleResult,
     });
+    const revertedEvent = "business_info_reverted";
     await GbpWorkEventModel.create({
       work_item_id: item.id,
       actor_user_id: userId,
-      event_type: "business_info_reverted",
+      event_type: revertedEvent,
       metadata: { updateMask: payload.updateMask },
-    }).catch(() => undefined);
+    }).catch((eventError) => {
+      // §3.2 — best-effort by design (the revert already landed on Google and the
+      // claim is released, so throwing here would only trigger a re-PATCH), but never
+      // silent: this event is the audit trail that the rollback happened.
+      logger.error(
+        { err: eventError, workItemId: item.id, eventType: revertedEvent },
+        "[GBP] business-info revert event write failed"
+      );
+    });
+    const revertedNotification = "gbp_business_info_reverted";
     await GbpNotificationService.create({
       organizationId: item.organization_id,
       locationId: item.location_id,
       workItemId: item.id,
-      kind: "gbp_business_info_reverted",
+      kind: revertedNotification,
       title: "Alloro reverted your Google profile update",
       message: "Your Business Profile information was restored to its previous values on Google.",
-    }).catch(() => undefined);
+    }).catch((notifyError) => {
+      // §3.2 — best-effort for the same reason, never silent: a dropped notice means
+      // the owner is never told their live profile was changed back.
+      logger.error(
+        { err: notifyError, workItemId: item.id, kind: revertedNotification },
+        "[GBP] business-info revert notification write failed"
+      );
+    });
     return (await GbpWorkItemModel.findById(item.id))!;
   }
 
