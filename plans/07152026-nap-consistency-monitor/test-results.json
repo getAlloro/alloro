@@ -144,7 +144,7 @@
       ],
       "expected": "Each org reads only its own rows at a shared location_id. §20.2: the isolation rule is proven here, not assumed.",
       "status": "pass",
-      "evidence": "src/__tests__/nap-consistency.test.ts — 3 two-tenant isolation cases passed. MUTATION-VERIFIED: dropping organization_id from the model's where-clause fails all 3 and nothing else. Full suite 62 files / 485 tests passed; A4 focused run 29/29 (Node 22, 2026-07-16).",
+      "evidence": "src/__tests__/nap-consistency.test.ts — 3 two-tenant isolation cases passed. MUTATION-VERIFIED: dropping organization_id from the model's where-clause fails all 3 and nothing else. Full suite 62 files / 495 tests passed; A4 focused run 39/39 (Node 22, 2026-07-16).",
       "notes": "Rev 3 upgrade. The prior version asserted the WHERE-clause SHAPE only; it would have passed even if the filter never actually excluded a row. This drives a fake store that APPLIES the where-clause, so it is behavioural against a fake. HONEST LIMIT: still not Postgres — it cannot catch a BaseModel-level bug that drops the WHERE. The read has zero production callers today, so there is no Layer 2 surface to drive; a real-DB test belongs in integration-tests when it is wired.",
       "waiver": "",
       "layer": 1
@@ -226,7 +226,7 @@
       ],
       "expected": "No row is written for partial coverage; partialCoverage is counted separately and folded into NEITHER the no-baseline skip count NOR the outage count. Only the complete zero is recorded.",
       "status": "pass",
-      "evidence": "src/__tests__/nap-consistency.test.ts — 2 partial-coverage executor cases passed. MUTATION-VERIFIED: neutering the executor's partial_coverage guard fails exactly these 2 and nothing else. Full suite 62 files / 485 tests passed; A4 focused run 29/29 (Node 22, 2026-07-16).",
+      "evidence": "src/__tests__/nap-consistency.test.ts — 2 partial-coverage executor cases passed. MUTATION-VERIFIED: neutering the executor's partial_coverage guard fails exactly these 2 and nothing else. Full suite 62 files / 495 tests passed; A4 focused run 39/39 (Node 22, 2026-07-16).",
       "notes": "Dave review #166 round 2, item 1. V1 behaviour is Dave's stated safest option: no persistence for partial coverage.",
       "waiver": ""
     },
@@ -243,7 +243,7 @@
       ],
       "expected": "Cases 1 and 2 return partial_coverage carrying attempted/failed (4/3), NOT ok — so neither a completed zero nor a short conflict count can be persisted. Case 3 returns ok: a complete zero stays recordable. Partial sources are still RETURNED for display; only the status gates persistence.",
       "status": "pass",
-      "evidence": "src/__tests__/nap-consistency.test.ts — 3 mixed success/failure cases passed. MUTATION-VERIFIED: making the service report partial as ok fails the 2 partial cases and nothing else. Full suite 62 files / 485 tests passed; A4 focused run 29/29 (Node 22, 2026-07-16).",
+      "evidence": "src/__tests__/nap-consistency.test.ts — 3 mixed success/failure cases passed. MUTATION-VERIFIED: making the service report partial as ok fails the 2 partial cases and nothing else. Full suite 62 files / 495 tests passed; A4 focused run 39/39 (Node 22, 2026-07-16).",
       "notes": "Dave review #166 round 2, item 1 — the mixed-success/failure tests he asked for, at the wiring level rather than the injected seam.",
       "waiver": ""
     },
@@ -259,7 +259,7 @@
       ],
       "expected": "The agent throws NapPersistenceError (code NAP_PERSISTENCE_FAILED) carrying failedLocationIds and the summary, so the scheduler's catch marks the run FAILED instead of completing it. Every location is still attempted first: one bad write does not cost the others their observation, and a measurement failure is still an isolated skip.",
       "status": "pass",
-      "evidence": "src/__tests__/nap-consistency.test.ts — 2 persistence-failure cases passed. MUTATION-VERIFIED: reverting to the log-and-swallow behaviour fails exactly these 2 and nothing else. Scheduler wiring verified by reading src/workers/processors/scheduleExec.processor.ts:77-80 — the catch calls ScheduleRunModel.failRun. Full suite 62 files / 485 tests passed; A4 focused run 29/29 (Node 22, 2026-07-16).",
+      "evidence": "src/__tests__/nap-consistency.test.ts — 2 persistence-failure cases passed. MUTATION-VERIFIED: reverting to the log-and-swallow behaviour fails exactly these 2 and nothing else. Scheduler wiring verified by reading src/workers/processors/scheduleExec.processor.ts:77-80 — the catch calls ScheduleRunModel.failRun. Full suite 62 files / 495 tests passed; A4 focused run 39/39 (Node 22, 2026-07-16).",
       "notes": "Dave review #166 round 2, item 2. Before the fix, one try/catch covered both measurement and the write, so a rejected write incremented `skipped`, the handler resolved, and the scheduler reported success. The failRun path itself is pre-existing behaviour, verified by reading, not re-proven here.",
       "waiver": ""
     },
@@ -276,9 +276,29 @@
       ],
       "expected": "record() reports whether a row landed. locationsRecorded counts only inserts; ignored writes are counted separately as locationsAlreadyRecorded; and totalConflicts counts only conflicts from rows actually written — the run never reports rows or conflicts it does not have.",
       "status": "pass",
-      "evidence": "src/__tests__/nap-consistency.test.ts — 2 model record() cases + 1 executor metric case passed. MUTATION-VERIFIED: forcing record() to always return true fails the idempotency case and nothing else. Full suite 62 files / 485 tests passed; A4 focused run 29/29 (Node 22, 2026-07-16).",
+      "evidence": "src/__tests__/nap-consistency.test.ts — 2 model record() cases + 1 executor metric case passed. MUTATION-VERIFIED: forcing record() to always return true fails the idempotency case and nothing else. Full suite 62 files / 495 tests passed; A4 focused run 39/39 (Node 22, 2026-07-16).",
       "notes": "Dave review #166 round 2, item 3 — took the 'return whether a row was inserted' option AND made the metric honest. Also closes a §20.1 gap: the executor injects a record seam, so before this NOTHING exercised the model's onConflict(...).ignore() that the whole 'a log, not a score' design leans on. HONEST LIMIT: a fake, not Postgres — the real ON CONFLICT semantics land with T14.",
       "waiver": ""
+    },
+    {
+      "id": "T20",
+      "title": "The unscoped inherited surface is SEALED — no cross-tenant read/write survives (§11.7 / §5.5 / §20.2)",
+      "surface": "none",
+      "precondition": "Drive the model against an in-memory fake holding rows for TWO orgs (7 and 8) that share location_id 42. The block also defines UnsealedControl — the same table extending BaseModel with NO seals — as the control. No live DB.",
+      "steps": [
+        "CONTROL: UnsealedControl.findById('row-org8') returns org 8's row — proves the inherited method really is unscoped and the hole is real.",
+        "CONTROL: unsealed findOne leaks by condition; unsealed findMany returns BOTH orgs' rows; unsealed updateById/deleteById each match and mutate org 8's row.",
+        "Assert each sealed method on the real model throws instead: findById, findOne, findMany, create, createReturningId, updateById, deleteById, paginate, count.",
+        "Assert record() and listForLocation() still work — the seals did not brick the sanctioned path.",
+        "CLASS GUARD: enumerate BaseModel's public statics at runtime; assert the count is 11 (non-vacuous) and that every one is either sealed on this model or in the reasoned-exemption set {transaction, beginTransaction}.",
+        "COMPILE GUARD: 8 @ts-expect-error directives assert the real call signatures do not type-check (TS2554). tsc fails TS2578 if any seal is removed."
+      ],
+      "expected": "Every unscoped BaseModel read/write entry point is unreachable on this tenant-scoped table. §20.2: proven here, not assumed — the CONTROL demonstrates the leak the seals close, so the assertions are not vacuous.",
+      "status": "pass",
+      "evidence": "src/__tests__/nap-consistency.test.ts — 10 cases passed (Node 22, 2026-07-16). MUTATION-VERIFIED by reverting: renaming the findById seal makes tsc fail TS2578 'Unused @ts-expect-error' (exit 2) AND fails exactly 2 runtime tests — 'findById is sealed' with `AssertionError: promise resolved \"{ id: 'row-org8', …(3) }\" instead of rejecting` (org 8's row literally comes back), and the CLASS GUARD with `expected [ 'findById' ] to deeply equal []`. Seal restored; full suite 62 files / 495 tests passed, real exit 0; A4 focused run 39/39.",
+      "notes": "Rev 4. Closes the gap that made the Rev 3 §11.7 fix on listForLocation bypassable: the scoped read was worth nothing while 9 unscoped inherited methods reached the same rows. The sealed set was derived by ENUMERATING BaseModel's public statics (11 total), not from a supplied list — which is what surfaced `transaction`/`beginTransaction` as public statics absent from the review list. Both are deliberately NOT sealed and the reasoning is recorded in the model docblock and the CLASS GUARD's exemption set: neither touches this table, sealing them is theater (the identical handle is one AnyOtherModel.transaction() away), and the §6.1 trx-threading pattern that record(input, trx?)/listForLocation(…, trx?) rely on needs them. HONEST LIMIT 1: `count` is RUNTIME-sealed only — BaseModel.count(conditions?, trx?) takes all-optional args, so a bare count() type-checks against the zero-arg override and TS2554 cannot fire; the throw is the only guard. Documented, not papered over. HONEST LIMIT 2: still not Postgres — these drive fakes, so they cannot catch a BaseModel-level bug that drops a WHERE. RESIDUAL: a caller holding a raw trx can query any table unscoped; that is a models/-layer property, not something a per-model seal can close.",
+      "waiver": "",
+      "layer": 1
     },
     {
       "id": "T14",

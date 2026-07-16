@@ -11,6 +11,7 @@ import {
   NapConsistencyObservationModel,
   RecordNapObservationInput,
 } from "../models/NapConsistencyObservationModel";
+import { BaseModel } from "../models/BaseModel";
 
 /**
  * Alloro Funnel Engine A4 (Citations & NAP Consistency Monitor) proofs. Locks the
@@ -639,5 +640,258 @@ describe("NapConsistencyObservationModel.listForLocation — tenant isolation (�
     // A guessed/reused location_id yields an empty read, never a leak.
     expect(rows).toEqual([]);
     spy.mockRestore();
+  });
+});
+
+/**
+ * Dave review #166 (round 3): the SEALED unscoped surface (§11.7 / §5.5 / §20.2).
+ *
+ * `listForLocation` being tenant-scoped is worth nothing if a caller can reach
+ * the same rows through an inherited `BaseModel` method that carries no
+ * organization predicate. These prove the seals BEHAVIOURALLY, to the same bar
+ * as the isolation block above — §20.2: "proven here, not assumed".
+ *
+ * The non-vacuousness argument is built into the block itself: `UnsealedControl`
+ * is the same table with the seals REMOVED. Each test first shows that the
+ * unsealed inheritance really does hand back another tenant's row (the hole is
+ * real, not hypothetical), then shows the sealed model refuses. If a seal were
+ * deleted, the paired assertion flips from "throws" to "returns org 8's row".
+ */
+describe("NapConsistencyObservationModel — sealed unscoped surface (§11.7 / §20.2)", () => {
+  /** Two tenants, one shared location_id — the collision the scope defends. */
+  const allRows = [
+    { id: "row-org7", organization_id: 7, location_id: 42, run_date: "2026-07-16" },
+    { id: "row-org8", organization_id: 8, location_id: 42, run_date: "2026-07-16" },
+  ];
+
+  /** A fake that APPLIES the where-clause, so a leak shows up as real data. */
+  const fakeChain = (rows: Record<string, unknown>[]) => {
+    let filtered = rows;
+    const chain = {
+      where(arg: Record<string, unknown>) {
+        filtered = filtered.filter((r) =>
+          Object.entries(arg).every(([k, v]) => r[k] === v)
+        );
+        return chain;
+      },
+      first: () => Promise.resolve(filtered[0]),
+      then: (res: (v: unknown) => unknown) => Promise.resolve(filtered).then(res),
+      update: () => Promise.resolve(filtered.length),
+      del: () => Promise.resolve(filtered.length),
+      orderBy: () => chain,
+      limit: () => Promise.resolve(filtered),
+    };
+    return chain;
+  };
+
+  /**
+   * The CONTROL: the same tenant table with NO seals — i.e. exactly what
+   * `NapConsistencyObservationModel` would be if the seals were reverted.
+   * Its job is to demonstrate that the inherited methods are genuinely unscoped,
+   * so the sealed assertions below are not vacuous.
+   */
+  class UnsealedControl extends BaseModel {
+    protected static tableName = "nap_consistency_observation";
+  }
+
+  afterEach(() => vi.restoreAllMocks());
+
+  const mockTable = (target: unknown) =>
+    vi
+      .spyOn(target as { table: (trx?: unknown) => unknown }, "table")
+      .mockImplementation(() => fakeChain(allRows));
+
+  it("CONTROL: unsealed inheritance really does leak org 8's row by id — the hole is real", async () => {
+    mockTable(UnsealedControl);
+
+    // Org 7 is the caller; it asks for a row id that belongs to org 8.
+    const leaked = await UnsealedControl.findById("row-org8");
+
+    // No organization predicate anywhere: the row comes back. This is the
+    // vulnerability the seals close — proven, not asserted.
+    expect(leaked).toBeDefined();
+    expect(leaked.organization_id).toBe(8);
+  });
+
+  it("findById is sealed — the same call that leaked above now throws (§11.7)", async () => {
+    mockTable(NapConsistencyObservationModel);
+
+    // Cast mirrors an untyped/JS caller: TS callers get TS2554 at compile time
+    // (proven separately below). Nothing is returned — the seal fires before
+    // any query is built.
+    await expect(
+      (NapConsistencyObservationModel as unknown as { findById: (id: string) => Promise<unknown> })
+        .findById("row-org8")
+    ).rejects.toThrow(/findById is unscoped and disabled/);
+  });
+
+  it("CONTROL: unsealed findOne leaks by condition, findMany leaks EVERY tenant", async () => {
+    mockTable(UnsealedControl);
+    const one = await UnsealedControl.findOne({ location_id: 42 });
+    expect(one.organization_id).toBe(7); // whichever matched first — not the caller's choice
+
+    mockTable(UnsealedControl);
+    const many = await UnsealedControl.findMany({ location_id: 42 });
+    // Both tenants' rows in one read.
+    expect(many).toHaveLength(2);
+    expect(many.map((r: { organization_id: number }) => r.organization_id).sort()).toEqual([7, 8]);
+  });
+
+  it("findOne and findMany are sealed — no cross-tenant read survives (§11.7)", async () => {
+    mockTable(NapConsistencyObservationModel);
+    await expect(
+      (NapConsistencyObservationModel as unknown as { findOne: (c: unknown) => Promise<unknown> })
+        .findOne({ location_id: 42 })
+    ).rejects.toThrow(/findOne is unscoped and disabled/);
+
+    await expect(
+      (NapConsistencyObservationModel as unknown as { findMany: (c: unknown) => Promise<unknown> })
+        .findMany({})
+    ).rejects.toThrow(/findMany is unscoped and disabled/);
+  });
+
+  it("CONTROL: unsealed updateById/deleteById really do mutate another tenant's row", async () => {
+    mockTable(UnsealedControl);
+    // Matches org 8's row with no organization predicate — a cross-tenant write.
+    expect(await UnsealedControl.updateById("row-org8", { conflict_count: 99 })).toBe(1);
+
+    mockTable(UnsealedControl);
+    expect(await UnsealedControl.deleteById("row-org8")).toBe(1);
+  });
+
+  it("the write surface is sealed — create, createReturningId, updateById, deleteById (§11.7)", async () => {
+    mockTable(NapConsistencyObservationModel);
+    const m = NapConsistencyObservationModel as unknown as Record<
+      string,
+      (...a: unknown[]) => Promise<unknown>
+    >;
+
+    // create/createReturningId would also skip the (location_id, run_date)
+    // conflict target that record()'s idempotency contract depends on.
+    await expect(m.create({ organization_id: 8 })).rejects.toThrow(
+      /create bypasses the tenant scope and the per-\(location, run_date\) idempotency contract/
+    );
+    await expect(m.createReturningId({ organization_id: 8 })).rejects.toThrow(
+      /createReturningId bypasses the tenant scope/
+    );
+    await expect(m.updateById("row-org8", { conflict_count: 99 })).rejects.toThrow(
+      /updateById is unscoped and disabled/
+    );
+    await expect(m.deleteById("row-org8")).rejects.toThrow(
+      /deleteById is unscoped and disabled/
+    );
+  });
+
+  it("paginate and count are sealed — no paged read, no cross-tenant size leak (§11.7)", async () => {
+    mockTable(NapConsistencyObservationModel);
+    const m = NapConsistencyObservationModel as unknown as Record<
+      string,
+      (...a: unknown[]) => Promise<unknown>
+    >;
+
+    await expect(m.paginate((qb: unknown) => qb, {})).rejects.toThrow(
+      /paginate is unscoped and disabled/
+    );
+
+    // count() is the RUNTIME-only seal (all-optional args ⇒ TS2554 can't fire).
+    // Called exactly as a TS caller legally would — bare, no cast needed.
+    await expect(NapConsistencyObservationModel.count()).rejects.toThrow(
+      /count is unscoped and disabled/
+    );
+  });
+
+  it("record and listForLocation still work — the seals did not brick the model", async () => {
+    // Guards against a seal that "passes" by breaking the real path: the two
+    // sanctioned entry points must remain callable.
+    expect(typeof NapConsistencyObservationModel.record).toBe("function");
+    expect(typeof NapConsistencyObservationModel.listForLocation).toBe("function");
+    mockTable(NapConsistencyObservationModel);
+    const rows = await NapConsistencyObservationModel.listForLocation(7, 42);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].organization_id).toBe(7);
+  });
+
+  /**
+   * THE CLASS-LEVEL GUARD (§11.7). Every test above names one method — which is
+   * the "fix the instance" trap. This one fixes the CLASS: it enumerates
+   * `BaseModel`'s public static surface at runtime and asserts that each member
+   * is either sealed on this model or explicitly, reasonedly exempt.
+   *
+   * If someone adds a new unscoped read/write to `BaseModel`, this test FAILS on
+   * the NAP model until that method is sealed or consciously exempted — the
+   * enumeration stops being a one-time act of diligence and becomes a check.
+   */
+  it("CLASS GUARD: every table-touching BaseModel public static is sealed here (§11.7)", () => {
+    // TS `protected` is erased at runtime, so the internals are listed explicitly.
+    const PROTECTED_OR_INTERNAL = new Set([
+      "length", "name", "prototype", "tableName", "jsonFields",
+      "table", "parseJson", "toJson", "serializeJsonFields", "deserializeJsonFields",
+    ]);
+
+    /**
+     * Reasoned exemptions — NOT oversights. Neither touches this table; both
+     * return a transaction handle. Sealing them would be theater (the same
+     * handle is one `AnyOtherModel.transaction()` away) and would break the
+     * §6.1 pattern that `record(input, trx?)` / `listForLocation(…, trx?)` rely
+     * on. See the class docblock for the full reasoning and residual.
+     */
+    const REASONED_EXEMPTIONS = new Set(["transaction", "beginTransaction"]);
+
+    const publicStatics = Object.getOwnPropertyNames(BaseModel).filter(
+      (k) =>
+        !PROTECTED_OR_INTERNAL.has(k) &&
+        typeof (BaseModel as unknown as Record<string, unknown>)[k] === "function"
+    );
+
+    // Sanity: the enumeration must actually find the surface. If BaseModel is
+    // refactored such that this comes back empty, the guard would pass
+    // vacuously — so assert it found the 11 we reviewed.
+    expect(publicStatics.length).toBe(11);
+
+    const unsealed = publicStatics.filter((method) => {
+      if (REASONED_EXEMPTIONS.has(method)) return false;
+      // Sealed == overridden as an OWN property of this model.
+      return !Object.prototype.hasOwnProperty.call(
+        NapConsistencyObservationModel,
+        method
+      );
+    });
+
+    expect(unsealed).toEqual([]);
+  });
+
+  /**
+   * COMPILE-TIME seal proof (§11.7). Each `@ts-expect-error` below asserts the
+   * call on the next line does NOT type-check. This is self-invalidating: if a
+   * seal is removed, the call starts compiling, the directive becomes unused,
+   * and `tsc --noEmit` FAILS with TS2578 ("Unused '@ts-expect-error'"). So the
+   * compile-time guarantee is enforced by CI, not by a comment claiming it.
+   *
+   * `count` is absent on purpose — it is the runtime-only seal (all-optional
+   * args), covered by the runtime test above. Adding a directive for it here
+   * would itself fail to compile, which is the honest tell.
+   */
+  it("COMPILE GUARD: sealed methods reject their real call signatures (TS2554)", () => {
+    const calls = [
+      // @ts-expect-error §11.7 findById(id) must not type-check — seal is compile-time.
+      () => NapConsistencyObservationModel.findById("row-org8"),
+      // @ts-expect-error §11.7 findOne(conditions) must not type-check.
+      () => NapConsistencyObservationModel.findOne({ location_id: 42 }),
+      // @ts-expect-error §11.7 findMany(conditions) must not type-check.
+      () => NapConsistencyObservationModel.findMany({}),
+      // @ts-expect-error §11.7 create(data) must not type-check.
+      () => NapConsistencyObservationModel.create({ organization_id: 8 }),
+      // @ts-expect-error §11.7 createReturningId(data) must not type-check.
+      () => NapConsistencyObservationModel.createReturningId({ organization_id: 8 }),
+      // @ts-expect-error §11.7 updateById(id, data) must not type-check.
+      () => NapConsistencyObservationModel.updateById("row-org8", { conflict_count: 99 }),
+      // @ts-expect-error §11.7 deleteById(id) must not type-check.
+      () => NapConsistencyObservationModel.deleteById("row-org8"),
+      // @ts-expect-error §11.7 paginate(buildQuery, params) must not type-check.
+      () => NapConsistencyObservationModel.paginate((qb) => qb, {}),
+    ];
+    // The proof is the directives above surviving `tsc`; this keeps the block
+    // executable (and unreferenced-variable-free) without invoking the seals.
+    expect(calls).toHaveLength(8);
   });
 });
