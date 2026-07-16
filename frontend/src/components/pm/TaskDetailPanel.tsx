@@ -24,15 +24,21 @@ const PRIORITIES = [
   { value: "P5", label: "Next week" },
 ] as const;
 
-type TabId = "details" | "attachments" | "comments";
+export type TaskDetailTab = "details" | "attachments" | "comments";
 
 interface TaskDetailPanelProps {
   task: PmTask | null;
   onClose: () => void;
   isBacklog?: boolean;
+  initialTab?: TaskDetailTab;
 }
 
-export function TaskDetailPanel({ task, onClose, isBacklog }: TaskDetailPanelProps) {
+export function TaskDetailPanel({
+  task,
+  onClose,
+  isBacklog,
+  initialTab,
+}: TaskDetailPanelProps) {
   const taskId = task?.id ?? null;
   const commentState = usePmTaskComments(taskId);
   const attachmentState = usePmTaskAttachments(taskId);
@@ -47,7 +53,7 @@ export function TaskDetailPanel({ task, onClose, isBacklog }: TaskDetailPanelPro
   const [deadline, setDeadline] = useState("");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [assignedTo, setAssignedTo] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState<TabId>("details");
+  const [activeTab, setActiveTab] = useState<TaskDetailTab>("details");
   const titleRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -58,9 +64,9 @@ export function TaskDetailPanel({ task, onClose, isBacklog }: TaskDetailPanelPro
       setDeadline(task.deadline ? new Date(task.deadline).toLocaleDateString("en-CA", { timeZone: "America/Los_Angeles" }) : "");
       setAssignedTo(task.assigned_to ?? null);
       setShowDeleteConfirm(false);
-      setActiveTab("details");
+      setActiveTab(initialTab ?? "details");
     }
-  }, [task]);
+  }, [initialTab, task]);
 
   // Celebration: when this task's column changes into a Done column while the
   // panel is open, fire a burst. Only on transition, never on initial mount.
@@ -221,7 +227,7 @@ export function TaskDetailPanel({ task, onClose, isBacklog }: TaskDetailPanelPro
                   },
                 ]}
                 activeId={activeTab}
-                onChange={(id) => setActiveTab(id as TabId)}
+                onChange={(id) => setActiveTab(id as TaskDetailTab)}
               />
             </div>
 

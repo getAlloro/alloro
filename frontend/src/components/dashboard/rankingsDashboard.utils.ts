@@ -163,7 +163,8 @@ export function getOverviewRecommendedAction(result: RankingResult): string {
   // beats flattening it into generic keyword-matched homework. Fall back to the
   // templated action only when the engine genuinely produced nothing.
   const topTitle = result.llmAnalysis?.top_recommendations?.[0]?.title?.trim();
-  if (topTitle) {
+  const genericTitles = new Set(["post", "review", "photo"]);
+  if (topTitle && !genericTitles.has(topTitle.toLowerCase())) {
     return topTitle;
   }
 

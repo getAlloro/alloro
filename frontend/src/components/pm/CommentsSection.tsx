@@ -22,7 +22,9 @@ import type { PmTaskCommentsState } from "../../hooks/queries/usePmTaskComments"
 import type { PmTaskAttachment, PmTaskComment } from "../../types/pm";
 import { getCurrentUserId } from "../../utils/currentUser";
 import { AttachmentPreviewModal } from "./AttachmentPreviewModal";
-import { CommentComposer, CommentEditor } from "./CommentComposer";
+import { CommentComposer } from "./CommentComposer";
+import { CommentEditor } from "./CommentEditor";
+import { CommentImageStrip } from "./CommentImageStrip";
 import { PmConfirmDialog } from "./PmConfirmDialog";
 import { PmContextMenu } from "./PmContextMenu";
 import { PmTaskFeed } from "./PmTaskFeed";
@@ -274,10 +276,16 @@ export function CommentsSection({
             onCancel={() => setEditingId(null)}
           />
         ) : (
-          <SafeMarkdown
-            body={comment.body}
-            mentionNames={comment.mention_names}
-          />
+          <>
+            <SafeMarkdown
+              body={comment.body}
+              mentionNames={comment.mention_names}
+            />
+            <CommentImageStrip
+              taskId={taskId}
+              attachments={comment.attachments ?? []}
+            />
+          </>
         )}
       </article>
     );
@@ -377,10 +385,11 @@ export function CommentsSection({
         <CommentComposer
           taskId={taskId}
           users={commentState.users}
+          allowImages
           submitting={commentState.isSubmitting}
-          onSubmit={async (body, mentions) => {
+          onSubmit={async (body, mentions, images) => {
             try {
-              await commentState.create(body, mentions);
+              await commentState.create(body, mentions, images);
             } catch {
               // The query hook reports the API error through a visible toast.
             }

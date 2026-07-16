@@ -1,6 +1,6 @@
 {
   "plan": "plans/07142026-pr-153-merge-conflict-fixes",
-  "generatedAt": "2026-07-14",
+  "generatedAt": "2026-07-16",
   "status": "Passed",
   "items": [
     {
@@ -78,6 +78,21 @@
       "status": "pass",
       "evidence": "npm run check:all exited 0; frontend lint reported 0 errors after fixes; depcruise reported 0 errors and 38 warnings.",
       "notes": "Existing advisory findings remain: §17.4 dangerouslySetInnerHTML, §17.5 token reads in tests, §10.2 raw DB use in integration tests, §11.7 heuristic tenant-scope list, and baseline lint/dependency warnings.",
+      "waiver": ""
+    },
+    {
+      "id": "T6",
+      "title": "Generic ranking titles retain position-aware action copy",
+      "surface": "cli",
+      "precondition": "Rev 1 generic-title fallback guard is applied.",
+      "steps": [
+        "1. Run the ranking dashboard utility test file.",
+        "2. Verify leader, top-three, ranked, outside-top-20, and pending bands."
+      ],
+      "expected": "Generic post/review titles use the band-aware fallback while specific generated titles remain eligible for direct display.",
+      "status": "pass",
+      "evidence": "frontend/src/components/dashboard/rankingsDashboard.utils.test.ts reported 6 tests passed on 2026-07-16.",
+      "notes": "This closes the full-suite regression found after the original PR-153 acceptance.",
       "waiver": ""
     }
   ]

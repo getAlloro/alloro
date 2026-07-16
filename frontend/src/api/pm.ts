@@ -422,6 +422,29 @@ export async function uploadAttachment(
   return unwrapPmEnvelope(res);
 }
 
+export async function uploadCommentImage(
+  taskId: string,
+  commentId: string,
+  file: File,
+  onProgress?: (pct: number) => void
+): Promise<PmTaskAttachment> {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("comment_id", commentId);
+
+  const res = await apiPostWithProgress({
+    path: `/pm/tasks/${taskId}/attachments`,
+    passedData: formData,
+    onUploadProgress: (event) => {
+      if (!onProgress) return;
+      const total = event.total ?? file.size;
+      if (!total) return;
+      onProgress(Math.min(1, (event.loaded || 0) / total));
+    },
+  });
+  return unwrapPmEnvelope(res);
+}
+
 export async function getAttachmentDownloadUrl(
   taskId: string,
   attachmentId: string,

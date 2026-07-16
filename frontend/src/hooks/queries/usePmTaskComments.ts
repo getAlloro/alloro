@@ -5,6 +5,7 @@ import {
   deleteComment as deletePmTaskComment,
   fetchPmUsers,
   listComments,
+  uploadCommentImage,
   updateComment as updatePmTaskComment,
 } from "../../api/pm";
 import { getErrorMessage } from "../../lib/errorMessage";
@@ -12,12 +13,17 @@ import { QUERY_KEYS } from "../../lib/queryClient";
 import type { PmTaskComment, PmUser } from "../../types/pm";
 
 type CommentAction =
-  | { type: "create"; body: string; mentions: number[] }
+  | { type: "create"; body: string; mentions: number[]; images: File[] }
   | { type: "update"; commentId: string; body: string; mentions: number[] }
   | { type: "delete"; commentId: string };
 
 type CommentActionResult =
-  | { type: "upsert"; comment: PmTaskComment }
+  | {
+      type: "upsert";
+      comment: PmTaskComment;
+      imageUploadFailures: number;
+      shouldRefresh: boolean;
+    }
   | { type: "delete"; commentId: string };
 
 export type PmTaskCommentsState = {
@@ -26,7 +32,7 @@ export type PmTaskCommentsState = {
   isLoading: boolean;
   isSubmitting: boolean;
   error: string | null;
-  create: (body: string, mentions: number[]) => Promise<void>;
+  create: (body: string, mentions: number[], images?: File[]) => Promise<void>;
   update: (
     commentId: string,
     body: string,
@@ -45,7 +51,19 @@ async function runCommentAction(
       action.body,
       action.mentions,
     );
-    return { type: "upsert", comment };
+    const uploads = await Promise.allSettled(
+      action.images.map((image) =>
+        uploadCommentImage(taskId, comment.id, image),
+      ),
+    );
+    return {
+      type: "upsert",
+      comment,
+      imageUploadFailures: uploads.filter(
+        (result) => result.status === "rejected",
+      ).length,
+      shouldRefresh: action.images.length > 0,
+    };
   }
   if (action.type === "update") {
     const comment = await updatePmTaskComment(
@@ -54,7 +72,12 @@ async function runCommentAction(
       action.body,
       action.mentions,
     );
-    return { type: "upsert", comment };
+    return {
+      type: "upsert",
+      comment,
+      imageUploadFailures: 0,
+      shouldRefresh: false,
+    };
   }
   await deletePmTaskComment(taskId, action.commentId);
   return { type: "delete", commentId: action.commentId };
@@ -88,6 +111,18 @@ export function usePmTaskComments(taskId: string | null): PmTaskCommentsState {
                 )
               : [...current, result.comment],
       );
+      if (result.type === "upsert" && result.shouldRefresh) {
+        void queryClient.invalidateQueries({
+          queryKey: QUERY_KEYS.pmTaskComments(taskId),
+        });
+      }
+      if (result.type === "upsert" && result.imageUploadFailures > 0) {
+        toast.error(
+          `Comment posted, but ${result.imageUploadFailures} image upload${
+            result.imageUploadFailures === 1 ? "" : "s"
+          } failed.`,
+        );
+      }
     },
     onError: (error: unknown) =>
       toast.error(getErrorMessage(error) || "Couldn't update the comment"),
@@ -104,7 +139,8 @@ export function usePmTaskComments(taskId: string | null): PmTaskCommentsState {
     error: error
       ? getErrorMessage(error) || "Couldn't load the conversation"
       : null,
-    create: (body, mentions) => execute({ type: "create", body, mentions }),
+    create: (body, mentions, images = []) =>
+      execute({ type: "create", body, mentions, images }),
     update: (commentId, body, mentions) =>
       execute({ type: "update", commentId, body, mentions }),
     remove: (commentId) => execute({ type: "delete", commentId }),
