@@ -3,6 +3,7 @@ import { getOsKnowledgeBaseConfig } from "../../../config/osKnowledgeBase";
 import {
   AiVisibilityEngine,
   AiVisibilityEngineAdapter,
+  EngineCitation,
   EnginePrompt,
   EngineRawResult,
 } from "../types";
@@ -56,10 +57,13 @@ export class GeminiVisibilityAdapter implements AiVisibilityEngineAdapter {
     });
     const answerText = response.text ?? "";
     const gm = (response as GroundingShape).candidates?.[0]?.groundingMetadata;
-    const citationSources = (gm?.groundingChunks ?? [])
-      .map((c) => c.web?.title || c.web?.uri || "")
-      .filter((s) => s.length > 0);
-    return { answerText, citationSources, captureMethod: "api_grounded" };
+    // The `uri` is a Google redirect link, so the TITLE is what carries the real
+    // domain here. Both are kept and the detector searches both — the adapter
+    // does not decide which field is the useful one.
+    const citations: EngineCitation[] = (gm?.groundingChunks ?? [])
+      .map((c) => ({ url: c.web?.uri ?? null, title: c.web?.title ?? null }))
+      .filter((c) => c.url !== null || c.title !== null);
+    return { answerText, citations, captureMethod: "api_grounded" };
   }
 }
 

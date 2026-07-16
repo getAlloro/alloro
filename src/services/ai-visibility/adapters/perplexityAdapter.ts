@@ -1,6 +1,7 @@
 import {
   AiVisibilityEngine,
   AiVisibilityEngineAdapter,
+  EngineCitation,
   EnginePrompt,
   EngineRawResult,
 } from "../types";
@@ -50,9 +51,10 @@ export class PerplexityVisibilityAdapter implements AiVisibilityEngineAdapter {
     }
     const data = (await res.json()) as PerplexityResponse;
     const answerText = data.choices?.[0]?.message?.content ?? "";
-    const citationSources = (data.citations ?? []).filter(
-      (s) => typeof s === "string" && s.length > 0
-    );
-    return { answerText, citationSources, captureMethod: "api_proxy" };
+    // Sonar returns bare absolute URLs — the URL IS the citation, no title.
+    const citations: EngineCitation[] = (data.citations ?? [])
+      .filter((s): s is string => typeof s === "string" && s.length > 0)
+      .map((url) => ({ url, title: null }));
+    return { answerText, citations, captureMethod: "api_proxy" };
   }
 }

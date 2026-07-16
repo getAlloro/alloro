@@ -1,0 +1,327 @@
+{
+  "plan": "plans/07152026-aeo-visibility-observation",
+  "generatedAt": "2026-07-16",
+  "status": "In Progress",
+  "items": [
+    {
+      "id": "T1",
+      "title": "The prompt set is built from category+city, and is empty when either is missing",
+      "surface": "cli",
+      "precondition": "Pure builder, no network or DB.",
+      "steps": [
+        "Build a prompt set for category 'endodontist' + city 'Austin, TX'.",
+        "Build with an empty category, and with a whitespace-only city."
+      ],
+      "expected": "Two prompts (generic + contextualized) carrying the category and city; an empty set when either input is missing, so the runner skips instead of asking a meaningless question.",
+      "status": "pass",
+      "evidence": "src/__tests__/ai-visibility.test.ts — 2 buildPromptSet cases passed in the 25-test A3 run and the 481-test full suite (Node 22).",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Detector: mentioned + position when the practice name appears",
+      "surface": "cli",
+      "precondition": "Pure detector over a fixture answer. No network or DB.",
+      "steps": [
+        "Detect over an answer listing the practice name.",
+        "Detect over an answer naming only other practices."
+      ],
+      "expected": "mentioned=true with the raw 1-based line index; mentioned=false when absent. position is diagnostic only and is never surfaced as a rank.",
+      "status": "pass",
+      "evidence": "src/__tests__/ai-visibility.test.ts — 2 detectAppearance cases passed.",
+      "notes": "A log, never a score. No rank is derived from position.",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "Detector: cited=true only when the practice DOMAIN is in a citation, not prose",
+      "surface": "cli",
+      "precondition": "Pure detector over structured citation fixtures.",
+      "steps": [
+        "Detect with the practice domain present in a citation.",
+        "Detect with the name in prose but only third-party citations."
+      ],
+      "expected": "cited=true only on a real citation hostname match, and the stored citedSource contains the host that proved it; a bare name match never implies a citation.",
+      "status": "pass",
+      "evidence": "src/__tests__/ai-visibility.test.ts — cited + ambiguity-guard cases passed.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T4",
+      "title": "Detector anti-fabrication: no positive from a lookalike, prose, ccTLD, or longer name",
+      "surface": "cli",
+      "precondition": "Pure detector over adversary fixtures.",
+      "steps": [
+        "Detect against a competitor superstring domain (bestsmiledental.com vs smiledental.com).",
+        "Detect against a domain appearing only in prose.",
+        "Detect against a different ccTLD host, a longer competitor name, and a common-word name inside a longer name.",
+        "Detect against a real subdomain of the practice's own domain."
+      ],
+      "expected": "Every lookalike is rejected; only the genuine subdomain citation counts. The detector prefers a MISSED positive over a FABRICATED one.",
+      "status": "pass",
+      "evidence": "src/__tests__/ai-visibility.test.ts — 6 anti-fabrication regression cases passed.",
+      "notes": "Binding honesty rule (spec + research/aeo-measurement-spec.md §3): never record a mention/citation that isn't genuinely the practice.",
+      "waiver": ""
+    },
+    {
+      "id": "T5",
+      "title": "Registry runs only CONFIGURED engines",
+      "surface": "cli",
+      "precondition": "Inject one configured and one unconfigured fake adapter.",
+      "steps": [
+        "Set adapters to a configured gemini and an unconfigured perplexity.",
+        "Read the configured set."
+      ],
+      "expected": "Only the configured engine is returned; an engine with no key is never run half-built.",
+      "status": "pass",
+      "evidence": "src/__tests__/ai-visibility.test.ts — registry case passed.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T6",
+      "title": "SerpApi adapter parses the REAL ai_overview shape and keeps each reference's link",
+      "surface": "cli",
+      "precondition": "fetch is stubbed with a live-shaped SerpApi google_ai_overview payload: text_blocks plus references as {title, link, snippet, source, index}.",
+      "steps": [
+        "Stub SERPAPI_API_KEY and fetch with the live-shaped payload.",
+        "Query the adapter and inspect the returned citations."
+      ],
+      "expected": "Both the link and the title survive as a structured citation; the URL is never discarded in favour of the title.",
+      "status": "pass",
+      "evidence": "src/__tests__/ai-visibility.test.ts — SerpApi parse case passed. MUTATION-VERIFIED: restoring the old title-preferred-over-link mapping fails this test and T7 and nothing else, so the test catches the real defect rather than restating the code.",
+      "notes": "Dave review #165 round 2, item 2. HONEST LIMIT: fetch is stubbed, so this proves the PARSE against the documented/real response shape, NOT the network. The live call is T19.",
+      "waiver": ""
+    },
+    {
+      "id": "T7",
+      "title": "A normal {title, link} reference is detected as CITED end-to-end",
+      "surface": "cli",
+      "precondition": "Stubbed live-shaped SerpApi payload whose reference title carries no domain and whose link is the practice's own site.",
+      "steps": [
+        "Query the adapter for the live-shaped payload.",
+        "Run the detector over the result with the practice identity."
+      ],
+      "expected": "cited=true, and citedSource is the practice URL. Previously the adapter kept only the title — a headline with no hostname — so a real citation of the practice's own site recorded cited=false and under-reported visibility.",
+      "status": "pass",
+      "evidence": "src/__tests__/ai-visibility.test.ts — end-to-end cited case passed. Mutation-verified alongside T6.",
+      "notes": "Dave review #165 round 2, item 2. This is the adapter->detector contract the finding named: the adapter must not decide which field is useful, because the detector needs a hostname.",
+      "waiver": ""
+    },
+    {
+      "id": "T8",
+      "title": "SerpApi adapter tolerates partial shapes and fails loudly on a non-ok response",
+      "surface": "cli",
+      "precondition": "Stubbed fetch returning a reference with no link, an empty body, and a 429.",
+      "steps": [
+        "Query with a title-only reference and with an absent ai_overview block.",
+        "Query with a non-ok (429) response."
+      ],
+      "expected": "A title-only reference still yields a citation and still matches by hostname (the Gemini redirect case); an empty body yields empty answer/citations; a 429 THROWS rather than recording an empty reading as a real observation.",
+      "status": "pass",
+      "evidence": "src/__tests__/ai-visibility.test.ts — 2 tolerance cases passed.",
+      "notes": "The throw matters: a silent empty reading would persist 'we looked and the practice was absent' when in fact we never got an answer.",
+      "waiver": ""
+    },
+    {
+      "id": "T9",
+      "title": "Runner records one observation per prompt per configured engine",
+      "surface": "cli",
+      "precondition": "Inject a configured fake gemini adapter; the model's record() is mocked (suite is DB-mocked).",
+      "steps": [
+        "Run the observation for a category+city.",
+        "Inspect the summary and the record() calls."
+      ],
+      "expected": "Two prompts run, two observations recorded, capture_method carried through on every write, and the unconfigured engines reported as skipped rather than run.",
+      "status": "pass",
+      "evidence": "src/__tests__/ai-visibility.test.ts — runner happy-path case passed.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T10",
+      "title": "A persistence failure PROPAGATES — never relabelled an engine failure (§3.2)",
+      "surface": "cli",
+      "precondition": "Mock AiVisibilityObservationModel.record() to reject.",
+      "steps": [
+        "Inject a healthy fake engine and make every write reject.",
+        "Run the observation and inspect the rejection and the call count."
+      ],
+      "expected": "The run REJECTS with the database error and aborts on the first failed write. A database outage is never reported as a successful run.",
+      "status": "pass",
+      "evidence": "src/__tests__/ai-visibility.test.ts — 'PROPAGATES a persistence failure' passed. MUTATION-VERIFIED: collapsing the two boundaries back into one catch fails this test and nothing else.",
+      "notes": "Dave review #165 round 2, item 1. Before the fix, one try/catch wrapped BOTH adapter.query() and record(), so a rejected write was logged as 'engine query failed', counted as an engine failure, and the run RESOLVED — reporting success while having stored nothing. The two boundaries are now separate: a provider failure is isolated (logged, skipped, run continues); a persistence failure is logged with context and re-thrown.",
+      "waiver": ""
+    },
+    {
+      "id": "T11",
+      "title": "An engine failure is isolated — a throwing adapter never fails the run",
+      "surface": "cli",
+      "precondition": "Inject an adapter whose query() throws.",
+      "steps": [
+        "Run the observation with the throwing adapter.",
+        "Inspect the summary and the record() calls."
+      ],
+      "expected": "The engine is reported in failedEngines (not enginesRun), nothing is persisted for it, and the run still resolves — one flaky third party never costs the others.",
+      "status": "pass",
+      "evidence": "src/__tests__/ai-visibility.test.ts — failure-isolation case passed.",
+      "notes": "Deliberately the OPPOSITE disposition from T10: a third-party outage is isolated, our own database failing is not.",
+      "waiver": ""
+    },
+    {
+      "id": "T12",
+      "title": "An ignored idempotent conflict counts as a DUPLICATE, never as a fresh observation",
+      "surface": "cli",
+      "precondition": "Mock record() to report false (every write hit an existing row for this run_date).",
+      "steps": [
+        "Run the observation with every write conflicting.",
+        "Inspect observationsRecorded, duplicateObservations, observationsProcessed, enginesRun and failedEngines."
+      ],
+      "expected": "observationsRecorded=0, duplicateObservations=2, observationsProcessed=2 — and the engine is still reported as RUN, not failed, because it answered.",
+      "status": "pass",
+      "evidence": "src/__tests__/ai-visibility.test.ts — duplicate-count case passed; the run log shows observationsRecorded:0, duplicateObservations:2.",
+      "notes": "Dave review #165 round 2, item 4. Before the fix the runner incremented observationsRecorded on every non-throwing write, so a same-day re-run restated the full set as freshly captured. Fixing the count alone would have introduced the opposite lie — an idempotent re-run reporting every engine as FAILED — so ran-vs-failed is now decided by completed READINGS, and the insert count is reported separately.",
+      "waiver": ""
+    },
+    {
+      "id": "T13",
+      "title": "The run skips entirely when there is no category/city",
+      "surface": "cli",
+      "precondition": "Inject a configured adapter and run with an empty category.",
+      "steps": [
+        "Run the observation with category ''.",
+        "Inspect promptsRun and the record() calls."
+      ],
+      "expected": "promptsRun=0, nothing persisted, all engines reported skipped — no fabricated observation from a meaningless prompt.",
+      "status": "pass",
+      "evidence": "src/__tests__/ai-visibility.test.ts — no-prompt case passed.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T14",
+      "title": "record() reports whether a row actually landed, over an ignore-conflict chain",
+      "surface": "cli",
+      "precondition": "Spy on the model's query builder; the suite is DB-mocked.",
+      "steps": [
+        "Drive record() with the chain returning one row, and with it returning none.",
+        "Inspect the returned boolean and the built chain."
+      ],
+      "expected": "true when a row comes back, false when none does; the chain is onConflict(location_id, prompt_key, engine, run_date).ignore().returning('id') — without returning('id') the caller cannot know an insert occurred.",
+      "status": "pass",
+      "evidence": "src/__tests__/ai-visibility.test.ts — 2 record() cases passed. MUTATION-VERIFIED: hardcoding `return true` fails the conflict case, and dropping .returning('id') fails both. SELF-CAUGHT GAP: the first cut of this fix had no model-level test — every runner test mocks record() out, so hardcoding `return true` passed the whole suite. This item exists because that mutation went uncaught.",
+      "notes": "Dave review #165 round 2, item 4. Corroborated offline by compiling the chain through knex's pg dialect with NO connection open, which emits: insert into \"ai_visibility_observation\" (...) on conflict (\"location_id\", \"prompt_key\", \"engine\", \"run_date\") do nothing returning \"id\" — the conflict target matches the unique index ai_visibility_observation_idem (migration 20260715120000, line 42) exactly. HONEST LIMIT: that is still only the SQL TEXT plus the boolean mapping. That PostgreSQL returns no row for an ignored conflict is documented behaviour I did not execute; it is verified as T16, which needs a live database.",
+      "waiver": ""
+    },
+    {
+      "id": "T15",
+      "title": "The observation read is tenant-scoped — one org cannot read another's rows (§11.7)",
+      "surface": "cli",
+      "precondition": "Spy on the model's query builder; the suite is DB-mocked.",
+      "steps": [
+        "Call AiVisibilityObservationModel.listForLocation(7, 42).",
+        "Inspect the WHERE clause the model built."
+      ],
+      "expected": "The WHERE filters by BOTH organization_id and location_id, so org 8's rows at the same location_id are excluded. organizationId is a REQUIRED argument, not an optional filter a caller may forget.",
+      "status": "pass",
+      "evidence": "src/__tests__/ai-visibility.test.ts — cross-org scoping case passed; the WHERE equals { organization_id: 7, location_id: 42 }.",
+      "notes": "Dave review #165 round 1, items 1-2; confirmed resolved in round 2. HONEST LIMIT: asserts the query SHAPE, not behaviour against a real database — it would not catch a BaseModel-level bug that drops the WHERE. A behavioural test belongs in integration-tests once the read is wired to a production caller; it has ZERO callers today.",
+      "waiver": ""
+    },
+    {
+      "id": "T16",
+      "title": "An ignored conflict really returns no row in PostgreSQL",
+      "surface": "cli",
+      "precondition": "A live database with the ai_visibility_observation table migrated.",
+      "steps": [
+        "Insert one observation and note the returned id.",
+        "Insert the SAME (location_id, prompt_key, engine, run_date) again.",
+        "Confirm the second call returns no row and the table still holds exactly one."
+      ],
+      "expected": "The first insert returns an id (record() -> true); the second returns nothing (record() -> false) and adds no row, so the duplicate accounting in T12 rests on real database behaviour.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "HONESTLY NOT RUN — no live database was available and none was stood up for this work. T14 proves the chain and the mapping against a mocked builder; this proves PostgreSQL's actual ON CONFLICT DO NOTHING ... RETURNING behaviour, which a mock cannot establish. The unique index ai_visibility_observation_idem (migration 20260715120000, line 42) matches the onConflict columns exactly, which is a static check, not a run. Must NOT be marked pass until someone runs it against a real database.",
+      "waiver": ""
+    },
+    {
+      "id": "T17",
+      "title": "The migration lands against the dev database",
+      "surface": "cli",
+      "precondition": "Merge to dev/dave and let the deploy run npm run db:migrate against the dev database.",
+      "steps": [
+        "Run the migration against dev.",
+        "Confirm ai_visibility_observation exists with the unique index and both CHECK constraints.",
+        "Roll back and confirm the table is dropped cleanly."
+      ],
+      "expected": "The table is created additively with no error, and down() reverses it.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "HONESTLY NOT RUN. This suite is DB-mocked and no database was available; no DDL from this migration has executed anywhere. Additive and reversible by inspection only.",
+      "waiver": ""
+    },
+    {
+      "id": "T18",
+      "title": "A live Gemini observation run records a true reading",
+      "surface": "cli",
+      "precondition": "A live GEMINI_API_KEY and a caller that invokes runAiVisibilityObservation for an onboarded location.",
+      "steps": [
+        "Trigger one observation run for a real location.",
+        "Compare the recorded mentioned/cited/citedSource against what Gemini actually answered."
+      ],
+      "expected": "The observation matches the live answer, with capture_method 'api_grounded' — a grounded API reading, explicitly a proxy for what a user sees, never the exact AI Overview.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "HONESTLY NOT RUN, and NOT CURRENTLY TRIGGERABLE: A3 has no wired caller. Nothing in src/ imports runAiVisibilityObservation outside its own module and the test file — there is no agent, worker, route, or schedule for it. This is the post-merge dev smoke test named in the get-found chain merge brief; it needs wiring first. Every proof above is unit-level with injected seams or stubbed fetch; no live provider call has been made.",
+      "waiver": ""
+    },
+    {
+      "id": "T19",
+      "title": "A live SerpApi AI Overview run parses the real payload",
+      "surface": "cli",
+      "precondition": "A SERPAPI_API_KEY, plus the ToS/procurement decision SerpApi requires.",
+      "steps": [
+        "Trigger one observation with the SerpApi adapter configured.",
+        "Compare the parsed answer/citations against the raw SerpApi response."
+      ],
+      "expected": "text_blocks and references parse as T6 asserts against the stubbed shape, with capture_method 'serp_scrape'.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "HONESTLY NOT RUN — no key exists, so this HTTP path has never executed against the live API. T6/T7/T8 stub fetch with the documented shape; if the live payload differs from the documented one, only this item would catch it. The adapter stays dormant until a key is present (the runner skips unconfigured engines), so merging costs nothing. SerpApi scrapes Google under its own ToS — a procurement call for Corey, not a merge step.",
+      "waiver": ""
+    },
+    {
+      "id": "T20",
+      "title": "A live Perplexity Sonar run parses the real payload",
+      "surface": "cli",
+      "precondition": "A PERPLEXITY_API_KEY.",
+      "steps": [
+        "Trigger one observation with the Perplexity adapter configured.",
+        "Compare the parsed answer/citations against the raw Sonar response."
+      ],
+      "expected": "choices[0].message.content and the citations array parse into an answer plus URL citations, with capture_method 'api_proxy'.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "HONESTLY NOT RUN — no key exists; this HTTP path has never executed. Unlike SerpApi, the Perplexity adapter has NO stubbed-shape test either, so its parse is currently unproven at any level. It stays dormant until a key is present. Flagged as the weakest-covered adapter.",
+      "waiver": ""
+    },
+    {
+      "id": "T21",
+      "title": "The repo gates are clean at this head",
+      "surface": "cli",
+      "precondition": "Node 22 (v22.23.1), npm ci, at the branch head.",
+      "steps": [
+        "Run npx tsc --noEmit.",
+        "Run npx vitest run (full suite).",
+        "Run npm run check:conventions -- --strict."
+      ],
+      "expected": "Zero type errors, a green suite, and zero structural backend violations.",
+      "status": "pass",
+      "evidence": "tsc --noEmit exited clean (no output). Full suite: 61 files, 481 tests passed (473 before this round; +8 new A3 tests). check:conventions --strict exited 0 with 'CLEAR structural violations — backend (size + console + db): 0'; no ai-visibility file appears in any finding, advisory or otherwise.",
+      "notes": "The §11.7 heuristic lists 102 models repo-wide; AiVisibilityObservationModel is NOT among them (it references organization_id). That heuristic is a backstop, not proof — the real tenant proof is T15.",
+      "waiver": ""
+    }
+  ]
+}

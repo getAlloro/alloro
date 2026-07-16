@@ -1,5 +1,6 @@
 import {
   AppearanceDetection,
+  EngineCitation,
   EngineRawResult,
   PracticeIdentity,
 } from "./types";
@@ -19,7 +20,10 @@ import {
  *   Dental Group"), OR the practice's own domain is cited.
  * - `cited` = the practice's own DOMAIN appears in a CITATION SOURCE (not prose),
  *   matched by hostname equality/subdomain — never a substring, so
- *   "bestsmiledental.com" does not match "smiledental.com".
+ *   "bestsmiledental.com" does not match "smiledental.com". A citation's URL and
+ *   its title are BOTH searched for the host, because engines disagree about
+ *   which field carries the real domain (Gemini's URI is a redirect, so only its
+ *   title carries it; SerpApi's link is the real URL).
  * - `position` = raw 1-based line index where the name first appears; diagnostic
  *   only, NEVER rendered as a rank.
  */
@@ -64,6 +68,31 @@ function hostMatchesPractice(sourceHost: string, practiceHost: string): boolean 
   return sourceHost === practiceHost || sourceHost.endsWith("." + practiceHost);
 }
 
+/**
+ * The citation FIELD (url or title) containing the practice's own host, or null.
+ *
+ * Returns the matching field ITSELF, not the citation, so the `cited_source` we
+ * persist always contains the host that proved the citation — an audit trail
+ * that shows its own evidence. (Storing a Gemini redirect URL when the title is
+ * what matched would record a source that does not contain the practice domain.)
+ */
+function findCitedSource(
+  citations: EngineCitation[],
+  practiceHost: string
+): string | null {
+  for (const citation of citations) {
+    const fields = [citation.url, citation.title].filter(
+      (f): f is string => typeof f === "string" && f.length > 0
+    );
+    for (const field of fields) {
+      if (extractHosts(field).some((h) => hostMatchesPractice(h, practiceHost))) {
+        return field;
+      }
+    }
+  }
+  return null;
+}
+
 export function detectAppearance(
   raw: EngineRawResult,
   identity: PracticeIdentity
@@ -74,19 +103,12 @@ export function detectAppearance(
     nameAppears(answer, identity.name ?? "") ||
     nameAppears(answer, identity.gbpTitle ?? "");
 
-  let citedSource: string | null = null;
   const practiceHost = identity.domain
     ? normalizePracticeHost(identity.domain)
     : "";
-  if (practiceHost) {
-    for (const source of raw.citationSources ?? []) {
-      const hosts = extractHosts(source);
-      if (hosts.some((h) => hostMatchesPractice(h, practiceHost))) {
-        citedSource = source;
-        break;
-      }
-    }
-  }
+  const citedSource = practiceHost
+    ? findCitedSource(raw.citations ?? [], practiceHost)
+    : null;
   const cited = citedSource !== null;
 
   const mentioned = nameMentioned || cited;

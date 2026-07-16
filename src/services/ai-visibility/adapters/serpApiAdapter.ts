@@ -1,6 +1,7 @@
 import {
   AiVisibilityEngine,
   AiVisibilityEngineAdapter,
+  EngineCitation,
   EnginePrompt,
   EngineRawResult,
 } from "../types";
@@ -18,6 +19,7 @@ const SERPAPI_URL = "https://serpapi.com/search";
 interface SerpApiResponse {
   ai_overview?: {
     text_blocks?: Array<{ snippet?: string }>;
+    /** Live shape carries more fields (source, snippet, index); we read these two. */
     references?: Array<{ link?: string; title?: string }>;
   };
 }
@@ -47,9 +49,12 @@ export class SerpApiAiOverviewAdapter implements AiVisibilityEngineAdapter {
       .map((b) => b.snippet ?? "")
       .filter((s) => s.length > 0)
       .join("\n");
-    const citationSources = (data.ai_overview?.references ?? [])
-      .map((r) => r.title || r.link || "")
-      .filter((s) => s.length > 0);
-    return { answerText, citationSources, captureMethod: "serp_scrape" };
+    // Keep BOTH fields: `link` is the real URL and the only thing that can prove
+    // a citation by hostname. A reference's title is prose ("Bright Smiles
+    // Dental") and usually carries no domain at all.
+    const citations: EngineCitation[] = (data.ai_overview?.references ?? [])
+      .map((r) => ({ url: r.link ?? null, title: r.title ?? null }))
+      .filter((c) => c.url !== null || c.title !== null);
+    return { answerText, citations, captureMethod: "serp_scrape" };
   }
 }

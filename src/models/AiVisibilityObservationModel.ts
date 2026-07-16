@@ -50,12 +50,17 @@ export class AiVisibilityObservationModel extends BaseModel {
   /**
    * Idempotent insert: a second write for the same (location, prompt, engine,
    * run_date) is ignored (no duplicate observation, no error). A log, not a score.
+   *
+   * @returns `true` when a NEW row was inserted, `false` when an existing row
+   * made this a no-op. The caller MUST have this to report what was actually
+   * captured: counting an ignored conflict as a fresh observation overstates the
+   * run (an idempotent re-run would claim to have captured a full set again).
    */
   static async record(
     input: RecordObservationInput,
     trx?: QueryContext
-  ): Promise<void> {
-    await this.table(trx)
+  ): Promise<boolean> {
+    const inserted = await this.table(trx)
       .insert({
         organization_id: input.organizationId,
         location_id: input.locationId,
@@ -72,7 +77,10 @@ export class AiVisibilityObservationModel extends BaseModel {
         observed_at: input.observedAt,
       })
       .onConflict(["location_id", "prompt_key", "engine", "run_date"])
-      .ignore();
+      .ignore()
+      .returning("id");
+    // PostgreSQL returns no row for an ignored conflict, one for a real insert.
+    return inserted.length > 0;
   }
 
   /**

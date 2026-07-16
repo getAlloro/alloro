@@ -30,11 +30,27 @@ export interface EnginePrompt {
   kind: "generic" | "contextualized";
 }
 
+/**
+ * One citation/grounding source, kept STRUCTURED so a link is never flattened
+ * away. Detection needs a HOSTNAME to prove a citation, so any shape that
+ * collapses a reference to a single string can silently drop the URL and record
+ * a real citation as `cited: false`. Either field may be absent, and which one
+ * carries the domain is engine-specific: SerpApi returns `{title, link}`;
+ * Gemini returns a title plus a Google *redirect* URI (so the title is what
+ * carries the real domain); Perplexity returns a bare URL.
+ */
+export interface EngineCitation {
+  /** Absolute URL of the cited page, when the engine provides one. */
+  url: string | null;
+  /** Human-readable title of the cited page, when the engine provides one. */
+  title: string | null;
+}
+
 /** Raw adapter output, BEFORE detection. */
 export interface EngineRawResult {
   answerText: string;
-  /** Source titles/domains from citations/grounding. May be partial (e.g. Gemini redirect URLs → title only). */
-  citationSources: string[];
+  /** Citation/grounding sources. Structured, so the link survives the adapter. */
+  citations: EngineCitation[];
   captureMethod: CaptureMethod;
 }
 
