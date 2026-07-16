@@ -11,8 +11,10 @@ import { patchGbpBusinessInformation } from "../../gbp/gbp-services/gbp-write.se
 import { GbpAutomationError } from "../feature-utils/GbpAutomationError";
 import { isTransientGoogleError } from "../feature-utils/googleApiErrors";
 import {
+  BusinessInfoPatch,
   BusinessInfoPayload,
   extractMaskedFields,
+  mergePatchOverSnapshot,
 } from "../feature-utils/gbpBusinessInfo";
 import { GbpNotificationService } from "./GbpNotificationService";
 import { GbpReadinessService } from "./GbpReadinessService";
@@ -117,6 +119,28 @@ export class GbpBusinessInfoDeploymentService {
     return (await GbpWorkItemModel.findById(item.id))!;
   }
 
+  static async reject(params: ScopedParams & { reason?: string }): Promise<IGbpWorkItem> {
+    const item = await this.getScopedItem(params);
+    const rejected = await GbpWorkItemModel.rejectBusinessInfoIfPending(
+      item.id,
+      params.userId,
+      params.reason || null
+    );
+    if (rejected === 0) {
+      throw new GbpAutomationError(
+        "REJECT_NOT_AVAILABLE",
+        "A published or deploying profile update cannot be rejected; revert it instead."
+      );
+    }
+    await GbpWorkEventModel.create({
+      work_item_id: item.id,
+      actor_user_id: params.userId,
+      event_type: "business_info_rejected",
+      metadata: { reason: params.reason || null, actorEmail: params.actorEmail || null },
+    });
+    return (await GbpWorkItemModel.findById(item.id))!;
+  }
+
   static async enqueueDeployment(params: ScopedParams): Promise<IGbpWorkItem> {
     const item = await this.getScopedItem(params);
     if (item.status !== "approved") {
@@ -181,6 +205,15 @@ export class GbpBusinessInfoDeploymentService {
       );
     }
     await assertWritebackEnabled(item.organization_id, item.location_id);
+
+    // Single-flight: atomically claim the revert so N clicks/retries enqueue ONE job.
+    const claimed = await GbpWorkItemModel.claimBusinessInfoRevert(item.id);
+    if (claimed === 0) {
+      throw new GbpAutomationError(
+        "REVERT_IN_PROGRESS",
+        "A revert for this profile update is already in progress or was already applied."
+      );
+    }
     await getGbpAutomationQueue("deployment").add(
       "revert-business-info",
       { workItemId: item.id, userId: params.userId, actorEmail: params.actorEmail || null },
@@ -192,7 +225,7 @@ export class GbpBusinessInfoDeploymentService {
         removeOnFail: { age: 604800, count: 5000 },
       }
     );
-    return item;
+    return (await GbpWorkItemModel.findById(item.id))!;
   }
 
   static async deployNow(
@@ -234,31 +267,42 @@ export class GbpBusinessInfoDeploymentService {
 
       const auth = await getValidOAuth2ClientByConnection(property.google_connection_id);
 
-      // Capture-before-write: read the current live values as the rollback snapshot.
-      // If the read fails there is no rollback point, so the write does NOT proceed.
-      const profile = await getLocationProfileForRanking(
-        auth,
-        property.account_id || "",
-        property.external_id || ""
-      );
-      if (!profile) {
-        throw new GbpAutomationError(
-          "SNAPSHOT_FAILED",
-          "Could not read the current profile to make a rollback point; the update was not sent."
+      // Capture-before-write (capture-ONCE): read the live values as the rollback
+      // snapshot only if a prior attempt has not already captured them. On a retry
+      // after an ambiguous write (patch applied on Google but the response was lost),
+      // re-reading would capture Google's ALREADY-changed state and clobber the true
+      // original — so we never recapture. If the read fails there is no rollback point,
+      // so the write does NOT proceed.
+      let previousValues = (payload.previousValues ?? null) as BusinessInfoPatch | null;
+      if (!previousValues) {
+        const profile = await getLocationProfileForRanking(
+          auth,
+          property.account_id || "",
+          property.external_id || ""
         );
+        if (!profile) {
+          throw new GbpAutomationError(
+            "SNAPSHOT_FAILED",
+            "Could not read the current profile to make a rollback point; the update was not sent."
+          );
+        }
+        previousValues = extractMaskedFields(profile as Record<string, unknown>, payload.updateMask);
+        await GbpWorkItemModel.updateById(item.id, {
+          business_info_payload: { ...payload, previousValues },
+        });
       }
-      const previousValues = extractMaskedFields(
-        profile as Record<string, unknown>,
+
+      // Merge the owner's change over the snapshot so a partial structured edit never
+      // clears sibling subfields that Google's top-level updateMask would replace.
+      const effectivePatch = mergePatchOverSnapshot(
+        payload.patch,
+        previousValues,
         payload.updateMask
       );
-      await GbpWorkItemModel.updateById(item.id, {
-        business_info_payload: { ...payload, previousValues },
-      });
-
       googleResult = await patchGbpBusinessInformation(
         auth,
         businessInfoLocationName(property),
-        payload.patch,
+        effectivePatch,
         payload.updateMask
       );
 
@@ -341,6 +385,11 @@ export class GbpBusinessInfoDeploymentService {
     }
     await this.assertOrganizationActive(item.organization_id);
 
+    // Idempotency: if a prior run already reverted this item, do NOT patch again.
+    if (item.metadata?.reverted === true) {
+      return item;
+    }
+
     const payload = readPayload(item);
     if (!payload.previousValues) {
       throw new GbpAutomationError("NO_ROLLBACK_SNAPSHOT", "No rollback snapshot exists for this profile update.");
@@ -358,8 +407,15 @@ export class GbpBusinessInfoDeploymentService {
       payload.updateMask
     );
 
+    // Mark reverted + release the single-flight claim first, so a bookkeeping failure
+    // below cannot cause the job to retry and re-PATCH Google.
     await GbpWorkItemModel.updateById(item.id, {
-      metadata: { ...item.metadata, reverted: true, revertedAt: new Date().toISOString() },
+      metadata: {
+        ...item.metadata,
+        reverted: true,
+        revertPending: false,
+        revertedAt: new Date().toISOString(),
+      },
       google_response: googleResult,
     });
     await GbpWorkEventModel.create({
@@ -367,7 +423,7 @@ export class GbpBusinessInfoDeploymentService {
       actor_user_id: userId,
       event_type: "business_info_reverted",
       metadata: { updateMask: payload.updateMask },
-    });
+    }).catch(() => undefined);
     await GbpNotificationService.create({
       organizationId: item.organization_id,
       locationId: item.location_id,
@@ -375,7 +431,7 @@ export class GbpBusinessInfoDeploymentService {
       kind: "gbp_business_info_reverted",
       title: "Alloro reverted your Google profile update",
       message: "Your Business Profile information was restored to its previous values on Google.",
-    });
+    }).catch(() => undefined);
     return (await GbpWorkItemModel.findById(item.id))!;
   }
 

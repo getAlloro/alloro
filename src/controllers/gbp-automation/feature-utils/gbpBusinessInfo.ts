@@ -11,6 +11,11 @@ import { GBP_INPUT_LIMITS, sanitizeGbpText, sanitizeGbpUrl } from "./GbpInputSan
  * empty-mask / mask-mismatch failure class entirely.
  */
 
+// storefrontAddress is intentionally NOT writable in slice 1: it is the field Google
+// most often responds to with re-verification/suspension, and it is outside this
+// slice's stated scope. Structured objects (categories/phoneNumbers/regularHours) are
+// deep-merged over the captured snapshot at write time so a partial edit never clears
+// sibling subfields (proto3 field-mask replace semantics) — see mergePatchOverSnapshot.
 export const BUSINESS_INFO_FIELDS = [
   "title",
   "categories",
@@ -18,12 +23,12 @@ export const BUSINESS_INFO_FIELDS = [
   "websiteUri",
   "regularHours",
   "profile",
-  "storefrontAddress",
 ] as const;
 
 export type BusinessInfoField = (typeof BUSINESS_INFO_FIELDS)[number];
 
-const TITLE_MAX_LENGTH = 300;
+// Google's Business Profile title limit is ~100 chars; stay at/under it.
+const TITLE_MAX_LENGTH = 100;
 const DESCRIPTION_MAX_LENGTH = 750;
 
 const FIELD_LABELS: Record<BusinessInfoField, string> = {
@@ -33,7 +38,6 @@ const FIELD_LABELS: Record<BusinessInfoField, string> = {
   websiteUri: "website",
   regularHours: "business hours",
   profile: "description",
-  storefrontAddress: "address",
 };
 
 export type BusinessInfoPatch = Partial<Record<BusinessInfoField, unknown>>;
@@ -131,4 +135,38 @@ export function extractMaskedFields(
     snapshot[field] = current === undefined ? null : current;
   }
   return snapshot;
+}
+
+/** Deep-merge `override` onto `base` (override wins at every leaf; arrays/scalars replace). */
+function deepMerge(base: unknown, override: unknown): unknown {
+  if (!isPlainObject(base) || !isPlainObject(override)) return override;
+  const out: Record<string, unknown> = { ...base };
+  for (const [key, value] of Object.entries(override)) {
+    out[key] = deepMerge(base[key], value);
+  }
+  return out;
+}
+
+/**
+ * Build the value actually sent to Google: the owner's proposed change deep-merged
+ * ONTO the captured live snapshot, per masked field. A top-level updateMask replaces
+ * the whole message on Google's side, so without this a partial structured edit (e.g.
+ * only `phoneNumbers.primaryPhone`) would silently clear its siblings (additionalPhones).
+ * Merging over the snapshot preserves everything the owner did not explicitly change.
+ */
+export function mergePatchOverSnapshot(
+  patch: BusinessInfoPatch,
+  snapshot: BusinessInfoPatch | null | undefined,
+  updateMask: BusinessInfoField[]
+): BusinessInfoPatch {
+  const merged: BusinessInfoPatch = {};
+  for (const field of updateMask) {
+    const proposed = patch[field];
+    const current = snapshot ? snapshot[field] : undefined;
+    merged[field] =
+      isPlainObject(proposed) && isPlainObject(current)
+        ? (deepMerge(current, proposed) as unknown)
+        : proposed;
+  }
+  return merged;
 }

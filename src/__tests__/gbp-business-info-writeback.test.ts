@@ -18,9 +18,12 @@ const h = vi.hoisted(() => ({
   getReadiness: vi.fn(),
   findEffectiveSettings: vi.fn(),
   findWorkItem: vi.fn(),
+  findScopedWorkItem: vi.fn(),
   updateWorkItem: vi.fn(),
   markPublished: vi.fn(),
   markFailedToDraft: vi.fn(),
+  rejectIfPending: vi.fn(),
+  claimRevert: vi.fn(),
   createAttempt: vi.fn(),
   markSucceeded: vi.fn(),
   markFailed: vi.fn(),
@@ -59,9 +62,12 @@ vi.mock("../models/GbpAutomationSettingsModel", () => ({
 vi.mock("../models/GbpWorkItemModel", () => ({
   GbpWorkItemModel: {
     findById: h.findWorkItem,
+    findByIdForScope: h.findScopedWorkItem,
     updateById: h.updateWorkItem,
     markPublished: h.markPublished,
     markFailedToDraft: h.markFailedToDraft,
+    rejectBusinessInfoIfPending: h.rejectIfPending,
+    claimBusinessInfoRevert: h.claimRevert,
   },
 }));
 vi.mock("../models/GbpDeploymentAttemptModel", () => ({
@@ -134,6 +140,8 @@ beforeEach(() => {
   h.markPublished.mockResolvedValue(1);
   h.markFailedToDraft.mockResolvedValue(1);
   h.updateWorkItem.mockResolvedValue(1);
+  h.rejectIfPending.mockResolvedValue(1);
+  h.claimRevert.mockResolvedValue(1);
 });
 
 describe("parseBusinessInfoDraftInput — boundary validation (§11.2)", () => {
@@ -311,5 +319,124 @@ describe("revertNow — the rollback uses the captured snapshot", () => {
     );
     await expect(GbpBusinessInfoDeploymentService.revertNow("wi-1", 5)).rejects.toThrow(/snapshot/i);
     expect(h.patchBusinessInfo).not.toHaveBeenCalled();
+  });
+
+  it("is idempotent — a second revert run does not patch again", async () => {
+    h.findWorkItem.mockResolvedValue(
+      deployingItem({
+        status: "published",
+        metadata: { reverted: true },
+        business_info_payload: {
+          patch: { phoneNumbers: { primaryPhone: "+1 555 100 2000" } },
+          updateMask: ["phoneNumbers"],
+          previousValues: { phoneNumbers: { primaryPhone: "+1 555 000 0000" } },
+        },
+      })
+    );
+    await GbpBusinessInfoDeploymentService.revertNow("wi-1", 5);
+    expect(h.patchBusinessInfo).not.toHaveBeenCalled();
+  });
+});
+
+describe("capture-ONCE — a retry never re-reads and clobbers the snapshot (Finding 1)", () => {
+  it("reuses the persisted snapshot on attempt 2 and never re-reads Google", async () => {
+    // Attempt 2: the item already carries previousValues captured on attempt 1.
+    h.findWorkItem.mockResolvedValue(
+      deployingItem({
+        business_info_payload: {
+          patch: { phoneNumbers: { primaryPhone: "+1 555 100 2000" } },
+          updateMask: ["phoneNumbers"],
+          previousValues: { phoneNumbers: { primaryPhone: "+1 555 000 0000" } },
+        },
+      })
+    );
+    // If capture-once were broken, this would return the ALREADY-CHANGED value.
+    h.getProfile.mockResolvedValue({ phoneNumbers: { primaryPhone: "+1 555 100 2000" } });
+
+    await GbpBusinessInfoDeploymentService.deployNow("wi-1", 5);
+
+    expect(h.getProfile).not.toHaveBeenCalled();
+    // the snapshot is NOT rewritten with the changed value
+    const clobber = h.updateWorkItem.mock.calls.find(
+      (c) =>
+        (c[1] as { business_info_payload?: { previousValues?: { phoneNumbers?: { primaryPhone?: string } } } })
+          .business_info_payload?.previousValues?.phoneNumbers?.primaryPhone === "+1 555 100 2000"
+    );
+    expect(clobber).toBeUndefined();
+    expect(h.patchBusinessInfo).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("mergePatchOverSnapshot — a partial edit preserves sibling subfields (Finding 6)", () => {
+  it("keeps additionalPhones when the owner only changes primaryPhone", async () => {
+    h.findWorkItem.mockResolvedValue(
+      deployingItem({
+        business_info_payload: {
+          patch: { phoneNumbers: { primaryPhone: "+1 555 100 2000" } },
+          updateMask: ["phoneNumbers"],
+        },
+      })
+    );
+    // Google currently has BOTH a primary and an additional phone.
+    h.getProfile.mockResolvedValue({
+      phoneNumbers: { primaryPhone: "+1 555 000 0000", additionalPhones: ["+1 555 111 1111"] },
+    });
+
+    await GbpBusinessInfoDeploymentService.deployNow("wi-1", 5);
+
+    expect(h.patchBusinessInfo).toHaveBeenCalledWith(
+      expect.anything(),
+      "locations/222",
+      { phoneNumbers: { primaryPhone: "+1 555 100 2000", additionalPhones: ["+1 555 111 1111"] } },
+      ["phoneNumbers"]
+    );
+  });
+});
+
+describe("reject — guarded so it can't strand a published item's rollback (Finding 4)", () => {
+  const rejectParams = { organizationId: 1, workItemId: "wi-1", userId: 5 };
+
+  it("rejects a still-pending profile update", async () => {
+    h.findScopedWorkItem.mockResolvedValue(deployingItem({ status: "draft" }));
+    h.rejectIfPending.mockResolvedValue(1);
+    h.findWorkItem.mockResolvedValue(deployingItem({ status: "rejected" }));
+    await GbpBusinessInfoDeploymentService.reject(rejectParams);
+    expect(h.rejectIfPending).toHaveBeenCalled();
+  });
+
+  it("refuses to reject a published item (would strand the rollback)", async () => {
+    h.findScopedWorkItem.mockResolvedValue(deployingItem({ status: "published" }));
+    h.rejectIfPending.mockResolvedValue(0); // the model guard blocks the transition
+    await expect(GbpBusinessInfoDeploymentService.reject(rejectParams)).rejects.toThrow(/revert it instead/i);
+  });
+});
+
+describe("enqueueRevert — single-flight (Finding 5 / Sonnet #2)", () => {
+  const revertParams = { organizationId: 1, workItemId: "wi-1", userId: 5 };
+  const publishedWithSnapshot = () =>
+    deployingItem({
+      status: "published",
+      business_info_payload: {
+        patch: { phoneNumbers: { primaryPhone: "+1 555 100 2000" } },
+        updateMask: ["phoneNumbers"],
+        previousValues: { phoneNumbers: { primaryPhone: "+1 555 000 0000" } },
+      },
+    });
+
+  it("enqueues exactly one revert job when it wins the atomic claim", async () => {
+    h.findScopedWorkItem.mockResolvedValue(publishedWithSnapshot());
+    h.findWorkItem.mockResolvedValue(publishedWithSnapshot());
+    h.claimRevert.mockResolvedValue(1);
+    await GbpBusinessInfoDeploymentService.enqueueRevert(revertParams);
+    expect(h.queueAdd).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses (no job) when another revert already holds the claim", async () => {
+    h.findScopedWorkItem.mockResolvedValue(publishedWithSnapshot());
+    h.claimRevert.mockResolvedValue(0);
+    await expect(GbpBusinessInfoDeploymentService.enqueueRevert(revertParams)).rejects.toThrow(
+      /in progress|already/i
+    );
+    expect(h.queueAdd).not.toHaveBeenCalled();
   });
 });

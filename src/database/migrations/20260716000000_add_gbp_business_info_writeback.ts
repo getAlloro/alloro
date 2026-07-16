@@ -35,6 +35,10 @@ export async function up(knex: Knex): Promise<void> {
 }
 
 export async function down(knex: Knex): Promise<void> {
+  // Rolling back removes the feature, so its own rows must go first — otherwise
+  // re-adding the narrower CHECK would fail validation against any business_info row.
+  await knex(WORK_ITEMS_TABLE).where({ content_type: "business_info" }).del();
+
   await knex.schema.alterTable(SETTINGS_TABLE, (table) => {
     table.dropColumn("business_info_writeback_enabled");
   });

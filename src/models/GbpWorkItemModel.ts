@@ -511,4 +511,47 @@ export class GbpWorkItemModel extends BaseModel {
       updated_at: new Date(),
     });
   }
+
+  /**
+   * Reject a business_info work item only while it is still pending — never a
+   * published or deploying one (that would strand its rollback snapshot or race the
+   * write). Returns 0 if the guard rejects the transition.
+   */
+  static async rejectBusinessInfoIfPending(
+    id: string,
+    userId: number | null,
+    reason: string | null,
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.table(trx)
+      .where({ id, content_type: "business_info" })
+      .whereIn("status", ["draft", "awaiting_approval", "approved"])
+      .update(this.serializeJsonFields({
+        status: "rejected",
+        rejected_by_user_id: userId,
+        rejected_at: new Date(),
+        last_error_code: reason ? "REJECTED" : null,
+        last_error_message: reason,
+        updated_at: new Date(),
+      }));
+  }
+
+  /**
+   * Atomically claim a published business_info item for revert (single-flight): sets
+   * metadata.revertPending only if it is published and not already reverting/reverted.
+   * Returns 0 when another revert already holds the claim, so only one job is enqueued.
+   */
+  static async claimBusinessInfoRevert(
+    id: string,
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.table(trx)
+      .where({ id, status: "published", content_type: "business_info" })
+      .whereRaw("COALESCE(metadata->>'revertPending','false') <> 'true'")
+      .whereRaw("COALESCE(metadata->>'reverted','false') <> 'true'")
+      .update({
+        metadata: (trx || db).raw("metadata || '{\"revertPending\":true}'::jsonb"),
+        updated_at: new Date(),
+      });
+  }
 }

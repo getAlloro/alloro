@@ -71,6 +71,9 @@ export class GbpWorkItemActionService {
     }
   ): Promise<IGbpWorkItem> {
     const item = await findScopedWorkItem(params);
+    if (item.content_type === "business_info") {
+      return GbpBusinessInfoDeploymentService.reject(params);
+    }
     if (item.content_type === "local_post") {
       return GbpReviewReplyService.reject(params);
     }

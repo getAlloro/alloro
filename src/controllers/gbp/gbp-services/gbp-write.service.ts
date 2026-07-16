@@ -60,7 +60,8 @@ function assertGoogleLocalPostName(value: string): void {
 function assertGoogleBusinessInfoName(value: string): void {
   // Business Information API v1 addresses the location as `locations/{locationId}`
   // (see getLocationProfileForRanking) — NOT the v4 accounts/*/locations/* form.
-  if (!/^locations\/[^/]+$/.test(value)) {
+  // Restrict the id to path-safe characters (no /, ?, #, or whitespace).
+  if (!/^locations\/[A-Za-z0-9_-]+$/.test(value)) {
     throw new GbpAutomationError(
       "GBP_GOOGLE_BAD_REQUEST",
       "Google rejected this request. Review the content and try again.",
