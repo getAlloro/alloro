@@ -1,0 +1,84 @@
+name: PR Checks
+
+# The repo's first pull_request workflow. Everything before this ran only on push-to-deploy, so a PR
+# had no mechanical check of any kind -- the entire quality gate was one human reading a diff.
+#
+# RATCHET (deliberate): this starts with checks that are already ratcheted or have zero backlog, so
+# it can be REQUIRED without flooding. Advisory steps below are marked and cannot fail the run; they
+# get promoted to hard-fail once their backlog is cleared. A gate that cries wolf on day one gets
+# ignored by week two -- that failure mode is why check:conventions' own Tier A is still advisory.
+
+on:
+  pull_request:
+    branches: [dev/dave, main]
+
+concurrency:
+  group: pr-checks-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # ---- HARD FAIL: zero known backlog, so it gates from day one ----
+
+      - name: Pointers resolve (every mandated path exists)
+        run: bash scripts/check-pointers.sh
+
+      - name: TypeScript compiles
+        run: npx tsc --noEmit
+
+      # check:conventions --strict fails only on NEW backend size/console/db violations (§18 — it is
+      # ratcheted against a frozen baseline), so it gates without demanding the backlog be cleared.
+      # NOTE the `--`: `npm run check:conventions --strict` silently drops the flag (npm consumes it
+      # and the script parses $@), which is how this "gate" ran as a no-op for its whole life.
+      - name: Constitution — mechanized checks (backend, strict)
+        run: npm run check:conventions -- --strict
+
+      # ---- ADVISORY: real backlog. Reports, never fails. Promote when the backlog is cleared. ----
+
+      - name: 'ADVISORY — §20.5 acceptance artifacts for touched plans'
+        continue-on-error: true
+        run: |
+          base="${{ github.event.pull_request.base.sha }}"
+          head="${{ github.event.pull_request.head.sha }}"
+          plans=$(git diff --name-only "$base" "$head" -- 'plans/*' \
+                  | cut -d/ -f1-2 | sort -u)
+          [ -z "$plans" ] && { echo "No plan folders touched."; exit 0; }
+          missing=0
+          while IFS= read -r p; do
+            [ -z "$p" ] && continue
+            for artifact in test.html test-results.json; do
+              if [ ! -f "$p/$artifact" ]; then
+                echo "::warning file=$p::§20.5 — $p/$artifact missing (acceptance artifact)"
+                missing=$((missing + 1))
+              fi
+            done
+          done <<< "$plans"
+          if [ "$missing" -gt 0 ]; then
+            echo "$missing §20.5 artifact(s) missing. Advisory today — this is the single most"
+            echo "frequent review finding, so it is the first candidate for promotion to hard-fail."
+          else
+            echo "OK — every touched plan ships its §20.5 artifacts."
+          fi
+
+      - name: 'ADVISORY — lint + layering baselines'
+        continue-on-error: true
+        run: |
+          npm run lint || true
+          npm run depcruise || true
