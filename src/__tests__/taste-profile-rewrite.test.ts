@@ -177,6 +177,46 @@ describe("util.taste-rewrite-honesty", () => {
     expect(clean.ok).toBe(true);
     expect(clean.reasonCodes).toEqual([]);
   });
+
+  // ── Adversary regression (Fable-5, 2026-07-15). Every string below slipped the
+  //    original gate; each must now be BLOCKED (gateRewrite ok === false). ──
+  it("F1 — blocks superlative-synonym over-claims the allowlist missed", () => {
+    const attacks = [
+      "<p>We deliver unparalleled dental care to every family.</p>",
+      "<p>Our elite team of dentists is here for you.</p>",
+      "<p>A renowned practice serving the community for years.</p>",
+      "<p>We are an award-winning dental office.</p>",
+      "<p>Enjoy our state-of-the-art dental technology.</p>",
+      "<p>Trusted by thousands of happy patients.</p>",
+      "<p>We're a 5-star rated dental practice.</p>",
+      "<p>Nobody does it better than our team.</p>",
+      "<p>Smiles that last a lifetime.</p>",
+      "<p>Life-changing results await.</p>",
+    ];
+    for (const a of attacks) expect(gateRewrite(a).ok, a).toBe(false);
+  });
+
+  it("F2 — strict negation blocks 'not X — but [brag]' smuggling (incl. banned words)", () => {
+    expect(gateRewrite("<p>Not your average clinic — the finest care in the state.</p>").ok).toBe(false);
+    expect(gateRewrite("<p>This isn't hype: our team is second to none.</p>").ok).toBe(false);
+    // the worst case — smuggles genuinely banned words past a distant negator
+    expect(
+      gateRewrite("<p>We don't just fix teeth — we promise a painless, life-changing experience.</p>").ok
+    ).toBe(false);
+    // but an honest disclaimer whose negator actually governs the phrase still passes
+    expect(gateRewrite("<p>We make no promises about specific outcomes.</p>").ok).toBe(true);
+  });
+
+  it("F3 — scans visible attribute text (alt/title/aria-label)", () => {
+    expect(gateRewrite('<img alt="The best dentist in town, results guaranteed">').ok).toBe(false);
+    expect(gateRewrite('<a title="Painless dentistry, guaranteed #1 in the city">Book</a>').ok).toBe(false);
+    expect(gateRewrite('<span aria-label="We guarantee the finest painless care">Comfort</span>').ok).toBe(false);
+  });
+
+  it("F4 — defeats char-ref and split-tag smuggling", () => {
+    expect(gateRewrite("<p>We are the b&#x65;st dentist in town.</p>").ok).toBe(false); // &#x65; → e
+    expect(gateRewrite("<p>The <b>fin</b>est care around.</p>").ok).toBe(false); // split-tag re-joins
+  });
 });
 
 // ── 2. GENERATION ────────────────────────────────────────────────────────
