@@ -27,6 +27,17 @@ const SERVICE_MAX = 200;
 const MESSAGE_MAX = 3000; // mirrors GBP_INPUT_LIMITS.reviewText / customization intent
 const FORM_NAME_MAX = 200; // mirrors MAX_FORM_NAME_LENGTH in the controller
 const HOSTNAME_MAX = 255;
+/**
+ * First-touch attribution caps (§11.2 — the boundary defines every field the
+ * controller reads). Mirrors MAX_SOURCE_LEN in
+ * controllers/websiteContact/websiteContact-utils/sourceAttribution.ts — the
+ * capture contract's own limit for a channel label. Held as a local constant
+ * rather than an import so `validation/` does not depend on a controller's
+ * feature-utils (§6.2); the same mirroring pattern the caps above already use.
+ */
+const SOURCE_LABEL_MAX = 100;
+/** A raw first-touch referrer URL. 2048 = the conventional browser URL cap. */
+const REFERRER_URL_MAX = 2048;
 
 /**
  * POST /api/websites/contact
@@ -63,6 +74,19 @@ export const formSubmissionSchema = z
     contents: z
       .union([z.string(), z.array(z.unknown()), z.record(z.string(), z.unknown())])
       .optional(),
+    // First-touch attribution, forwarded by the hosted-site form (M0 sender
+    // contract). All optional — the sender is not built yet, and a submission
+    // without them is honest "unknown", never a rejection. Defined here because
+    // the controller reads all three (formSubmissionController.ts ~439-448) and
+    // `.passthrough()` would otherwise let them arrive untyped/unbounded.
+    //
+    // These bounds are the TYPE/LENGTH floor only. They do not decide whether a
+    // label is a real channel — the closed allow-list + server-side classifier
+    // in sourceAttribution.ts stays the authority on that (defense in depth), so
+    // an in-bounds but unrecognized claim is still dropped to null, never stored.
+    source: z.string().max(SOURCE_LABEL_MAX).optional(),
+    utm_source: z.string().max(SOURCE_LABEL_MAX).optional(),
+    first_touch_referrer: z.string().max(REFERRER_URL_MAX).optional(),
   })
   .passthrough();
 

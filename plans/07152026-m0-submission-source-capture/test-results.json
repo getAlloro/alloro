@@ -122,6 +122,42 @@
       "evidence": "Static review only: src/database/migrations/20260716000000_add_source_method_to_form_submissions.ts uses ADD COLUMN IF NOT EXISTS (idempotent) and DROP COLUMN IF EXISTS (reversible), nullable, no default, no index, no backfill - the same pattern as its sibling 20260715000000_add_source_to_form_submissions.ts, which itself mirrors the shipped sender_ip / is_flagged migrations on this table.",
       "notes": "Deliberately a SEPARATE migration rather than an edit to 20260715000000: that migration may already be recorded in a local or dev knex_migrations table, and knex never re-runs a recorded migration - editing it would mean source_method silently never lands. Production risk: one additive nullable column on one table; no data rewrite, no backfill, no meaningful lock; historical rows stay null, which honestly reads as 'we did not record how'.",
       "waiver": "WAIVED - un-drivable here, and forcing it would mean migrating the shared dev DB from an unmerged branch, which the deploy path forbids. It executes on the normal path when dev/dave deploys (dev.yml runs npm run db:migrate). Verification owner: the dev deploy - confirm the column exists and that PM2 and /api/health/db stay green."
+    },
+    {
+      "id": "A9",
+      "title": "An out-of-contract oversized label is warn-logged at the boundary AND kept out of the row by the allow-list (both layers)",
+      "surface": "api",
+      "precondition": "Same Supertest harness as A1. Added in Rev 6 for Dave's second-round 11.2 finding. The route mounts validate() in its default WARN-ONLY mode (VALIDATION_ENFORCE is unset), which is the real deployed posture - so this item asserts what the boundary actually does today, not what it would do under enforce.",
+      "steps": [
+        "POST /api/websites/form-submission with utm_source padded to 200 chars (over the 100-char label cap) and an INTERNAL Referer.",
+        "Assert logger.warn received the redaction-safe summary (field names + issue codes).",
+        "Assert the serialized warn calls do not contain the oversized value.",
+        "Capture the FormSubmissionModel.create payload and assert both provenance columns."
+      ],
+      "expected": "Layer 1 - logger.warn is called with fields containing 'utm_source' and issues containing 'too_big', and never logs the value itself. Layer 2 - warn-only means the request still returns 200, and the closed allow-list keeps the unrecognized label out of the row: source=null, source_method=null, and the serialized row contains no trace of the value.",
+      "status": "pass",
+      "evidence": "src/__tests__/form-submission-source-route.test.ts A9 passed in the full 523-test suite run (63 files) on Node 22.23.1. NEGATIVE CONTROL: against the pre-fix schema (the three field definitions stripped), A9 fails along with B1/B4/B5/B6/B7 - 6 targeted failures - so the check discriminates and is not vacuous. The schema was restored byte-identical afterward.",
+      "notes": "This item exists to pin the HONEST scope of the 11.2 fix: the schema definitions make an out-of-contract field visible to the warn soak, but they do not reject it today. The allow-list is what actually protects the row. Asserting both halves means neither layer can be removed unnoticed, and no reader can mistake 'defined at the boundary' for 'rejected at the boundary'.",
+      "waiver": ""
+    },
+    {
+      "id": "B1",
+      "title": "The boundary schema DEFINES source, utm_source, and first_touch_referrer with bounded optional string types (11.2)",
+      "surface": "unit",
+      "precondition": "Pure schema unit test - formSubmissionSchema.safeParse, no app, no HTTP, no DB. Added in Rev 6. Zod 4.3.6; the asserted issue codes (too_big, invalid_type) were confirmed empirically against the installed zod build, not assumed.",
+      "steps": [
+        "B1: assert each of the three fields raises invalid_type on a non-string, proving it is KNOWN to the schema rather than swallowed by .passthrough().",
+        "B2/B3: assert an in-contract payload parses and preserves values, and that all three are optional.",
+        "B4/B5: assert a label at exactly 100 chars and a referrer at exactly 2048 chars are in contract, and one char over raises too_big.",
+        "B6: assert object/array/number/boolean/null values raise an issue.",
+        "B7: assert the issue summary the middleware reads carries field names + codes but never the value.",
+        "B8: assert passthrough still tolerates honeypot (_hp/_ts/_jsc) and arbitrary form keys."
+      ],
+      "expected": "All 8 checks pass: the three fields are defined and bounded (source/utm_source at SOURCE_LABEL_MAX=100, mirroring MAX_SOURCE_LEN in the capture contract; first_touch_referrer at REFERRER_URL_MAX=2048, the browser URL cap), all remain optional, boundary values are inclusive, and the permissive-first posture for unknown keys is unchanged.",
+      "status": "pass",
+      "evidence": "src/__tests__/websiteContact.schemas.test.ts - 8 tests passed in the full 523-test suite run (63 files) on Node 22.23.1. NEGATIVE CONTROL: with the three field definitions stripped, B1/B4/B5/B6/B7 fail (B2/B3/B8 correctly still pass - they are not fix-dependent).",
+      "notes": "B7 guards the same PII floor as A6 at the schema layer: a personalized utm can carry a patient name/DOB, so the zod issue summary must stay value-free before the middleware logs it. The caps are local constants rather than an import from the controller's feature-utils, so validation/ does not depend on a controller (6.2).",
+      "waiver": ""
     }
   ]
 }

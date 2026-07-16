@@ -178,6 +178,42 @@ describe("POST /api/websites/form-submission — stored source provenance (§5.2
     expect(JSON.stringify(row)).not.toContain("jane.doe");
   });
 
+  // A8 in the acceptance artifact is the (waived) real-DB migration item — no
+  // test can exist for it here, so the route-level series resumes at A9.
+  it("A9: an out-of-contract oversized label is warn-logged AND never stored (both layers)", async () => {
+    // The schema now DEFINES source/utm_source/first_touch_referrer (§11.2), but
+    // the route mounts `validate` in warn-only mode — so an out-of-contract value
+    // is logged, not rejected, and still reaches the controller. This is exactly
+    // why the closed allow-list stays: it is what actually keeps the value out of
+    // the row today. Assert BOTH halves, so neither can be removed unnoticed.
+    const oversized = "facebook".padEnd(200, "x"); // > the 100-char label cap
+
+    const res = await request(app)
+      .post(ROUTE)
+      .set("Referer", "https://drpavanendo.com/contact")
+      .send({ ...BASE_BODY, utm_source: oversized });
+
+    // Layer 1 — the boundary saw it and warned (field names + codes only).
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fields: expect.arrayContaining(["utm_source"]),
+        issues: expect.arrayContaining(["too_big"]),
+      }),
+      expect.stringContaining("[VALIDATION]"),
+    );
+    // ...and never logged the value itself.
+    const warnedPayload = JSON.stringify(vi.mocked(logger.warn).mock.calls);
+    expect(warnedPayload).not.toContain(oversized);
+
+    // Layer 2 — warn-only means the request proceeds; the allow-list is what
+    // keeps the unrecognized label out of the persisted row.
+    expect(res.status).toBe(200);
+    const row = persisted();
+    expect(row.source).toBeNull();
+    expect(row.source_method).toBeNull();
+    expect(JSON.stringify(row)).not.toContain(oversized);
+  });
+
   it("A7: the row never carries a 'verified' provenance value", async () => {
     await request(app)
       .post(ROUTE)
