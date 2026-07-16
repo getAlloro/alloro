@@ -1,0 +1,149 @@
+{
+  "plan": "plans/07152026-instrument-site",
+  "generatedAt": "2026-07-16",
+  "status": "In Progress",
+  "notes": "Every check below was run locally at head 1333e3ca (Node v22.23.1) and its exit code read directly; commands were run individually because `npm run check:all` chains with `;` and its exit code reflects only the last command. This artifact adds plan files only and touches no src/, so the code results carry to the artifact commit. B1 is NOT 'measuring previews': T7-T9 are the cross-repo walk Dave named, they are PENDING, and none of the three can be run from this repo. Nothing here is marked pass on expectation.",
+  "items": [
+    {
+      "id": "T1",
+      "title": "Focused B1 suite passes (gate, guards, isolation, no live beacon)",
+      "surface": "cli",
+      "precondition": "Node v22.23.1, head 1333e3ca, clean worktree. Node 20 breaks vitest with ERR_REQUIRE_ESM.",
+      "steps": [
+        "npx vitest run src/__tests__/service.rybbit-preview.test.ts",
+        "Read the exit code directly."
+      ],
+      "expected": "The B1 suite passes with no live Rybbit beacon fired (global.fetch stubbed).",
+      "status": "pass",
+      "evidence": "Exit 0. 'Test Files 1 passed (1) / Tests 16 passed (16)' at head 1333e3ca. Count verified independently, not copied from the review.",
+      "notes": "16 covers: gate-off provisions nothing; gate-on + LIVE provisions; idempotent second call; per-tenant isolation (A != B, A untouched by B); archived / org_archived / not_live / no_hostname / has_custom_domain / integration_revoked guards.",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "TypeScript compiles with no errors",
+      "surface": "cli",
+      "precondition": "Node v22.23.1, head 1333e3ca.",
+      "steps": [
+        "npx tsc --noEmit",
+        "Read the exit code directly."
+      ],
+      "expected": "Exit 0 with no diagnostics.",
+      "status": "pass",
+      "evidence": "Exit 0. Zero lines of output (0-line log).",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "Backend conventions gate passes in strict mode",
+      "surface": "cli",
+      "precondition": "Node v22.23.1, head 1333e3ca.",
+      "steps": [
+        "npm run check:conventions -- --strict",
+        "Read the exit code directly."
+      ],
+      "expected": "Exit 0 with 0 clear structural backend violations.",
+      "status": "pass",
+      "evidence": "Exit 0. 'CLEAR structural violations - backend (size + console + db): 0'. Reported separately: 102 Tier A tenant-scope heuristic hits across pre-existing models - ADVISORY, does not fail --strict, and not introduced by this branch.",
+      "notes": "The `--` passthrough is required; npm silently swallows a bare `--strict`, which would make the run a non-receipt.",
+      "waiver": ""
+    },
+    {
+      "id": "T4",
+      "title": "Full backend suite stays green (no regression from B1)",
+      "surface": "cli",
+      "precondition": "Node v22.23.1, head 1333e3ca.",
+      "steps": [
+        "npm test  (vitest run)",
+        "Read the exit code directly."
+      ],
+      "expected": "The whole suite passes; B1 breaks nothing existing.",
+      "status": "pass",
+      "evidence": "Exit 0. 'Test Files 61 passed (61) / Tests 472 passed (472)'.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T5",
+      "title": "PREVIEW_ANALYTICS_ENABLED defaults OFF and is fail-closed",
+      "surface": "api",
+      "precondition": "Read the gate in source at head 1333e3ca; run the gate-off test.",
+      "steps": [
+        "Read src/controllers/admin-websites/feature-services/service.rybbit.ts:174.",
+        "Grep every env template, workflow, and config for PREVIEW_ANALYTICS_ENABLED.",
+        "Run the gate-off case in the focused suite."
+      ],
+      "expected": "With the env var absent, provisionPreviewAnalytics provisions nothing and returns reason 'gate_disabled'.",
+      "status": "pass",
+      "evidence": "Verified in code at service.rybbit.ts:174 - `if (process.env.PREVIEW_ANALYTICS_ENABLED !== \"true\")` returns `{ enabled:false, provisioned:false, reason:\"gate_disabled\" }` before any DB read or network call. Fail-closed: an absent var is `undefined !== \"true\"` -> gate returns. Grep confirms the flag is set in NO env template, workflow, or config in the repo - so the shipped default is absent, i.e. OFF. The gate-off path is also proven by test (T1).",
+      "notes": "Only a deliberate operator action (setting the var to exactly the string \"true\") can enable it. Per Dave's point 2, it must stay off until T7-T9 pass.",
+      "waiver": ""
+    },
+    {
+      "id": "T6",
+      "title": "No SQL migration ships with this branch",
+      "surface": "none",
+      "precondition": "head 1333e3ca compared against origin/dev/dave.",
+      "steps": [
+        "git diff --name-only origin/dev/dave...HEAD | grep -i migration"
+      ],
+      "expected": "No migration files; the branch is additive with no schema change.",
+      "status": "pass",
+      "evidence": "No migration files in the diff. Changed files are limited to plan docs, 1 test, and 5 src files (route, controller, service, model, queries).",
+      "notes": "Un-provisioning is reversible by clearing the integration row / rybbit_site_id.",
+      "waiver": ""
+    },
+    {
+      "id": "T7",
+      "title": "Renderer snippet inspected - confirm it injects for preview hostnames",
+      "surface": "web",
+      "precondition": "Requires read access to the separate `website-renderer` repo, which owns HTML serving and script injection.",
+      "steps": [
+        "Open the website-renderer repo.",
+        "Read the Rybbit snippet injection condition.",
+        "Confirm an active rybbit integration row on a *.sites.getalloro.com preview host actually triggers injection."
+      ],
+      "expected": "The renderer injects the Rybbit snippet for a preview hostname once an active integration row exists.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "CANNOT BE RUN FROM THIS REPO. The injection condition lives in the `website-renderer` repo; a machine-wide search found no checkout of it (only alloro plan folders whose names contain 'renderer'). This repo only stores the siteId and provisions it - it never injects. The spec's own premise that 'the renderer injects, no renderer change needed' is PLAUSIBLE BUT UNPROVEN and is exactly what this item would settle. WHAT SETTLES IT: renderer-repo access, then reading the inject condition. Escalated: queue website-renderer access (also blocks follow-on B1-R).",
+      "waiver": ""
+    },
+    {
+      "id": "T8",
+      "title": "No-PII / cookieless audit of the injected snippet",
+      "surface": "web",
+      "precondition": "Requires read access to the separate `website-renderer` repo (same blocker as T7).",
+      "steps": [
+        "Read the renderer's injected Rybbit snippet.",
+        "Confirm it is cookieless.",
+        "Confirm it captures no form-field contents, no patient identifiers, and no sensitive query strings in tracked URLs."
+      ],
+      "expected": "The snippet is cookieless and emits no PII - the named gate that must pass before PREVIEW_ANALYTICS_ENABLED is set on.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "CANNOT BE RUN FROM THIS REPO - the snippet is not in this codebase. Rybbit's cookieless posture is ASSUMED FROM PRODUCT DESIGN, NOT VERIFIED; it must be treated as unverified until the snippet is read. This matters because B1 is the first lever to observe real patients on live healthcare-adjacent sites. What B1 itself sends is only the domain string (${host}.sites.getalloro.com) - it adds no PII surface of its own - but that is a different claim from 'the event stream carries no PII', which is what this item settles and which remains OPEN. WHAT SETTLES IT: renderer-repo access, then a read of the snippet. Explicitly NOT waived.",
+      "waiver": ""
+    },
+    {
+      "id": "T9",
+      "title": "Live preview observation - one real preview proves clean data flows",
+      "surface": "web",
+      "precondition": "Requires T7 + T8 to pass first, then Dave enabling the flag for exactly one project on a deployed environment.",
+      "steps": [
+        "After T7/T8 pass, have Dave set PREVIEW_ANALYTICS_ENABLED=true for one project.",
+        "Call POST /:id/integrations/rybbit/preview for that project.",
+        "Load that project's *.sites.getalloro.com URL as a customer would.",
+        "Confirm the Rybbit snippet is present in the served HTML.",
+        "Confirm pageview/session data lands for that siteId.",
+        "Confirm the captured payload contains no form values, no patient identifiers, and no sensitive query strings."
+      ],
+      "expected": "The active integration row produces pageview/session data with no PII - the point at which B1 may be described as measuring previews.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "CANNOT BE RUN NOW. Three reasons, each independent: the flag is off by design (T5); there is no deployed preview with this branch's code to observe; and the pre-req snippet audit (T7/T8) has not run. Until this item passes, B1 is 'provisions correctly', NOT 'measures previews' - the spec hero was corrected in Rev 3 to stop claiming the latter. THIS IS THE TRUE FINISH LINE for B1 and it is a POST-MERGE residual. Not waived, not expected-to-pass, not inferred.",
+      "waiver": ""
+    }
+  ]
+}
