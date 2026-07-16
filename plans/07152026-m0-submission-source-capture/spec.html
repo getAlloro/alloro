@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>M0 — Submission Source-Capture (finish + verify #156)</title>
+<style>
+  :root {
+    --ink: #101010; --ink-soft: #3a3a3a; --line: #e2e2e2; --line-strong: #111;
+    --bg: #ffffff; --panel: #fafafa; --mut: #6b6b6b; --ok: #0a7a2f; --warn: #7a5a00; --stop: #8a1414;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+  main { max-width: 900px; margin: 0 auto; padding: 0 22px 90px; }
+  .hero { padding: 56px 0 30px; border-bottom: 2px solid var(--line-strong); }
+  .eyebrow { text-transform: uppercase; letter-spacing: .14em; font-size: 11.5px; color: var(--mut); font-weight: 700; }
+  h1 { font-size: 30px; line-height: 1.15; margin: 12px 0 8px; letter-spacing: -.01em; }
+  .sub { color: var(--ink-soft); font-size: 15.5px; max-width: 68ch; }
+  .pill { display: inline-block; margin-top: 18px; padding: 7px 14px; border: 1.5px solid var(--line-strong);
+    border-radius: 999px; font-weight: 700; font-size: 12.5px; letter-spacing: .04em; text-transform: uppercase; }
+  .meta { margin-top: 16px; display: flex; flex-wrap: wrap; gap: 8px 26px; font-size: 12.5px; color: var(--mut); }
+  .meta b { color: var(--ink); font-weight: 600; }
+  h2 { font-size: 18px; margin: 40px 0 4px; letter-spacing: -.01em; }
+  .rule { height: 1px; background: var(--line); border: 0; margin: 8px 0 16px; }
+  .spec-card { border: 1px solid var(--line); border-radius: 12px; padding: 20px 22px; margin: 14px 0; background: var(--panel); }
+  .spec-card h3 { margin: 0 0 8px; font-size: 15px; }
+  p { margin: 8px 0; }
+  ul, ol { margin: 8px 0; padding-left: 22px; }
+  li { margin: 5px 0; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px;
+    background: #f0f0f0; padding: 1.5px 5px; border-radius: 5px; }
+  .q { border-left: 3px solid var(--line-strong); padding: 4px 0 4px 16px; margin: 16px 0; }
+  .q .label { font-weight: 700; text-transform: uppercase; letter-spacing: .06em; font-size: 11.5px; color: var(--mut); }
+  .ok { color: var(--ok); } .warn { color: var(--warn); } .stop { color: var(--stop); }
+  table { border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 13.5px; display: block; overflow-x: auto; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--mut); }
+  .receipt { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--ink-soft); }
+  .check { list-style: none; padding-left: 0; }
+  .check li { padding-left: 26px; position: relative; }
+  .check li::before { content: "\2611"; position: absolute; left: 0; color: var(--ok); font-weight: 700; }
+  .check li.todo::before { content: "\2610"; color: var(--mut); }
+  .revision-entry { border-top: 1px dashed var(--line); padding-top: 12px; margin-top: 12px; }
+  .revision-entry:first-of-type { border-top: 0; padding-top: 0; margin-top: 0; }
+  small { color: var(--mut); }
+</style>
+</head>
+<body>
+<main>
+  <header class="hero">
+    <div class="eyebrow">Alloro Funnel Engine &middot; Measurement Rail</div>
+    <h1>M0 &mdash; Submission Source-Capture</h1>
+    <p class="sub">Finish-and-verify of an existing clean PR (#156): the honest "where did this raised hand come from" column on Alloro's own hosted form. The <b>capture half</b> of the connection-measurement moat &mdash; not the full attribution&rarr;A/B loop (that stays at E1, slot #17).</p>
+    <span class="pill">Status: Completed (Claude's lane) &mdash; adversary-cleared, #156 refreshed &middot; Dave reviews + merges</span>
+    <div class="meta">
+      <span><b>Branch:</b> <code>claude/slice-4-connection-measurement</code> (PR #156, base <code>dev/dave</code>)</span>
+      <span><b>Lane:</b> Claude builds &middot; Dave reviews + merges</span>
+      <span><b>Date:</b> 2026-07-15</span>
+    </div>
+  </header>
+
+  <h2>Why</h2>
+  <hr class="rule" />
+  <div class="spec-card">
+    <p>NS1 says every lever must be <b>undeniable + attributed</b>. Today a form submission on an Alloro-hosted site stores <b>no source</b> &mdash; the owner sees a bare count ("7 people reached out") with no honest "&hellip;and here's where they came from." Without a source column, every downstream lever is invisible: you cannot tell which channel earned the raised hand. M0 lays the one foundational brick &mdash; <b>capture the channel at submit time</b> &mdash; so no later lever ships without source captured. This is the finish line's <b>track</b> (the &#9312; Proof check a lever-by-lever build hides).</p>
+    <p><b>Honesty cap (scope guard):</b> M0 is the <b>source column only</b> &mdash; the capture half. It is <b>not</b> the E1 visitor&rarr;submission attribution + fleet A/B learning loop, which stays at slot #17 because it needs real traffic to measure. M0 stores the signal; E1 later reads and learns from it.</p>
+  </div>
+
+  <h2>What (this delivery)</h2>
+  <hr class="rule" />
+  <div class="spec-card">
+    <p>Not a new build &mdash; a <b>reconcile + verify + refresh</b> of PR #156 (+387/&minus;0, was parked as premature/out-of-order). The work already existed and is clean; M0 lands it as an early foundational brick.</p>
+    <ul>
+      <li><b>Migration</b> &mdash; <code>20260715000000_add_source_to_form_submissions.ts</code>: nullable <code>source VARCHAR(100)</code> on <code>website_builder.form_submissions</code>. <code>ADD COLUMN IF NOT EXISTS</code> up / <code>DROP COLUMN IF EXISTS</code> down. Additive, idempotent, no default, no index, no backfill.</li>
+      <li><b>Pure util</b> &mdash; <code>sourceAttribution.ts</code>: <code>deriveSubmissionSource()</code> + helpers. Deterministic, fully unit-tested. Precedence: explicit first-touch label (<code>source</code>/<code>utm_source</code>) &rarr; classified first-touch landing referrer &rarr; classified submit <code>Referer</code> &rarr; <code>null</code>. Never guesses.</li>
+      <li><b>Capture</b> &mdash; <code>formSubmissionController.ts</code>: derives the source at submit and passes <code>source</code> into the persisted record (builds <code>projectHosts</code> from the project's own domains so internal navigation is not counted as a source).</li>
+      <li><b>Model</b> &mdash; <code>FormSubmissionModel.ts</code>: adds <code>source?: string | null</code> to <code>IFormSubmission</code>; <code>create()</code> spreads <code>{...data}</code> into the insert, so the column persists.</li>
+      <li><b>Tests</b> &mdash; <code>sourceAttribution.test.ts</code>: 30 cases (normalize, host parse, whole-label classification, internal-referer rejection, first-touch precedence, unknown&rarr;null).</li>
+    </ul>
+  </div>
+
+  <h2>Context &mdash; Code Constitution &amp; analogs</h2>
+  <hr class="rule" />
+  <div class="spec-card">
+    <p>Backend reference analog per the funnel plan: <code>&sect;6.1</code> <code>src/controllers/gbp-automation/</code>. M0 touches:</p>
+    <ul>
+      <li><code>&sect;6.1</code> controller layer &mdash; capture wired into the existing <code>handleFormSubmission</code> flow, mirroring the sibling <code>sender_ip</code> request-derived capture (no new table, no new route).</li>
+      <li>Model layer &mdash; additive optional field on <code>IFormSubmission</code>; existing <code>create()</code> insert path unchanged.</li>
+      <li>Migration &mdash; mirrors this table's sibling migrations (<code>sender_ip</code>, <code>is_flagged</code>): raw <code>ALTER TABLE &hellip; ADD COLUMN IF NOT EXISTS</code>.</li>
+      <li>Pure/testable util in the feature's <code>websiteContact-utils/</code> folder &mdash; no I/O, no DB, no throw on bad input.</li>
+    </ul>
+    <p class="receipt">check:conventions --strict &rarr; exit 0 &middot; 0 clear structural violations (size/console/db). Tier-A tenant-scope heuristic is advisory and unaffected by M0.</p>
+  </div>
+
+  <h2>Constraints (canon)</h2>
+  <hr class="rule" />
+  <div class="spec-card">
+    <ul>
+      <li><b>Value #6 &mdash; never guess.</b> Unknown source = <code>null</code>, never a fabricated or catch-all channel. A null reads honestly as "we don't know."</li>
+      <li><b>No PII.</b> Referrers/UTMs can carry patient identifiers in query-strings. Nothing raw is stored &mdash; referer URLs are reduced to hostname then to a fixed channel label; explicit labels are charset-restricted + length-capped.</li>
+      <li><b>Additive / reversible / no backfill.</b> Historical rows stay null. Production-safe: a metadata-only column add, no data rewrite.</li>
+      <li><b>Lane.</b> Done = the raised hand on Alloro's hosted surface. M0 does not touch booking write-back / speed-to-lead / the Responder.</li>
+      <li><b>Do NOT retire <code>firstPatientAttribution.ts</code>.</b> Verified live at <code>src/services/firstPatientAttribution.ts</code>, referenced by <code>BehavioralEventModel.ts:83,100</code> (<code>attributeCheckupToOrg</code>) &mdash; a different concern (checkup&rarr;org), not visitor&rarr;submission source. Untouched by this branch.</li>
+    </ul>
+  </div>
+
+  <h2>The 3-question coherence DoD</h2>
+  <hr class="rule" />
+  <div class="spec-card">
+    <div class="q">
+      <div class="label">&#9312; Pioneer check</div>
+      <p><b>Pioneer = the CRO / attribution-analytics discipline</b> (source/UTM attribution on an owned conversion surface &mdash; the practice behind GA/Plausible-style "by source" reporting).</p>
+      <p><b>Standing:</b> At-or-above the pioneer <b>on the specific mechanic M0 owns</b> &mdash; server-side, source-of-truth channel classification with an <b>honesty floor the analytics tools skip</b>: unknown is preserved as <code>null</code>/"unknown," never bucketed into "direct" or a guessed channel, and whole-label host matching prevents the classic mis-bucketing (<code>plumbing.com</code> &ne; bing). <b>Named honest gap:</b> M0 captures one coarse first-touch channel; it does <b>not</b> yet do multi-touch journeys, campaign/medium/term breakdown, or a UI report &mdash; that is E1 (slot #17). Honest v1: the column is the correct, PII-safe foundation those richer views will read.</p>
+    </div>
+    <div class="q">
+      <div class="label">&#9313; Wire check</div>
+      <p><b>What feeds it:</b> at submit, four signals &mdash; <code>req.body.source</code>, <code>req.body.utm_source</code>, <code>req.body.first_touch_referrer</code> (all frontend/site-supplied first-touch), and the <code>Referer</code> header (weak cross-site fallback). <b>Honest incoming gap (verified):</b> <b>no code in this repo currently sends <code>first_touch_referrer</code> or <code>utm_source</code>/<code>source</code></b> to the endpoint &mdash; the public form lives in the generated hosted sites (outside <code>src/</code>). So <b>until the hosted-site form is taught to forward the first-touch signal, <code>source</code> populates only from an external cross-site <code>Referer</code>, and stays null for the common "landed via Google, submitted from the practice's own page" path.</b> That is honest (null = unknown), but the strongest signal is a <b>backend contract awaiting a site-side sender</b> &mdash; a named follow-on, not a silent hole. <br /><b>What its output feeds:</b> the <code>source</code> column &rarr; (a) honest source-broken-down submission counts and (b) E1's attribution&rarr;A/B loop (slot #17). <b>Verified: nothing reads the column yet</b> &mdash; E1 is the reader. Storing-now / reading-later is intended for the capture half.</p>
+    </div>
+    <div class="q">
+      <div class="label">&#9314; Proof check</div>
+      <p><b>Is M0's effect attributable once it ships? Yes &mdash; M0 <em>is</em> the proof rail.</b> It is the mechanism that makes every other funnel lever attributable (which channel produced the raised hand). Its own "did it work" is directly observable: submissions begin carrying a non-null <code>source</code> once a sending surface forwards first-touch; the by-source breakdown is queryable from the column. This is NS1's attribution hook shipped <b>as part of done</b>, not deferred.</p>
+    </div>
+  </div>
+
+  <h2>Identifier-safety trace (verified by reading every path)</h2>
+  <hr class="rule" />
+  <div class="spec-card">
+    <p>Every value that can land in the <code>source</code> column is either a hostname reduced to a fixed channel label or a claim resolved against a closed vocabulary. Nothing about the visitor is stored beyond a coarse channel word.</p>
+    <table>
+      <thead><tr><th>Path a stored value can take</th><th>What actually gets stored</th><th>Anything beyond a channel label?</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>referer</code> header / <code>first_touch_referrer</code> URL (may carry query-string parameters)</td>
+          <td><code>hostOf()</code> takes <b>only</b> <code>new URL().hostname</code> &mdash; path, query, fragment discarded &mdash; then <code>classifyReferrerHost()</code> returns a <b>fixed channel literal</b> (<code>google</code>/<code>bing</code>/&hellip;/<code>referral</code>) or <code>null</code>.</td>
+          <td class="ok"><b>No.</b> Query-strings never touch storage; output is a closed vocabulary.</td>
+        </tr>
+        <tr>
+          <td><code>source</code> / <code>utm_source</code> body labels (client-supplied; the endpoint is public)</td>
+          <td>Normalized (charset + 100-cap), then <b>resolved against a closed canonical vocabulary</b> of recognized channels. A value that isn't a recognized channel &rarr; <code>null</code> (falls through to server-side classification).</td>
+          <td class="ok"><b>No.</b> Only a recognized channel label is stored; a value that isn't a known channel is never persisted.</td>
+        </tr>
+        <tr>
+          <td>submit <code>Referer</code> that is the practice's own page</td>
+          <td><code>classifyExternalReferer()</code> matches the host against <code>projectHosts</code> and returns <code>null</code> &mdash; internal navigation is not a source.</td>
+          <td class="ok"><b>No.</b> Returns null before any classification.</td>
+        </tr>
+      </tbody>
+    </table>
+    <p><b>Honesty posture:</b> every path returns <code>null</code> when there is no confident signal; the column is nullable with no default and no backfill. Unknown is never folded into a real channel.</p>
+  </div>
+
+  <h2>Risk (production + most-likely-wrong)</h2>
+  <hr class="rule" />
+  <div class="spec-card">
+    <ul>
+      <li><b>Migration risk: low.</b> Metadata-only <code>ADD COLUMN</code> on Postgres (no table rewrite, no long lock), idempotent, reversible. <b>Down drops the column</b> &rarr; on rollback the captured source labels are lost (the submissions themselves are not). Acceptable for a v1 additive column with no dependents.</li>
+      <li><b>Migration ordering:</b> timestamp <code>20260715000000</code> is unique vs <code>dev/dave</code> (latest <code>20260713</code>), A6 (<code>20260716</code>, PR #168), and B1 (no migration). No collision.</li>
+      <li><b>Source-label validation (Rev 2).</b> Client-supplied <code>source</code>/<code>utm_source</code> claims are resolved against a closed canonical vocabulary of recognized channels; an unrecognized value (an unknown campaign name, or any value that isn't a known channel) &rarr; <code>null</code> and falls through to server-side classification. Only a recognized channel label is ever persisted, and this holds even though the submit endpoint is public. <b>Accepted trade:</b> an unknown-but-real campaign label (e.g. <code>spring_promo_2026</code>) also drops to null &mdash; honest Value #6 (better unknown than a value we can't stand behind).</li>
+      <li><b>Registrable-domain channel matching (Rev 2).</b> Referer classification matches the registrable domain (exact or dotted-suffix), so a look-alike host is never attributed to a brand it isn't; unrecognized &rarr; <code>referral</code>, never a guessed brand.</li>
+      <li><b>Adversary pass:</b> a fresh stronger/different-model adversary (Fable 5) reviewed the code for identifier handling, honesty, and migration safety; findings were applied and re-verified (confirm pass clean). Details in the Revision Log.</li>
+    </ul>
+  </div>
+
+  <h2>Tasks</h2>
+  <hr class="rule" />
+  <div class="spec-card">
+    <ol>
+      <li>Worktree off <code>origin/dev/dave</code>; pull #156's branch; rebase onto current <code>dev/dave</code> (2 commits preserved, zero conflicts).</li>
+      <li>Verify on Node 22: <code>tsc --noEmit</code>, targeted + full <code>vitest</code>, <code>check:conventions --strict</code>.</li>
+      <li>Answer the 3-question coherence DoD (above).</li>
+      <li>Fresh stronger-model adversary on PII / honesty / additive-reversible; fix must-fix findings; re-verify.</li>
+      <li>Confirm <code>firstPatientAttribution.ts</code> untouched.</li>
+      <li>Refresh #156 in place (force-with-lease the rebased branch) so Dave reviews + merges.</li>
+    </ol>
+  </div>
+
+  <h2>Done</h2>
+  <hr class="rule" />
+  <div class="spec-card">
+    <ul class="check">
+      <li>Rebased onto current <code>dev/dave</code>, zero conflicts, 2 commits preserved <span class="receipt">(039e965e, 2d07b6c7)</span></li>
+      <li>Node 22.23.1 &middot; <code>tsc --noEmit</code> clean (exit 0)</li>
+      <li>Targeted tests: <span class="receipt">sourceAttribution.test.ts &mdash; 39 passed</span> (30 + 9 adversary-vector cases)</li>
+      <li>Full suite: <span class="receipt">61 files, 495 tests passed</span></li>
+      <li><code>check:conventions --strict</code>: <span class="receipt">exit 0, 0 clear structural violations</span></li>
+      <li>Persistence verified end-to-end (controller &rarr; <code>create({...data})</code> &rarr; insert &rarr; nullable column)</li>
+      <li>Identifier-safety trace complete: referer&rarr;host&rarr;fixed-channel; claim labels resolved through a closed canonical vocabulary</li>
+      <li><code>firstPatientAttribution.ts</code> confirmed live + untouched</li>
+      <li>Fresh Fable-5 adversary reviewed the code &rarr; source-label validation, registrable-domain matching, trailing-dot hardening applied</li>
+      <li>Adversary confirm pass (re-reviewed the changes) &rarr; clean; canonicalization + hyphen-fold + dental-stack recognition applied + re-verified</li>
+      <li>#156 refreshed in place (force-with-lease) &mdash; awaiting Dave's review + merge</li>
+    </ul>
+    <p><small>Out of Claude's lane: the merge to <code>dev/dave</code> and post-merge migration/deploy/smoke are Dave's, on his go.</small></p>
+  </div>
+
+  <section class="spec-card" id="revision-log">
+    <h3>Revision Log</h3>
+    <article class="revision-entry">
+      <h3>Rev 1 - 2026-07-15</h3>
+      <p><strong>Change:</strong> Created this spec for M0 as a finish-and-verify of PR #156 (not a new build). Rebased <code>claude/slice-4-connection-measurement</code> onto current <code>dev/dave</code> (zero conflicts; touched files unchanged on dev/dave since merge-base). Verified on Node 22: tsc clean, 30 targeted + 486 full tests pass, conventions --strict exit 0. Answered the 3-question DoD; documented the PII trace and the honest &#9313; Wire gap (no repo code sends <code>first_touch_referrer</code>/<code>utm_source</code> yet &mdash; backend contract awaiting a hosted-site sender; nothing reads the column yet &mdash; E1 slot #17 is the reader). Confirmed <code>firstPatientAttribution.ts</code> live + untouched.</p>
+      <p><strong>Reason:</strong> Un-park M0 as the measurement rail's foundational brick (Corey-staked 2026-07-15) &mdash; "no lever ships without source captured."</p>
+      <p><strong>Updated Done criteria:</strong> the two open items &mdash; Fable-5 adversary triage and the #156 refresh &mdash; close this rev out.</p>
+    </article>
+    <article class="revision-entry">
+      <h3>Rev 2 - 2026-07-15</h3>
+      <p><strong>Change:</strong> Ran the fresh Fable-5 adversary against the code; applied hardening to <code>sourceAttribution.ts</code> + added 5 tests (targeted 30&rarr;35, full 486&rarr;491). Changes: <b>(1)</b> <code>normalizeSource</code> was a charset filter, not a classifier &mdash; a client-supplied <code>source</code>/<code>utm_source</code> could be stored without being a recognized channel &rarr; claims are now resolved against a closed canonical vocabulary; an unrecognized value &rarr; null (falls through to server classification), so only known channel labels persist. <b>(2)</b> whole-label host matching could attribute a look-alike host to a brand &rarr; now registrable-domain match (<code>HOST_CHANNELS</code>, exact or dotted-suffix); unrecognized &rarr; <code>referral</code>. <b>(3)</b> unvalidated client claims outranked server observation &rarr; reduced to the accepted floor by the vocabulary check. <b>(4)</b> a trailing-dot FQDN could dodge the owned-host filter &rarr; <code>hostOf</code> + owned-host normalization now strip trailing dots. <b>(5)</b> a typing observation the adversary raised was against the main tree (a6 branch) which lacks #156's <code>source</code> field; on this rebased branch the interface has it and <code>tsc</code> is clean &mdash; already satisfied. Confirmed unchanged + safe: referrer query-strings never stored, migration additive/idempotent/reversible, no ReDoS, homoglyph-safe.</p>
+      <p><strong>Reason:</strong> Adversary QA (DoD step 3): a stronger/different model told to break it surfaced real hardening the lever-by-lever build hid. Honesty-as-product &mdash; the finish-and-verify found real must-fixes, not a rubber-stamp.</p>
+      <p><strong>Updated Done criteria:</strong> adversary triage now done + re-verified (green); remaining open items are the adversary confirm pass on the changes and the #156 refresh.</p>
+    </article>
+    <article class="revision-entry">
+      <h3>Rev 3 - 2026-07-15</h3>
+      <p><strong>Change:</strong> Ran the Fable-5 confirm pass; it re-reviewed the changes and returned <b>clean</b> &mdash; the three hardening changes confirmed effective (unrecognized claim inputs &rarr; null; look-alike host baits &rarr; referral), no ReDoS. Applied its two in-PR recommendations + the safe half of a third; added 4 tests (targeted 35&rarr;39, full 491&rarr;495). <b>(N1, low)</b> a <em>double</em> trailing dot half-reopened F4 &rarr; trailing-dot strip is now <code>/\.+$/</code> (a run). <b>(N2, med)</b> the claim vocabulary was a <code>Set</code> that stored aliases verbatim, splintering by-source counts (<code>fb</code> vs <code>facebook</code>) &rarr; now a canonical <code>Map</code> folding unambiguous abbreviations to one bucket (fb/meta&rarr;facebook, x&rarr;twitter, yt&rarr;youtube, gmb&rarr;google_business_profile). <b>(N3, med &mdash; mechanism only)</b> hyphens now fold to underscores before lookup (<code>google-ads</code>&rarr;<code>google_ads</code>) and the dental patient-comms stack (birdeye, podium, weave, mailchimp, klaviyo, solutionreach, lighthouse360, smile_reminder&hellip;) is now recognized as real channels instead of dropped to unknown. <b>Deferred (product taxonomy, flagged for Dave):</b> collapsing a specific tool to a coarser channel (e.g. <code>podium</code>&rarr;<code>sms</code>) &mdash; kept self-canonical (honest as-is); and N4 (adding directory domains like yelp/healthgrades to the referer classifier) &mdash; a referer from those still classifies as the honest-coarse <code>referral</code>.</p>
+      <p><strong>Reason:</strong> Adversary confirm pass (DoD step 3, re-verify). N2 directly serves NS1 &mdash; fragmented labels corrupt the very by-source counts M0 exists to make honest &mdash; and the file hadn't shipped, so the fix is free now and costly later.</p>
+      <p><strong>Updated Done criteria:</strong> all execution-lane items closed &mdash; adversary SHIP, tests green (39 targeted / 495 full), conventions --strict exit 0, #156 refreshed. Only Dave's review + merge (and the deferred fidelity follow-ups) remain, both out of Claude's lane.</p>
+    </article>
+  </section>
+</main>
+</body>
+</html>

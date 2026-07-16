@@ -54,6 +54,16 @@ describe("classifyReferrerHost", () => {
     expect(classifyReferrerHost("notgoogle.com")).toBe("referral");
     expect(classifyReferrerHost("climbing.co")).toBe("referral");
   });
+  it("never fabricates a brand from a spoofed sub-label (adversary F2)", () => {
+    // A public endpoint means the referer is attacker-controlled — a brand label
+    // on someone else's registrable domain must NOT become that brand.
+    expect(classifyReferrerHost("google.attacker-blog.com")).toBe("referral");
+    expect(classifyReferrerHost("bing.wordpress.com")).toBe("referral");
+    expect(classifyReferrerHost("fb.somecdn.net")).toBe("referral");
+    // …but a genuine sub-domain of the real registrable domain still classifies.
+    expect(classifyReferrerHost("maps.google.com")).toBe("google");
+    expect(classifyReferrerHost("m.facebook.com")).toBe("facebook");
+  });
 });
 
 describe("deriveSubmissionSource", () => {
@@ -171,6 +181,83 @@ describe("deriveSubmissionSource", () => {
         projectHosts: ownHosts,
       }),
     ).toBeNull();
+  });
+
+  // ── claim allow-listing: never store a client-supplied label we don't
+  //    recognize, so patient PII in a personalized utm can't reach the column.
+  it("never stores a client-supplied claim that carries PII (adversary F1)", () => {
+    // Each of these passes the charset filter but is NOT a recognized channel —
+    // it must be dropped to null (unknown), never persisted.
+    for (const pii of [
+      "+15551234567", // phone
+      "john.doe", // name
+      "jane.doe:1987-03-04", // name + DOB
+      "mrn:a938271", // medical record number
+      "patient-ssn-078-05-1120", // SSN-shaped
+    ]) {
+      expect(deriveSubmissionSource({ bodySource: pii })).toBeNull();
+      expect(deriveSubmissionSource({ utmSource: pii })).toBeNull();
+    }
+  });
+
+  it("a client claim never outranks the server-observed referer unless it names a real channel (adversary F3)", () => {
+    // Bot copies a submission and claims source=google; the referer proves the
+    // visit is internal. "google" IS a known channel, so the honest floor is that
+    // it can only ever claim a channel that exists — not an arbitrary string.
+    expect(
+      deriveSubmissionSource({
+        bodySource: "definitely-not-a-channel",
+        firstTouchReferer: "https://www.bing.com/",
+        projectHosts: ownHosts,
+      }),
+    ).toBe("bing"); // junk claim ignored → server classifies the real first touch
+  });
+
+  it("an unrecognized but plausible campaign label falls through to unknown (Value #6)", () => {
+    expect(deriveSubmissionSource({ utmSource: "spring_promo_2026" })).toBeNull();
+  });
+
+  it("skips an INTERNAL referer given as a trailing-dot FQDN (adversary F4)", () => {
+    expect(
+      deriveSubmissionSource({
+        referer: "https://drpavanendo.com./contact",
+        projectHosts: ownHosts,
+      }),
+    ).toBeNull();
+  });
+
+  it("skips an INTERNAL referer with a DOUBLE trailing dot (adversary N1)", () => {
+    expect(
+      deriveSubmissionSource({
+        referer: "https://drpavanendo.com../contact",
+        projectHosts: ownHosts,
+      }),
+    ).toBeNull();
+  });
+
+  it("folds brand-abbreviation claims to one canonical channel (adversary N2)", () => {
+    // fb / meta → facebook, x → twitter, yt → youtube, gmb → GBP — so the
+    // by-source counts don't splinter across synonyms of the same channel.
+    expect(deriveSubmissionSource({ utmSource: "fb" })).toBe("facebook");
+    expect(deriveSubmissionSource({ utmSource: "meta" })).toBe("facebook");
+    expect(deriveSubmissionSource({ utmSource: "x" })).toBe("twitter");
+    expect(deriveSubmissionSource({ utmSource: "yt" })).toBe("youtube");
+    expect(deriveSubmissionSource({ bodySource: "gmb" })).toBe(
+      "google_business_profile",
+    );
+  });
+
+  it("folds a hyphenated claim to its canonical channel (adversary N3)", () => {
+    expect(deriveSubmissionSource({ utmSource: "google-ads" })).toBe("google_ads");
+    expect(deriveSubmissionSource({ utmSource: "constant-contact" })).toBe(
+      "constant_contact",
+    );
+  });
+
+  it("recognizes the dental patient-comms stack as real channels (adversary N3)", () => {
+    for (const tool of ["birdeye", "podium", "weave", "mailchimp"]) {
+      expect(deriveSubmissionSource({ utmSource: tool })).toBe(tool);
+    }
   });
 });
 
