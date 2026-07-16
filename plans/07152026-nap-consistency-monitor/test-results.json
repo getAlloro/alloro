@@ -1,0 +1,235 @@
+{
+  "plan": "plans/07152026-nap-consistency-monitor",
+  "generatedAt": "2026-07-16",
+  "status": "In Progress",
+  "items": [
+    {
+      "id": "T1",
+      "title": "Summarizer counts only a real conflict, and lists the specific listing",
+      "surface": "service",
+      "precondition": "Run the pure summarizer against mixed match-state fixtures. No network or DB.",
+      "steps": [
+        "Summarize sources spanning consistent, conflicting, and ambiguous_entity states.",
+        "Summarize sources in weak states only (external_candidate, missing_on_site).",
+        "Summarize an empty and a nullish source list."
+      ],
+      "expected": "Only 'conflicting' counts as a conflict (parity with the production scorer); weak/uncertain states are noise, never a confirmed error; empty and nullish both fold to all-zeros. No fabricated conflicts.",
+      "status": "pass",
+      "evidence": "src/__tests__/nap-consistency.test.ts — 3 summarizeNapConsistency cases passed in the 17-test A4 run and the 473-test full suite (Node 22).",
+      "notes": "A log, never a score. No rank/guarantee/lore claim is derived from these counts.",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Targets are deduped by locationId — no double SerpApi cost",
+      "surface": "service",
+      "precondition": "Build a target list where one org yields the same location twice (>1 google_connection).",
+      "steps": [
+        "Pass duplicate locationIds through dedupeTargetsByLocation.",
+        "Inspect the retained targets."
+      ],
+      "expected": "One target per locationId (first occurrence wins), so the measurement never runs twice for a location and the run summary is not over-counted.",
+      "status": "pass",
+      "evidence": "src/__tests__/nap-consistency.test.ts — dedupeTargetsByLocation regression case passed.",
+      "notes": "Rev 2 adversary finding; there is no unique constraint on google_connections.organization_id.",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "Records one snapshot per runnable location and skips no-baseline targets",
+      "surface": "service",
+      "precondition": "Inject a target provider with two domain-bearing locations and one with no domain (spec: injected fake NAP-source provider, no network).",
+      "steps": [
+        "Execute the agent with an injected runner and record seam.",
+        "Inspect the recorded rows and the run summary."
+      ],
+      "expected": "Two rows recorded with correct source/conflict counts; the no-domain target is honestly skipped, not recorded as all-consistent.",
+      "status": "pass",
+      "evidence": "src/__tests__/nap-consistency.test.ts — executeNapConsistencyAgent record/skip case passed.",
+      "notes": "Seams (targetProvider/runner/record) are injectable, so the logic is proven without network or DB.",
+      "waiver": ""
+    },
+    {
+      "id": "T4",
+      "title": "A provider outage persists NOTHING — never a false zero-result (§3.2)",
+      "surface": "service",
+      "precondition": "Inject a runner returning the typed provider_unavailable state.",
+      "steps": [
+        "Execute the agent for one target whose provider is unreachable.",
+        "Inspect the record seam and the run summary."
+      ],
+      "expected": "No observation row is written at all; providerUnavailable is counted separately and is NOT folded into the ordinary no-baseline skip count.",
+      "status": "pass",
+      "evidence": "src/__tests__/nap-consistency.test.ts — 'does NOT persist an observation when the provider is unavailable' passed. MUTATION-VERIFIED: stubbing the executor guard to `if (false)` fails this test and T5 and nothing else, so the test catches the real defect rather than restating the code.",
+      "notes": "Dave review #166 item 1. Before the fix, searchSerpApi swallowed every failure and returned [], so an outage persisted sources_checked: 0 as a completed measurement.",
+      "waiver": ""
+    },
+    {
+      "id": "T5",
+      "title": "An honest zero-result is still recorded and stays distinct from an outage",
+      "surface": "service",
+      "precondition": "Inject a runner returning ok/no-sources for one location and provider_unavailable for another.",
+      "steps": [
+        "Execute the agent across both targets.",
+        "Inspect which rows were written."
+      ],
+      "expected": "Exactly one row — the honest zero (sources_checked: 0, 'we looked and found nothing'), which the spec requires stay recorded. The outage records nothing. The two are never collapsed.",
+      "status": "pass",
+      "evidence": "src/__tests__/nap-consistency.test.ts — 'distinguishes an honest zero-result from a provider outage' passed. Mutation-verified alongside T4.",
+      "notes": "This is the honesty contract: a real zero is data; an outage is an absence of data.",
+      "waiver": ""
+    },
+    {
+      "id": "T6",
+      "title": "A real SerpApi transport failure maps to the typed state (wiring proof)",
+      "surface": "service",
+      "precondition": "Stub SERPAPI_API_KEY, mock axios to reject, and re-import the module so the env-captured const re-evaluates.",
+      "steps": [
+        "Reject every axios request with ETIMEDOUT and collect with status.",
+        "Clear the API key and collect with status."
+      ],
+      "expected": "Both return provider_unavailable; the transport case carries the underlying reason (ETIMEDOUT) rather than an empty array.",
+      "status": "pass",
+      "evidence": "src/__tests__/nap-consistency.test.ts — both collectExternalEntitySourcesWithStatus cases passed. The reason-contains-ETIMEDOUT assertion is reachable ONLY through the all-queries-failed branch (the missing-key branch has different text), which proves the axios mock is live and the catch path ran.",
+      "notes": "Closes the gap the executor tests leave: they inject the runner, so without this nothing proved a real failure produces the state the guard depends on.",
+      "waiver": ""
+    },
+    {
+      "id": "T7",
+      "title": "The AI-SEO audit lead magnet is unaffected by the typed status",
+      "surface": "service",
+      "precondition": "Mock axios to reject and call the array-returning wrapper the audit uses.",
+      "steps": [
+        "Call collectExternalEntitySources with the provider failing.",
+        "Inspect the return shape."
+      ],
+      "expected": "It resolves to an array and does not throw — the audit degrades gracefully by design and keeps its linked-source fallback.",
+      "status": "pass",
+      "evidence": "src/__tests__/nap-consistency.test.ts — back-compat wrapper case passed; the full 473-test suite shows no regression in any audit path.",
+      "notes": "Self-caught regression: the first cut of this fix returned [] on unavailable, which would have silently stripped the page's linked directory profiles from the audit. Restructured so partial sources flow through and only the STATUS gates persistence.",
+      "waiver": ""
+    },
+    {
+      "id": "T8",
+      "title": "One location's failure does not abort the run",
+      "surface": "service",
+      "precondition": "Inject a runner that throws for one location and succeeds for another.",
+      "steps": [
+        "Execute the agent across both targets.",
+        "Inspect the summary and recorded rows."
+      ],
+      "expected": "The throwing location is isolated and skipped with a logged warning; the other location still records.",
+      "status": "pass",
+      "evidence": "src/__tests__/nap-consistency.test.ts — failure-isolation case passed.",
+      "notes": "Per-location isolation, so one bad site cannot cost a whole scheduled run.",
+      "waiver": ""
+    },
+    {
+      "id": "T9",
+      "title": "The observation read is tenant-scoped — one org cannot read another's rows (§11.7)",
+      "surface": "model",
+      "precondition": "Spy on the model's query builder; the suite is DB-mocked.",
+      "steps": [
+        "Call NapConsistencyObservationModel.listForLocation(7, 42).",
+        "Inspect the WHERE clause the model built."
+      ],
+      "expected": "The WHERE filters by BOTH organization_id and location_id, so org 8's rows at the same location_id are excluded. organizationId is a REQUIRED argument, not an optional filter a caller may forget.",
+      "status": "pass",
+      "evidence": "src/__tests__/nap-consistency.test.ts — cross-org scoping case passed; the WHERE equals { organization_id: 7, location_id: 42 }.",
+      "notes": "HONEST LIMIT: this asserts the query SHAPE, not behaviour against a real database — it would not catch a BaseModel-level bug that drops the WHERE. A behavioural test belongs in integration-tests once the read is wired to a production caller; it has ZERO callers today. Mirrors the A3 fix (f01358d1). Dave review #166 item 2.",
+      "waiver": ""
+    },
+    {
+      "id": "T10",
+      "title": "The migration is resumable — table creation is guarded",
+      "surface": "migration",
+      "precondition": "Drive up() with a mocked knex harness reporting the table as absent, then as present.",
+      "steps": [
+        "Run up() where the table does not exist.",
+        "Run up() where the table already landed from a partial execution."
+      ],
+      "expected": "createTable runs once when absent and is SKIPPED when present, so a resumed migration converges instead of throwing 'already exists' and wedging the deploy.",
+      "status": "pass",
+      "evidence": "src/__tests__/nap-consistency-migration.test.ts — both guard cases passed. MUTATION-VERIFIED: forcing the guard to `if (true)` fails these tests.",
+      "notes": "PREMISE CORRECTION for Dave review #166 item 3: knexfile.ts does NOT set disableTransactions, so knex wraps each migration in a transaction and Postgres DDL is transactional — a true partial execution should roll back, making this failure mode unlikely rather than live. The guard is kept because AGENTS.md requires idempotent, resumable migrations regardless, and it costs one hasTable call.",
+      "waiver": ""
+    },
+    {
+      "id": "T11",
+      "title": "The schedule seed cannot throw or clobber on a re-run",
+      "surface": "migration",
+      "precondition": "Drive up() with the mocked knex harness and inspect the insert chain.",
+      "steps": [
+        "Run up() and inspect the schedules insert.",
+        "Assert the conflict target and the conflict action."
+      ],
+      "expected": "The seed uses onConflict('agent_key').ignore() — never .merge(), so re-running can neither error nor overwrite a schedule an operator has already enabled or re-timed.",
+      "status": "pass",
+      "evidence": "src/__tests__/nap-consistency-migration.test.ts — onConflict/ignore case passed. MUTATION-VERIFIED: removing the onConflict chain fails this test.",
+      "notes": "PREMISE CORRECTION for Dave review #166 item 3: a DUPLICATE row was never possible — schedules.agent_key carries a UNIQUE constraint (20260315000001_create_schedules_tables.ts:8). A blind insert would ERROR on a pre-existing row, not duplicate it. The guard converts that hard failure into a no-op; the stated risk was real but by a different mechanism.",
+      "waiver": ""
+    },
+    {
+      "id": "T12",
+      "title": "The schedule ships DISABLED — merging incurs no SerpApi cost",
+      "surface": "migration",
+      "precondition": "Drive up() with the mocked knex harness and read the seeded row.",
+      "steps": [
+        "Run up() and capture the row passed to insert.",
+        "Inspect agent_key and enabled."
+      ],
+      "expected": "agent_key is 'nap_consistency' and enabled is false — the monitor ships ready but costs nothing until Corey intentionally enables it.",
+      "status": "pass",
+      "evidence": "src/__tests__/nap-consistency-migration.test.ts — disabled-seed case passed.",
+      "notes": "Dave: this row is deliberately disabled; do not enable on merge. The spec's 'disabled schedule is not dispatched' claim is covered here only at the seed level — the dispatcher's own skip is pre-existing behaviour this PR does not change or re-prove.",
+      "waiver": ""
+    },
+    {
+      "id": "T13",
+      "title": "down() reverses cleanly",
+      "surface": "migration",
+      "precondition": "Drive down() with the mocked knex harness.",
+      "steps": [
+        "Run down().",
+        "Inspect the schedule delete and the table drop."
+      ],
+      "expected": "The seeded schedule row is deleted by agent_key and the table is dropped with dropTableIfExists (itself guarded).",
+      "status": "pass",
+      "evidence": "src/__tests__/nap-consistency-migration.test.ts — down() case passed.",
+      "notes": "KNOWN EDGE: if up() ignored the conflict because the row pre-existed from another source, down() still deletes it. Accepted — down is the declared reverse of this migration and the row is agent-specific.",
+      "waiver": ""
+    },
+    {
+      "id": "T14",
+      "title": "The disabled-seed insert lands against a real database",
+      "surface": "migration",
+      "precondition": "Merge to dev/dave and let the deploy run npm run db:migrate against the dev database.",
+      "steps": [
+        "Run the migration against dev.",
+        "Confirm nap_consistency_observation exists.",
+        "Confirm exactly one schedules row for agent_key 'nap_consistency' with enabled = false."
+      ],
+      "expected": "The table is created and the schedule row lands DISABLED, with no duplicate and no error.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "HONESTLY NOT RUN. This is the one path never exercised locally — the sandbox lacks the schedules table and this suite is DB-mocked, so every migration proof above (T10-T13) asserts SHAPE via a mocked knex, not real DDL. The spec's 'rolled-back sandbox proof' was therefore NOT performed. This is the post-merge dev smoke test named in the get-found chain merge brief. It must NOT be marked pass until someone runs it against dev.",
+      "waiver": ""
+    },
+    {
+      "id": "T15",
+      "title": "A live end-to-end run against real SerpApi",
+      "surface": "service",
+      "precondition": "Enable the nap_consistency schedule on dev and let one run execute.",
+      "steps": [
+        "Enable the schedule.",
+        "Observe one run for an onboarded location.",
+        "Inspect the recorded observation against the live listings."
+      ],
+      "expected": "The monitor records an observation whose conflicts match what the live listings actually show.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "HONESTLY NOT RUN and deliberately deferred — the spec lists this as the post-merge Dave/dev smoke test. Enabling incurs real SerpApi cost and is Corey's call, not a merge step. Every proof in this file is unit-level with injected seams; no live provider call has been made.",
+      "waiver": ""
+    }
+  ]
+}
