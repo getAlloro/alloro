@@ -14,7 +14,7 @@
       ],
       "expected": "Two prompts (generic + contextualized) carrying the category and city; an empty set when either input is missing, so the runner skips instead of asking a meaningless question.",
       "status": "pass",
-      "evidence": "src/__tests__/ai-visibility.test.ts — 2 buildPromptSet cases passed in the 25-test A3 run and the 481-test full suite (Node 22).",
+      "evidence": "src/__tests__/ai-visibility.test.ts — 2 buildPromptSet cases passed in the 35-test A3 run and the 491-test full suite (Node 22).",
       "notes": "",
       "waiver": ""
     },
@@ -219,15 +219,16 @@
       "id": "T15",
       "title": "The observation read is tenant-scoped — one org cannot read another's rows (§11.7)",
       "surface": "cli",
-      "precondition": "Spy on the model's query builder; the suite is DB-mocked.",
+      "precondition": "A fake query builder that ACTUALLY applies the where-clause (narrows a seeded row set), not a spy that records arguments. The suite is DB-mocked.",
       "steps": [
-        "Call AiVisibilityObservationModel.listForLocation(7, 42).",
-        "Inspect the WHERE clause the model built."
+        "Seed 4 rows: org 7 has two at location 42, org 8 has one at location 42 (the newest), org 7 has one at location 99.",
+        "Call AiVisibilityObservationModel.listForLocation(7, 42) and inspect the returned ROWS.",
+        "Call listForLocation(999, 42) for an org that owns nothing there."
       ],
-      "expected": "The WHERE filters by BOTH organization_id and location_id, so org 8's rows at the same location_id are excluded. organizationId is a REQUIRED argument, not an optional filter a caller may forget.",
+      "expected": "Only org 7's two rows come back, ordered newest-first; org 8's row is absent even though it shares location_id 42 and is the newest (so a missing org filter would surface it FIRST). Org 999 gets an empty set. organizationId is a REQUIRED argument, not an optional filter a caller may forget.",
       "status": "pass",
-      "evidence": "src/__tests__/ai-visibility.test.ts — cross-org scoping case passed; the WHERE equals { organization_id: 7, location_id: 42 }.",
-      "notes": "Dave review #165 round 1, items 1-2; confirmed resolved in round 2. HONEST LIMIT: asserts the query SHAPE, not behaviour against a real database — it would not catch a BaseModel-level bug that drops the WHERE. A behavioural test belongs in integration-tests once the read is wired to a production caller; it has ZERO callers today.",
+      "evidence": "src/__tests__/ai-visibility.test.ts — 2 behavioral cross-org cases passed. NON-VACUOUSNESS PROVEN: reverting the model's WHERE to { location_id: locationId } fails both with 'expected [ o8-SECRET, o7-a, o7-b ] to deeply equal [ o7-a, o7-b ]' — the fake surfaces the actual cross-tenant leak, not a mismatched argument.",
+      "notes": "Dave review #165 round 1, items 1-2; round 3 REPLACED the original test. The round-1/2 version asserted the query SHAPE (expect(whereArg).toEqual({...})) and was worthless: its stub returned [] unconditionally, so it passed whether or not the filter ever excluded a row. The fake now implements knex's where-semantics over real rows, so the assertion is about which ROWS return. HONEST LIMIT: this proves the model's filtering against a fake, NOT PostgreSQL — no live DB in this suite. It would not catch a BaseModel-level bug that drops the WHERE at the driver layer. The read still has ZERO production callers.",
       "waiver": ""
     },
     {
@@ -319,8 +320,24 @@
       ],
       "expected": "Zero type errors, a green suite, and zero structural backend violations.",
       "status": "pass",
-      "evidence": "tsc --noEmit exited clean (no output). Full suite: 61 files, 481 tests passed (473 before this round; +8 new A3 tests). check:conventions --strict exited 0 with 'CLEAR structural violations — backend (size + console + db): 0'; no ai-visibility file appears in any finding, advisory or otherwise.",
-      "notes": "The §11.7 heuristic lists 102 models repo-wide; AiVisibilityObservationModel is NOT among them (it references organization_id). That heuristic is a backstop, not proof — the real tenant proof is T15.",
+      "evidence": "tsc --noEmit exited 0 (no output). Full suite: 61 files, 491 tests passed (481 before this round; +10 new A3 seal/tenant tests), captured from vitest's OWN exit code, not a piped grep. check:conventions --strict exited 0 with 'CLEAR structural violations — backend (size + console + db): 0'; no ai-visibility file appears in any finding, advisory or otherwise.",
+      "notes": "The §11.7 heuristic lists 102 models repo-wide; AiVisibilityObservationModel is NOT among them (it references organization_id). That heuristic is a backstop, not proof — the real tenant proof is T15/T22.",
+      "waiver": ""
+    },
+    {
+      "id": "T22",
+      "title": "Every unscoped inherited BaseModel entry point is sealed on the A3 model (§11.7/§5.5)",
+      "surface": "cli",
+      "precondition": "BaseModel's ACTUAL static surface enumerated with the TypeScript checker (not from a remembered list), at the branch head under Node 22.",
+      "steps": [
+        "Enumerate BaseModel's public statics via the TS type checker.",
+        "Call each sealed method with arguments and assert it rejects.",
+        "Remove one seal and re-run npx tsc --noEmit."
+      ],
+      "expected": "All 9 table-touching statics (findById, findOne, findMany, create, createReturningId, updateById, deleteById, count, paginate) are sealed: 8 are COMPILE errors (TS2554) when called with arguments, and all 9 throw at runtime. Removing a seal fails tsc.",
+      "status": "pass",
+      "evidence": "src/__tests__/ai-visibility.test.ts — 9 seal cases passed. NON-VACUOUSNESS PROVEN: deleting the findById seal makes tsc FAIL with 'src/__tests__/ai-visibility.test.ts(585,7): error TS2578: Unused @ts-expect-error directive' (exit 2), so a seal cannot be silently removed — tsc covers this test file (verified via tsc --noEmit --listFiles).",
+      "notes": "ENUMERATION FINDING: the checker reported 11 public statics, not the 9 on the review list — the extras are transaction() and beginTransaction(). Both are DELIBERATELY NOT sealed and this is the honest residual: they never touch tableName, they return a raw Knex handle that can query ANY table, and that handle is reachable through every other model, so sealing them on this one class would close nothing while breaking the sanctioned BaseModel transaction pattern. The breadth of a raw handle is a BaseModel-wide property this batch does not open; it is a candidate for a separate BaseModel-level decision, not an A3 fix. HONEST EXCEPTION: count() is RUNTIME-ONLY sealed — BaseModel.count() is callable with zero arguments, so the arity trick cannot fire and AiVisibilityObservationModel.count() still type-checks. Documented on the method; no @ts-expect-error on that test (one would itself fail tsc as TS2578).",
       "waiver": ""
     }
   ]
