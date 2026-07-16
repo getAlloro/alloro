@@ -127,7 +127,7 @@ Ordering logic: **funnel order (found → considered → chosen → cohesion →
 - *Explicitly DEFER (do NOT chase now): A4 monitor→citation-engine (widest gap, lowest leverage, net-new integration/buy-vs-build); A1 SEO breadth (honest as-is); and anything already AT/ABOVE its pioneer — A3/A5/A6-mechanic (polishing parity work is wasted motion).*
 
 **Get-considered levers resume AFTER connect+prove:**
-8. **B2 — CRO-lift rewrite** (spec Slice 2; Taste-Profile-driven).
+8. **B2 — CRO-lift rewrite** (spec Slice 2; Taste-Profile-driven). **Validated 2026-07-15 (reuse-first): compose-and-wire, NOT from-scratch** — reads the approved Taste Profile (#160, OPEN → branch off it) via `TasteProfileModel.findLatestByOrgAndLocation` → a new `AiCommandRecommendation` target_type → `service.ai-command-execute.ts` (approved + auto-publish rail, on dev/dave) → `PageModel.updateSectionsById`; honesty via `enforceHonesty()` (#160). Do NOT touch `instantWebsiteGenerator.ts` (one-shot static generator). Ready to scope in a fresh session. **Proof = DEFERRED on a NAMED chain** (not indefinite): M0 merged (#156, done) → **M0-SENDER wired** (measurement rail) → B1 enabled (#169). Until that chain closes, a B2 rewrite's lift is only partially attributable — build the wire, write Proof honestly as deferred-on-that-chain.
 9. **B3 — Get-considered trust depth** (spec Slice 3).
 10. **B4 — Review replies auto-draft** (extend the built path).
 11. **B5 — GBP posts un-neuter** (engagement, not rank).
@@ -142,7 +142,7 @@ Ordering logic: **funnel order (found → considered → chosen → cohesion →
 16. **D1 — Cohesion/handoff layer** (needs the pages + forms above to exist).
 
 **Measurement rail — parallel foundational track (STAKED 2026-07-15: option (a), middle version; application of already-staked canon, no canon-doc edit):**
-- **M0 — Submission source-capture (un-park #156's capture half).** Land it early, near B1 / **before the get-considered rewrite levers (B2+)**, so **no lever ships without source captured**. This is the foundational brick of NS1 (undeniable + attributed) and the owned-channel moat. NOT the full attribution loop — just the source column on the raised-hand surface.
+- **M0 — Submission source-capture** — ✅ **DONE + PR'd 2026-07-15 (PR #156 refreshed, OPEN, MERGEABLE, head `5f1ece5c`; verified live).** Adopted #156 (rebased, not rebuilt): nullable `source VARCHAR(100)`, additive/reversible, unknown=null (Value #6). Fable adversary caught + fixed a **critical PII-injection bug** (client-supplied source/utm stored unvalidated on a public endpoint → closed vocabulary → null); public-repo disclosure sanitized (Option 1). tsc 0, 495 full + 39 targeted tests, conv 0. `firstPatientAttribution.ts` left untouched (live, different concern). Awaiting Dave's merge. **⚠ REMAINING for population — M0-SENDER (own work item):** M0 captures the *column*, but it stays mostly null until a **site-side sender forwards `source`/`utm` from the hosted forms** — that lives in the renderer / hosted templates *outside this repo* (same cross-repo seam as B1-R). Full E1 attribution needs M0-SENDER wired.
 - The lever build-order (found→considered→chosen) is **unchanged**; this adds measurement as a parallel track, not a reorder of the levers.
 
 **Measurement / moat:**
