@@ -32,7 +32,6 @@ export type StepKey =
   | "admin_approval"
   | "client_approval"
   | "monthly_agents"
-  | "task_creation"
   | "complete";
 
 export type MonthlyAgentKey =
@@ -59,14 +58,7 @@ export interface AgentResult {
   error?: string;
 }
 
-export interface TasksCreatedSummary {
-  user: number;
-  alloro: number;
-  total: number;
-}
-
 export interface AutomationSummary {
-  tasksCreated: TasksCreatedSummary;
   agentResults: {
     summary?: AgentResult;
     referral_engine?: AgentResult;
@@ -74,6 +66,25 @@ export interface AutomationSummary {
     cro_optimizer?: AgentResult;
   };
   duration?: string;
+}
+
+interface LegacyAutomationSummary extends AutomationSummary {
+  tasksCreated?: {
+    user: number;
+    alloro: number;
+    total: number;
+  };
+}
+
+interface LegacyAutomationStatusDetail extends Omit<
+  AutomationStatusDetail,
+  "currentStep" | "steps" | "summary"
+> {
+  currentStep: StepKey | "task_creation";
+  steps: Record<StepKey, StepDetail> & {
+    task_creation?: StepDetail;
+  };
+  summary?: LegacyAutomationSummary;
 }
 
 export interface AutomationStatusDetail {
@@ -112,9 +123,8 @@ export const STEP_CONFIG: Record<
   monthly_agents: {
     label: "Monthly Agents",
     progressStart: 40,
-    progressEnd: 90,
+    progressEnd: 98,
   },
-  task_creation: { label: "Task Creation", progressStart: 90, progressEnd: 98 },
   complete: { label: "Complete", progressStart: 98, progressEnd: 100 },
 };
 
@@ -150,7 +160,6 @@ export function createInitialStatus(): AutomationStatusDetail {
       admin_approval: { status: "pending" },
       client_approval: { status: "pending" },
       monthly_agents: { status: "pending", agentsCompleted: [] },
-      task_creation: { status: "pending" },
       complete: { status: "pending" },
     },
     startedAt: now,
@@ -202,13 +211,63 @@ function getMessage(
       return "Awaiting client approval";
     case "monthly_agents":
       return "Running monthly agents...";
-    case "task_creation":
-      return "Creating tasks...";
     case "complete":
       return "Automation complete";
     default:
       return stepConfig.label;
   }
+}
+
+/**
+ * Remove retired task-stage fields from a stored automation payload without
+ * mutating the database row. Historical jobs remain readable while callers
+ * only receive supported insight stages.
+ */
+export function normalizeAutomationStatusDetail(
+  detail: unknown,
+): AutomationStatusDetail {
+  const legacyDetail = detail as LegacyAutomationStatusDetail;
+  const activeSteps: Record<string, StepDetail> = { ...legacyDetail.steps };
+  delete activeSteps.task_creation;
+
+  const isLegacyTaskStage = legacyDetail.currentStep === "task_creation";
+  const hasLegacyTaskMessage = /\b(?:creating\s+tasks?|tasks?\s+created)\b/i.test(
+    legacyDetail.message ?? "",
+  );
+  const shouldNormalizeTaskCopy = isLegacyTaskStage || hasLegacyTaskMessage;
+  let currentStep: StepKey;
+  if (legacyDetail.currentStep === "task_creation") {
+    currentStep =
+      legacyDetail.status === "completed" ? "complete" : "monthly_agents";
+  } else {
+    currentStep = legacyDetail.currentStep;
+  }
+  const summary = legacyDetail.summary
+    ? {
+        agentResults: legacyDetail.summary.agentResults,
+        duration: legacyDetail.summary.duration,
+      }
+    : undefined;
+
+  return {
+    ...legacyDetail,
+    currentStep,
+    currentSubStep: shouldNormalizeTaskCopy
+      ? undefined
+      : legacyDetail.currentSubStep,
+    message: shouldNormalizeTaskCopy
+      ? legacyDetail.status === "completed"
+        ? "Automation complete"
+        : "Finalizing insights..."
+      : legacyDetail.message,
+    steps: activeSteps as Record<StepKey, StepDetail>,
+    summary,
+  };
+}
+
+function parseAutomationStatusDetail(value: unknown): AutomationStatusDetail {
+  const parsed = typeof value === "string" ? JSON.parse(value) : value;
+  return normalizeAutomationStatusDetail(parsed);
 }
 
 /**
@@ -235,10 +294,7 @@ export async function updateAutomationStatus(
   let currentStatus: AutomationStatusDetail;
 
   if (job.automation_status_detail) {
-    currentStatus =
-      typeof job.automation_status_detail === "string"
-        ? JSON.parse(job.automation_status_detail)
-        : job.automation_status_detail;
+    currentStatus = parseAutomationStatusDetail(job.automation_status_detail);
   } else {
     currentStatus = createInitialStatus();
   }
@@ -410,10 +466,7 @@ export async function resetToStep(
   let currentStatus: AutomationStatusDetail;
 
   if (job.automation_status_detail) {
-    currentStatus =
-      typeof job.automation_status_detail === "string"
-        ? JSON.parse(job.automation_status_detail)
-        : job.automation_status_detail;
+    currentStatus = parseAutomationStatusDetail(job.automation_status_detail);
   } else {
     currentStatus = createInitialStatus();
   }
@@ -427,7 +480,6 @@ export async function resetToStep(
     "admin_approval",
     "client_approval",
     "monthly_agents",
-    "task_creation",
     "complete",
   ];
 
@@ -503,10 +555,7 @@ export async function completeAutomation(
   let currentStatus: AutomationStatusDetail;
 
   if (job?.automation_status_detail) {
-    currentStatus =
-      typeof job.automation_status_detail === "string"
-        ? JSON.parse(job.automation_status_detail)
-        : job.automation_status_detail;
+    currentStatus = parseAutomationStatusDetail(job.automation_status_detail);
   } else {
     currentStatus = createInitialStatus();
   }
@@ -517,12 +566,6 @@ export async function completeAutomation(
     currentStatus.steps.monthly_agents.completedAt = now;
   }
 
-  // Mark task_creation as completed if it was processing
-  if (currentStatus.steps.task_creation.status === "processing") {
-    currentStatus.steps.task_creation.status = "completed";
-    currentStatus.steps.task_creation.completedAt = now;
-  }
-
   // Mark complete step
   currentStatus.steps.complete.status = "completed";
   currentStatus.steps.complete.completedAt = now;
@@ -531,7 +574,7 @@ export async function completeAutomation(
   currentStatus.status = "completed";
   currentStatus.currentStep = "complete";
   currentStatus.progress = 100;
-  currentStatus.message = `Complete - ${summary.tasksCreated.total} tasks created`;
+  currentStatus.message = "Automation complete - insights ready";
   currentStatus.summary = summary;
   currentStatus.completedAt = now;
 
@@ -542,7 +585,7 @@ export async function completeAutomation(
   );
 
   logger.info(
-    `[PMS-AUTOMATION] [${jobId}] Automation completed - ${summary.tasksCreated.total} tasks created`
+    `[PMS-AUTOMATION] [${jobId}] Automation completed - insights ready`
   );
 }
 
@@ -558,9 +601,7 @@ export async function getAutomationStatus(
     return null;
   }
 
-  return typeof job.automation_status_detail === "string"
-    ? JSON.parse(job.automation_status_detail)
-    : job.automation_status_detail;
+  return parseAutomationStatusDetail(job.automation_status_detail);
 }
 
 /**

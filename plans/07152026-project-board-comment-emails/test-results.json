@@ -1,0 +1,119 @@
+{
+  "plan": "plans/07152026-project-board-comment-emails",
+  "generatedAt": "2026-07-16",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "T1",
+      "title": "Comment attachment schema is applied locally",
+      "surface": "cli",
+      "precondition": "The active environment points to the local appdb database.",
+      "steps": [
+        "Run npx knex migrate:list.",
+        "Confirm 20260715000000_add_pm_comment_attachments.ts is completed."
+      ],
+      "expected": "pm_task_attachments.comment_id is available without applying unrelated pending migrations.",
+      "status": "pass",
+      "evidence": "Knex reported 20260715000000_add_pm_comment_attachments.ts among 192 completed migrations. The unrelated metric-action migration remained pending and was not run.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Comment composer exposes and handles the full image workflow",
+      "surface": "cli",
+      "precondition": "Frontend test dependencies are installed.",
+      "steps": [
+        "Render the comment composer with image support.",
+        "Select an @mention and a picker image.",
+        "Exercise image-only, non-image rejection, paste, drop, preview, disabled, and saving states."
+      ],
+      "expected": "Mention chips, image previews, paste/drop/picker input, image-only comments, validation, and send states behave as designed.",
+      "status": "pass",
+      "evidence": "CommentComposer.test.tsx reported 4 tests passed, including visible affordances, mention selection, picker preview, non-image rejection, paste/drop, image-only submit, and disabled saving state.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "Comment images persist under the parent comment only",
+      "surface": "api",
+      "precondition": "Local API is healthy on http://localhost:3000 and the PM migration is applied.",
+      "steps": [
+        "Create a temporary task and comment through the authenticated PM API.",
+        "Upload a one-pixel PNG with comment_id.",
+        "List comments and standalone attachments.",
+        "Delete the comment and temporary task."
+      ],
+      "expected": "The image appears under the comment, never appears in the standalone attachment list, and its metadata/S3 object are removed during cleanup.",
+      "status": "pass",
+      "evidence": "Live run used task 63c3c723-1a80-4112-b1c5-9bf8044aa34a, comment 545d7fdf-2a3a-4e87-8538-2b569a322547, and attachment faad29b4-6c69-4793-b4e5-b1db8095e21e. Nested response, standalone exclusion, cascade metadata removal, S3 deletion, and temporary-data cleanup all passed.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T4",
+      "title": "Mention email recipients are filtered and intercepted",
+      "surface": "api",
+      "precondition": "Mailgun is configured and NODE_ENV=development keeps the email interceptor active.",
+      "steps": [
+        "Create a comment whose mention list includes a duplicate and the actor.",
+        "Edit the comment to add one new mention.",
+        "Inspect the resulting email_logs rows."
+      ],
+      "expected": "Only the distinct non-actor mention receives each logical email, all local sends are intercepted to Dave, and comment deep links are present.",
+      "status": "pass",
+      "evidence": "Two Mailgun sends completed with status sent. Original recipients were corey@getalloro.com on create and jordan@getalloro.com for the newly-added edit mention. Both stored rows were intercepted to dave@getalloro.com and contained tab=comments deep links. QA log rows were removed after capture.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T5",
+      "title": "Movement email rules distinguish reorder from state change",
+      "surface": "api",
+      "precondition": "A temporary task is assigned to another internal user.",
+      "steps": [
+        "Move the task within its current column.",
+        "Confirm the PM email-log count does not change.",
+        "Move the task to a different column and inspect the new email log."
+      ],
+      "expected": "Same-column reorder sends no email; cross-column movement sends one de-duplicated, intercepted details-link email.",
+      "status": "pass",
+      "evidence": "Same-column email count delta was 0. Moving To Do to In Progress produced exactly one sent Mailgun row for original recipient corey@getalloro.com, intercepted to Dave, with a tab=details deep link.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T6",
+      "title": "Project Board deep links resolve the requested task tab",
+      "surface": "cli",
+      "precondition": "Frontend URL utilities and production build are available.",
+      "steps": [
+        "Run projectBoardDeepLink.utils.test.ts.",
+        "Inspect captured comment and movement email HTML.",
+        "Request http://localhost:3000/admin from the running app."
+      ],
+      "expected": "comments and details query values resolve correctly, emails include the matching tab, and the authoritative admin SPA is served.",
+      "status": "pass",
+      "evidence": "The deep-link utility reported 2 tests passed; captured email HTML contained task plus tab=comments/details; /admin returned the Vite SPA through the local API proxy.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T7",
+      "title": "Regression and architecture gates pass",
+      "surface": "cli",
+      "precondition": "All implementation and acceptance changes are present.",
+      "steps": [
+        "Run backend and frontend test suites.",
+        "Run backend and frontend production builds.",
+        "Run strict conventions, lint, dependency checks, TypeScript, and git diff --check."
+      ],
+      "expected": "No blocking errors remain; baseline advisory warnings are documented.",
+      "status": "pass",
+      "evidence": "Backend: 68 files and 500 tests passed. Frontend full suite: 47 files and 167 tests passed; the final focused set reported 12 tests passed. Both builds, strict conventions, check:all, TypeScript, scoped lint with zero errors, dependency cruise with zero errors, and diff checks passed.",
+      "notes": "Baseline lint and dependency warnings remain advisory; no new blocking Constitution violation was introduced.",
+      "waiver": ""
+    }
+  ]
+}

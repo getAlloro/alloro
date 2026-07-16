@@ -438,7 +438,7 @@ export const PMSVisualPillars: React.FC<PMSVisualPillarsProps> = ({
 
       showSparkleToast(
         "Perfect!",
-        "We're now setting up your summary and action items for this month",
+        "We're now preparing your summary and recommendations for this month",
       );
 
       if (typeof window !== "undefined") {

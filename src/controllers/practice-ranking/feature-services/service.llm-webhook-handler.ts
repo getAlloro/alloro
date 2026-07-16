@@ -5,9 +5,8 @@
  * served as an n8n webhook handler; the pipeline now runs Claude inline (see
  * service.ranking-llm.ts) and these helpers are called directly.
  *
- * Task creation moved out: Summary v2 is the sole writer of category="USER"
- * tasks. Ranking output reaches Summary via additional_data.ranking_recommendations
- * on the next monthly run.
+ * Ranking output reaches Summary through
+ * additional_data.ranking_recommendations on the next monthly run.
  */
 
 import { PracticeRankingModel } from "../../../models/PracticeRankingModel";

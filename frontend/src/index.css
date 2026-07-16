@@ -451,6 +451,30 @@ select {
   100% { background-position: 0% 50%; }
 }
 
+/* PM-only scroll areas: quiet until hovered, with no light native track. */
+.pm-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-pm-border-hover) transparent;
+}
+
+.pm-scrollbar::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.pm-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.pm-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--color-pm-border-hover);
+  border-radius: 999px;
+}
+
+.pm-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--color-pm-accent);
+}
+
 /* Dark blue themed scrollbar for sidebar */
 .scrollbar-dark-blue {
   scrollbar-width: thin;

@@ -1,0 +1,75 @@
+{
+  "plan": "plans/07152026-project-board-add-items",
+  "generatedAt": "2026-07-15",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "T1",
+      "title": "Mine board add controls appear only in To Do and In Progress",
+      "surface": "ui",
+      "precondition": "Signed into the local Alloro admin app with access to /admin/pm and at least one active PM project.",
+      "steps": [
+        "1. Open http://localhost:3000/admin/pm?view=me.",
+        "2. Inspect the To Do, In Progress, and Done column headers."
+      ],
+      "expected": "To Do and In Progress each show an add icon button. Done does not show an add icon button.",
+      "status": "pass",
+      "evidence": "Browser QA on http://localhost:5174/admin/pm?view=me using this worktree frontend and API on port 3010. To Do and In Progress add buttons were present; Done had no add button in the assigned board. Screenshot: plans/07152026-project-board-add-items/evidence/browser-people-add-task.png",
+      "notes": "Component coverage: npm --prefix frontend run test -- CreateTaskModal.test.tsx MeKanbanBoard.test.tsx currentUser.test.ts jwt.test.ts index.test.ts",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Mine create requires a project and keeps the created task visible after refresh",
+      "surface": "ui",
+      "precondition": "Signed into the local Alloro admin app as Dave/current user with an active PM project that has To Do and In Progress columns.",
+      "steps": [
+        "1. Open http://localhost:3000/admin/pm?view=me.",
+        "2. Click the add icon in To Do.",
+        "3. Enter a title without selecting a project.",
+        "4. Confirm Create Task stays disabled.",
+        "5. Select a project and submit.",
+        "6. Refresh the board data or reload the page."
+      ],
+      "expected": "Create stays disabled until a project is selected. After submit, the new task appears in To Do and remains visible after refresh because it is assigned to the current user.",
+      "status": "pass",
+      "evidence": "Created temporary Mine tasks in To Do and In Progress with project Alloro selected. The modal closed after submit, cards appeared with Alloro assignment, reload preserved visibility, and all temporary Visual QA rows were deleted from the DB afterward.",
+      "notes": "Visual QA found and fixed stale project responses, unresolved current-user id, and delayed modal close. Cleanup verified remaining Visual QA task count = 0.",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "People create assigns the task to the selected assignee",
+      "surface": "ui",
+      "precondition": "Signed into the local Alloro admin app with access to the People/assignee view and at least one selectable PM user.",
+      "steps": [
+        "1. Open http://localhost:3000/admin/pm?view=assignee.",
+        "2. Select a PM user.",
+        "3. Click the add icon in In Progress.",
+        "4. Enter a title, select a project, and submit.",
+        "5. Refresh the assignee board."
+      ],
+      "expected": "The new task appears in In Progress for the selected user after refresh and does not create as unassigned work.",
+      "status": "pass",
+      "evidence": "Browser QA on http://localhost:5174/admin/pm?view=assignee&userId=43 created a temporary People task with project Alloro selected and locked To Do column. No assignee warning appeared, the modal closed within 3 seconds after the flush fix, and the created title was visible in the assignee board before cleanup.",
+      "notes": "Component coverage verifies the locked column and assigned_to payload shape.",
+      "waiver": ""
+    },
+    {
+      "id": "T4",
+      "title": "Existing project-board creation still works",
+      "surface": "ui",
+      "precondition": "Signed into the local Alloro admin app with at least one active PM project.",
+      "steps": [
+        "1. Open a project-specific board in /admin/pm.",
+        "2. Use the existing project-board create task action.",
+        "3. Use an existing column-level quick-add action if present on that board."
+      ],
+      "expected": "The existing project-board create flows still open and submit without requiring the new assignee-board props.",
+      "status": "pass",
+      "evidence": "Browser smoke on http://localhost:5174/admin/pm/959f37e5-5fe2-4003-9516-3af6b19f40b3 confirmed the existing project-board column quick-add still opens its inline Add a task input without using the new required-project modal path.",
+      "notes": "No project-board task was submitted during this smoke check. Backwards compatibility is also covered by optional modal props plus successful frontend build.",
+      "waiver": ""
+    }
+  ]
+}

@@ -23,10 +23,10 @@ function buildCogitatingPhrases(copy: PmsCopy) {
     "Scoring source efficiency",
     `Tracking ${copy.partnerSummaryLabel.toLowerCase()}`,
     "Surfacing declining sources",
-    "Prioritizing action items",
+    "Prioritizing recommendations",
     "Grounding insights to your data",
     `Matching sources to ${copy.moneyLower}`,
-    "Preparing your action plan",
+    "Preparing your recommendations",
   ];
 }
 

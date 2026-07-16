@@ -4,7 +4,6 @@
  * Sent to admin team after:
  * - Monthly agents run completion
  * - Practice ranking completion
- * - New action items in Action Hub
  */
 
 import type { AdminNotificationData, SendEmailOptions } from "../types";
@@ -35,7 +34,7 @@ export function buildAdminNotificationContent(
       Admin Update
     </h1>
     <p style="margin: 0 0 24px 0; font-size: 14px; color: ${BRAND_COLORS.mediumGray};">
-      New items require your attention in the Alloro admin dashboard.
+      New results are available in the Alloro admin dashboard.
     </p>
   `);
 
@@ -46,28 +45,6 @@ export function buildAdminNotificationContent(
         ${data.summary}
       </p>
     `);
-  }
-
-  // New Action Items
-  if (data.newActionItems && data.newActionItems > 0) {
-    const cardContent = `
-      <div style="display: flex; align-items: center; gap: 12px;">
-        <div style="width: 48px; height: 48px; background-color: ${BRAND_COLORS.orange}15; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
-          <span style="font-size: 24px;">📋</span>
-        </div>
-        <div>
-          <p style="margin: 0; font-size: 28px; font-weight: 800; color: ${BRAND_COLORS.navy};">
-            ${data.newActionItems}
-          </p>
-          <p style="margin: 0; font-size: 12px; font-weight: 600; color: ${BRAND_COLORS.mediumGray}; text-transform: uppercase; letter-spacing: 0.5px;">
-            New Action Items
-          </p>
-        </div>
-      </div>
-    `;
-    sections.push(
-      createCard(cardContent, { borderColor: `${BRAND_COLORS.orange}30` })
-    );
   }
 
   // Practice Rankings Completed
@@ -156,7 +133,7 @@ export function buildAdminNotificationContent(
       <p style="margin: 0 0 20px 0; font-size: 14px; color: ${
         BRAND_COLORS.darkGray
       };">
-        Review and manage these items in the admin dashboard.
+        Review the latest results in the admin dashboard.
       </p>
       ${createButton("Open Admin Dashboard", `${APP_URL}/admin`)}
     </div>
@@ -173,17 +150,12 @@ export function buildAdminNotificationEmail(
 ): SendEmailOptions {
   const content = buildAdminNotificationContent(data);
   const body = wrapInBaseTemplate(content, {
-    preheader:
-      data.summary ||
-      `${data.newActionItems || 0} new items require your attention`,
+    preheader: data.summary || "New results are available for review",
     showFooterLinks: false,
   });
 
   // Build subject line
   const subjectParts: string[] = [];
-  if (data.newActionItems) {
-    subjectParts.push(`${data.newActionItems} new action items`);
-  }
   if (data.practiceRankingsCompleted?.length) {
     subjectParts.push(
       `${data.practiceRankingsCompleted.length} rankings complete`
@@ -202,7 +174,7 @@ export function buildAdminNotificationEmail(
     subject,
     body,
     recipients: [], // Will be populated by sendAdminNotification
-    preheader: data.summary || "New items require your attention",
+    preheader: data.summary || "New results are available for review",
   };
 }
 

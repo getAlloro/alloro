@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Remove AI Data Insights Spec</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; margin-top: 12px; background: var(--soft); }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 840px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; letter-spacing: 0; }
+    h2 { font-size: 1.35rem; letter-spacing: 0; }
+    h3 { font-size: 1rem; letter-spacing: 0; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-completed">Completed</span>
+      </div>
+      <h1>Remove AI Data Insights</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/07152026-remove-ai-data-insights</dd></div>
+        <div><dt>Size</dt><dd>Large</dd></div>
+        <div><dt>Risk</dt><dd>Level 2</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>The admin <code>AI Data Insights</code> / <code>Agent Enhancements</code> surface is a retired Guardian/Governance review workflow. The run route is already disabled, the page mostly shows an empty state, and keeping the view plus dead job code creates a misleading admin path.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Remove the admin navigation item, list/detail routes, frontend view code, <code>/api/admin/agent-insights</code> API surface, and dead Guardian/Governance runner code. Direct visits to old <code>/admin/ai-data-insights</code> URLs should redirect to Mission Control instead of rendering the retired page or an empty admin shell.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Scope Ledger</h3>
+      <ul>
+        <li><strong>Objective:</strong> remove AI Data Insights from admin, including view access and dead Guardian/Governance job code.</li>
+        <li><strong>Intended user:</strong> internal Alloro admin users.</li>
+        <li><strong>Surface:</strong> admin SPA routes/sidebar, admin API route, legacy agent runner service.</li>
+        <li><strong>System of record:</strong> code only. No schema or data deletion is planned.</li>
+        <li><strong>Open questions:</strong> none blocking. Direct stale route behavior is specified as redirect to Mission Control.</li>
+      </ul>
+
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>frontend/src/pages/Admin.tsx</code> - owns admin route registration for <code>ai-data-insights</code> and <code>ai-data-insights/:agentType</code>.</li>
+        <li><code>frontend/src/components/Admin/shell/AdminSidebar.tsx</code> - owns the <code>Agent Enhancements</code> nav item.</li>
+        <li><code>frontend/src/pages/admin/AIDataInsightsList.tsx</code> and <code>frontend/src/pages/admin/AIDataInsightsDetail.tsx</code> - retired list/detail views to delete.</li>
+        <li><code>frontend/src/hooks/queries/useAdminStandaloneQueries.ts</code>, <code>frontend/src/lib/queryClient.ts</code>, <code>frontend/src/types/agentInsights.ts</code> - frontend query/type surfaces used only by this retired view.</li>
+        <li><code>src/app.ts</code> and <code>src/routes/adminAgentInsights.ts</code> - backend route mount and router for <code>/api/admin/agent-insights</code>.</li>
+        <li><code>src/controllers/admin-agent-insights/</code> - backend controller/services/utils dedicated to the retired API.</li>
+        <li><code>src/controllers/agents/AgentsController.ts</code> and <code>src/routes/agentsV2.ts</code> - contain stale Guardian/Governance endpoint docs, disabled route references, dead controller export, and health fields.</li>
+        <li><code>src/controllers/agents/feature-services/service.governance-validator.ts</code>, <code>service.recommendation-parser.ts</code>, and <code>service.agent-input-builder.ts</code> - dead Guardian/Governance run and payload parsing path.</li>
+        <li><code>src/models/AgentRecommendationModel.ts</code> and <code>src/models/AgentResultModel.ts</code> - contain helper methods used only by the retired admin insights API and dead runner; keep shared model methods used by reset and Agent Outputs.</li>
+      </ul>
+
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li><code>§6.1</code> backend reference: keep route/controller/service/model layering clean by removing entire unused domain files instead of leaving dangling exports.</li>
+        <li><code>§12.1</code> frontend reference: the removed frontend query code currently follows the API + React Query + type triad; remove all three together so no dead query keys remain.</li>
+        <li><code>§4.1</code> no commented-out code: the older reversible disable comments in <code>agentsV2.ts</code> should be deleted with the dead endpoint docs.</li>
+      </ul>
+      <p><strong>Reference files:</strong> <code>src/routes/admin/agentOutputs.ts</code> and <code>src/controllers/admin-agent-outputs/</code> stay as the current supported admin agent-output surface; <code>frontend/src/pages/admin/AgentOutputsList.tsx</code> stays as the current admin agent output view.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Remove the sidebar item and both AI Data Insights routes from admin.</li>
+            <li>Redirect stale <code>/admin/ai-data-insights/*</code> URLs to <code>/admin/mission-control</code>.</li>
+            <li>Remove the backend <code>/api/admin/agent-insights</code> route mount and dedicated controller domain.</li>
+            <li>Remove dead Guardian/Governance runner code and stale disabled route comments.</li>
+            <li>Preserve shared <code>agent_results</code> and <code>agent_recommendations</code> tables and model methods used by live reset/output flows.</li>
+            <li>Re-check Alloro Docs references during execution; current grep found no matching docs references.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>No database schema changes or data deletes.</li>
+            <li>No changes to Proofline, Ranking, monthly agents, Copy Companion, Agent Outputs, PMS reset, or org reset behavior.</li>
+            <li>No removal of shared <code>callAgentWebhook</code>; it is still used by monthly test and Copy Companion code.</li>
+            <li>No broad admin shell refactor or unrelated navigation cleanup.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Constitution Articles</h3>
+      <ul>
+        <li><code>§4.1</code> delete commented-out dead code rather than preserving old disabled blocks.</li>
+        <li><code>§7.1</code>, <code>§7.2</code>, <code>§7.3</code>, <code>§7.4</code> preserve backend route/controller/service/model boundaries while removing a whole unused domain.</li>
+        <li><code>§8.1</code> unmatched API calls should fall through to the existing standard 404 envelope after auth.</li>
+        <li><code>§11.1</code> protected API behavior remains guarded by default-deny auth before the 404 fallback.</li>
+        <li><code>§12.1</code>, <code>§14.1</code>, <code>§14.2</code> remove the frontend query triad and avoid leaving raw or orphaned API callers.</li>
+        <li><code>§20.5</code> execution must generate acceptance artifacts before finalization.</li>
+      </ul>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Cleaning historical database rows for <code>guardian</code> or <code>governance_sentinel</code>.</li>
+        <li>Removing <code>guardian</code> / <code>governance_sentinel</code> display support from the separate Agent Outputs list.</li>
+        <li>Removing Copy Companion or GBP optimizer code beyond stale Guardian/Governance references.</li>
+        <li>Production deployment or live DB verification.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 2 - concern. The code path is retired, but the cleanup crosses frontend, backend, and legacy agent files.</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><strong>Over-deleting shared agent infrastructure.</strong> <code>agent_results</code> and some <code>AgentRecommendationModel</code> helpers are still live for Agent Outputs and org reset. <strong>Mitigation:</strong> remove only methods with no remaining references after deleting the retired domain; rerun targeted grep before and after edits.</li>
+        <li><strong>Stale direct URLs.</strong> Removing routes alone can leave an empty admin content area. <strong>Mitigation:</strong> add an explicit stale-route redirect to <code>mission-control</code>.</li>
+        <li><strong>Hidden internal callers.</strong> A script or stale test might still hit <code>/api/admin/agent-insights</code> or <code>guardian-governance-agents-run</code>. <strong>Mitigation:</strong> grep full repo during execution and update tests or docs if any current caller remains.</li>
+        <li><strong>Docs drift.</strong> Admin navigation removal can affect docs. <strong>Mitigation:</strong> grep <code>/Users/rustinedave/Desktop/alloro-docs</code> again during execution; update only if references exist.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> Admin shell navigation, admin SPA route table, admin standalone query hooks, <code>/api/admin/agent-insights</code>, stale Guardian/Governance runner exports, related model helper methods, and any tests that explicitly expected that retired endpoint.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li>Do not delete the database tables. The table names look tied to this feature, but current reset and output flows still depend on them. Future-us will hate a cleanup that turns into a data loss bug.</li>
+        <li>Do not leave disabled comments in place. The prior plan intentionally kept code for restoration; this request is removal, so dead comments now create architectural drift.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <article class="task-card">
+        <h3>T1: Frontend Route And Sidebar Removal</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Remove <code>AIDataInsightsList</code> and <code>AIDataInsightsDetail</code> imports/routes from <code>Admin.tsx</code>. Add an explicit stale <code>ai-data-insights/*</code> redirect to <code>mission-control</code>. Remove <code>ai-data-insights</code> from <code>AdminNavKey</code>, <code>AGENTS_GROUP_ITEMS</code>, and now-unused icon imports in <code>AdminSidebar.tsx</code>.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/pages/Admin.tsx</code>, <code>frontend/src/components/Admin/shell/AdminSidebar.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>cd frontend &amp;&amp; npx tsc -p tsconfig.app.json</code>; manual stale URL goes to Mission Control.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: Frontend Dead View And Query Cleanup</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Delete the AI Data Insights list/detail pages, old admin-insights recommendation card, and dedicated <code>agentInsights</code> type file. Remove AI insights hooks and invalidation helpers from <code>useAdminStandaloneQueries.ts</code>. Remove insights query keys from <code>queryClient.ts</code>. Confirm the separate AiCommand recommendation components remain untouched.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/pages/admin/AIDataInsightsList.tsx</code>, <code>frontend/src/pages/admin/AIDataInsightsDetail.tsx</code>, <code>frontend/src/components/Admin/agents/RecommendationCard.tsx</code>, <code>frontend/src/types/agentInsights.ts</code>, <code>frontend/src/hooks/queries/useAdminStandaloneQueries.ts</code>, <code>frontend/src/lib/queryClient.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd><code>rg "AIDataInsights|agentInsights|useAdminInsights|adminInsights" frontend/src</code> returns no live references.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: Backend Admin Insights API Removal</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Remove <code>adminAgentInsightsRoutes</code> import and <code>/api/admin/agent-insights</code> mount from <code>src/app.ts</code>. Delete <code>src/routes/adminAgentInsights.ts</code> and the <code>src/controllers/admin-agent-insights/</code> domain folder. Update any tests that named this as a live admin read endpoint.</dd></div>
+          <div><dt>Files</dt><dd><code>src/app.ts</code>, <code>src/routes/adminAgentInsights.ts</code>, <code>src/controllers/admin-agent-insights/**</code>, tests only if a live assertion remains</dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>With a super-admin token, <code>GET /api/admin/agent-insights/summary</code> returns the existing API 404 envelope, not the old route handler.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: Dead Guardian/Governance Job Removal</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Remove the disabled Guardian/Governance endpoint docs and commented route from <code>agentsV2.ts</code>. Remove <code>runGuardianGovernance</code> and its import from <code>AgentsController.ts</code>. Remove Guardian/Governance health fields and constants when no references remain. Delete <code>service.governance-validator.ts</code> and <code>service.recommendation-parser.ts</code>. Remove <code>buildGuardianGovernancePayload</code> from <code>service.agent-input-builder.ts</code>.</dd></div>
+          <div><dt>Files</dt><dd><code>src/routes/agentsV2.ts</code>, <code>src/controllers/agents/AgentsController.ts</code>, <code>src/controllers/agents/feature-services/service.webhook-orchestrator.ts</code>, <code>src/controllers/agents/feature-services/service.governance-validator.ts</code>, <code>src/controllers/agents/feature-services/service.recommendation-parser.ts</code>, <code>src/controllers/agents/feature-services/service.agent-input-builder.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T3</dd></div>
+          <div><dt>Verify</dt><dd><code>rg "runGuardianGovernance|guardian-governance|GUARDIAN_AGENT_WEBHOOK|GOVERNANCE_AGENT_WEBHOOK|buildGuardianGovernancePayload|saveRecommendationsFromAgents" src</code> returns no live references.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T5: Model Helper Pruning</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Remove model methods that become unused after T3/T4, such as admin-insights summary/list/status helpers and Guardian/Governance system-result helpers. Keep methods used by org reset, Agent Outputs, monthly cleanup, and referral reset flows.</dd></div>
+          <div><dt>Files</dt><dd><code>src/models/AgentRecommendationModel.ts</code>, <code>src/models/AgentResultModel.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T3, T4</dd></div>
+          <div><dt>Verify</dt><dd><code>rg "getSummaryWithCounts|findByAgentWithFilters|updateWithStatusLogic|markAllAsPassForAgent|deleteByDateRange|findIdsByAgentAndStatus|findExistingSystemResult|findSuccessfulInWindowExcludingTypes|deleteByAgentTypesAndDateRange" src</code> returns no live references.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T6: Verification, Docs Parity, And Acceptance Artifacts</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Run backend and frontend type/build checks, targeted grep checks, and a docs-reference grep. Generate <code>test.html</code> and <code>test-results.json</code> for the retired admin route/API behavior.</dd></div>
+          <div><dt>Files</dt><dd><code>plans/07152026-remove-ai-data-insights/test.html</code>, <code>plans/07152026-remove-ai-data-insights/test-results.json</code>, docs files only if references are found</dd></div>
+          <div><dt>Depends on</dt><dd>T1, T2, T3, T4, T5</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code>, <code>cd frontend &amp;&amp; npx tsc -p tsconfig.app.json</code>, <code>npm run check:conventions --strict</code>, targeted API/browser checks.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled> <code>/admin/ai-data-insights</code> and nested old detail URLs no longer render AI Data Insights; they redirect to Mission Control.</li>
+        <li><input type="checkbox" disabled> Sidebar no longer shows <code>Agent Enhancements</code>.</li>
+        <li><input type="checkbox" disabled> <code>/api/admin/agent-insights/*</code> no longer has a mounted router; authenticated requests reach the standard 404 envelope.</li>
+        <li><input type="checkbox" disabled> Guardian/Governance runner code and disabled route comments are removed.</li>
+        <li><input type="checkbox" disabled> Shared <code>Agent Outputs</code>, monthly agents, Copy Companion, reset services, and ranking flows still type-check.</li>
+        <li><input type="checkbox" disabled> <code>npx tsc --noEmit</code> passes or only reports pre-existing unrelated errors.</li>
+        <li><input type="checkbox" disabled> <code>cd frontend &amp;&amp; npx tsc -p tsconfig.app.json</code> passes or only reports pre-existing unrelated errors.</li>
+        <li><input type="checkbox" disabled> <code>npm run check:conventions --strict</code> passes or only reports pre-existing unrelated findings.</li>
+        <li><input type="checkbox" disabled> Alloro Docs grep is complete; docs are updated if references exist, otherwise explicitly marked no docs update needed.</li>
+        <li><input type="checkbox" disabled> Acceptance artifacts exist and <code>test-results.json</code> is ready for execution-time validation.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-07-15</h3>
+        <p><strong>Change:</strong> Updated <code>src/controllers/admin-os/feature-utils/osPagination.ts</code> to remove a comment that pointed to the deleted admin-agent-insights helper.</p>
+        <p><strong>Reason:</strong> Execution deviation: targeted stale-reference grep found a code comment referencing the removed domain.</p>
+        <p><strong>Updated Done criteria:</strong> none.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

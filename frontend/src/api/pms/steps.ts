@@ -10,7 +10,6 @@ export const STEP_CONFIG: Record<StepKey, { label: string; icon: string }> = {
   admin_approval: { label: "Admin Approval", icon: "✅" },
   client_approval: { label: "Client Approval", icon: "✅" },
   monthly_agents: { label: "Monthly Agents", icon: "🤖" },
-  task_creation: { label: "Task Creation", icon: "📋" },
   complete: { label: "Complete", icon: "✓" },
 };
 

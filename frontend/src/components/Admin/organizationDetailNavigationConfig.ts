@@ -25,7 +25,6 @@ export type OrganizationDetailSubmenuSectionKey =
   | "agent";
 
 export const ORGANIZATION_DETAIL_AGENT_TAB_KEYS = [
-  "tasks",
   "notifications",
   "rankings",
   "pms",

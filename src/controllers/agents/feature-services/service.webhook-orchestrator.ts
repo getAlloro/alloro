@@ -31,10 +31,6 @@ export const CRO_OPTIMIZER_WEBHOOK =
   process.env.CRO_OPTIMIZER_AGENT_WEBHOOK || "";
 export const COPY_COMPANION_WEBHOOK =
   process.env.COPY_COMPANION_AGENT_WEBHOOK || "";
-export const GUARDIAN_AGENT_WEBHOOK =
-  process.env.GUARDIAN_AGENT_WEBHOOK || "";
-export const GOVERNANCE_AGENT_WEBHOOK =
-  process.env.GOVERNANCE_AGENT_WEBHOOK || "";
 export const IDENTIFIER_AGENT_WEBHOOK =
   process.env.IDENTIFIER_AGENT_WEBHOOK || "";
 

@@ -2,7 +2,6 @@ import axios from "axios";
 import { BaseModel } from "../../../models/BaseModel";
 import { PmsJobModel } from "../../../models/PmsJobModel";
 import { AgentResultModel } from "../../../models/AgentResultModel";
-import { TaskModel } from "../../../models/TaskModel";
 import { GoogleDataStoreModel } from "../../../models/GoogleDataStoreModel";
 import { NotificationModel } from "../../../models/NotificationModel";
 import { GoogleConnectionModel } from "../../../models/GoogleConnectionModel";
@@ -13,12 +12,6 @@ import {
   AutomationStatusDetail,
 } from "../../../utils/pms/pmsAutomationStatus";
 import logger from "../../../lib/logger";
-
-const MONTHLY_TASK_AGENT_TYPES = [
-  "OPPORTUNITY",
-  "CRO_OPTIMIZER",
-  "REFERRAL_ENGINE_ANALYSIS",
-];
 
 const MONTHLY_AGENT_RESULT_TYPES = [
   "summary",
@@ -35,7 +28,7 @@ const MONTHLY_AGENT_RESULT_TYPES = [
  * Delete all data produced by a monthly agents run.
  * Used by both retry (failed) and restart (completed) flows.
  *
- * Deletes: agent_results, tasks, google_data_store, notifications
+ * Deletes: agent_results, google_data_store, notifications
  * created during the run's time window.
  */
 async function cleanupMonthlyRunData(job: {
@@ -94,7 +87,7 @@ async function cleanupMonthlyRunData(job: {
     }
   }
 
-  // 4. Time window for tasks/notifications
+  // 4. Time window for notifications
   const timeStart = detail?.startedAt || new Date(Date.now() - 86400_000).toISOString();
   const timeEnd = detail?.completedAt || new Date().toISOString();
 
@@ -111,16 +104,6 @@ async function cleanupMonthlyRunData(job: {
     } else {
       counts.agentResults = 0;
     }
-
-    // Delete tasks
-    counts.tasks = await TaskModel.deleteByOrgAgentTypesInWindow(
-      job.organization_id,
-      MONTHLY_TASK_AGENT_TYPES,
-      timeStart,
-      timeEnd,
-      job.location_id,
-      trx
-    );
 
     // Delete google_data_store
     if (dateStart && dateEnd) {

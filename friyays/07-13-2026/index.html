@@ -21,16 +21,20 @@
           <p>
             Coverage window: Monday, July 13, 2026 through Sunday, July 19, 2026.
             This edition tracks organization-owned PMS parsing, configurable default
-            formulas, the first dedicated DentalEMR calculation path, and an internal
-            Admin OS document-import and editing upgrade.
+            formulas, the first dedicated DentalEMR calculation path, an internal
+            Admin OS document-import and editing upgrade, and a verified Journey Insights
+            signal for completed Alloro SEO work. It also records a leadgen
+            tracking-integrity correction, consistent Alloro transactional-email
+            design, clearer team-management tables, and Project Board comment images
+            and alerts included in the dev release.
           </p>
         </div>
         <aside class="hero-panel" aria-label="Release state summary">
           <p class="eyebrow">07-13-2026 edition</p>
           <div class="status-stack">
             <span class="tag good">Deployed</span>
-            <span class="tag">1 client workflow</span>
-            <span class="tag">2 admin/operator updates</span>
+            <span class="tag">4 client workflows</span>
+            <span class="tag">4 admin/operator updates</span>
             <span class="tag warn">Some UI checks waived</span>
           </div>
         </aside>
@@ -64,6 +68,31 @@
               <span class="tag">Deterministic parser</span>
             </div>
           </article>
+          <article class="highlight-card">
+            <h3>Emails now look and read like Alloro</h3>
+            <p>
+              Invitations, account codes, password messages, billing updates, and system
+              notifications now share the same responsive Alloro layout. Serif headings,
+              clear sans-serif body copy, orange actions, and readable code blocks make
+              important messages easier to recognize and scan.
+            </p>
+            <div class="meta">
+              <span class="tag good">User-verified inbox QA</span>
+              <span class="tag good">Deployed to dev</span>
+            </div>
+          </article>
+          <article class="highlight-card">
+            <h3>Team access is easier to scan and manage</h3>
+            <p>
+              Team members and pending invitations now use stable table columns,
+              single-line actions, safe truncation for long identities, and one
+              consistent animated role control for edits and invitations.
+            </p>
+            <div class="meta">
+              <span class="tag good">Deployed to dev</span>
+              <span class="tag warn">Authenticated UI checks waived</span>
+            </div>
+          </article>
         </div>
       </section>
 
@@ -90,6 +119,31 @@
               <span class="tag warn">Live UI checks waived</span>
             </div>
           </article>
+          <article class="highlight-card">
+            <h3>Leadgen reporting separates proof from inference</h3>
+            <p>
+              Internal leadgen analytics now keep persisted account links separate from
+              email or domain matches, require audit-backed report activity, and retain
+              historical unaudited rows as clearly marked evidence instead of deleting or
+              presenting them as verified engagement.
+            </p>
+            <div class="meta">
+              <span class="tag good">Alloro app deployed to dev</span>
+              <span class="tag warn">Production promotion pending</span>
+            </div>
+          </article>
+          <article class="highlight-card">
+            <h3>Project Board comments now carry screenshots and alerts</h3>
+            <p>
+              Internal Project Board comments accept images from selection, paste, or
+              drag-and-drop. New mentions and meaningful task moves send targeted alerts
+              with direct task links, while same-column reordering stays quiet.
+            </p>
+            <div class="meta">
+              <span class="tag good">Deployed to dev</span>
+              <span class="tag">Internal collaboration</span>
+            </div>
+          </article>
         </div>
       </section>
 
@@ -102,6 +156,49 @@
               <tr><th>Bucket</th><th>Feature</th><th>Audience</th><th>State</th><th>Email?</th><th>Notes</th></tr>
             </thead>
             <tbody>
+              <tr>
+                <td>Client dashboard</td>
+                <td>Team Members tables and animated role controls</td>
+                <td>Organization admins and managers</td>
+                <td>Deployed to dev; production not yet promoted</td>
+                <td>Internal release only</td>
+                <td>
+                  Focused selector tests, TypeScript, builds, scoped lint, Constitution
+                  checks, and Docs build pass. Five authenticated browser checks were
+                  explicitly waived and remain recorded as waived failures. The matching
+                  Docs replica is committed on its dedicated branch. See
+                  <code>plans/07162026-settings-team-table-polish/test-results.json</code>.
+                </td>
+              </tr>
+              <tr>
+                <td>Customer communications</td>
+                <td>Consistent Alloro transactional email design</td>
+                <td>Invited users, account holders, and billing contacts</td>
+                <td>Deployed to dev; production not yet promoted</td>
+                <td>Drafted</td>
+                <td>
+                  All six acceptance checks pass. Eleven invitation, code, password,
+                  billing, lifecycle, notification, and transport-test variants were
+                  accepted by Mailgun and routed only to Dave for inbox QA. See
+                  <code>plans/07162026-transactional-email-brand-consistency/test-results.json</code>.
+                </td>
+              </tr>
+              <tr>
+                <td>Admin tooling</td>
+                <td>Project Board conversation feed, comment images, and targeted alerts</td>
+                <td>Internal Alloro Project Board users</td>
+                <td>Deployed to dev; production not yet promoted</td>
+                <td>No - internal workflow</td>
+                <td>
+                  The chronological comment and task-attachment feed is preserved.
+                  Comments now accept image selection, paste, and drop. New mentions and
+                  cross-column or cross-project moves send direct task links; same-column
+                  reorder stays quiet. Live API, S3 cleanup, intercepted Mailgun sends,
+                  500 backend tests, and 167 frontend tests pass. Earlier visual feed checks
+                  remain explicitly waived. See
+                  <code>plans/07152026-project-board-comment-emails/test-results.json</code>.
+                </td>
+              </tr>
               <tr>
                 <td>Client dashboard</td>
                 <td>Organization-owned PMS parsing + DentalEMR formula</td>
@@ -150,6 +247,36 @@
                   explicitly waived; no live UI pass is claimed. Admin OS is absent from
                   client-facing Alloro Docs, so docs parity is N/A. See
                   <code>plans/07102026-admin-os-import-rendering-fidelity/test-results.json</code>.
+                </td>
+              </tr>
+              <tr>
+                <td>Client dashboard</td>
+                <td>Journey Insights: completed Alloro SEO actions beside CTR</td>
+                <td>Clients reviewing Google Visibility</td>
+                <td>Deployed to dev; production not yet promoted</td>
+                <td>No</td>
+                <td>
+                  The Google Visibility details now show clicks, click-through rate, and a
+                  30-day plain-English note after successful bulk title or description
+                  updates. Desktop, mobile, prior-month, API, build, and test checks passed.
+                  Jo's copy review was waived for the dev merge and remains recommended
+                  before production. See
+                  <code>plans/07152026-journey-insights-alloro-actions/test-results.json</code>.
+                </td>
+              </tr>
+              <tr>
+                <td>Leadgen analytics</td>
+                <td>Audit-bound tracking, honest submission labels, and strict-empty cleanup</td>
+                <td>Internal Alloro operators and leadgen reporting</td>
+                <td>Alloro app deployed to dev; cleanup completed in local, dev, and production; separate leadgen checkout and production app promotion remain pending</td>
+                <td>No</td>
+                <td>
+                  Automated backend, frontend, timer, build, and convention gates pass.
+                  The positive focused-browser timer integration was explicitly waived
+                  and remains recommended before production code promotion. Fifteen
+                  strict-empty rows were removed from each target with recovery backups;
+                  historical invalid activity was retained and classified. See
+                  <code>plans/07152026-leadgen-tracking-integrity-cleanup/test-results.json</code>.
                 </td>
               </tr>
             </tbody>

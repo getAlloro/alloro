@@ -262,8 +262,8 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
                   Data Submitted Successfully!
                 </h3>
                 <p className="text-gray-600 text-center max-w-md">
-                  We're processing your data now. Your insights and action items
-                  will be ready shortly.
+                  We're processing your data now. Your insights and
+                  recommendations will be ready shortly.
                 </p>
               </motion.div>
             ) : (

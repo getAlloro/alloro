@@ -426,6 +426,8 @@ export class PmTaskModel extends BaseModel {
         "pm_tasks.column_id",
         "pm_tasks.position",
         "pm_tasks.title",
+        "pm_tasks.created_by",
+        "pm_tasks.assigned_to",
         "pm_columns.is_backlog as source_is_backlog",
         "pm_columns.name as source_column_name"
       );

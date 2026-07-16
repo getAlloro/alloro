@@ -12,8 +12,8 @@
 import bcrypt from "bcrypt";
 import { UserModel } from "../../../models/UserModel";
 import { sendEmail } from "../../../emails/emailService";
+import { buildTemporaryPasswordEmail } from "../../../emails/templates/AccountEmailTemplates";
 import * as tempPasswordGenerator from "../feature-utils/tempPasswordGenerator";
-import * as adminEmailTemplates from "../feature-utils/adminEmailTemplates";
 import { AdminOrgError } from "../feature-utils/AdminOrgError";
 import logger from "../../../lib/logger";
 
@@ -61,7 +61,7 @@ export async function setTemporaryPassword(
     const emailResult = await sendEmail({
       category: "account",
       subject: "Your Alloro password has been set",
-      body: adminEmailTemplates.setPasswordEmail({
+      body: buildTemporaryPasswordEmail({
         userName: user.name,
         tempPassword,
         appUrl,

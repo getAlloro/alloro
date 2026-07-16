@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Settings Team Table Polish Spec</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card, .callout { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); margin-top: 12px; }
+    .callout { padding: 18px; background: var(--soft); }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; text-transform: uppercase; }
+    .status-card { border-color: var(--ink) !important; }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 880px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; }
+    h2 { font-size: 1.35rem; }
+    h3 { font-size: 1rem; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; overflow-wrap: anywhere; }
+    .meta-grid, .split-grid, .scope-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div, .scope-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    ul, ol { padding-left: 1.35rem; }
+    li + li { margin-top: 7px; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    .task-card dl { display: grid; gap: 10px; margin-bottom: 0; }
+    .task-card dd { font-weight: 600; }
+    .label { color: var(--muted); font-size: 0.75rem; font-weight: 800; text-transform: uppercase; }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill">Completed</span>
+      </div>
+      <h1>Settings Team Table Polish</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/07162026-settings-team-table-polish</dd></div>
+        <div><dt>Size</dt><dd>Medium · 9 implementation files</dd></div>
+        <div><dt>Risk</dt><dd>Level 2 · Interaction and accessibility</dd></div>
+        <div><dt>App Branch</dt><dd>codex/settings-team-table-polish</dd></div>
+        <div><dt>App Base</dt><dd>83b75b20 · committed dev/dave HEAD</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>The Team Members table lets an organization manage access, but its automatic column sizing wraps action labels even at the normal Settings width. Role editing also falls back to the operating system's native select menu, which does not match the surrounding interface and cannot provide controlled Alloro motion.</p>
+      <p>The same layout issues affect Pending Invitations. This work makes both tables stable and easier to scan without changing permissions, backend behavior, or the role-change commit flow.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Deliver polished semantic tables on <code>/settings/users</code> with explicit column contracts, single-line structural content, safe truncation for unbounded identity data, consistent action controls, and responsive horizontal overflow below the table's minimum width.</p>
+      <p>Replace both native role selects with one settings-local animated listbox. It must work by mouse and keyboard, render above table overflow without clipping, respect reduced-motion preferences, and preserve the existing Save/Cancel confirmation boundary. Mirror the default table presentation in Alloro Docs.</p>
+    </section>
+
+    <section class="spec-card" id="scope-ledger">
+      <h2>Scope Ledger</h2>
+      <div class="scope-grid">
+        <div><p class="label">Objective</p><p>Improve table clarity and role-selection UI without changing access rules.</p></div>
+        <div><p class="label">Intended User</p><p>Organization admins and managers using the client dashboard.</p></div>
+        <div><p class="label">Surface</p><p><code>/settings/users</code>, its invite modal, and the matching docs replica.</p></div>
+        <div><p class="label">System of Record</p><p>Existing <code>/api/settings/users*</code> endpoints and <code>QUERY_KEYS.settings.users</code>.</p></div>
+        <div><p class="label">Open Questions</p><p>None. The supplied screenshots and code path define the target.</p></div>
+        <div><p class="label">Migrations</p><p>None. No schema or data changes.</p></div>
+      </div>
+      <h3>In Scope</h3>
+      <ul>
+        <li>Team Members and Pending Invitations table layout, spacing, row treatment, overflow, and actions.</li>
+        <li>A role-specific animated selector reused by role editing and invitation creation.</li>
+        <li>Extraction of touched UI into a <code>components/settings/users/</code> feature folder.</li>
+        <li>Typed mutation functions and one React Query mutation hook so the edited component no longer owns API mutation calls.</li>
+        <li>Shared toast feedback for invite, remove, role-change, and resend success/failure; the existing removal confirmation remains.</li>
+        <li>A focused interaction test and Alloro Docs replica parity.</li>
+      </ul>
+      <h3>Adjacent / Backlog</h3>
+      <ul>
+        <li>Hardening the shared <code>components/ui/AnimatedSelect.tsx</code> and its five consumers.</li>
+        <li>Migrating the pre-existing Settings users read query out of <code>useSettingsQueries.ts</code>.</li>
+        <li>A separate mobile card layout for team members.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>frontend/src/components/settings/UsersTab.tsx</code> — 572-line current owner of the header, skeleton, both tables, invite modal, mutation handlers, confirmation state, and feedback state.</li>
+        <li><code>frontend/src/pages/Settings.tsx</code> — constrains Settings content to <code>max-w-[960px]</code>; this plan keeps that global width unchanged.</li>
+        <li><code>frontend/src/pages/settings/UsersRoute.tsx</code> — route wrapper and entrance animation for the surface.</li>
+        <li><code>frontend/src/hooks/queries/useSettingsQueries.ts</code> — existing users query and invalidation utility; the new mutation hook reuses its invalidation path.</li>
+        <li><code>frontend/src/lib/queryClient.ts</code> — owns <code>QUERY_KEYS.settings.users</code>.</li>
+        <li><code>frontend/src/api/index.ts</code> — shared authenticated client plus <code>unwrap()</code> for legacy and canonical error envelopes.</li>
+        <li><code>frontend/src/components/onboarding-wizard/wizardDemoData.ts</code> — supplies demo users and invitations consumed by <code>UsersTab</code>.</li>
+        <li><code>src/routes/settings.ts</code> — existing protected list/invite/resend/remove/role endpoints; inspected for blast radius only and not modified.</li>
+        <li><code>/Users/rustinedave/Desktop/alloro-docs/src/components/replicas/TeamMembersReplica.tsx</code> — documentation mirror of the default tables.</li>
+        <li>User-supplied screenshot pair in the planning conversation — visual evidence of action wrapping and the native select.</li>
+      </ul>
+
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li><strong>§12.1:</strong> mirror the <code>frontend/src/api/</code> + React Query + feature-folder triad.</li>
+        <li><code>frontend/src/api/support.ts</code> + <code>frontend/src/hooks/queries/useSupportQueries.ts</code> — typed mutation functions, <code>unwrap()</code>, React Query mutations, and cache invalidation.</li>
+        <li><code>frontend/src/components/Admin/support/SupportAnimatedSelect.tsx</code> — closest motion and keyboard-state analog. Copy its interaction shape into Settings; do not import an Admin/support component across feature boundaries.</li>
+        <li><code>frontend/src/components/dashboard/rankings/CompetitorComparisonTable.tsx</code> — closest table analog for explicit minimum width, branded horizontal scrollbar, stable rows, and truncation.</li>
+        <li><code>frontend/src/components/settings/ConfirmModal.tsx</code> and <code>frontend/src/lib/toast.tsx</code> — existing confirmation and global feedback primitives.</li>
+      </ul>
+      <p><strong>Reference analogs:</strong> <code>SupportAnimatedSelect.tsx</code> for interaction behavior and <code>CompetitorComparisonTable.tsx</code> for table layout. The new selector remains settings-local because the role vocabulary, hints, and staged-save behavior are domain-specific.</p>
+    </section>
+
+    <section class="spec-card" id="interaction-contract">
+      <h2>Interaction Contract</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Tables</h3>
+          <ul>
+            <li>Use semantic <code>table</code> markup with explicit column widths and an approximately 820px minimum width for the member table.</li>
+            <li>Headers, role labels, dates, and action controls never wrap.</li>
+            <li>Long names and emails remain one line, truncate visually, and expose the full value by accessible title/label.</li>
+            <li>Below the minimum width, the table scrolls horizontally instead of crushing columns.</li>
+            <li>Use a subtle header band, restrained alternating rows, hover highlight, tabular dates, and compact consistent action buttons.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Role Editing</h3>
+          <ul>
+            <li><strong>Change role</strong> enters staged edit mode and presents the custom role selector.</li>
+            <li>Selecting Viewer, Manager, or Admin changes local staged state only.</li>
+            <li><strong>Save</strong> sends the existing mutation; <strong>Cancel</strong> restores the original role without a request.</li>
+            <li>The menu uses listbox semantics, Arrow Up/Down, Enter/Space, Escape, outside-click close, visible focus, and focus restoration.</li>
+            <li>The menu is portaled or otherwise placed in the top layer so table overflow cannot clip it; placement flips or clamps within the viewport.</li>
+            <li>Motion is a short fade/scale with chevron rotation and is reduced or removed when the user prefers reduced motion.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Invitation Selector</h3>
+      <p>The invite modal reuses the same selector. Admins can choose Viewer, Manager, or Admin. Managers remain limited to Viewer and Manager. Existing backend enforcement stays authoritative.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Work only in <code>/Users/rustinedave/Desktop/alloro-worktrees/settings-team-table-polish</code> for the app implementation.</li>
+            <li>Create a separate clean Alloro Docs worktree during execution from docs commit <code>fd205bbe</code>; do not use the dirty docs checkout.</li>
+            <li>Keep role values, permission visibility, Save/Cancel semantics, invitation limits, endpoint paths, and server-side authorization unchanged.</li>
+            <li>Preserve <code>data-wizard-target="settings-users"</code> and wizard demo data behavior.</li>
+            <li>Use existing dependencies only. Use Framer Motion, React DOM portal support, Lucide icons, React Query, and Tailwind utilities already present.</li>
+            <li>Keep each new component below 200 lines and the new custom hook below 50 lines.</li>
+            <li>Follow §12.2/§12.3 for file placement, §13.1/§13.2/§13.3 for decomposition, §14.1 for Component → hook → API flow, §15.1 for server state, §16.1 for thrown typed API errors, §16.3 for shared toast feedback, and §17.2 for typed data without <code>any</code>.</li>
+            <li>Use <code>type</code> declarations for new props/types, named exports, destructured props, visible focus rings, and <code>prefers-reduced-motion</code>.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>Do not modify <code>frontend/src/components/ui/AnimatedSelect.tsx</code> or its five consumers.</li>
+            <li>Do not widen <code>Settings.tsx</code> globally to make the table fit.</li>
+            <li>Do not change backend controllers, services, routes, models, RBAC rules, or database schema.</li>
+            <li>Do not auto-save a role when an option is selected.</li>
+            <li>Do not hide overflow, wrap action labels, or let the dropdown reflow table columns.</li>
+            <li>Do not add dependencies, inline styles, hardcoded colors, <code>dark:</code> utilities, raw query keys, direct API calls in the edited component, or browser <code>alert()</code>/<code>confirm()</code>.</li>
+            <li>Do not touch unrelated PM attachment work in the main app checkout or Practice Hub work in the current docs checkout.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Self-role/self-removal policy changes.</li>
+        <li>New roles, role descriptions, or permission semantics.</li>
+        <li>Global table primitives or a shared dropdown migration.</li>
+        <li>Mobile card views, bulk member actions, sorting, filtering, pagination, or search.</li>
+        <li>Backend response-contract cleanup for legacy Settings endpoints.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 2 — the visual change is contained, but the custom selector sits on a permissions surface and must preserve accessibility and staged-save behavior.</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><strong>Dropdown clipping:</strong> horizontal table overflow can clip an absolutely positioned menu. <strong>Mitigation:</strong> render the menu through a portal/top layer, measure the trigger, and clamp or flip placement within the viewport.</li>
+        <li><strong>Accessibility regression:</strong> replacing a native select can lose keyboard and screen-reader behavior. <strong>Mitigation:</strong> implement the complete listbox contract, restore focus, honor reduced motion, and cover keyboard selection/escape in a focused test.</li>
+        <li><strong>Accidental permission changes:</strong> an immediate mutation would make exploration destructive. <strong>Mitigation:</strong> selection remains staged; only Save calls the existing endpoint.</li>
+        <li><strong>No-wrap overflow:</strong> forcing every value to full width would make the table unusable for long emails. <strong>Mitigation:</strong> no-wrap bounded structural fields, truncate unbounded identity fields, and scroll below the minimum width.</li>
+        <li><strong>Extraction regression:</strong> splitting a 572-line component can break wizard demo data, role visibility, invitation constraints, or feedback. <strong>Mitigation:</strong> keep UsersTab as the state/orchestration owner, pass explicit typed props, and verify both admin and manager behavior.</li>
+        <li><strong>Dirty docs checkout:</strong> direct edits would mix this work with Practice Hub changes. <strong>Mitigation:</strong> use a separate docs worktree and stage the replica explicitly.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> <code>UsersTab</code> is consumed by <code>UsersRoute</code>, rendered in the client dashboard/Pilot flow, and fed by onboarding wizard demo data. Mutations continue to hit the same protected Settings routes and invalidate the same users query. The default-state visual mirror in Alloro Docs must change in step.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li>Applying “no line breaks” literally to arbitrary names and emails would trade wrapping for overflow. The safer contract is single-line truncation with full-value access.</li>
+        <li>Changing the shared animated select is not justified here. It has five consumers and a wider accessibility/design blast radius.</li>
+        <li>Widening the entire Settings page would hide the table defect and affect every Settings route. The table must solve its own layout.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="worktrees">
+      <h2>Worktree Boundaries</h2>
+      <div class="callout">
+        <p><strong>App worktree:</strong> <code>/Users/rustinedave/Desktop/alloro-worktrees/settings-team-table-polish</code></p>
+        <p><strong>App branch:</strong> <code>codex/settings-team-table-polish</code>, created from committed <code>dev/dave</code> HEAD <code>83b75b20</code>.</p>
+        <p><strong>Docs execution worktree:</strong> <code>/Users/rustinedave/Desktop/alloro-docs-worktrees/settings-team-table-polish</code> on <code>codex/settings-team-table-polish-docs</code>, to be created from committed docs HEAD <code>fd205bbe</code>.</p>
+        <p><strong>Excluded dirty state:</strong> PM attachment changes in the main app checkout and Practice Hub changes in the current docs checkout.</p>
+      </div>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <article class="task-card">
+        <h3>T1: Typed Settings user mutation boundary</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add typed invite, role-update, remove, and resend functions over the shared API client and <code>unwrap()</code>. Add one React Query mutation hook that reuses the existing users invalidation path. Preserve current endpoint paths and returned messages.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/api/settingsUsers.ts</code>, <code>frontend/src/hooks/queries/useSettingsUserMutations.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>None</dd></div>
+          <div><dt>Verify</dt><dd><code>cd frontend &amp;&amp; npx tsc --noEmit</code>; confirm every new export has a consumer and no component imports <code>apiPost</code>/<code>apiPut</code>/<code>apiDelete</code> for this domain.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: Stable tables and animated role selector</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Extract the member table, invitation table, invite modal, and role selector into the Settings users feature folder. Implement the table/no-wrap/truncation contract, portaled accessible dropdown, staged Save/Cancel flow, shared toast feedback, stable loading state, and focused selector interaction test. Reduce <code>UsersTab</code> to typed state and orchestration while preserving wizard behavior.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/components/settings/UsersTab.tsx</code>, <code>frontend/src/components/settings/users/UserRoleSelect.tsx</code>, <code>frontend/src/components/settings/users/UserRoleSelect.test.tsx</code>, <code>frontend/src/components/settings/users/TeamMembersTable.tsx</code>, <code>frontend/src/components/settings/users/PendingInvitationsTable.tsx</code>, <code>frontend/src/components/settings/users/InviteMemberModal.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd><code>cd frontend &amp;&amp; npm run test -- UserRoleSelect.test.tsx</code>; <code>cd frontend &amp;&amp; npm run build</code>; Manual: admin and manager flows on <code>/settings/users</code> at desktop and narrow widths.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: Alloro Docs replica parity</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Create the clean docs worktree, update the default Team Members replica to match the new table shell, column sizing, single-line actions, truncation, badges, and default controls. Keep walkthrough copy unchanged unless implementation changes visible behavior beyond the current description.</dd></div>
+          <div><dt>Files</dt><dd><code>/Users/rustinedave/Desktop/alloro-docs/src/components/replicas/TeamMembersReplica.tsx</code> in the dedicated docs worktree</dd></div>
+          <div><dt>Depends on</dt><dd>T2</dd></div>
+          <div><dt>Verify</dt><dd><code>npm run build</code> in the docs worktree; Manual: compare the replica's default table against the implemented <code>/settings/users</code> state.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="acceptance-plan">
+      <h2>Acceptance Plan</h2>
+      <p>Execution will generate <code>test.html</code> and <code>test-results.json</code> beside this spec. The behavioral pass should start at <code>http://localhost:3000/admin</code>, Pilot into Garrison Orthodontics when available, then open <code>/settings/users</code>.</p>
+      <ol>
+        <li>At desktop width, verify User, Role, Joined, Change role, Remove, Save, and Cancel remain single-line and columns do not shift when edit mode opens.</li>
+        <li>Open the role selector by mouse and keyboard. Verify animation, selected checkmark, Arrow Up/Down, Enter/Space, Escape, outside-click close, focus restoration, and no clipping on the last row.</li>
+        <li>Select a different role and cancel. Verify the original badge returns and no request is sent.</li>
+        <li>Select a different role and save. Verify the existing mutation runs, the query refreshes, and success/failure feedback uses the shared toast.</li>
+        <li>Open Invite Member. Verify the same selector is used and manager role options remain restricted.</li>
+        <li>At narrow width, verify horizontal table scrolling, readable columns, single-line structural fields, and truncated long identity data with full-value access.</li>
+        <li>Verify Pending Invitations uses the same table language and Resend remains single-line.</li>
+        <li>Verify the Alloro Docs replica matches the implemented default state.</li>
+      </ol>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" checked disabled> App changes exist only in the dedicated app worktree; unrelated main-checkout changes remain untouched.</li>
+        <li><input type="checkbox" checked disabled> Docs parity changes exist only in the dedicated docs worktree; existing Practice Hub changes remain untouched.</li>
+        <li><input type="checkbox" checked disabled> New components are each under 200 lines; the new custom hook is under 50 lines; <code>UsersTab</code> is reduced to lean orchestration.</li>
+        <li><input type="checkbox" checked disabled> No native role <code>select</code> remains in <code>UsersTab</code> or the invite flow.</li>
+        <li><input type="checkbox" checked disabled> Structural table content never wraps; long names/emails truncate safely; narrow layouts scroll horizontally.</li>
+        <li><input type="checkbox" checked disabled> Dropdown is not clipped by the table, supports mouse and keyboard, restores focus, and respects reduced motion.</li>
+        <li><input type="checkbox" checked disabled> Role selection stays staged until Save; Cancel performs no mutation.</li>
+        <li><input type="checkbox" checked disabled> Existing admin/manager action visibility and invitation role limits are unchanged.</li>
+        <li><input type="checkbox" checked disabled> Wizard demo users, invitations, and <code>data-wizard-target</code> still work.</li>
+        <li><input type="checkbox" checked disabled> Success and failure states use the shared toast; removal still uses the existing confirmation modal.</li>
+        <li><input type="checkbox" checked disabled> <code>cd frontend &amp;&amp; npm run test -- UserRoleSelect.test.tsx</code> passes.</li>
+        <li><input type="checkbox" checked disabled> <code>cd frontend &amp;&amp; npx tsc --noEmit</code> passes with no errors caused by this work.</li>
+        <li><input type="checkbox" checked disabled> <code>cd frontend &amp;&amp; npm run build</code> passes.</li>
+        <li><input type="checkbox" checked disabled> <code>npm run check:all</code> reports no new must-fix Constitution violations.</li>
+        <li><input type="checkbox" checked disabled> <code>npm run build</code> passes in the docs worktree.</li>
+        <li><input type="checkbox" checked disabled> Manual acceptance either passes or is recorded honestly as an explicit user-authorized waiver; the docs replica matches.</li>
+        <li><input type="checkbox" checked disabled> <code>test-results.json</code> rolls up to Passed before <code>--done</code>.</li>
+        <li><input type="checkbox" checked disabled> Spec-code parity is confirmed; backend, migrations, shared dropdown, and global Settings width remain unchanged.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-07-16</h3>
+        <p><strong>Change:</strong> Marked the approved plan In Progress when execution began.</p>
+        <p><strong>Reason:</strong> Execution state transition after the user issued <code>-x</code>.</p>
+        <p><strong>Updated Done criteria:</strong> none.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 2 - 2026-07-16</h3>
+        <p><strong>Change:</strong> Recorded five authenticated browser checks as explicit waived failures, marked the plan Completed, and confirmed the final code, docs, and acceptance artifacts.</p>
+        <p><strong>Reason:</strong> User QA: Dave explicitly authorized the acceptance waivers and direct local <code>dev/dave</code> merge after <code>-tw</code> was blocked by the missing repository-owned runtime adapter.</p>
+        <p><strong>Updated Done criteria:</strong> Manual acceptance may be satisfied by an honest written waiver under §20.5; waived checks remain unrun and are not presented as passes.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

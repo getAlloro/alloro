@@ -188,6 +188,7 @@ export interface PmBacklogProjectGroup {
 export interface PmTaskAttachment {
   id: string;
   task_id: string;
+  comment_id?: string | null;
   uploaded_by: number;
   uploaded_by_name: string;
   filename: string;
@@ -241,6 +242,7 @@ export interface PmTaskComment {
   body: string;
   mentions: number[];
   mention_names: Record<number, string>;
+  attachments?: PmTaskAttachment[];
   edited_at: string | null;
   created_at: string;
   /** Server-verified: true if the caller authored this comment. */

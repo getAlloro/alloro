@@ -118,19 +118,3 @@ export function validateRankingId(id: string): ValidationResult {
   }
   return { valid: true };
 }
-
-export function validateTasksRequest(query: any): ValidationResult {
-  const { practiceRankingId, googleAccountId } = query;
-  if (!practiceRankingId && !googleAccountId) {
-    return {
-      valid: false,
-      error: {
-        success: false,
-        error: "MISSING_PARAMS",
-        message:
-          "Either practiceRankingId, googleAccountId, or both googleAccountId and gbpLocationId are required",
-      },
-    };
-  }
-  return { valid: true };
-}

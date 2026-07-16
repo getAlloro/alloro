@@ -14,9 +14,10 @@
  *   2. Task `assigned_to` (if not author, not already in set) → `task_commented`
  *   3. Task `created_by` (if not author, not already in set) → `task_commented`
  *
- * Edits do NOT re-send notifications in v1 — a quiet edit by design. Deletes
- * leave existing notifications in place (no FK to pm_task_comments; the
- * notification has already been delivered).
+ * Edits only send email for newly-added mentions. They do not duplicate the
+ * existing in-app notification rows. Deletes leave existing notifications in
+ * place (no FK to pm_task_comments; the notification has already been
+ * delivered).
  *
  * Endpoints (mounted under /api/pm):
  * - POST   /tasks/:id/comments                → createComment
@@ -29,12 +30,19 @@
 
 import { Response } from "express";
 import { AuthRequest } from "../../middleware/auth";
+import {
+  PmTaskAttachmentModel,
+  PmTaskAttachmentRow,
+} from "../../models/PmTaskAttachmentModel";
 import { PmTaskCommentModel } from "../../models/PmTaskCommentModel";
 import { PmTaskModel } from "../../models/PmTaskModel";
 import { PmProjectModel } from "../../models/PmProjectModel";
 import { PmNotificationModel } from "../../models/PmNotificationModel";
 import { UserModel } from "../../models/UserModel";
+import { isMimePreviewable } from "./pm-attachments-utils/constants";
+import { sendPmMentionEmails } from "./feature-services/PmNotificationEmailService";
 import { logPmActivity } from "./pmActivityLogger";
+import { deleteFromS3 } from "../../utils/core/s3";
 import logger from "../../lib/logger";
 
 type CommentNotificationType = "mention_in_comment" | "task_commented";
@@ -80,7 +88,59 @@ function normalizeMentions(raw: unknown): number[] {
   return Array.from(new Set(out));
 }
 
-async function enrichCommentRow(row: any, callerId?: number): Promise<any> {
+function formatCommentAttachment(
+  row: PmTaskAttachmentRow,
+  callerId?: number,
+  taskCreatorId?: number | null
+): Record<string, unknown> {
+  return {
+    id: row.id,
+    task_id: row.task_id,
+    comment_id: row.comment_id,
+    uploaded_by: row.uploaded_by,
+    uploaded_by_name: row.uploader_email
+      ? row.uploader_email.split("@")[0]
+      : `user ${row.uploaded_by}`,
+    filename: row.filename,
+    s3_key: row.s3_key,
+    mime_type: row.mime_type,
+    size_bytes:
+      typeof row.size_bytes === "string"
+        ? parseInt(row.size_bytes, 10)
+        : row.size_bytes,
+    is_previewable: isMimePreviewable(row.mime_type),
+    created_at: row.created_at,
+    can_delete:
+      callerId !== undefined &&
+      (row.uploaded_by === callerId || taskCreatorId === callerId),
+  };
+}
+
+async function cleanupCommentAttachmentS3Objects(
+  rows: Array<{ s3_key: string }>,
+  commentId: string
+): Promise<void> {
+  if (rows.length === 0) return;
+
+  const results = await Promise.allSettled(
+    rows.map((row) => deleteFromS3(row.s3_key))
+  );
+  results.forEach((result, index) => {
+    if (result.status === "rejected") {
+      logger.error(
+        { err: result.reason, commentId, s3Key: rows[index].s3_key },
+        "[PM-COMMENTS] Failed to delete comment attachment from S3"
+      );
+    }
+  });
+}
+
+async function enrichCommentRow(
+  row: any,
+  callerId?: number,
+  attachments: PmTaskAttachmentRow[] = [],
+  taskCreatorId?: number | null
+): Promise<any> {
   if (!row) return row;
   const author = await UserModel.findEmailById(row.author_id);
   const mentionIds: number[] = Array.isArray(row.mentions) ? row.mentions : [];
@@ -95,6 +155,9 @@ async function enrichCommentRow(row: any, callerId?: number): Promise<any> {
     body: row.body,
     mentions: mentionIds,
     mention_names,
+    attachments: attachments.map((attachment) =>
+      formatCommentAttachment(attachment, callerId, taskCreatorId)
+    ),
     edited_at: row.edited_at,
     created_at: row.created_at,
     is_mine: callerId !== undefined ? row.author_id === callerId : undefined,
@@ -215,7 +278,22 @@ export async function createComment(
       return inserted;
     });
 
-    const enriched = await enrichCommentRow(created, authorId);
+    const enriched = await enrichCommentRow(
+      created,
+      authorId,
+      [],
+      task.created_by
+    );
+    if (mentions.length > 0) {
+      await sendPmMentionEmails({
+        actorUserId: authorId,
+        projectId: task.project_id,
+        taskId,
+        taskTitle: task.title,
+        commentBody: body,
+        mentionedUserIds: mentions,
+      });
+    }
     return res.status(201).json({ success: true, data: enriched });
   } catch (error) {
     return handleError(res, error, "createComment");
@@ -246,7 +324,19 @@ export async function listComments(
         for (const id of r.mentions) allMentionIds.push(id);
       }
     }
-    const mentionNameMap = await resolveMentionNames(allMentionIds);
+    const [mentionNameMap, attachmentRows] = await Promise.all([
+      resolveMentionNames(allMentionIds),
+      PmTaskAttachmentModel.listByCommentIdsWithUploader(
+        rows.map((row: any) => row.id)
+      ),
+    ]);
+    const attachmentsByComment = new Map<string, PmTaskAttachmentRow[]>();
+    for (const attachment of attachmentRows) {
+      if (!attachment.comment_id) continue;
+      const bucket = attachmentsByComment.get(attachment.comment_id) ?? [];
+      bucket.push(attachment);
+      attachmentsByComment.set(attachment.comment_id, bucket);
+    }
 
     // users.id is BIGINT (pg returns string); author_id is INTEGER.
     const callerId = Number(req.user!.userId);
@@ -266,6 +356,9 @@ export async function listComments(
         body: r.body,
         mentions,
         mention_names,
+        attachments: (attachmentsByComment.get(r.id) ?? []).map((attachment) =>
+          formatCommentAttachment(attachment, callerId, task.created_by)
+        ),
         edited_at: r.edited_at,
         created_at: r.created_at,
         // Server-verified permission flag — UI mirrors this instead of
@@ -316,6 +409,9 @@ export async function updateComment(
         .json({ success: false, error: "Comment body is required" });
     }
     const mentions = normalizeMentions(req.body?.mentions);
+    const previousMentions: number[] = Array.isArray(existing.mentions)
+      ? existing.mentions
+      : [];
 
     const task = await PmTaskModel.findById(taskId);
     if (!task) {
@@ -343,7 +439,28 @@ export async function updateComment(
     });
 
     const updated = await PmTaskCommentModel.findById(commentId);
-    const enriched = await enrichCommentRow(updated, callerId);
+    const attachmentRows =
+      await PmTaskAttachmentModel.listByCommentIdsWithUploader([commentId]);
+    const enriched = await enrichCommentRow(
+      updated,
+      callerId,
+      attachmentRows,
+      task.created_by
+    );
+    const previousMentionSet = new Set(previousMentions);
+    const newlyAddedMentions = mentions.filter(
+      (id) => !previousMentionSet.has(id)
+    );
+    if (newlyAddedMentions.length > 0) {
+      await sendPmMentionEmails({
+        actorUserId: callerId,
+        projectId: task.project_id,
+        taskId,
+        taskTitle: task.title,
+        commentBody: body,
+        mentionedUserIds: newlyAddedMentions,
+      });
+    }
     return res.json({ success: true, data: enriched });
   } catch (error) {
     return handleError(res, error, "updateComment");
@@ -384,6 +501,9 @@ export async function deleteComment(
         .json({ success: false, error: "Task not found" });
     }
 
+    const attachmentS3Rows =
+      await PmTaskAttachmentModel.listS3KeysForComments([commentId]);
+
     await PmTaskCommentModel.transaction(async (trx) => {
       await PmTaskCommentModel.deleteByIdRaw(commentId, trx);
 
@@ -398,6 +518,8 @@ export async function deleteComment(
         trx
       );
     });
+
+    await cleanupCommentAttachmentS3Objects(attachmentS3Rows, commentId);
 
     return res.json({ success: true, data: { deleted: true } });
   } catch (error) {

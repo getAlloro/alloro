@@ -8,6 +8,7 @@ import type {
   PatientJourneyStage,
 } from "../../../types/patientJourney";
 import { PatientJourneyDetailMetricCard } from "./PatientJourneyDetailMetricCard";
+import { PatientJourneyActionNote } from "./PatientJourneyActionNote";
 import { formatStageValue } from "./patientJourney.utils";
 import { buildGateDetailContent } from "./patientJourneyDetailDeck.utils";
 
@@ -34,6 +35,7 @@ export function PatientJourneyDetailCard({
   const content = buildGateDetailContent(stage, period, inbound);
   const hasSummary = content.summary.length > 0;
   const hasInsights = content.insights.length > 0;
+  const action = stage.actions?.[0] ?? null;
 
   return (
     <article
@@ -73,6 +75,8 @@ export function PatientJourneyDetailCard({
           ))}
         </dl>
       ) : null}
+
+      {action ? <PatientJourneyActionNote action={action} /> : null}
 
       {hasInsights ? (
         <section className="mt-5">

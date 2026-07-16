@@ -87,8 +87,8 @@ export class GoogleConnectionModel extends BaseModel {
 
   /**
    * All onboarded connections joined to their organization, projecting the
-   * full connection row plus org domain/name. Mirrors the inline
-   * gbp-optimizer / process-all account list (join organizations, where
+   * full connection row plus org domain/name. Mirrors the GBP Optimizer
+   * account list (join organizations, where
    * o.onboarding_completed = true, select gc.*, o.domain as domain_name,
    * o.name as practice_name). Note: no archived filter and no ordering, to
    * match the original queries exactly.
@@ -101,22 +101,6 @@ export class GoogleConnectionModel extends BaseModel {
       .join("organizations as o", "gc.organization_id", "o.id")
       .where("o.onboarding_completed", true)
       .select("gc.*", "o.domain as domain_name", "o.name as practice_name");
-  }
-
-  /**
-   * Onboarded clients for the tasks-creation dropdown: (gc.id, o.domain as
-   * domain_name, gc.email), ordered by domain asc. Mirrors the inline
-   * TasksController.getClients query verbatim (no archived filter).
-   */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  static async findOnboardedClientsForTasks(
-    trx?: QueryContext
-  ): Promise<any[]> {
-    return (trx || db)("google_connections as gc")
-      .join("organizations as o", "gc.organization_id", "o.id")
-      .where("o.onboarding_completed", true)
-      .select("gc.id", "o.domain as domain_name", "gc.email")
-      .orderBy("o.domain", "asc");
   }
 
   /**

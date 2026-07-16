@@ -71,10 +71,7 @@ export const QUERY_KEYS = {
   adminScheduleRuns: (scheduleId: number) =>
     ["admin", "schedule-runs", scheduleId] as const,
 
-  // Admin — org sub-tab data (tasks, notifications, rankings, PMS, agent outputs)
-  adminOrgTasks: (orgId: number, params?: Record<string, unknown>) =>
-    ["admin", "org-tasks", orgId, params] as const,
-  adminOrgTasksAll: (orgId: number) => ["admin", "org-tasks", orgId] as const,
+  // Admin — org sub-tab data (notifications, rankings, PMS, agent outputs)
   adminOrgNotifications: (orgId: number, params?: Record<string, unknown>) =>
     ["admin", "org-notifications", orgId, params] as const,
   adminOrgNotificationsAll: (orgId: number) =>
@@ -122,10 +119,6 @@ export const QUERY_KEYS = {
   adminAgentOutputsAll: ["admin", "agent-outputs"] as const,
   adminAgentOutputOrgs: ["admin", "agent-output-orgs"] as const,
   adminAgentOutputTypes: ["admin", "agent-output-types"] as const,
-  adminActionItems: (params?: Record<string, unknown>) =>
-    ["admin", "action-items", params] as const,
-  adminActionItemsAll: ["admin", "action-items"] as const,
-  adminActionItemOrgs: ["admin", "action-item-orgs"] as const,
   adminMissionControl: ["admin", "mission-control"] as const,
   adminMissionControlInsight: ["admin", "mission-control", "insight"] as const,
   adminMissionControlTelemetry: (
@@ -195,22 +188,19 @@ export const QUERY_KEYS = {
       includePilot,
       includeAdmin,
     ] as const,
-  adminInsightsSummary: (page: number, month: string) =>
-    ["admin", "insights-summary", page, month] as const,
-  adminInsightsSummaryAll: ["admin", "insights-summary"] as const,
-  adminInsightsRecommendations: (
-    agentType: string,
-    page: number,
-    month?: string | null,
-  ) => ["admin", "insights-recommendations", agentType, page, month] as const,
-  adminInsightsRecommendationsAll: (agentType: string) =>
-    ["admin", "insights-recommendations", agentType] as const,
   adminSupportTickets: (params?: Record<string, unknown>) =>
     ["admin", "support", "tickets", params] as const,
   adminSupportTicketsAll: ["admin", "support", "tickets"] as const,
   adminSupportTicket: (ticketId: string | null) =>
     ["admin", "support", "ticket", ticketId] as const,
   adminSupportAssignees: ["admin", "support", "assignees"] as const,
+
+  // Admin — project board task conversation
+  pmUsers: ["admin", "pm", "users"] as const,
+  pmTaskComments: (taskId: string | null) =>
+    ["admin", "pm", "tasks", taskId, "comments"] as const,
+  pmTaskAttachments: (taskId: string | null) =>
+    ["admin", "pm", "tasks", taskId, "attachments"] as const,
 
   // Admin — website detail
   adminWebsiteDetail: (uuid: string) =>
@@ -342,8 +332,6 @@ export const QUERY_KEYS = {
   // Client — agent data / dashboard
   agentData: (orgId: number | null, locationId?: number | null) =>
     ["agent-data", orgId, locationId] as const,
-  tasks: (orgId: number | null, locationId?: number | null) =>
-    ["tasks", orgId, locationId] as const,
   summaryDashboard: (orgId: number | null, locationId?: number | null) =>
     ["summary-dashboard", orgId, locationId] as const,
   pmsFocusPeriod: (orgId: number | null, locationId?: number | null) =>
