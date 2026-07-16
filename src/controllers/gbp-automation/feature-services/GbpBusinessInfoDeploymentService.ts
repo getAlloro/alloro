@@ -1,9 +1,11 @@
 import { getValidOAuth2ClientByConnection } from "../../../auth/oauth2Helper";
-import { db } from "../../../database/connection";
 import logger from "../../../lib/logger";
 import { GooglePropertyModel, IGoogleProperty } from "../../../models/GooglePropertyModel";
 import { GbpAutomationSettingsModel } from "../../../models/GbpAutomationSettingsModel";
-import { GbpDeploymentAttemptModel } from "../../../models/GbpDeploymentAttemptModel";
+import {
+  GbpDeploymentAttemptModel,
+  IGbpDeploymentAttempt,
+} from "../../../models/GbpDeploymentAttemptModel";
 import { GbpWorkEventModel } from "../../../models/GbpWorkEventModel";
 import { GbpWorkItemModel, IGbpWorkItem } from "../../../models/GbpWorkItemModel";
 import { getGbpAutomationQueue } from "../../../workers/queues";
@@ -14,9 +16,11 @@ import { isTransientGoogleError } from "../feature-utils/googleApiErrors";
 import {
   BusinessInfoPatch,
   BusinessInfoPayload,
+  businessInfoLocationName,
   extractMaskedFields,
   mergePatchOverSnapshot,
 } from "../feature-utils/gbpBusinessInfo";
+import { GbpBusinessInfoReconcileService } from "./GbpBusinessInfoReconcileService";
 import { GbpNotificationService } from "./GbpNotificationService";
 import { GbpReadinessService } from "./GbpReadinessService";
 import {
@@ -31,17 +35,6 @@ type ScopedParams = {
   actorEmail?: string | null;
   accessibleLocationIds?: number[];
 };
-
-/** The Business Information API v1 addresses the location as `locations/{locationId}`. */
-function businessInfoLocationName(property: IGoogleProperty): string {
-  if (!property.external_id) {
-    throw new GbpAutomationError(
-      "GBP_PROPERTY_MISSING",
-      "GBP property is missing its Google location id."
-    );
-  }
-  return `locations/${property.external_id}`;
-}
 
 function readPayload(item: IGbpWorkItem): BusinessInfoPayload {
   const payload = item.business_info_payload as BusinessInfoPayload | null;
@@ -102,7 +95,8 @@ export class GbpBusinessInfoDeploymentService {
     await assertWritebackEnabled(item.organization_id, item.location_id);
     const content = item.draft_content;
 
-    await db.transaction(async (trx) => {
+    // §7.4 — transaction opened through the model layer, which owns the DB handle.
+    await GbpWorkItemModel.transaction(async (trx) => {
       const approved = await GbpWorkItemModel.approve(item.id, params.userId, content, undefined, trx);
       if (approved === 0) {
         throw new GbpAutomationError("INVALID_STATUS", "This profile update cannot be approved now.");
@@ -125,7 +119,8 @@ export class GbpBusinessInfoDeploymentService {
     // §10.5 — status flip + audit event are two tables and one fact; the guarded
     // reject also throws INSIDE the transaction, so a lost race rolls back
     // cleanly instead of recording a rejection event that never happened.
-    await db.transaction(async (trx) => {
+    // §7.4 — transaction opened through the model layer, which owns the DB handle.
+    await GbpWorkItemModel.transaction(async (trx) => {
       const rejected = await GbpWorkItemModel.rejectBusinessInfoIfPending(
         item.id,
         params.userId,
@@ -161,7 +156,8 @@ export class GbpBusinessInfoDeploymentService {
     }
     await assertWritebackEnabled(item.organization_id, item.location_id);
 
-    await db.transaction(async (trx) => {
+    // §7.4 — transaction opened through the model layer, which owns the DB handle.
+    await GbpWorkItemModel.transaction(async (trx) => {
       const marked = await GbpWorkItemModel.markDeploying(item.id, params.userId, trx);
       if (marked === 0) {
         throw new GbpAutomationError("INVALID_STATUS", "This profile update is already deploying.");
@@ -258,11 +254,25 @@ export class GbpBusinessInfoDeploymentService {
     await assertWritebackEnabled(item.organization_id, item.location_id);
 
     // Single-flight: atomically claim the revert so N clicks/retries enqueue ONE job.
-    const claimed = await GbpWorkItemModel.claimBusinessInfoRevert(item.id);
-    if (claimed === 0) {
+    // The claim reports WHY it was refused — "a revert is running" and "the revert
+    // already happened" are different facts and the owner is told which one is true.
+    const claim = await GbpWorkItemModel.claimBusinessInfoRevert(item.id);
+    if (claim === "revert_in_progress") {
       throw new GbpAutomationError(
         "REVERT_IN_PROGRESS",
-        "A revert for this profile update is already in progress or was already applied."
+        "A revert for this profile update is already in progress. It will finish shortly."
+      );
+    }
+    if (claim === "already_reverted") {
+      throw new GbpAutomationError(
+        "ALREADY_REVERTED",
+        "This profile update was already reverted on Google; there is nothing left to undo."
+      );
+    }
+    if (claim === "not_revertable") {
+      throw new GbpAutomationError(
+        "REVERT_NOT_AVAILABLE",
+        "Only a published profile update can be reverted."
       );
     }
     try {
@@ -330,13 +340,52 @@ export class GbpBusinessInfoDeploymentService {
     await this.assertOrganizationActive(item.organization_id);
 
     const payload = readPayload(item);
-    const attempt = await GbpDeploymentAttemptModel.createRunningNext({
+
+    // Claim the write with an EXPLICIT state (§21.1/§21.2). A signal that cannot
+    // distinguish concurrent work from completed work forces the caller to guess, and
+    // guessing here means either re-sending a write Google already applied or
+    // reporting a conflict that does not exist.
+    const claim = await GbpDeploymentAttemptModel.claimRunningAttempt({
       work_item_id: item.id,
       requested_by_user_id: userId,
       request_payload: { updateMask: payload.updateMask },
     });
-    if (!attempt) return item;
 
+    if (claim.state === "concurrent_attempt_running") {
+      // Another worker holds a live lease and will finalize this item. Backing off is
+      // correct (single-flight), but it is NOT a completed write — log it so a real
+      // double-delivery is visible rather than looking like a clean no-op.
+      logger.warn(
+        { workItemId: item.id, attemptId: claim.attempt.id, claimState: claim.state },
+        "[GBP] business-info deploy skipped; another worker holds a live attempt lease"
+      );
+      return item;
+    }
+
+    if (claim.state === "already_succeeded") {
+      // Google accepted this write on an earlier attempt and local finalization never
+      // finished. The provider write is DONE — re-sending it is forbidden. Finish the
+      // local half from the response recorded at the time.
+      logger.warn(
+        { workItemId: item.id, attemptId: claim.attempt.id, claimState: claim.state },
+        "[GBP] business-info retry found a succeeded attempt with an unfinalized work item; reconciling local state without re-sending to Google"
+      );
+      return GbpBusinessInfoReconcileService.finalizeProviderSuccess({
+        item,
+        attempt: claim.attempt,
+        userId,
+        payload,
+        googleResult: (claim.attempt.response_payload || {}) as Record<string, unknown>,
+        reason: "already_succeeded",
+      });
+    }
+
+    const attempt = claim.attempt;
+    // Capture-before-write ordering makes this a load-bearing fact: the snapshot is
+    // always persisted BEFORE the PATCH is sent, so an item with no snapshot cannot
+    // have had a write sent for it by anyone. Read it before the capture block below
+    // overwrites the answer.
+    const hadSnapshotBeforeThisAttempt = Boolean(payload.previousValues);
     let googleResult: Record<string, unknown> | null = null;
 
     try {
@@ -385,6 +434,23 @@ export class GbpBusinessInfoDeploymentService {
         previousValues,
         payload.updateMask
       );
+
+      // We took over an attempt whose worker died, and that worker had already
+      // persisted a snapshot — so it may have reached Google before it died. Find out
+      // what Google actually did BEFORE writing, rather than assuming either way.
+      if (claim.state === "stale_attempt_running" && hadSnapshotBeforeThisAttempt) {
+        const reconciled = await GbpBusinessInfoReconcileService.reconcileAbandonedAttempt({
+          item,
+          attempt,
+          userId,
+          payload,
+          auth,
+          property,
+          effectivePatch,
+        });
+        if (reconciled) return reconciled;
+      }
+
       googleResult = await patchGbpBusinessInformation(
         auth,
         businessInfoLocationName(property),

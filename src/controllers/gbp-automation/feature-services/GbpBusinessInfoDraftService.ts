@@ -1,4 +1,3 @@
-import { db } from "../../../database/connection";
 import { GbpWorkEventModel } from "../../../models/GbpWorkEventModel";
 import { GbpWorkItemModel, IGbpWorkItem } from "../../../models/GbpWorkItemModel";
 import { GbpAutomationError } from "../feature-utils/GbpAutomationError";
@@ -51,7 +50,9 @@ export class GbpBusinessInfoDraftService {
     // §10.5 — the work item and its audit event are two tables and one fact.
     // Without a transaction a failed event write leaves a staged draft with no
     // provenance; both land or neither does.
-    return db.transaction(async (trx) => {
+    // §7.4 — the transaction boundary is opened THROUGH the model layer, which owns
+    // the database handle; this service composes model calls and never imports `db`.
+    return GbpWorkItemModel.transaction(async (trx) => {
       const created = await GbpWorkItemModel.create(
         {
           organization_id: params.organizationId,

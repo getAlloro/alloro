@@ -27,7 +27,7 @@ const h = vi.hoisted(() => ({
   rejectIfPending: vi.fn(),
   claimRevert: vi.fn(),
   releaseRevertClaim: vi.fn(),
-  createAttempt: vi.fn(),
+  claimAttempt: vi.fn(),
   markSucceeded: vi.fn(),
   markFailed: vi.fn(),
   eventCreate: vi.fn(),
@@ -35,10 +35,11 @@ const h = vi.hoisted(() => ({
   findProperty: vi.fn(),
   queueAdd: vi.fn(),
   loggerError: vi.fn(),
+  loggerWarn: vi.fn(),
   /**
-   * A sentinel transaction handle. The db mock hands this to the callback, so a
-   * test can prove a write was made INSIDE the transaction by asserting the model
-   * received this exact handle (§10.5).
+   * A sentinel transaction handle. The MODEL's transaction boundary hands this to the
+   * callback, so a test can prove a write was made INSIDE the transaction by asserting
+   * the model received this exact handle (§10.5).
    */
   trx: { __sentinelTrx: true } as unknown,
 }));
@@ -53,14 +54,17 @@ vi.mock("../controllers/gbp/gbp-services/location-handler.service", () => ({
 vi.mock("../auth/oauth2Helper", () => ({
   getValidOAuth2ClientByConnection: h.getOAuth,
 }));
+// §7.4 — the services no longer import the DB connection at all; the transaction
+// boundary is owned by models/. This mock exists only because BaseModel imports it.
+// A service reaching for `db.transaction` directly would fail here, which is the
+// point: the sentinel handle now comes from the MODEL seam below.
 vi.mock("../database/connection", () => ({
   db: {
-    // createDraft/approve/reject/enqueueDeployment wrap their multi-table writes in
-    // a transaction (§10.5). The callback gets the SENTINEL handle so a test can
-    // assert each model call was made inside it. NOTE: the models are mocked, so
-    // this proves the transaction is threaded through — real ROLLBACK semantics are
-    // PostgreSQL's and are not exercised here (no live DB in this suite).
-    transaction: async (fn: (trx: unknown) => Promise<unknown>) => fn(h.trx),
+    transaction: () => {
+      throw new Error(
+        "A service opened a transaction through database/connection. Transaction ownership belongs to models/ (§7.4)."
+      );
+    },
   },
 }));
 vi.mock("../workers/queues", () => ({
@@ -92,11 +96,13 @@ vi.mock("../models/GbpWorkItemModel", () => ({
     claimBusinessInfoRevert: h.claimRevert,
     releaseBusinessInfoRevertClaim: h.releaseRevertClaim,
     create: h.createWorkItem,
+    // §7.4 — the model owns the transaction boundary; services compose through it.
+    transaction: async (fn: (trx: unknown) => Promise<unknown>) => fn(h.trx),
   },
 }));
 vi.mock("../models/GbpDeploymentAttemptModel", () => ({
   GbpDeploymentAttemptModel: {
-    createRunningNext: h.createAttempt,
+    claimRunningAttempt: h.claimAttempt,
     markSucceeded: h.markSucceeded,
     markFailed: h.markFailed,
   },
@@ -108,7 +114,7 @@ vi.mock("../models/GooglePropertyModel", () => ({
   GooglePropertyModel: { findById: h.findProperty },
 }));
 vi.mock("../lib/logger", () => ({
-  default: { error: h.loggerError, warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
+  default: { error: h.loggerError, warn: h.loggerWarn, info: vi.fn(), debug: vi.fn() },
 }));
 
 import { GbpBusinessInfoDeploymentService } from "../controllers/gbp-automation/feature-services/GbpBusinessInfoDeploymentService";
@@ -164,14 +170,14 @@ beforeEach(() => {
   h.getOAuth.mockResolvedValue({});
   h.getProfile.mockResolvedValue({ phoneNumbers: { primaryPhone: "+1 555 000 0000" } });
   h.patchBusinessInfo.mockResolvedValue({ name: "locations/222" });
-  h.createAttempt.mockResolvedValue({ id: "att-1" });
+  h.claimAttempt.mockResolvedValue({ state: "claimed", attempt: { id: "att-1", status: "running" } });
   h.markPublished.mockResolvedValue(1);
   h.markFailedToDraft.mockResolvedValue(1);
   h.markDeploying.mockResolvedValue(1);
   h.approveModel.mockResolvedValue(1);
   h.updateWorkItem.mockResolvedValue(1);
   h.rejectIfPending.mockResolvedValue(1);
-  h.claimRevert.mockResolvedValue(1);
+  h.claimRevert.mockResolvedValue("claimed");
   h.releaseRevertClaim.mockResolvedValue(1);
   h.queueAdd.mockResolvedValue({ id: "job-1" });
   h.createWorkItem.mockResolvedValue({ id: "wi-1", status: "draft" });
@@ -231,7 +237,7 @@ describe("deployNow — structural gate + capture-before-write", () => {
     h.findWorkItem.mockResolvedValue(deployingItem({ status: "approved" }));
     await expect(GbpBusinessInfoDeploymentService.deployNow("wi-1", 5)).rejects.toThrow(/not queued/i);
     expect(h.patchBusinessInfo).not.toHaveBeenCalled();
-    expect(h.createAttempt).not.toHaveBeenCalled();
+    expect(h.claimAttempt).not.toHaveBeenCalled();
   });
 
   it("captures the live snapshot BEFORE the patch, persists it, then publishes", async () => {
@@ -459,14 +465,14 @@ describe("enqueueRevert — single-flight (Finding 5 / Sonnet #2)", () => {
   it("enqueues exactly one revert job when it wins the atomic claim", async () => {
     h.findScopedWorkItem.mockResolvedValue(publishedWithSnapshot());
     h.findWorkItem.mockResolvedValue(publishedWithSnapshot());
-    h.claimRevert.mockResolvedValue(1);
+    h.claimRevert.mockResolvedValue("claimed");
     await GbpBusinessInfoDeploymentService.enqueueRevert(revertParams);
     expect(h.queueAdd).toHaveBeenCalledTimes(1);
   });
 
   it("refuses (no job) when another revert already holds the claim", async () => {
     h.findScopedWorkItem.mockResolvedValue(publishedWithSnapshot());
-    h.claimRevert.mockResolvedValue(0);
+    h.claimRevert.mockResolvedValue("revert_in_progress");
     await expect(GbpBusinessInfoDeploymentService.enqueueRevert(revertParams)).rejects.toThrow(
       /in progress|already/i
     );
@@ -521,7 +527,7 @@ describe("enqueue compensation — a queue failure never strands the item (revie
         },
       })
     );
-    h.claimRevert.mockResolvedValue(1);
+    h.claimRevert.mockResolvedValue("claimed");
     h.queueAdd.mockRejectedValue(new Error("queue backend unavailable"));
 
     await expect(GbpBusinessInfoDeploymentService.enqueueRevert(params)).rejects.toThrow(
@@ -545,12 +551,12 @@ describe("enqueue compensation — a queue failure never strands the item (revie
     h.findWorkItem.mockResolvedValue(published);
 
     // First attempt: enqueue fails, claim is released.
-    h.claimRevert.mockResolvedValueOnce(1);
+    h.claimRevert.mockResolvedValueOnce("claimed");
     h.queueAdd.mockRejectedValueOnce(new Error("queue backend unavailable"));
     await expect(GbpBusinessInfoDeploymentService.enqueueRevert(params)).rejects.toThrow();
 
     // Second attempt: the claim is winnable again and the job enqueues.
-    h.claimRevert.mockResolvedValueOnce(1);
+    h.claimRevert.mockResolvedValueOnce("claimed");
     await GbpBusinessInfoDeploymentService.enqueueRevert(params);
     expect(h.queueAdd).toHaveBeenCalledTimes(2);
   });
@@ -786,5 +792,215 @@ describe("§3.2 — revert + deploy-failure bookkeeping is logged, never swallow
     expect(logged).toBeDefined();
     expect(logged?.[0]).toMatchObject({ workItemId: "wi-1", attemptId: "att-1" });
     expect((logged?.[0] as { err?: Error })?.err).toBeInstanceOf(Error);
+  });
+});
+
+/** A deploying item whose rollback snapshot was already captured by an earlier attempt. */
+function deployingWithSnapshot(overrides: Record<string, unknown> = {}) {
+  return deployingItem({
+    business_info_payload: {
+      patch: { phoneNumbers: { primaryPhone: "+1 555 100 2000" } },
+      updateMask: ["phoneNumbers"],
+      previousValues: { phoneNumbers: { primaryPhone: "+1 555 000 0000" } },
+    },
+    ...overrides,
+  });
+}
+
+/** The profile Google would return once the owner's change HAS been applied. */
+const LIVE_AFTER_WRITE = { phoneNumbers: { primaryPhone: "+1 555 100 2000" } };
+/** The profile Google would return if the change never landed (still the old value). */
+const LIVE_BEFORE_WRITE = { phoneNumbers: { primaryPhone: "+1 555 000 0000" } };
+
+/**
+ * §3.2 / §21.1 / §21.2 — the claim reports an EXPLICIT state, and each state means
+ * something different to the caller. A signal that cannot separate "another worker is
+ * on it right now" from "Google already accepted this" forces the caller to guess, and
+ * both guesses are wrong in a way the customer pays for: re-sending a live write, or
+ * completing a retry that silently leaves the record diverged from the real profile.
+ */
+describe("deployNow — explicit claim states + retry reconciliation", () => {
+  it("concurrent_attempt_running: writes nothing and finalizes nothing — the lease holder finishes", async () => {
+    h.findWorkItem.mockResolvedValue(deployingWithSnapshot());
+    h.claimAttempt.mockResolvedValue({
+      state: "concurrent_attempt_running",
+      attempt: { id: "att-live", status: "running" },
+    });
+
+    await GbpBusinessInfoDeploymentService.deployNow("wi-1", 5);
+
+    expect(h.patchBusinessInfo).not.toHaveBeenCalled();
+    expect(h.markPublished).not.toHaveBeenCalled();
+    // Backing off is correct, but it is NOT a completed write — it must be visible.
+    const logged = h.loggerWarn.mock.calls.find((call) =>
+      String(call[1]).includes("live attempt lease")
+    );
+    expect(logged).toBeDefined();
+    expect(logged?.[0]).toMatchObject({ workItemId: "wi-1", claimState: "concurrent_attempt_running" });
+  });
+
+  it("THE TWO-CALL REGRESSION: Google accepts, local finalization dies, the retry reconciles and never re-sends", async () => {
+    h.findWorkItem.mockResolvedValue(deployingWithSnapshot());
+
+    // --- Call 1. The PATCH lands on the customer's live profile, then BOTH the
+    // publish and the divergence recovery fail — the process effectively dies here.
+    // That leaves the exact partial-completion state: work item still `deploying`,
+    // attempt already `succeeded`.
+    h.claimAttempt.mockResolvedValueOnce({
+      state: "claimed",
+      attempt: { id: "att-1", status: "running" },
+    });
+    h.markPublished.mockRejectedValueOnce(new Error("local finalization failed"));
+    h.updateWorkItem.mockRejectedValueOnce(new Error("local finalization failed"));
+
+    await expect(GbpBusinessInfoDeploymentService.deployNow("wi-1", 5)).rejects.toThrow();
+    expect(h.patchBusinessInfo).toHaveBeenCalledTimes(1);
+
+    // --- Call 2 — the BullMQ retry. The claim now reports the provider write is DONE
+    // rather than a bare "cannot claim", so the retry knows to finish the local half.
+    h.claimAttempt.mockResolvedValueOnce({
+      state: "already_succeeded",
+      attempt: { id: "att-1", status: "succeeded", response_payload: { name: "locations/222" } },
+    });
+
+    await GbpBusinessInfoDeploymentService.deployNow("wi-1", 5);
+
+    // The customer's live Google profile was written EXACTLY once across both calls.
+    expect(h.patchBusinessInfo).toHaveBeenCalledTimes(1);
+    // And the retry did NOT complete silently — it finalized the record.
+    expect(h.markPublished).toHaveBeenCalledTimes(2);
+    expect(h.markPublished).toHaveBeenLastCalledWith(
+      "wi-1",
+      expect.objectContaining({ googleResponse: { name: "locations/222" } })
+    );
+    const logged = h.loggerWarn.mock.calls.find((call) =>
+      String(call[1]).includes("without re-sending to Google")
+    );
+    expect(logged).toBeDefined();
+  });
+
+  it("already_succeeded still records the change after the master switch is turned off", async () => {
+    // The write is already live on the customer's profile. Refusing to record it
+    // because the switch flipped afterward would leave our record permanently wrong.
+    h.findWorkItem.mockResolvedValue(deployingWithSnapshot());
+    h.findEffectiveSettings.mockResolvedValue({ business_info_writeback_enabled: false });
+    h.claimAttempt.mockResolvedValue({
+      state: "already_succeeded",
+      attempt: { id: "att-1", status: "succeeded", response_payload: { name: "locations/222" } },
+    });
+
+    await GbpBusinessInfoDeploymentService.deployNow("wi-1", 5);
+
+    expect(h.markPublished).toHaveBeenCalledTimes(1);
+    expect(h.patchBusinessInfo).not.toHaveBeenCalled();
+  });
+
+  it("stale_attempt_running + the abandoned write DID land: reconciles from the live profile, no second write", async () => {
+    h.findWorkItem.mockResolvedValue(deployingWithSnapshot());
+    h.claimAttempt.mockResolvedValue({
+      state: "stale_attempt_running",
+      attempt: { id: "att-2", status: "running" },
+    });
+    // Google reports the owner's value is already live — the dead worker's PATCH landed.
+    h.getProfile.mockResolvedValue(LIVE_AFTER_WRITE);
+
+    await GbpBusinessInfoDeploymentService.deployNow("wi-1", 5);
+
+    expect(h.patchBusinessInfo).not.toHaveBeenCalled();
+    expect(h.markPublished).toHaveBeenCalledTimes(1);
+    expect(h.markSucceeded).toHaveBeenCalledWith("att-2", expect.anything());
+  });
+
+  it("stale_attempt_running + the abandoned write did NOT land: sends the write", async () => {
+    h.findWorkItem.mockResolvedValue(deployingWithSnapshot());
+    h.claimAttempt.mockResolvedValue({
+      state: "stale_attempt_running",
+      attempt: { id: "att-2", status: "running" },
+    });
+    // Google still shows the OLD value — the dead worker never reached the API.
+    h.getProfile.mockResolvedValue(LIVE_BEFORE_WRITE);
+
+    await GbpBusinessInfoDeploymentService.deployNow("wi-1", 5);
+
+    expect(h.patchBusinessInfo).toHaveBeenCalledTimes(1);
+    expect(h.markPublished).toHaveBeenCalledTimes(1);
+  });
+
+  it("reconcile read failure: does NOT write blind (an unknown provider state never becomes a live write)", async () => {
+    h.findWorkItem.mockResolvedValue(deployingWithSnapshot());
+    h.claimAttempt.mockResolvedValue({
+      state: "stale_attempt_running",
+      attempt: { id: "att-2", status: "running" },
+    });
+    h.getProfile.mockResolvedValue(null);
+
+    await GbpBusinessInfoDeploymentService.deployNow("wi-1", 5, { isFinalAttempt: true });
+
+    expect(h.patchBusinessInfo).not.toHaveBeenCalled();
+    expect(h.markFailed).toHaveBeenCalledWith(
+      "att-2",
+      "RECONCILE_READ_FAILED",
+      expect.any(String),
+      null
+    );
+  });
+
+  it("stale_attempt_running with NO snapshot: skips the reconcile read entirely and writes", async () => {
+    // Capture-before-write ordering: no persisted snapshot means no attempt ever got
+    // as far as the PATCH, so there is nothing at Google to reconcile against.
+    h.findWorkItem.mockResolvedValue(deployingItem());
+    h.claimAttempt.mockResolvedValue({
+      state: "stale_attempt_running",
+      attempt: { id: "att-2", status: "running" },
+    });
+
+    await GbpBusinessInfoDeploymentService.deployNow("wi-1", 5);
+
+    // getProfile is called ONCE — for the snapshot capture, not for a reconcile.
+    expect(h.getProfile).toHaveBeenCalledTimes(1);
+    expect(h.patchBusinessInfo).toHaveBeenCalledTimes(1);
+  });
+
+  it("finalize tolerates a concurrent finalization instead of reporting a false failure", async () => {
+    h.findWorkItem.mockResolvedValue(deployingWithSnapshot());
+    h.claimAttempt.mockResolvedValue({
+      state: "already_succeeded",
+      attempt: { id: "att-1", status: "succeeded", response_payload: { name: "locations/222" } },
+    });
+    h.markPublished.mockResolvedValue(0); // another worker got there first
+
+    await expect(GbpBusinessInfoDeploymentService.deployNow("wi-1", 5)).resolves.toBeDefined();
+    expect(h.patchBusinessInfo).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The same conflation class on the revert path: the claim used to refuse with one
+ * signal whose own message read "already in progress or was already applied" — two
+ * opposite facts the owner could not tell apart.
+ */
+describe("enqueueRevert — a refused claim says WHICH state it is in", () => {
+  const params = {
+    organizationId: 1,
+    workItemId: "wi-1",
+    userId: 5,
+    accessibleLocationIds: [2],
+  };
+
+  it("a revert running right now and a revert that already finished are different answers", async () => {
+    h.findScopedWorkItem.mockResolvedValue(revertableItem());
+    h.findWorkItem.mockResolvedValue(revertableItem());
+
+    h.claimRevert.mockResolvedValue("revert_in_progress");
+    const inProgress = await GbpBusinessInfoDeploymentService.enqueueRevert(params).catch((e) => e);
+
+    h.claimRevert.mockResolvedValue("already_reverted");
+    const alreadyDone = await GbpBusinessInfoDeploymentService.enqueueRevert(params).catch((e) => e);
+
+    expect(inProgress.code).toBe("REVERT_IN_PROGRESS");
+    expect(alreadyDone.code).toBe("ALREADY_REVERTED");
+    expect(inProgress.code).not.toBe(alreadyDone.code);
+    // Neither enqueues a second job against the customer's live profile.
+    expect(h.queueAdd).not.toHaveBeenCalled();
   });
 });

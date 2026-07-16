@@ -62,6 +62,20 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 }
 
 /**
+ * The Business Information API v1 addresses the location as `locations/{locationId}`.
+ * Typed structurally so this stays a pure helper with no model dependency.
+ */
+export function businessInfoLocationName(property: { external_id: string | null }): string {
+  if (!property.external_id) {
+    throw new GbpAutomationError(
+      "GBP_PROPERTY_MISSING",
+      "GBP property is missing its Google location id."
+    );
+  }
+  return `locations/${property.external_id}`;
+}
+
+/**
  * Validate + sanitize the owner's proposed field values at the boundary (§11.2).
  * Only the allowlisted fields present in the input are written; the updateMask is
  * the set of keys that survived validation. Throws if nothing valid remains.
@@ -145,6 +159,47 @@ function deepMerge(base: unknown, override: unknown): unknown {
     out[key] = deepMerge(base[key], value);
   }
   return out;
+}
+
+/** Order-sensitive structural equality. Arrays compare element-wise; key order is ignored. */
+function deepEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+    return a.every((entry, index) => deepEqual(entry, b[index]));
+  }
+  if (isPlainObject(a) && isPlainObject(b)) {
+    const aKeys = Object.keys(a);
+    const bKeys = Object.keys(b);
+    if (aKeys.length !== bKeys.length) return false;
+    return aKeys.every((key) => key in b && deepEqual(a[key], b[key]));
+  }
+  return false;
+}
+
+/**
+ * Did a PATCH we are unsure about actually land on Google?
+ *
+ * Answers it by evidence rather than assumption: compare the live profile's masked
+ * fields against the exact values the write would have sent. Equal means the desired
+ * state IS live, which is the only thing the work item is asserting — so it can be
+ * finalized without sending the write again.
+ *
+ * The comparison is deliberately STRICT, and the bias is load-bearing. A false
+ * "did not land" costs one redundant PATCH of identical absolute values (harmless —
+ * the value is derived from the persisted snapshot, so re-sending is idempotent). A
+ * false "landed" would mark the item published while the customer's real profile was
+ * never changed — a silent divergence, and the exact failure this reconcile exists to
+ * prevent. When in doubt, re-send.
+ */
+export function liveMatchesDesired(
+  liveProfile: Record<string, unknown> | null | undefined,
+  desired: BusinessInfoPatch,
+  updateMask: BusinessInfoField[]
+): boolean {
+  if (!liveProfile) return false;
+  const live = extractMaskedFields(liveProfile, updateMask);
+  return updateMask.every((field) => deepEqual(live[field], desired[field] ?? null));
 }
 
 /**

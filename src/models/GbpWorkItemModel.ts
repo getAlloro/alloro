@@ -1,9 +1,17 @@
+import { Knex } from "knex";
 import { BaseModel, QueryContext } from "./BaseModel";
 import { db } from "../database/connection";
 
 const MAX_WORK_ITEM_LIST_LIMIT = 500;
 
 export type GbpContentType = "review_reply" | "local_post" | "business_info";
+
+/** Explicit outcome of claiming a business_info revert — see claimBusinessInfoRevert. */
+export type GbpRevertClaimState =
+  | "claimed"
+  | "revert_in_progress"
+  | "already_reverted"
+  | "not_revertable";
 export type GbpSafetyStatus = "safe" | "needs_review" | "blocked";
 export type GbpWorkItemStatus =
   | "draft"
@@ -537,22 +545,47 @@ export class GbpWorkItemModel extends BaseModel {
   }
 
   /**
-   * Atomically claim a published business_info item for revert (single-flight): sets
-   * metadata.revertPending only if it is published and not already reverting/reverted.
-   * Returns 0 when another revert already holds the claim, so only one job is enqueued.
+   * Atomically claim a published business_info item for revert (single-flight), and
+   * report WHY when the claim is refused. The refusal reasons are distinct facts and
+   * must not be collapsed into one signal — "a revert is running right now" and "the
+   * revert already finished" mean opposite things to the owner reading the result.
+   *
+   * - `claimed` — this caller owns the revert and must enqueue exactly one job.
+   * - `revert_in_progress` — another revert holds the claim; do not enqueue a second.
+   * - `already_reverted` — the rollback already landed on Google; nothing to do.
+   * - `not_revertable` — the item is missing or is not in a state that can be reverted.
+   *
+   * Runs SELECT ... FOR UPDATE + UPDATE inside a model-owned transaction (§7.4), so the
+   * single-flight guarantee is preserved: two concurrent claims serialize on the row
+   * lock and exactly one comes away `claimed`.
    */
   static async claimBusinessInfoRevert(
     id: string,
     trx?: QueryContext
-  ): Promise<number> {
-    return this.table(trx)
-      .where({ id, status: "published", content_type: "business_info" })
-      .whereRaw("COALESCE(metadata->>'revertPending','false') <> 'true'")
-      .whereRaw("COALESCE(metadata->>'reverted','false') <> 'true'")
-      .update({
-        metadata: (trx || db).raw("metadata || '{\"revertPending\":true}'::jsonb"),
-        updated_at: new Date(),
-      });
+  ): Promise<GbpRevertClaimState> {
+    const claim = async (query: QueryContext): Promise<GbpRevertClaimState> => {
+      const row = await this.table(query)
+        .where({ id, content_type: "business_info" })
+        .forUpdate()
+        .first();
+      if (!row) return "not_revertable";
+
+      const metadata = (this.deserializeJsonFields(row).metadata || {}) as Record<string, unknown>;
+      if (metadata.reverted === true) return "already_reverted";
+      if (metadata.revertPending === true) return "revert_in_progress";
+      if (row.status !== "published") return "not_revertable";
+
+      await this.table(query)
+        .where({ id })
+        .update({
+          metadata: (query as Knex).raw("metadata || '{\"revertPending\":true}'::jsonb"),
+          updated_at: new Date(),
+        });
+      return "claimed";
+    };
+
+    if (trx) return claim(trx);
+    return this.transaction(claim);
   }
 
   /**
