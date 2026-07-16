@@ -15,9 +15,84 @@
  * as "we don't know," which is true (Value #6) — better than inventing an
  * attribution we can't stand behind. The by-source counts a null lands in are
  * surfaced honestly as "unknown," never folded into a real channel.
+ *
+ * PROVENANCE IS STORED, NOT COLLAPSED (§5.2 / §5.4): the channel label alone
+ * cannot say whether the visitor's browser CLAIMED it or whether we CLASSIFIED
+ * it ourselves. Those are not the same evidence, so `deriveSubmissionSource`
+ * returns the label AND the `method` that produced it, and both are persisted
+ * (`source` + `source_method`). Downstream reporting reads the method to decide
+ * how a number may be described; it can no longer mistake a claim for proof.
  */
 
 const MAX_SOURCE_LEN = 100;
+
+/**
+ * HOW a source label was produced — persisted alongside the label so no reader
+ * has to guess at its authority. Ordered strongest-evidence last is deliberate:
+ * every tier here is client-INFLUENCED, they just differ in who did the work.
+ *
+ * - `client_label`    — `body.source` / `body.utm_source`. The page told us the
+ *                       channel outright. We allow-list it against a closed
+ *                       vocabulary, but the CLAIM is the visitor's, not ours.
+ * - `client_referrer` — `body.first_touch_referrer`. The page told us a URL and
+ *                       WE classified it. Our label, their input.
+ * - `header_referrer` — the submit's `Referer` header. Set by the browser rather
+ *                       than by page JS, and classified by us. The strongest of
+ *                       the three — and still forgeable by a non-browser client.
+ */
+export type SourceMethod = "client_label" | "client_referrer" | "header_referrer";
+
+/**
+ * The honest confidence tier of a method. NOTHING here is "verified" — a public
+ * submit endpoint means every signal is ultimately client-supplied or
+ * client-forgeable, so no submission source may EVER be reported as verified
+ * attribution (Value #6). The distinction we can honestly draw is narrower:
+ *
+ * - `claimed`  — the visitor's page supplied it (a label, or the URL we read).
+ * - `observed` — the browser sent it on the request and we classified it.
+ * - `unknown`  — no usable signal; the source is null.
+ *
+ * Reporting language follows from this: `claimed` reads as "reported as", never
+ * "came from". This map is the ONE place that judgement lives.
+ */
+export type SourceConfidence = "claimed" | "observed" | "unknown";
+
+export const SOURCE_METHOD_CONFIDENCE: Readonly<
+  Record<SourceMethod, Exclude<SourceConfidence, "unknown">>
+> = {
+  client_label: "claimed",
+  client_referrer: "claimed",
+  header_referrer: "observed",
+};
+
+/** Type guard for a `source_method` value read back off a row (DB text is untyped). */
+export function isSourceMethod(value: unknown): value is SourceMethod {
+  return (
+    value === "client_label" ||
+    value === "client_referrer" ||
+    value === "header_referrer"
+  );
+}
+
+/**
+ * The honest confidence of a stored `source_method`. An absent/unrecognized
+ * method is "unknown" — never silently upgraded to a tier we can't stand behind.
+ */
+export function sourceConfidence(method: unknown): SourceConfidence {
+  return isSourceMethod(method) ? SOURCE_METHOD_CONFIDENCE[method] : "unknown";
+}
+
+/**
+ * Whether a stored source may be presented as VERIFIED attribution. Always
+ * false, by design and on purpose — see SourceConfidence. It exists as a real
+ * function so that any future reporting surface asking "can I call this
+ * verified?" gets one answer from one place, instead of each caller inventing
+ * its own (and getting it wrong). If a genuinely server-verified channel ever
+ * lands (e.g. a signed click-through token), THIS is what changes.
+ */
+export function isVerifiedAttribution(_method: unknown): boolean {
+  return false;
+}
 
 /**
  * The closed vocabulary of channel labels we accept from a CLIENT-SUPPLIED claim
@@ -191,38 +266,62 @@ export interface SourceSignals {
 }
 
 /**
- * Derive the honest source channel of a submission, or null when unknown.
- * Precedence: explicit first-touch label (bodySource / utmSource) → the
- * classified first-touch landing referrer → the classified submit Referer →
- * null. Never guesses.
+ * A derived source: the channel label AND the provenance that produced it. The
+ * two travel together on purpose — a label without its method invites a reader
+ * to treat a visitor's claim as Alloro's finding (§5.2). `method` is null if and
+ * only if `source` is null (unknown).
  */
-export function deriveSubmissionSource(signals: SourceSignals): string | null {
+export interface DerivedSource {
+  source: string | null;
+  method: SourceMethod | null;
+}
+
+/** Unknown — no usable signal. Never a guess (Value #6). */
+const UNKNOWN_SOURCE: DerivedSource = { source: null, method: null };
+
+/**
+ * Derive the honest source channel of a submission WITH its provenance, or
+ * unknown. Precedence (most-specific signal first, NOT most-trusted — see
+ * SourceMethod): explicit first-touch label (bodySource / utmSource) → the
+ * classified first-touch landing referrer → the classified submit Referer →
+ * unknown. Never guesses, and never launders a claim into a classification.
+ */
+export function deriveSubmissionSource(signals: SourceSignals): DerivedSource {
   const { bodySource, utmSource, firstTouchReferer, referer, projectHosts = [] } =
     signals;
 
-  // 1. An explicit first-touch label wins — the real entry channel — but ONLY
-  //    if it names a channel we recognize (KNOWN_SOURCE_LABELS). These fields are
-  //    client-supplied on a public endpoint, so an unrecognized value (a real
-  //    campaign name we don't know, or worse, a personalized utm carrying patient
-  //    PII) is NOT stored: it falls through to server-side classification. Try
-  //    body then utm; a value that fails the check falls through instead of
-  //    shadowing the next signal (don't lose a good utm_source because bodySource
-  //    was garbage). Losing an unknown-but-real campaign label to null is the
-  //    honest Value #6 trade — better unknown than a value we can't stand behind.
+  // 1. An explicit first-touch label wins — it is the real entry channel, and the
+  //    only signal that survives a same-site landing — but ONLY if it names a
+  //    channel we recognize. These fields are client-supplied on a public
+  //    endpoint, so an unrecognized value (a real campaign name we don't know,
+  //    or worse, a personalized utm carrying patient PII) is NOT stored: it falls
+  //    through to server-side classification. Try body then utm; a value that
+  //    fails the check falls through instead of shadowing the next signal (don't
+  //    lose a good utm_source because bodySource was garbage). Losing an
+  //    unknown-but-real campaign label to null is the honest Value #6 trade.
+  //
+  //    Winning precedence does NOT promote it: it is recorded as `client_label`,
+  //    so a report can say "reported as facebook", never "verified: facebook".
   for (const raw of [bodySource, utmSource]) {
     if (raw && raw.trim()) {
       const normalized = normalizeSource(raw);
       const channel = normalized ? canonicalizeSourceClaim(normalized) : null;
-      if (channel) return channel;
+      if (channel) return { source: channel, method: "client_label" };
     }
   }
 
-  // 2. The visitor's first-touch landing referrer, classified server-side.
-  //    Internal/empty/unparseable → skip to the weak submit-Referer fallback.
+  // 2. The visitor's first-touch landing referrer: OUR classification of a URL
+  //    the page handed us. Internal/empty/unparseable → skip to the submit
+  //    Referer. Recorded as `client_referrer` — our label, their input.
   const firstTouch = classifyExternalReferer(firstTouchReferer, projectHosts);
-  if (firstTouch) return firstTouch;
+  if (firstTouch) return { source: firstTouch, method: "client_referrer" };
 
-  // 3. Weak fallback: the submit Referer (usually the internal form page → null).
-  //    No usable signal anywhere → unknown (null), never a guess.
-  return classifyExternalReferer(referer, projectHosts);
+  // 3. Weak fallback: the submit Referer header (usually the internal form page
+  //    → null). Browser-set rather than page-set, so it is recorded as the
+  //    strongest tier we have, `header_referrer` — which is still not "verified".
+  const fromHeader = classifyExternalReferer(referer, projectHosts);
+  if (fromHeader) return { source: fromHeader, method: "header_referrer" };
+
+  // 4. No usable signal anywhere → unknown, never a guess.
+  return UNKNOWN_SOURCE;
 }

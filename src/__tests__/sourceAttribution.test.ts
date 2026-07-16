@@ -5,7 +5,15 @@ import {
   hostOf,
   classifyReferrerHost,
   classifyExternalReferer,
+  sourceConfidence,
+  isSourceMethod,
+  isVerifiedAttribution,
+  SOURCE_METHOD_CONFIDENCE,
+  type SourceSignals,
 } from "../controllers/websiteContact/websiteContact-utils/sourceAttribution";
+
+/** The channel label only — for the many cases that assert the label alone. */
+const sourceOf = (signals: SourceSignals) => deriveSubmissionSource(signals).source;
 
 describe("normalizeSource", () => {
   it("lowercases, trims, keeps a safe channel label (incl. underscores)", () => {
@@ -71,7 +79,7 @@ describe("deriveSubmissionSource", () => {
 
   it("prefers the frontend first-touch source over the (internal) submit referer", () => {
     expect(
-      deriveSubmissionSource({
+      sourceOf({
         bodySource: "google_business_profile",
         referer: "https://drpavan.sites.getalloro.com/contact",
         projectHosts: ownHosts,
@@ -80,34 +88,34 @@ describe("deriveSubmissionSource", () => {
   });
 
   it("uses utmSource when there is no bodySource", () => {
-    expect(deriveSubmissionSource({ utmSource: "newsletter" })).toBe(
+    expect(sourceOf({ utmSource: "newsletter" })).toBe(
       "newsletter",
     );
   });
 
   it("falls through a junk bodySource to a valid utmSource (no signal loss)", () => {
     expect(
-      deriveSubmissionSource({ bodySource: "!!!", utmSource: "newsletter" }),
+      sourceOf({ bodySource: "!!!", utmSource: "newsletter" }),
     ).toBe("newsletter");
   });
 
   it("returns null with no first-touch and no referer (unknown, not guessed)", () => {
-    expect(deriveSubmissionSource({})).toBeNull();
-    expect(deriveSubmissionSource({ referer: "" })).toBeNull();
+    expect(sourceOf({})).toBeNull();
+    expect(sourceOf({ referer: "" })).toBeNull();
     expect(
-      deriveSubmissionSource({ bodySource: null, utmSource: null, referer: null }),
+      sourceOf({ bodySource: null, utmSource: null, referer: null }),
     ).toBeNull();
   });
 
   it("returns null for an INTERNAL referer — the practice's own page is not a source", () => {
     expect(
-      deriveSubmissionSource({
+      sourceOf({
         referer: "https://drpavan.sites.getalloro.com/services",
         projectHosts: ownHosts,
       }),
     ).toBeNull();
     expect(
-      deriveSubmissionSource({
+      sourceOf({
         referer: "https://www.drpavanendo.com/book",
         projectHosts: ownHosts,
       }),
@@ -116,13 +124,13 @@ describe("deriveSubmissionSource", () => {
 
   it("classifies a genuine cross-site referer when there is no first-touch", () => {
     expect(
-      deriveSubmissionSource({
+      sourceOf({
         referer: "https://www.google.com/",
         projectHosts: ownHosts,
       }),
     ).toBe("google");
     expect(
-      deriveSubmissionSource({
+      sourceOf({
         referer: "https://www.yelp.com/biz/x",
         projectHosts: ownHosts,
       }),
@@ -130,14 +138,14 @@ describe("deriveSubmissionSource", () => {
   });
 
   it("returns null for an unparseable/hostless referer (never guesses)", () => {
-    expect(deriveSubmissionSource({ referer: "javascript:void(0)" })).toBeNull();
-    expect(deriveSubmissionSource({ referer: "not a url" })).toBeNull();
+    expect(sourceOf({ referer: "javascript:void(0)" })).toBeNull();
+    expect(sourceOf({ referer: "not a url" })).toBeNull();
   });
 
   // ── first-touch landing referrer (the real entry channel for organic/referral)
   it("classifies the first-touch landing referrer when there is no explicit label", () => {
     expect(
-      deriveSubmissionSource({
+      sourceOf({
         firstTouchReferer: "https://www.google.com/",
         projectHosts: ownHosts,
       }),
@@ -146,7 +154,7 @@ describe("deriveSubmissionSource", () => {
 
   it("first-touch landing referrer beats the (internal) submit referer", () => {
     expect(
-      deriveSubmissionSource({
+      sourceOf({
         firstTouchReferer: "https://www.google.com/",
         referer: "https://drpavan.sites.getalloro.com/contact",
         projectHosts: ownHosts,
@@ -156,7 +164,7 @@ describe("deriveSubmissionSource", () => {
 
   it("an explicit utm label still beats the first-touch referrer", () => {
     expect(
-      deriveSubmissionSource({
+      sourceOf({
         utmSource: "newsletter",
         firstTouchReferer: "https://www.google.com/",
         projectHosts: ownHosts,
@@ -166,7 +174,7 @@ describe("deriveSubmissionSource", () => {
 
   it("an INTERNAL first-touch referrer is skipped, falling to the submit referer", () => {
     expect(
-      deriveSubmissionSource({
+      sourceOf({
         firstTouchReferer: "https://drpavan.sites.getalloro.com/home",
         referer: "https://www.facebook.com/",
         projectHosts: ownHosts,
@@ -176,7 +184,7 @@ describe("deriveSubmissionSource", () => {
 
   it("an unparseable first-touch referrer is skipped (never guesses)", () => {
     expect(
-      deriveSubmissionSource({
+      sourceOf({
         firstTouchReferer: "not a url",
         projectHosts: ownHosts,
       }),
@@ -195,8 +203,8 @@ describe("deriveSubmissionSource", () => {
       "mrn:a938271", // medical record number
       "patient-ssn-078-05-1120", // SSN-shaped
     ]) {
-      expect(deriveSubmissionSource({ bodySource: pii })).toBeNull();
-      expect(deriveSubmissionSource({ utmSource: pii })).toBeNull();
+      expect(sourceOf({ bodySource: pii })).toBeNull();
+      expect(sourceOf({ utmSource: pii })).toBeNull();
     }
   });
 
@@ -205,7 +213,7 @@ describe("deriveSubmissionSource", () => {
     // visit is internal. "google" IS a known channel, so the honest floor is that
     // it can only ever claim a channel that exists — not an arbitrary string.
     expect(
-      deriveSubmissionSource({
+      sourceOf({
         bodySource: "definitely-not-a-channel",
         firstTouchReferer: "https://www.bing.com/",
         projectHosts: ownHosts,
@@ -214,12 +222,12 @@ describe("deriveSubmissionSource", () => {
   });
 
   it("an unrecognized but plausible campaign label falls through to unknown (Value #6)", () => {
-    expect(deriveSubmissionSource({ utmSource: "spring_promo_2026" })).toBeNull();
+    expect(sourceOf({ utmSource: "spring_promo_2026" })).toBeNull();
   });
 
   it("skips an INTERNAL referer given as a trailing-dot FQDN (adversary F4)", () => {
     expect(
-      deriveSubmissionSource({
+      sourceOf({
         referer: "https://drpavanendo.com./contact",
         projectHosts: ownHosts,
       }),
@@ -228,7 +236,7 @@ describe("deriveSubmissionSource", () => {
 
   it("skips an INTERNAL referer with a DOUBLE trailing dot (adversary N1)", () => {
     expect(
-      deriveSubmissionSource({
+      sourceOf({
         referer: "https://drpavanendo.com../contact",
         projectHosts: ownHosts,
       }),
@@ -238,26 +246,173 @@ describe("deriveSubmissionSource", () => {
   it("folds brand-abbreviation claims to one canonical channel (adversary N2)", () => {
     // fb / meta → facebook, x → twitter, yt → youtube, gmb → GBP — so the
     // by-source counts don't splinter across synonyms of the same channel.
-    expect(deriveSubmissionSource({ utmSource: "fb" })).toBe("facebook");
-    expect(deriveSubmissionSource({ utmSource: "meta" })).toBe("facebook");
-    expect(deriveSubmissionSource({ utmSource: "x" })).toBe("twitter");
-    expect(deriveSubmissionSource({ utmSource: "yt" })).toBe("youtube");
-    expect(deriveSubmissionSource({ bodySource: "gmb" })).toBe(
+    expect(sourceOf({ utmSource: "fb" })).toBe("facebook");
+    expect(sourceOf({ utmSource: "meta" })).toBe("facebook");
+    expect(sourceOf({ utmSource: "x" })).toBe("twitter");
+    expect(sourceOf({ utmSource: "yt" })).toBe("youtube");
+    expect(sourceOf({ bodySource: "gmb" })).toBe(
       "google_business_profile",
     );
   });
 
   it("folds a hyphenated claim to its canonical channel (adversary N3)", () => {
-    expect(deriveSubmissionSource({ utmSource: "google-ads" })).toBe("google_ads");
-    expect(deriveSubmissionSource({ utmSource: "constant-contact" })).toBe(
+    expect(sourceOf({ utmSource: "google-ads" })).toBe("google_ads");
+    expect(sourceOf({ utmSource: "constant-contact" })).toBe(
       "constant_contact",
     );
   });
 
   it("recognizes the dental patient-comms stack as real channels (adversary N3)", () => {
     for (const tool of ["birdeye", "podium", "weave", "mailchimp"]) {
-      expect(deriveSubmissionSource({ utmSource: tool })).toBe(tool);
+      expect(sourceOf({ utmSource: tool })).toBe(tool);
     }
+  });
+});
+
+// ── Provenance (§5.2): the label is WHAT we believe, the method is WHY. Stored
+//    apart so a browser's claim never inherits a classification's authority.
+describe("deriveSubmissionSource — provenance", () => {
+  const ownHosts = ["drpavan.sites.getalloro.com", "drpavanendo.com"];
+
+  it("records a body/utm label as a CLIENT CLAIM, never as a classification", () => {
+    expect(deriveSubmissionSource({ bodySource: "facebook" })).toEqual({
+      source: "facebook",
+      method: "client_label",
+    });
+    expect(deriveSubmissionSource({ utmSource: "newsletter" })).toEqual({
+      source: "newsletter",
+      method: "client_label",
+    });
+  });
+
+  it("records a first-touch landing referrer as client_referrer (our label, their input)", () => {
+    expect(
+      deriveSubmissionSource({
+        firstTouchReferer: "https://www.google.com/",
+        projectHosts: ownHosts,
+      }),
+    ).toEqual({ source: "google", method: "client_referrer" });
+  });
+
+  it("records the submit Referer header as header_referrer", () => {
+    expect(
+      deriveSubmissionSource({
+        referer: "https://www.facebook.com/",
+        projectHosts: ownHosts,
+      }),
+    ).toEqual({ source: "facebook", method: "header_referrer" });
+  });
+
+  it("THE REVIEW FINDING: an identical label keeps a DIFFERENT method per signal", () => {
+    // Same channel word, three different kinds of evidence. Before provenance was
+    // stored these were indistinguishable on the row, so a report could present a
+    // visitor's claim as verified attribution. They must never collapse again.
+    const claimed = deriveSubmissionSource({ bodySource: "google" });
+    const classifiedFromBody = deriveSubmissionSource({
+      firstTouchReferer: "https://www.google.com/",
+      projectHosts: ownHosts,
+    });
+    const classifiedFromHeader = deriveSubmissionSource({
+      referer: "https://www.google.com/",
+      projectHosts: ownHosts,
+    });
+
+    expect(claimed.source).toBe("google");
+    expect(classifiedFromBody.source).toBe("google");
+    expect(classifiedFromHeader.source).toBe("google");
+
+    expect(claimed.method).toBe("client_label");
+    expect(classifiedFromBody.method).toBe("client_referrer");
+    expect(classifiedFromHeader.method).toBe("header_referrer");
+
+    expect(sourceConfidence(claimed.method)).toBe("claimed");
+    expect(sourceConfidence(classifiedFromBody.method)).toBe("claimed");
+    expect(sourceConfidence(classifiedFromHeader.method)).toBe("observed");
+  });
+
+  it("a winning client claim does NOT inherit the referrer's method", () => {
+    // The claim takes precedence (it is the real first touch) but stays a CLAIM —
+    // precedence is not promotion.
+    expect(
+      deriveSubmissionSource({
+        bodySource: "newsletter",
+        firstTouchReferer: "https://www.google.com/",
+        referer: "https://www.bing.com/",
+        projectHosts: ownHosts,
+      }),
+    ).toEqual({ source: "newsletter", method: "client_label" });
+  });
+
+  it("a junk claim falls through and the method follows the signal that won", () => {
+    expect(
+      deriveSubmissionSource({
+        bodySource: "definitely-not-a-channel",
+        firstTouchReferer: "https://www.bing.com/",
+        projectHosts: ownHosts,
+      }),
+    ).toEqual({ source: "bing", method: "client_referrer" });
+  });
+
+  it("unknown carries a null method — no provenance is invented either", () => {
+    expect(deriveSubmissionSource({})).toEqual({ source: null, method: null });
+    expect(
+      deriveSubmissionSource({
+        referer: "https://drpavanendo.com/book",
+        projectHosts: ownHosts,
+      }),
+    ).toEqual({ source: null, method: null });
+  });
+
+  it("INVARIANT: method is null if and only if source is null", () => {
+    const cases: SourceSignals[] = [
+      {},
+      { bodySource: "facebook" },
+      { utmSource: "spring_promo_2026" }, // unrecognized → unknown
+      { utmSource: "gmb" },
+      { firstTouchReferer: "https://www.google.com/" },
+      { firstTouchReferer: "not a url" },
+      { referer: "https://www.yelp.com/biz/x" },
+      { referer: "https://drpavanendo.com/x", projectHosts: ownHosts },
+    ];
+    for (const signals of cases) {
+      const { source, method } = deriveSubmissionSource(signals);
+      expect(method === null).toBe(source === null);
+    }
+  });
+});
+
+describe("source confidence — no submission source is verified attribution", () => {
+  it("maps each method to its honest tier", () => {
+    expect(sourceConfidence("client_label")).toBe("claimed");
+    expect(sourceConfidence("client_referrer")).toBe("claimed");
+    expect(sourceConfidence("header_referrer")).toBe("observed");
+  });
+
+  it("treats a null/unrecognized stored method as unknown — never upgrades it", () => {
+    expect(sourceConfidence(null)).toBe("unknown");
+    expect(sourceConfidence(undefined)).toBe("unknown");
+    expect(sourceConfidence("")).toBe("unknown");
+    expect(sourceConfidence("verified")).toBe("unknown"); // a value we never write
+    expect(sourceConfidence("server_classified")).toBe("unknown");
+    expect(sourceConfidence(42)).toBe("unknown");
+  });
+
+  it("never grades any method as verified — the endpoint is public (Value #6)", () => {
+    for (const method of Object.keys(SOURCE_METHOD_CONFIDENCE)) {
+      expect(isVerifiedAttribution(method)).toBe(false);
+      expect(sourceConfidence(method)).not.toBe("verified");
+    }
+    expect(isVerifiedAttribution(null)).toBe(false);
+    expect(isVerifiedAttribution("header_referrer")).toBe(false);
+  });
+
+  it("isSourceMethod guards what a row hands back", () => {
+    expect(isSourceMethod("client_label")).toBe(true);
+    expect(isSourceMethod("client_referrer")).toBe(true);
+    expect(isSourceMethod("header_referrer")).toBe(true);
+    expect(isSourceMethod("google")).toBe(false); // a LABEL is not a method
+    expect(isSourceMethod(null)).toBe(false);
+    expect(isSourceMethod(undefined)).toBe(false);
   });
 });
 

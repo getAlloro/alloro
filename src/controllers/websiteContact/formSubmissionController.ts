@@ -425,6 +425,9 @@ export async function handleFormSubmission(req: Request, res: Response): Promise
     // The frontend carries the visitor's FIRST-TOUCH source to the submit; the
     // submit Referer is the practice's own page (internal), so it is only a
     // cross-site fallback. Unknown → null, never a guessed channel (Value #6).
+    // The derived PROVENANCE is persisted alongside the label (source_method),
+    // so a browser-supplied claim is never stored with the authority of a
+    // server-side classification (§5.2) — see sourceAttribution.ts.
     const projectHosts = [
       project.generated_hostname
         ? `${project.generated_hostname}.sites.getalloro.com`
@@ -433,7 +436,7 @@ export async function handleFormSubmission(req: Request, res: Response): Promise
       project.custom_domain || null,
       project.custom_domain_alt || null,
     ].filter((h): h is string => Boolean(h));
-    const submissionSource = deriveSubmissionSource({
+    const derivedSource = deriveSubmissionSource({
       bodySource: typeof req.body.source === "string" ? req.body.source : null,
       utmSource:
         typeof req.body.utm_source === "string" ? req.body.utm_source : null,
@@ -455,7 +458,8 @@ export async function handleFormSubmission(req: Request, res: Response): Promise
         contents: finalContents,
         recipients_sent_to: recipients,
         sender_ip: senderIp,
-        source: submissionSource,
+        source: derivedSource.source,
+        source_method: derivedSource.method,
         content_hash: contentHash,
         is_flagged: false,
       });

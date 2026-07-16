@@ -1,0 +1,127 @@
+{
+  "plan": "plans/07152026-m0-submission-source-capture",
+  "generatedAt": "2026-07-16",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "A1",
+      "title": "A utm_source / source claim is stored as a CLAIM, never as a classification",
+      "surface": "api",
+      "precondition": "Real Express app driven over HTTP via Supertest (real router, real validation middleware, real controller, real own-host filtering). The DB model, AI analysis, recipient routing, and CRM lookup are mocked - the persisted payload is captured and asserted rather than written. No local Postgres exists in this environment (pg_isready and docker are both absent), and the shared dev DB must not take an unmerged migration (AGENTS.md deploy path), so the row write is asserted at the model boundary.",
+      "steps": [
+        "POST /api/websites/form-submission with body utm_source=facebook and an INTERNAL Referer (https://drpavanendo.com/contact).",
+        "Capture the object handed to FormSubmissionModel.create.",
+        "Assert the label and the provenance columns."
+      ],
+      "expected": "200; the persisted row carries source='facebook' AND source_method='client_label' - the winning claim keeps claim provenance and is not promoted to a classification.",
+      "status": "pass",
+      "evidence": "src/__tests__/form-submission-source-route.test.ts A1 passed in the focused 7-test run and the 58-test targeted run.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "A2",
+      "title": "A forwarded first-touch referrer is stored as client_referrer (our label, their input)",
+      "surface": "api",
+      "precondition": "Same Supertest harness as A1.",
+      "steps": [
+        "POST with body first_touch_referrer=https://www.google.com/ and an INTERNAL Referer.",
+        "Capture the FormSubmissionModel.create payload."
+      ],
+      "expected": "200; source='google' AND source_method='client_referrer' - Alloro classified the URL, but the URL arrived from the page, so it is not graded as an observation.",
+      "status": "pass",
+      "evidence": "src/__tests__/form-submission-source-route.test.ts A2 passed.",
+      "notes": "This tier is the refinement beyond the review's two-value model: first_touch_referrer arrives in the request BODY, so it is client-supplied input even though the classification is ours.",
+      "waiver": ""
+    },
+    {
+      "id": "A3",
+      "title": "A cross-site submit Referer header is stored as header_referrer",
+      "surface": "api",
+      "precondition": "Same Supertest harness as A1.",
+      "steps": [
+        "POST with no body source signals and Referer: https://www.bing.com/.",
+        "Capture the FormSubmissionModel.create payload."
+      ],
+      "expected": "200; source='bing' AND source_method='header_referrer' - the strongest tier available (browser-set, server-classified), and still not 'verified'.",
+      "status": "pass",
+      "evidence": "src/__tests__/form-submission-source-route.test.ts A3 passed.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "A4",
+      "title": "THE REVIEW FINDING - an identical label 'google' persists a DIFFERENT source_method per signal",
+      "surface": "api",
+      "precondition": "Same Supertest harness as A1. This is the direct behavioral proof of the 5.2 finding: before the fix, a client claim and a server classification were indistinguishable on the row.",
+      "steps": [
+        "POST body source=google with an INTERNAL Referer, then capture the row (the CLAIM path).",
+        "Reset the create spy.",
+        "POST with no body signals and Referer: https://www.google.com/, then capture the row (the CLASSIFIED path).",
+        "Compare source and source_method across the two rows."
+      ],
+      "expected": "Both rows carry source='google', but source_method='client_label' vs 'header_referrer' - the two are no longer collapsible, so no report can present the claim as verified attribution.",
+      "status": "pass",
+      "evidence": "src/__tests__/form-submission-source-route.test.ts A4 passed. NEGATIVE CONTROL: with the controller's source_method line removed, all 7 items in this file fail with 'AssertionError: expected undefined to be client_label' - the checks discriminate and are not vacuous. The controller was restored byte-identical afterward (diff clean).",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "A5",
+      "title": "An internal-only journey stores unknown - no source, and no invented provenance",
+      "surface": "api",
+      "precondition": "Same Supertest harness as A1. Own hosts resolve to drpavan.sites.getalloro.com and drpavanendo.com.",
+      "steps": [
+        "POST with no body signals and an INTERNAL Referer (https://drpavanendo.com/contact).",
+        "Capture the FormSubmissionModel.create payload."
+      ],
+      "expected": "200; source=null AND source_method=null. The invariant (method is null iff source is null) holds - an unknown source never acquires a provenance.",
+      "status": "pass",
+      "evidence": "src/__tests__/form-submission-source-route.test.ts A5 passed. The invariant is also property-checked across 8 signal shapes in src/__tests__/sourceAttribution.test.ts ('INVARIANT: method is null if and only if source is null').",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "A6",
+      "title": "A PII-shaped utm_source reaches neither column",
+      "surface": "api",
+      "precondition": "Same Supertest harness as A1.",
+      "steps": [
+        "POST with utm_source=jane.doe:1987-03-04 (a personalized utm carrying a name and DOB).",
+        "Capture the FormSubmissionModel.create payload and serialize it."
+      ],
+      "expected": "200; source=null, source_method=null, and the serialized row contains no 'jane.doe' substring - the closed-vocabulary allow-list holds at the HTTP boundary, not only in the unit.",
+      "status": "pass",
+      "evidence": "src/__tests__/form-submission-source-route.test.ts A6 passed.",
+      "notes": "Guards the pre-existing PII floor (5.2 / 5.3) against regression from the provenance refactor.",
+      "waiver": ""
+    },
+    {
+      "id": "A7",
+      "title": "The row never carries a 'verified' provenance value",
+      "surface": "api",
+      "precondition": "Same Supertest harness as A1.",
+      "steps": [
+        "POST with both a utm_source claim and a cross-site Referer.",
+        "Assert source_method is one of the three honest tiers and is never 'verified'."
+      ],
+      "expected": "source_method is one of client_label, client_referrer, header_referrer; never 'verified'. No submission source is verified attribution - the endpoint is public and every signal is client-influenced (Value #6).",
+      "status": "pass",
+      "evidence": "src/__tests__/form-submission-source-route.test.ts A7 passed. Reinforced at the unit layer: isVerifiedAttribution() returns false for every method, and sourceConfidence() returns 'unknown' for any unrecognized stored value rather than upgrading it.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "A8",
+      "title": "Migration applies, is reversible, and is idempotent against a real database",
+      "surface": "db",
+      "precondition": "NOT RUN - no drivable database in this environment. There is no local Postgres (pg_isready and docker are both absent), and the only reachable DB is the shared dev database, which must not receive an unmerged migration ahead of a dev/dave push (AGENTS.md: 'Migrations run first on dev/dave against the dev database').",
+      "steps": [],
+      "expected": "npm run db:migrate adds source_method VARCHAR(32) NULL to website_builder.form_submissions; db:rollback drops it; re-running up is a no-op via ADD COLUMN IF NOT EXISTS.",
+      "status": "fail",
+      "evidence": "Static review only: src/database/migrations/20260716000000_add_source_method_to_form_submissions.ts uses ADD COLUMN IF NOT EXISTS (idempotent) and DROP COLUMN IF EXISTS (reversible), nullable, no default, no index, no backfill - the same pattern as its sibling 20260715000000_add_source_to_form_submissions.ts, which itself mirrors the shipped sender_ip / is_flagged migrations on this table.",
+      "notes": "Deliberately a SEPARATE migration rather than an edit to 20260715000000: that migration may already be recorded in a local or dev knex_migrations table, and knex never re-runs a recorded migration - editing it would mean source_method silently never lands. Production risk: one additive nullable column on one table; no data rewrite, no backfill, no meaningful lock; historical rows stay null, which honestly reads as 'we did not record how'.",
+      "waiver": "WAIVED - un-drivable here, and forcing it would mean migrating the shared dev DB from an unmerged branch, which the deploy path forbids. It executes on the normal path when dev/dave deploys (dev.yml runs npm run db:migrate). Verification owner: the dev deploy - confirm the column exists and that PM2 and /api/health/db stay green."
+    }
+  ]
+}
