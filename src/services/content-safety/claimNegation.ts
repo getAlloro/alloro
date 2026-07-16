@@ -125,6 +125,69 @@ const MAX_UNLINKED_WORDS_TO_CLAIM = 1;
 const DETERMINER_NEGATORS = new Set(["no", "without"]);
 
 /**
+ * Words that can open a new independent clause's SUBJECT. Pronouns, plus the
+ * possessive/demonstrative determiners that head a subject NP ("your practice
+ * ranks…"). Deliberately EXCLUDES the bare articles "the"/"a"/"an": those head
+ * OBJECT list items far more often than subjects in this copy ("we do not
+ * promise rankings, the top spot, or page one"), so admitting them would split
+ * an honest coordinated object list.
+ *
+ * Declared here, above BOTH consumers: Rule D reads it at module-init time to
+ * build its skip guard, and the negation-scope boundary reads it further down.
+ * One definition, because "what opens a new subject" is one idea — a second copy
+ * would drift, and the two uses must agree.
+ */
+const NEW_SUBJECT =
+  "(?:we|i|you|he|she|it|they|this|that|these|those|there|our|your|his|her|its|their|alloro|" +
+  // Relative pronouns open a relative clause with its own verb. They are safe to
+  // admit because, unlike a noun, a relative pronoun is never an item in a
+  // coordinated object list, so they cannot split an honest disclaimer's list.
+  "which|who|whom|whose|where|everyone|anyone|nobody)";
+
+/**
+ * RULE D — a determiner negator whose NP is the SUBJECT OF A FINITE VERB.
+ *
+ * Rules A–C ask how far the negator sits from the claim, because a determiner
+ * negator heading a VERBLESS fragment cannot reach a following predication. But
+ * once its NP takes a finite verb, the negator is clausal and scopes over the
+ * whole predicate however long the subject is:
+ *
+ *   "No dentist can guarantee results."      "No treatment is guaranteed to be pain-free."
+ *   "No practice guarantees top placement."  "No agency can guarantee a higher ranking."
+ *
+ * Every one of these is the plainest honest sentence in the disclaimer space, and
+ * every one BLOCKED — the word-distance test saw two words ("dentist can") where
+ * it allows one, and no linking preposition, so it read a real clausal negation
+ * as a fragment. Measured as a class, not a string: ten of ten natural
+ * "no <subject> <verb> <claim>" disclaimers blocked before this rule.
+ *
+ * The verb set is deliberately CLOSED to auxiliaries, modals, copulas and the
+ * promise verbs. Widening it toward "any verb" would launder a fragment whose
+ * second word merely looks verbal.
+ *
+ * The subject words the rule may skip carry a NEW_SUBJECT lookahead, and it is
+ * load-bearing: without it "No one doubts we guarantee top placement" PASSED —
+ * a MEASURED laundering caught by this round's own guard fixture. The skip
+ * hopped over the real finite verb ("doubts") and landed on the claim's verb.
+ * A new subject pronoun means the claim sits in a COMPLEMENT clause with its own
+ * subject, so the negation scopes over the matrix verb and never reaches it.
+ */
+const FINITE_VERB_AFTER_NEGATED_SUBJECT = new RegExp(
+  `^\\s{1,8}(?:(?!${NEW_SUBJECT}\\b)\\w{1,20}\\s{1,8}){0,3}(?:` +
+    "is|are|was|were|be|been|am|has|have|had|do|does|did|" +
+    "can|could|will|would|shall|should|may|might|must|" +
+    "guarantees?|promises?|ensures?|assures?|delivers?|offers?|provides?|claims?|ranks?" +
+    ")\\b",
+  "i",
+);
+
+/**
+ * Widest window Rule D reads — three subject words plus the verb, with room to
+ * spare. Bounded so the test stays O(1) per negator rather than O(clause).
+ */
+const FINITE_VERB_WINDOW = 128;
+
+/**
  * Widest window an IDIOM_BOUND_NEGATOR head can occupy — its leading whitespace
  * run plus its longest phrase, with room to spare so the `\b` that closes each
  * head always has the following character to look at. Bounded so the idiom test
@@ -188,9 +251,12 @@ function countWordsFrom(clause: string, start: number, limit: number): number {
  * early-exiting word count and one precomputed link index for Rule C — so the
  * walk stays linear in the clause however many negators it holds.
  */
-function hasGoverningNegator(clause: string): boolean {
+function hasGoverningNegator(clause: string, claim: string): boolean {
   const scan = new RegExp(RANK_PROMISE_NEGATORS.source, RANK_PROMISE_NEGATORS.flags);
   let linkIndex: number | null = null;
+  // Hoisted: the claim does not change across negators, so slicing it per
+  // negator made a clause of many negators pay for the same substring N times.
+  let claimHead: string | null = null;
   let match: RegExpExecArray | null;
   while ((match = scan.exec(clause)) !== null) {
     const token = match[0].toLowerCase().replace(/’/g, "'");
@@ -203,6 +269,22 @@ function hasGoverningNegator(clause: string): boolean {
         return true;
       }
       if (countWordsFrom(clause, end, MAX_UNLINKED_WORDS_TO_CLAIM) <= MAX_UNLINKED_WORDS_TO_CLAIM) {
+        return true;
+      }
+      // RULE D — the NP takes a finite verb, so the negation is clausal and
+      // reaches the predicate however long the subject is.
+      //
+      // The CLAIM is appended to the region scanned, because a claim pattern can
+      // begin AT the finite verb it needs: in "no SEO work | GUARANTEES a higher
+      // ranking" the verb is the first word of the match, leaving a verbless "no
+      // SEO work" behind it. Scanning only the text before the match made the
+      // same grammar pass or block depending on which pattern happened to match
+      // first — "no practice guarantees top placement" passed while "no SEO work
+      // guarantees a higher ranking" blocked.
+      if (claimHead === null) {
+        claimHead = claim.slice(0, FINITE_VERB_WINDOW);
+      }
+      if (FINITE_VERB_AFTER_NEGATED_SUBJECT.test(clause.slice(end, end + FINITE_VERB_WINDOW) + claimHead)) {
         return true;
       }
       if (linkIndex === null) {
@@ -218,21 +300,6 @@ function hasGoverningNegator(clause: string): boolean {
   }
   return false;
 }
-
-/**
- * Words that can open a new independent clause's SUBJECT. Pronouns, plus the
- * possessive/demonstrative determiners that head a subject NP ("your practice
- * ranks…"). Deliberately EXCLUDES the bare articles "the"/"a"/"an": those head
- * OBJECT list items far more often than subjects in this copy ("we do not
- * promise rankings, the top spot, or page one"), so admitting them would split
- * an honest coordinated object list.
- */
-const NEW_SUBJECT =
-  "(?:we|i|you|he|she|it|they|this|that|these|those|there|our|your|his|her|its|their|alloro|" +
-  // Relative pronouns open a relative clause with its own verb. They are safe to
-  // admit because, unlike a noun, a relative pronoun is never an item in a
-  // coordinated object list, so they cannot split an honest disclaimer's list.
-  "which|who|whom|whose|where|everyone|anyone|nobody)";
 
 /**
  * Coordinators and negators across which negation CARRIES rather than stopping.
@@ -520,10 +587,160 @@ const NON_DENYING_PREDICATE_TAIL = new RegExp(
 );
 
 /**
+ * POST-CLAIM DENIAL FRAGMENT — the ELLIPTICAL denial.
+ *
+ * POST_MODIFYING_NEGATION above only recognizes a negated FINITE predicate whose
+ * subject is the claim ("Permanent results ARE not guaranteed"). Headlines,
+ * captions, FAQ answers and disclaimer lines routinely elide the copula and set
+ * the denial off with punctuation instead:
+ *
+ *   "Top placement? Not guaranteed."      "Higher rankings: not guaranteed."
+ *   "Permanent results — never promised." "First page placement (not a given)."
+ *
+ * Every one of these is the claim followed by its own denial, and every one of
+ * them BLOCKED, because the finite-predicate model cannot cross the punctuation
+ * and finds no auxiliary on the far side. This is the silent over-block
+ * direction: the practice cannot publish the most honest line it has.
+ *
+ * The fragment is bounded on all four sides, because a trailing fragment that
+ * denies something OTHER than the claim must not launder it:
+ *
+ *   "Top placement? Not just traffic."   ← a CORRECTIVE. Must still BLOCK.
+ *   "Top placement? No problem."         ← an IDIOM that asserts. Must BLOCK.
+ *
+ * What separates a denial from a corrective is the HEAD the negator lands on,
+ * not the negator and not the punctuation — both of those are identical across
+ * the two. So the head is a closed set of DENIAL vocabulary (the "guaranteed"
+ * participle family, the "guarantee"/"given" noun family), and a head outside it
+ * is not read as a denial at all. "traffic" and "problem" are not in it, which is
+ * what keeps the correctives blocked without a rule aimed at their strings.
+ *
+ * The asserting-verb guard is REUSED unchanged: "We guarantee top placement. Not
+ * guaranteed." keeps blocking, because a verb that asserts the claim outranks any
+ * fragment that follows it.
+ *
+ * KNOWN RESIDUALS — narrow on purpose, and NOT exhaustive. Measured by this
+ * round's own adversary pass, and left open with the reason, not papered over.
+ *   - RE-ASSERTION IN A FOLLOWING SENTENCE. The fragment is read correctly, and a
+ *     SEPARATE sentence after it takes the claim back. Catching that means
+ *     judging whether the next sentence reverses the denial, which is semantic:
+ *     every lexical proxy tried over-blocked honest copy, because a sentence that
+ *     merely CONTINUES a disclaimer is surface-identical to one that reverses it.
+ *     These are MISSES — a missed boast still meets owner approval before publish
+ *     — so the miss is taken over the over-block, on purpose. (Category only: the
+ *     repo is public, so this residual's concrete shapes stay out of source.) The
+ *     tightly-bound comma form of the same idea IS closed, above.
+ *   - The denial head is a LEXICAL inventory. A denial written on a head nobody
+ *     listed ("Top placement? Not on the table.") still blocks. That is an
+ *     over-block, and it is the honest cost of keeping "not just traffic"
+ *     blocked without a part-of-speech tagger: the two are surface-identical
+ *     apart from the head word. The inventory covers the denial vocabulary this
+ *     copy actually uses; it can be widened as real copy shows up.
+ *   - "just"/"only" are deliberately EXCLUDED from the adverb set. They mark a
+ *     correction ("not just traffic"), never a denial, so admitting them would
+ *     open exactly the laundering shape this fragment must not admit.
+ */
+
+/** Punctuation that can set a denial fragment off from the claim it denies. */
+const DENIAL_FRAGMENT_BOUNDARY =
+  `(?:${GAP}[.!?;:\\u2026]${GAP}|${DASH_SEPARATOR}|${GAP}${COMMA}${GAP}|${GAP}\\(${GAP}|${LINE_BREAK}${GAP})`;
+
+/** The negators that can head an elliptical denial. */
+const DENIAL_NEGATOR = "(?:not|never|no)";
+
+/**
+ * Adverbs that may sit between the negator and its head. "just" and "only" are
+ * absent BY DESIGN — they mark a corrective, not a denial.
+ */
+const DENIAL_ADVERB =
+  "(?:ever|always|necessarily|generally|typically|usually|currently|strictly|" +
+  "absolutely|entirely|fully|remotely|really|truly|automatically)";
+
+/** The participle/adjective family a denial lands on. */
+const DENIAL_ADJECTIVE =
+  "(?:guaranteed|promised|assured|ensured|granted|implied|certain|typical|" +
+  "permanent|automatic|instant|immediate|inevitable|predictable|controllable|" +
+  "possible|definite|fixed|forever|owed)";
+
+/** The noun family a denial lands on, with or without its determiner. */
+const DENIAL_NOUN = "(?:guarantees?|promises?|certainty|certainties|given|sure\\s{1,8}thing|lock)";
+const DENIAL_DETERMINER = "(?:an?|our|any|the)";
+
+/** "not something we promise", "not something anyone can guarantee". */
+const DENIAL_SOMETHING =
+  "something\\s{1,8}(?:we|you|anyone|any\\s{1,8}\\w{1,20})\\s{1,8}(?:can\\s{1,8})?" +
+  "(?:promise|guarantee|control|offer|sell|claim)s?";
+
+const DENIAL_HEAD =
+  `(?:(?:${DENIAL_ADVERB}\\s{1,8}){0,2}${DENIAL_ADJECTIVE}` +
+  `|(?:${DENIAL_DETERMINER}\\s{1,8})?${DENIAL_NOUN}` +
+  `|${DENIAL_SOMETHING})`;
+
+/**
+ * A bounded tail continuing the denial — a PP ("by anyone", "at all", "in any
+ * way") or a trailing adverb ("ever"). Bounded like every other run here.
+ */
+const DENIAL_TAIL =
+  `(?:\\s{1,8}(?:by|for|at|in|to|with|on|of|from)\\s{1,8}(?:\\w{1,20}\\s{1,8}){0,3}\\w{1,20}` +
+  `|\\s{1,8}${DENIAL_ADVERB})?`;
+
+/**
+ * Material that CONTINUES a denial past a comma ("not guaranteed, and never
+ * promised"; "not guaranteed, ever").
+ *
+ * NEGATION_CARRYING is deliberately NOT reused here even though it is the same
+ * idea in the backward direction: it contains "but"/"yet", and after a denial
+ * fragment an adversative REVERSES rather than continues — "not a promise, but a
+ * fact" asserts the claim. The backward set can afford them; this one cannot.
+ */
+const DENIAL_CONTINUATION = "(?:and|or|nor|not|never|no|neither|nothing|ever|period|at\\s{1,8}all)";
+
+/**
+ * The fragment must END at a clause end. A head that runs on into a finite
+ * clause is a different sentence doing different work, and is not read here.
+ *
+ * A COMMA only ends the fragment when what follows CONTINUES the denial. This is
+ * load-bearing, and it was a MEASURED laundering in this round's own adversary
+ * pass: with a bare comma accepted, "<claim>. Not a promise, a fact." passed —
+ * the denial noun satisfied the fragment and the phrase after the comma quietly
+ * reversed it. Requiring the continuation is what separates "not guaranteed,
+ * ever" (a denial) from "not a promise, a fact" (an assertion wearing one).
+ */
+const DENIAL_CLAUSE_END =
+  `(?=\\s{0,8}(?:[.!?;:)\\u2026]|$|${COMMA}${GAP}${DENIAL_CONTINUATION}\\b))`;
+
+const POST_CLAIM_DENIAL_FRAGMENT = new RegExp(
+  `${SUBJECT_TAIL}${DENIAL_FRAGMENT_BOUNDARY}${DENIAL_NEGATOR}\\b\\s{1,8}${DENIAL_HEAD}${DENIAL_TAIL}${DENIAL_CLAUSE_END}`,
+  "iy",
+);
+
+/**
+ * A cheap NECESSARY CONDITION for the fragment, tested on a bounded window
+ * before the pattern above is attempted.
+ *
+ * The full pattern is anchored, so it never scans forward — but it carries nested
+ * bounded quantifiers (the subject tail) and fails only after exploring them, and
+ * it is attempted once per matched claim. Most claims are followed by ordinary
+ * prose, so most of that work buys nothing. Every fragment must contain a
+ * boundary character followed by a denial negator, and no honest disclaimer can
+ * match the full pattern without first passing this one, so a fragment the
+ * precheck rejects could not have matched anyway.
+ */
+const DENIAL_FRAGMENT_NEARBY = /[.!?;:,(\n…—–―‒-]\s{0,8}(?:not|never|no)\b/i;
+
+/**
+ * How far past the claim the precheck reads. Must cover the widest subject tail
+ * the full pattern allows plus its boundary and negator, or the precheck could
+ * reject a fragment the pattern would have matched — a silent over-block.
+ */
+const DENIAL_FRAGMENT_WINDOW = 320;
+
+/**
  * True when a negator AFTER the claim governs the claim — i.e. the claim is the
- * subject of its own negated finite predicate, is not the object of an asserting
- * verb, and the negated predicate actually DENIES rather than idiomatically
- * asserting.
+ * subject of its own negated finite predicate, or is denied by an elliptical
+ * denial fragment set off from it by punctuation. In both directions the claim
+ * must not be the object of an asserting verb, and the negation must actually
+ * DENY rather than idiomatically assert.
  */
 function isNegatedByFollowingPredicate(text: string, matchStart: number, matchEnd: number): boolean {
   const lookbackFrom = Math.max(0, matchStart - ASSERTING_VERB_LOOKBACK);
@@ -532,10 +749,14 @@ function isNegatedByFollowingPredicate(text: string, matchStart: number, matchEn
   }
   POST_MODIFYING_NEGATION.lastIndex = matchEnd;
   const negation = POST_MODIFYING_NEGATION.exec(text);
-  if (negation === null) {
+  if (negation !== null) {
+    return !NON_DENYING_PREDICATE_TAIL.test(text.slice(matchEnd + negation[0].length));
+  }
+  if (!DENIAL_FRAGMENT_NEARBY.test(text.slice(matchEnd, matchEnd + DENIAL_FRAGMENT_WINDOW))) {
     return false;
   }
-  return !NON_DENYING_PREDICATE_TAIL.test(text.slice(matchEnd + negation[0].length));
+  POST_CLAIM_DENIAL_FRAGMENT.lastIndex = matchEnd;
+  return POST_CLAIM_DENIAL_FRAGMENT.test(text);
 }
 
 /**
@@ -560,7 +781,7 @@ export function matchesUnnegatedInNormalizedCopy(text: string, pattern: RegExp):
     const before = text.slice(0, match.index);
     const clause = before.slice(lastNegationScopeBoundaryEnd(before));
     const isNegated =
-      hasGoverningNegator(clause) ||
+      hasGoverningNegator(clause, match[0]) ||
       isNegatedByFollowingPredicate(text, match.index, match.index + match[0].length);
     if (!isNegated) {
       return true;

@@ -3,6 +3,7 @@ import {
   type ContentSafetyResult,
 } from "../../../services/content-safety/GeneratedCopySafetyService";
 import { normalizeForMatching } from "../../../services/content-safety/copyNormalization";
+import { matchesUnnegatedInNormalizedCopy } from "../../../services/content-safety/claimNegation";
 
 /**
  * GBP review-reply safety result. Alias of the neutral ContentSafetyResult so
@@ -68,6 +69,12 @@ export class GbpContentSafetyService {
       reasons.push("Reply exceeds Alloro's 900-character review reply limit.");
     }
 
+    // PRIVACY patterns stay a RAW match, deliberately. Negation does not make a
+    // reference to a reviewer's care safe to publish: "we cannot discuss your
+    // treatment" still confirms there was treatment, so a negated match is as
+    // disclosing as a bare one. This gate's asymmetry runs the other way from the
+    // honesty gate's — the harm is the publish, not the block — so it stays
+    // conservative and the reply goes back for a human edit.
     for (const pattern of BLOCKED_PATIENT_CONFIRMATION) {
       if (pattern.test(normalized)) {
         reasonCodes.push("private_detail_confirmation");
@@ -76,8 +83,18 @@ export class GbpContentSafetyService {
       }
     }
 
+    // HONESTY patterns route through the SHARED negation-aware matcher, the same
+    // one validateGeneratedCopy uses. Testing these patterns raw was a silent
+    // over-block: `OUTCOME_CLAIM_PATTERNS` contains a bare `\bguarantee\b`, so
+    // every honest disclaimer a practice could write — "we don't guarantee a
+    // higher ranking" — was blocked by the word it needs to say in order to
+    // disclaim. The gate refused to print the disclaimer that IS the product.
+    //
+    // Sharing the inventory without sharing the matcher is what made this
+    // possible: the fix to the negation model landed in the shared service and
+    // this path never called it. The two now cannot drift apart again.
     for (const pattern of OUTCOME_CLAIM_PATTERNS) {
-      if (pattern.test(normalized)) {
+      if (matchesUnnegatedInNormalizedCopy(normalized, pattern)) {
         reasonCodes.push("medical_or_outcome_claim");
         reasons.push("Reply appears to make a medical or outcome claim.");
         break;

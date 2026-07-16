@@ -655,6 +655,128 @@ describe("honesty lint — GeneratedCopySafetyService.validateGeneratedCopy", ()
   });
 });
 
+/**
+ * POST-CLAIM DENIAL FRAGMENTS — the elliptical denial.
+ *
+ * The forward negation model only read a negated FINITE predicate adjacent to
+ * the claim ("permanent results ARE not guaranteed"). Real disclaimer copy elides
+ * the copula and sets the denial off with punctuation instead. A sweep of the
+ * space measured 482 of 497 honest disclaimer shapes BLOCKED at the previous
+ * head — the whole class, not the three strings the review happened to name.
+ *
+ * These fixtures walk the class along its two axes: the BOUNDARY between claim
+ * and denial, and the HEAD the denial lands on.
+ */
+describe("honesty lint — post-claim denial fragments must not false-block", () => {
+  const claims = ["Top placement", "Higher rankings", "Permanent results", "First page placement"];
+  const boundaries = ["? ", ": ", ". ", " — ", "; ", "\n", " - ", ", "];
+  const denials = [
+    "Not guaranteed.",
+    "not guaranteed.",
+    "Never guaranteed.",
+    "Not promised.",
+    "Not always guaranteed.",
+    "No guarantee.",
+    "Not a guarantee.",
+    "Not a given.",
+    "Not certain.",
+    "Not guaranteed by anyone.",
+    "Not guaranteed, ever.",
+    "Not something we promise.",
+  ];
+  const fragments = claims.flatMap((c) => boundaries.flatMap((b) => denials.map((d) => c + b + d)));
+
+  it.each(fragments)("PASSES an honest post-claim denial: %j", (copy) => {
+    const result = GeneratedCopySafetyService.validateGeneratedCopy(copy);
+    expect(result.isSafe).toBe(true);
+  });
+
+  it.each(["Top placement (not guaranteed).", "Higher rankings (never guaranteed)."])(
+    "PASSES a parenthetical denial: %s",
+    (copy) => {
+      expect(GeneratedCopySafetyService.validateGeneratedCopy(copy).isSafe).toBe(true);
+    },
+  );
+
+  /*
+   * The other direction. A trailing fragment that denies something OTHER than
+   * the claim must not launder it. These are GUARD fixtures: they blocked before
+   * this round's fix and must keep blocking after it — the fragment rule is the
+   * part of this gate most likely to be widened later, and widening it carelessly
+   * fails in the direction owner approval is the only backstop for.
+   *
+   * "Not a promise, a fact." is here because it was a MEASURED laundering in this
+   * round's own adversary pass: the denial noun satisfied the fragment and the
+   * phrase after the comma quietly reversed it.
+   */
+  const stillBlocked = [
+    "Top placement? Not just traffic.",
+    "First page placement: not only visibility.",
+    "Top placement. Not a promise, a fact.",
+    "Top placement? Not a guarantee, a certainty.",
+    "First page placement — not a given, a certainty.",
+    "Top placement? No problem.",
+    "Ranking #1 on Google? Not a problem at all.",
+    "We guarantee first page placement, not just traffic.",
+    "We guarantee top placement — not guaranteed.",
+    "Guaranteed top placement. Not guaranteed.",
+  ];
+
+  it.each(stillBlocked)("BLOCKS a claim a trailing fragment does not deny: %s", (copy) => {
+    expect(GeneratedCopySafetyService.validateGeneratedCopy(copy).isSafe).toBe(false);
+  });
+});
+
+/**
+ * A determiner negator whose NP is the SUBJECT OF A FINITE VERB (Rule D).
+ *
+ * A SECOND over-block class, found by attacking the fix above rather than named
+ * in review. "No dentist can guarantee results." is the plainest honest sentence
+ * in this space and it blocked: the word-distance test saw two words where it
+ * allows one, so it read a real clausal negation as a verbless fragment. Ten of
+ * ten natural shapes in this class blocked before Rule D.
+ */
+describe("honesty lint — 'no <subject> <verb> <claim>' is clausal negation, not a fragment", () => {
+  const honest = [
+    "No treatment is guaranteed to be pain-free.",
+    "No dentist can guarantee results.",
+    "No procedure is pain-free.",
+    "No practice guarantees top placement.",
+    "No agency can guarantee a higher ranking.",
+    "No one can promise first page placement.",
+    // The claim pattern begins AT the finite verb here, leaving a verbless "no
+    // SEO work" before the match. Pinned because it is the case that proved the
+    // rule had to read the claim, not just the text before it.
+    "No SEO work guarantees a higher ranking.",
+    "No provider will guarantee permanent results.",
+    "No result is guaranteed.",
+    "No outcome is ever guaranteed.",
+  ];
+
+  it.each(honest)("PASSES a clausal 'no' disclaimer: %s", (copy) => {
+    expect(GeneratedCopySafetyService.validateGeneratedCopy(copy).isSafe).toBe(true);
+  });
+
+  /*
+   * GUARD fixtures. The verb set is closed to auxiliaries, modals, copulas and
+   * the promise verbs; widening it toward "any verb" would launder these. Each
+   * blocked before Rule D and must keep blocking after it.
+   */
+  const stillBlocked = [
+    "No one doubts we guarantee top placement.",
+    "No-hassle guaranteed top placement on Google.",
+    "Without delay guaranteed top placement on Google.",
+    "No doubt we will rank you #1.",
+    "No question we can guarantee top placement.",
+    "No hassle, guaranteed top placement is yours.",
+    "No worries, your top placement is guaranteed.",
+  ];
+
+  it.each(stillBlocked)("BLOCKS a negator that governs no predicate: %s", (copy) => {
+    expect(GeneratedCopySafetyService.validateGeneratedCopy(copy).isSafe).toBe(false);
+  });
+});
+
 describe("AEO-incomplete gates nothing and is never owner-facing", () => {
   const html = pageWithSchema(
     INCOMPLETE_LOCAL_BUSINESS,
