@@ -217,3 +217,43 @@ describe("runAiVisibilityObservation", () => {
     expect(recordSpy).not.toHaveBeenCalled();
   });
 });
+
+describe("AiVisibilityObservationModel.listForLocation — tenant scoping (§11.7 / §20.2)", () => {
+  type MockQb = {
+    where: (arg: Record<string, unknown>) => MockQb;
+    orderBy: () => MockQb;
+    limit: () => Promise<never[]>;
+  };
+
+  it("scopes the read by BOTH organization_id and location_id, so one org cannot read another's rows", async () => {
+    // The suite is DB-mocked, so this asserts the query SHAPE — the WHERE clause
+    // that enforces isolation. A behavioral real-DB test belongs in
+    // integration-tests once this read is wired to a production caller (none yet).
+    let whereArg: Record<string, unknown> | undefined;
+    const qb: MockQb = {
+      where(arg) {
+        whereArg = arg;
+        return qb;
+      },
+      orderBy() {
+        return qb;
+      },
+      limit() {
+        return Promise.resolve([]);
+      },
+    };
+    const tableSpy = vi
+      .spyOn(
+        AiVisibilityObservationModel as unknown as { table: (trx?: unknown) => MockQb },
+        "table"
+      )
+      .mockReturnValue(qb);
+
+    await AiVisibilityObservationModel.listForLocation(7, 42);
+
+    // Org 7 querying location 42 is scoped to org 7; org 8's rows at the same
+    // location_id are excluded by the organization_id filter.
+    expect(whereArg).toEqual({ organization_id: 7, location_id: 42 });
+    tableSpy.mockRestore();
+  });
+});
