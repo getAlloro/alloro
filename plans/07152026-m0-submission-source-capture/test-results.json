@@ -114,7 +114,7 @@
     {
       "id": "A8",
       "title": "Migration applies, is reversible, and is idempotent against a real database",
-      "surface": "db",
+      "surface": "cli",
       "precondition": "NOT RUN - no drivable database in this environment. There is no local Postgres (pg_isready and docker are both absent), and the only reachable DB is the shared dev database, which must not receive an unmerged migration ahead of a dev/dave push (AGENTS.md: 'Migrations run first on dev/dave against the dev database').",
       "steps": [],
       "expected": "npm run db:migrate adds source_method VARCHAR(32) NULL to website_builder.form_submissions; db:rollback drops it; re-running up is a no-op via ADD COLUMN IF NOT EXISTS.",
@@ -143,7 +143,7 @@
     {
       "id": "B1",
       "title": "The boundary schema DEFINES source, utm_source, and first_touch_referrer with bounded optional string types (11.2)",
-      "surface": "unit",
+      "surface": "cli",
       "precondition": "Pure schema unit test - formSubmissionSchema.safeParse, no app, no HTTP, no DB. Added in Rev 6. Zod 4.3.6; the asserted issue codes (too_big, invalid_type) were confirmed empirically against the installed zod build, not assumed.",
       "steps": [
         "B1: assert each of the three fields raises invalid_type on a non-string, proving it is KNOWN to the schema rather than swallowed by .passthrough().",
