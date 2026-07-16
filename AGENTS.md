@@ -2,6 +2,14 @@
 
 These are repo-local operating notes for `/Users/rustinedave/Desktop/alloro`. They intentionally include only Alloro-specific context. Broader workflow rules can live in `~/.codex/AGENTS.md`.
 
+## Asking Another Agent A Question
+
+Questions between builders go in [`BUILD-QUESTIONS.md`](BUILD-QUESTIONS.md) at the repo root — not Slack, not
+a DM, not a person. Slack is the heads-up; that file is the record. If you get an answer in Slack, write it
+back into the file. A question that lives only in a DM is invisible to the next session, which will re-ask it.
+
+Read it when you start work: it carries what's already been settled between the agents on both sides.
+
 ## Communication Style
 
 Write plainly for the user. Keep the technical substance accurate, but say it in simple, common words and short sentences. Lead with the main point, then the detail. No wordplay, puns, jokes, or clever phrasing — say things directly. When something has to stay technical (a file name, a command, a term), add a one-line plain explanation next to it. The goal: the user understands the answer on the first read without having to decode it.
