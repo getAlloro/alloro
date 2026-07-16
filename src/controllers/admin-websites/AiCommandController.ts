@@ -11,7 +11,6 @@
 
 import { Request, Response } from "express";
 import * as aiCommand from "./feature-services/service.ai-command";
-import { generateTasteRewriteBatch } from "./feature-services/service.taste-profile-rewrite";
 import logger from "../../lib/logger";
 
 /** POST /:id/ai-command — Create a new AI command batch and start analysis */
@@ -46,33 +45,7 @@ export async function createAiCommandBatch(req: Request, res: Response): Promise
   }
 }
 
-/**
- * POST /:id/ai-command/taste-rewrite — B2. Generate DRAFT rewrite recommendations
- * from the project's APPROVED Taste Profile. Each rewrite is honesty-gated before
- * it is stored; only clean rewrites become pending recommendations for the owner
- * to approve via the existing recommendation-approval rail. Nothing publishes here.
- */
-export async function generateTasteRewriteBatchHandler(req: Request, res: Response): Promise<Response> {
-  try {
-    const { id: projectId } = req.params;
-    const { location_id, target_pages } = req.body || {};
-
-    const result = await generateTasteRewriteBatch(projectId, {
-      locationId: location_id ?? null,
-      targetPages: target_pages ?? "all",
-      createdBy: (req as any).userId,
-    });
-
-    // No approved profile / no org → nothing to draft (honest empty, not an error).
-    if (result.status !== "ready") {
-      return res.status(200).json({ success: true, data: result, message: result.reason });
-    }
-    return res.status(201).json({ success: true, data: result });
-  } catch (error: any) {
-    logger.error({ err: error }, "[Admin Websites] Error generating taste-rewrite batch:");
-    return res.status(500).json({ success: false, error: "CREATE_ERROR", message: error?.message });
-  }
-}
+/** GET /:id/ai-command/:batchId — Get batch status and stats */
 
 /** GET /:id/ai-command/:batchId — Get batch status and stats */
 export async function getAiCommandBatch(req: Request, res: Response): Promise<Response> {

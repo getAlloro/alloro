@@ -21,7 +21,7 @@ export interface AiCommandTargets {
   layouts?: string[] | "all";
 }
 
-export type BatchType = "ai_editor" | "ui_checker" | "link_checker" | "taste_rewrite";
+export type BatchType = "ai_editor" | "ui_checker" | "link_checker";
 
 /**
  * Execution context — shared state threaded across all recommendations in a

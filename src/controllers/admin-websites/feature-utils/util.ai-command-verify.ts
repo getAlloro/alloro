@@ -24,7 +24,7 @@ import { normalizeSections } from "./util.section-normalizer";
 import logger from "../../../lib/logger";
 
 const MIN_TOKEN_LENGTH = 5;
-const VERIFIABLE_TARGET_TYPES = new Set(["page_section", "layout", "post", "taste_rewrite"]);
+const VERIFIABLE_TARGET_TYPES = new Set(["page_section", "layout", "post"]);
 const TOKEN_SPLIT = /[\s"'<>=(){};,]+/;
 
 const normalize = (s: string): string => (s || "").replace(/\s+/g, " ").toLowerCase();
@@ -79,9 +79,7 @@ async function readPublishedContent(rec: any): Promise<string | null> {
     return post ? post.content || "" : null;
   }
 
-  // taste_rewrite stores + publishes a section exactly like page_section
-  // (target_id = page id, meta.section_index), so it verifies the same way.
-  if (rec.target_type === "page_section" || rec.target_type === "taste_rewrite") {
+  if (rec.target_type === "page_section") {
     const origPage = await PageModel.findRawById(rec.target_id);
     if (!origPage) return null;
     const published = await PageModel.findRawByProjectPathStatus(

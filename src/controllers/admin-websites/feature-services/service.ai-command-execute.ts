@@ -44,7 +44,6 @@ import {
   executeUpdatePostMeta,
   executeUpdatePagePath,
 } from "./service.ai-command-execute-handlers";
-import { executeTasteRewrite } from "./service.taste-profile-rewrite";
 
 function createExecutionContext(opts?: { projectId?: string; batchId?: string }): ExecutionContext {
   return {
@@ -72,7 +71,6 @@ const EXECUTION_PHASE_ORDER: Record<string, number> = {
   page_section: 10,      // HTML edits last
   layout: 10,
   post: 10,
-  taste_rewrite: 10,     // B2 — writes stored gated copy to a section (HTML edit)
 };
 
 // ---------------------------------------------------------------------------
@@ -175,9 +173,6 @@ async function executeRecommendation(rec: any, ctx: ExecutionContext): Promise<v
   if (rec.target_type === "update_menu") return executeUpdateMenu(rec, ctx);
   if (rec.target_type === "update_post_meta") return executeUpdatePostMeta(rec);
   if (rec.target_type === "update_page_path") return executeUpdatePagePath(rec);
-
-  // B2 — taste_rewrite writes the STORED, pre-gated rewrite (no fresh LLM).
-  if (rec.target_type === "taste_rewrite") return executeTasteRewrite(rec, ctx);
 
   // Always use the latest HTML from DB — previous recommendations in this
   // batch may have already modified the same target. For page sections this
