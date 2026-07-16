@@ -31,8 +31,16 @@ const h = vi.hoisted(() => ({
   markSucceeded: vi.fn(),
   markFailed: vi.fn(),
   eventCreate: vi.fn(),
+  createWorkItem: vi.fn(),
   findProperty: vi.fn(),
   queueAdd: vi.fn(),
+  loggerError: vi.fn(),
+  /**
+   * A sentinel transaction handle. The db mock hands this to the callback, so a
+   * test can prove a write was made INSIDE the transaction by asserting the model
+   * received this exact handle (§10.5).
+   */
+  trx: { __sentinelTrx: true } as unknown,
 }));
 
 // The ONLY two Google touchpoints — both stubbed so no real request can escape.
@@ -47,9 +55,12 @@ vi.mock("../auth/oauth2Helper", () => ({
 }));
 vi.mock("../database/connection", () => ({
   db: {
-    // enqueueDeployment/approve wrap their status flip + event in a transaction;
-    // run the callback with an inert trx handle (models are mocked anyway).
-    transaction: async (fn: (trx: unknown) => Promise<unknown>) => fn({}),
+    // createDraft/approve/reject/enqueueDeployment wrap their multi-table writes in
+    // a transaction (§10.5). The callback gets the SENTINEL handle so a test can
+    // assert each model call was made inside it. NOTE: the models are mocked, so
+    // this proves the transaction is threaded through — real ROLLBACK semantics are
+    // PostgreSQL's and are not exercised here (no live DB in this suite).
+    transaction: async (fn: (trx: unknown) => Promise<unknown>) => fn(h.trx),
   },
 }));
 vi.mock("../workers/queues", () => ({
@@ -80,6 +91,7 @@ vi.mock("../models/GbpWorkItemModel", () => ({
     rejectBusinessInfoIfPending: h.rejectIfPending,
     claimBusinessInfoRevert: h.claimRevert,
     releaseBusinessInfoRevertClaim: h.releaseRevertClaim,
+    create: h.createWorkItem,
   },
 }));
 vi.mock("../models/GbpDeploymentAttemptModel", () => ({
@@ -95,8 +107,12 @@ vi.mock("../models/GbpWorkEventModel", () => ({
 vi.mock("../models/GooglePropertyModel", () => ({
   GooglePropertyModel: { findById: h.findProperty },
 }));
+vi.mock("../lib/logger", () => ({
+  default: { error: h.loggerError, warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
+}));
 
 import { GbpBusinessInfoDeploymentService } from "../controllers/gbp-automation/feature-services/GbpBusinessInfoDeploymentService";
+import { GbpBusinessInfoDraftService } from "../controllers/gbp-automation/feature-services/GbpBusinessInfoDraftService";
 import {
   extractMaskedFields,
   parseBusinessInfoDraftInput,
@@ -158,6 +174,7 @@ beforeEach(() => {
   h.claimRevert.mockResolvedValue(1);
   h.releaseRevertClaim.mockResolvedValue(1);
   h.queueAdd.mockResolvedValue({ id: "job-1" });
+  h.createWorkItem.mockResolvedValue({ id: "wi-1", status: "draft" });
 });
 
 describe("parseBusinessInfoDraftInput — boundary validation (§11.2)", () => {
@@ -536,5 +553,140 @@ describe("enqueue compensation — a queue failure never strands the item (revie
     h.claimRevert.mockResolvedValueOnce(1);
     await GbpBusinessInfoDeploymentService.enqueueRevert(params);
     expect(h.queueAdd).toHaveBeenCalledTimes(2);
+  });
+});
+
+/**
+ * §10.5 — a work item and its audit event are two tables and one fact. These
+ * assert the transaction is THREADED (both writes get the same handle), which is
+ * what the code controls. Real rollback-on-failure is PostgreSQL's behavior and
+ * is not exercised here — this suite has no live DB (see the db mock's note).
+ */
+describe("§10.5 — multi-table writes run inside one transaction", () => {
+  const draftParams = {
+    organizationId: 1,
+    locationId: 2,
+    userId: 5,
+    actorEmail: "owner@practice.test",
+    patch: { phoneNumbers: { primaryPhone: "+1 555 100 2000" } },
+    updateMask: ["phoneNumbers" as const],
+    summary: "Update phone number on Google",
+  };
+
+  it("createDraft writes the work item AND its event inside the same transaction", async () => {
+    await GbpBusinessInfoDraftService.createDraft(draftParams);
+
+    expect(h.createWorkItem).toHaveBeenCalledTimes(1);
+    expect(h.eventCreate).toHaveBeenCalledTimes(1);
+    // Both writes carry the sentinel trx → both are inside the transaction.
+    expect(h.createWorkItem.mock.calls[0][1]).toBe(h.trx);
+    expect(h.eventCreate.mock.calls[0][1]).toBe(h.trx);
+  });
+
+  it("createDraft surfaces a failed event write (so the transaction rolls back, not a half-write)", async () => {
+    h.eventCreate.mockRejectedValueOnce(new Error("event insert failed"));
+
+    await expect(GbpBusinessInfoDraftService.createDraft(draftParams)).rejects.toThrow(
+      "event insert failed"
+    );
+  });
+
+  it("reject flips the status AND writes its event inside the same transaction", async () => {
+    h.findScopedWorkItem.mockResolvedValue(deployingItem({ status: "draft" }));
+    h.findWorkItem.mockResolvedValue(deployingItem({ status: "rejected" }));
+
+    await GbpBusinessInfoDeploymentService.reject({
+      organizationId: 1,
+      workItemId: "wi-1",
+      userId: 5,
+      reason: "wrong number",
+    });
+
+    expect(h.rejectIfPending).toHaveBeenCalledTimes(1);
+    expect(h.eventCreate).toHaveBeenCalledTimes(1);
+    // rejectBusinessInfoIfPending(id, userId, reason, trx) — 4th arg.
+    expect(h.rejectIfPending.mock.calls[0][3]).toBe(h.trx);
+    expect(h.eventCreate.mock.calls[0][1]).toBe(h.trx);
+  });
+
+  it("a lost reject race writes no event (the guard throws inside the transaction)", async () => {
+    h.findScopedWorkItem.mockResolvedValue(deployingItem({ status: "draft" }));
+    h.rejectIfPending.mockResolvedValue(0);
+
+    await expect(
+      GbpBusinessInfoDeploymentService.reject({
+        organizationId: 1,
+        workItemId: "wi-1",
+        userId: 5,
+      })
+    ).rejects.toMatchObject({ code: "REJECT_NOT_AVAILABLE" });
+
+    expect(h.eventCreate).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * §3.2 — never swallow an error. The compensation audit event is best-effort (the
+ * caller must still see the typed queue error), but a failure to record it is
+ * logged with the identifiers an operator needs, never dropped on the floor.
+ */
+describe("§3.2 — a failed compensation event is logged, never swallowed", () => {
+  it("logs the deploy compensation event failure with workItemId + event type, and still throws the queue error", async () => {
+    h.findScopedWorkItem.mockResolvedValue(deployingItem({ status: "approved" }));
+    h.queueAdd.mockRejectedValue(new Error("queue backend unavailable"));
+    // The in-transaction "deployment_queued" event must land first; only the
+    // COMPENSATION event (written after the queue failure) is made to fail.
+    h.eventCreate
+      .mockResolvedValueOnce({ id: "ev-1" })
+      .mockRejectedValue(new Error("event insert failed"));
+
+    await expect(
+      GbpBusinessInfoDeploymentService.enqueueDeployment({
+        organizationId: 1,
+        workItemId: "wi-1",
+        userId: 5,
+      })
+    ).rejects.toMatchObject({ code: "DEPLOY_QUEUE_TRANSIENT_FAILURE" });
+
+    const logged = h.loggerError.mock.calls.find(
+      (call) =>
+        (call[0] as { eventType?: string })?.eventType ===
+        "business_info_deploy_enqueue_failed"
+    );
+    expect(logged).toBeDefined();
+    expect(logged?.[0]).toMatchObject({ workItemId: "wi-1" });
+    expect((logged?.[0] as { err?: Error })?.err).toBeInstanceOf(Error);
+  });
+
+  it("logs the revert compensation event failure with workItemId + event type, and still throws the queue error", async () => {
+    h.findScopedWorkItem.mockResolvedValue(
+      deployingItem({
+        status: "published",
+        business_info_payload: {
+          patch: { phoneNumbers: { primaryPhone: "+1 555 100 2000" } },
+          updateMask: ["phoneNumbers"],
+          previousValues: { phoneNumbers: { primaryPhone: "+1 555 000 0000" } },
+        },
+      })
+    );
+    h.queueAdd.mockRejectedValue(new Error("queue backend unavailable"));
+    h.eventCreate.mockRejectedValue(new Error("event insert failed"));
+
+    await expect(
+      GbpBusinessInfoDeploymentService.enqueueRevert({
+        organizationId: 1,
+        workItemId: "wi-1",
+        userId: 5,
+      })
+    ).rejects.toMatchObject({ code: "REVERT_QUEUE_TRANSIENT_FAILURE" });
+
+    const logged = h.loggerError.mock.calls.find(
+      (call) =>
+        (call[0] as { eventType?: string })?.eventType ===
+        "business_info_revert_enqueue_failed"
+    );
+    expect(logged).toBeDefined();
+    expect(logged?.[0]).toMatchObject({ workItemId: "wi-1" });
+    expect((logged?.[0] as { err?: Error })?.err).toBeInstanceOf(Error);
   });
 });

@@ -122,22 +122,31 @@ export class GbpBusinessInfoDeploymentService {
 
   static async reject(params: ScopedParams & { reason?: string }): Promise<IGbpWorkItem> {
     const item = await this.getScopedItem(params);
-    const rejected = await GbpWorkItemModel.rejectBusinessInfoIfPending(
-      item.id,
-      params.userId,
-      params.reason || null
-    );
-    if (rejected === 0) {
-      throw new GbpAutomationError(
-        "REJECT_NOT_AVAILABLE",
-        "A published or deploying profile update cannot be rejected; revert it instead."
+    // §10.5 — status flip + audit event are two tables and one fact; the guarded
+    // reject also throws INSIDE the transaction, so a lost race rolls back
+    // cleanly instead of recording a rejection event that never happened.
+    await db.transaction(async (trx) => {
+      const rejected = await GbpWorkItemModel.rejectBusinessInfoIfPending(
+        item.id,
+        params.userId,
+        params.reason || null,
+        trx
       );
-    }
-    await GbpWorkEventModel.create({
-      work_item_id: item.id,
-      actor_user_id: params.userId,
-      event_type: "business_info_rejected",
-      metadata: { reason: params.reason || null, actorEmail: params.actorEmail || null },
+      if (rejected === 0) {
+        throw new GbpAutomationError(
+          "REJECT_NOT_AVAILABLE",
+          "A published or deploying profile update cannot be rejected; revert it instead."
+        );
+      }
+      await GbpWorkEventModel.create(
+        {
+          work_item_id: item.id,
+          actor_user_id: params.userId,
+          event_type: "business_info_rejected",
+          metadata: { reason: params.reason || null, actorEmail: params.actorEmail || null },
+        },
+        trx
+      );
     });
     return (await GbpWorkItemModel.findById(item.id))!;
   }
@@ -199,12 +208,21 @@ export class GbpBusinessInfoDeploymentService {
           "[GBP] business-info enqueue compensation failed"
         );
       });
+      // §3.2 — the audit event is best-effort (the typed queue error below is
+      // what the caller must see), but a failure here is never silent: losing the
+      // compensation trail is exactly what an operator needs to know about.
+      const deployEnqueueFailedEvent = "business_info_deploy_enqueue_failed";
       await GbpWorkEventModel.create({
         work_item_id: item.id,
         actor_user_id: params.userId,
-        event_type: "business_info_deploy_enqueue_failed",
+        event_type: deployEnqueueFailedEvent,
         metadata: { actorEmail: params.actorEmail || null },
-      }).catch(() => undefined);
+      }).catch((eventError) => {
+        logger.error(
+          { err: eventError, workItemId: item.id, eventType: deployEnqueueFailedEvent },
+          "[GBP] business-info compensation event write failed"
+        );
+      });
       throw new GbpAutomationError(
         "DEPLOY_QUEUE_TRANSIENT_FAILURE",
         "The deployment could not be queued; the update was returned to draft. Retry in a moment."
@@ -275,12 +293,19 @@ export class GbpBusinessInfoDeploymentService {
           );
         }
       );
+      // §3.2 — best-effort, but never silent (see the deploy path above).
+      const revertEnqueueFailedEvent = "business_info_revert_enqueue_failed";
       await GbpWorkEventModel.create({
         work_item_id: item.id,
         actor_user_id: params.userId,
-        event_type: "business_info_revert_enqueue_failed",
+        event_type: revertEnqueueFailedEvent,
         metadata: { actorEmail: params.actorEmail || null },
-      }).catch(() => undefined);
+      }).catch((eventError) => {
+        logger.error(
+          { err: eventError, workItemId: item.id, eventType: revertEnqueueFailedEvent },
+          "[GBP] business-info compensation event write failed"
+        );
+      });
       throw new GbpAutomationError(
         "REVERT_QUEUE_TRANSIENT_FAILURE",
         "The revert could not be queued. Try again in a moment."

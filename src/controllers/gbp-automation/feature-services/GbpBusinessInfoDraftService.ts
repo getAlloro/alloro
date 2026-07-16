@@ -1,3 +1,4 @@
+import { db } from "../../../database/connection";
 import { GbpWorkEventModel } from "../../../models/GbpWorkEventModel";
 import { GbpWorkItemModel, IGbpWorkItem } from "../../../models/GbpWorkItemModel";
 import { GbpAutomationError } from "../feature-utils/GbpAutomationError";
@@ -47,24 +48,35 @@ export class GbpBusinessInfoDraftService {
       throw new GbpAutomationError("GBP_PROPERTY_MISSING", "GBP property missing.");
     }
 
-    const created = await GbpWorkItemModel.create({
-      organization_id: params.organizationId,
-      location_id: params.locationId,
-      google_property_id: property.id,
-      content_type: "business_info",
-      status: "draft",
-      draft_content: params.summary,
-      business_info_payload: { patch: params.patch, updateMask: params.updateMask },
-      created_by_user_id: params.userId,
-    });
+    // §10.5 — the work item and its audit event are two tables and one fact.
+    // Without a transaction a failed event write leaves a staged draft with no
+    // provenance; both land or neither does.
+    return db.transaction(async (trx) => {
+      const created = await GbpWorkItemModel.create(
+        {
+          organization_id: params.organizationId,
+          location_id: params.locationId,
+          google_property_id: property.id,
+          content_type: "business_info",
+          status: "draft",
+          draft_content: params.summary,
+          business_info_payload: { patch: params.patch, updateMask: params.updateMask },
+          created_by_user_id: params.userId,
+        },
+        trx
+      );
 
-    await GbpWorkEventModel.create({
-      work_item_id: created.id,
-      actor_user_id: params.userId,
-      event_type: "business_info_draft_created",
-      metadata: { updateMask: params.updateMask, actorEmail: params.actorEmail || null },
-    });
+      await GbpWorkEventModel.create(
+        {
+          work_item_id: created.id,
+          actor_user_id: params.userId,
+          event_type: "business_info_draft_created",
+          metadata: { updateMask: params.updateMask, actorEmail: params.actorEmail || null },
+        },
+        trx
+      );
 
-    return created;
+      return created;
+    });
   }
 }

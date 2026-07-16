@@ -32,21 +32,85 @@ const DAYS_OF_WEEK = [
   "SUNDAY",
 ] as const;
 
-/** google.type.TimeOfDay — hours 0-24 (24 = end-of-day close), minutes 0-59. */
-const timeOfDaySchema = z.object({
-  hours: z.number().int().min(0).max(24).optional(),
-  minutes: z.number().int().min(0).max(59).optional(),
-  seconds: z.number().int().min(0).max(59).optional(),
-  nanos: z.number().int().min(0).optional(),
-});
+/** google.type.TimeOfDay bounds. 24:00:00.000000000 is Google's end-of-day close. */
+const END_OF_DAY_HOUR = 24;
+const MAX_NANOS = 999_999_999;
+const NANOS_PER_SECOND = 1_000_000_000;
+const SECONDS_PER_MINUTE = 60;
+const SECONDS_PER_HOUR = 3_600;
 
-/** One open/close window in RegularHours.periods. */
-const timePeriodSchema = z.object({
-  openDay: z.enum(DAYS_OF_WEEK),
-  closeDay: z.enum(DAYS_OF_WEEK),
-  openTime: timeOfDaySchema,
-  closeTime: timeOfDaySchema,
-});
+/**
+ * google.type.TimeOfDay — hours 0-24 (24 = end-of-day close), minutes/seconds
+ * 0-59, nanos 0-999,999,999.
+ *
+ * The per-field ranges alone would still admit shapes Google rejects, so the
+ * refinement closes the gap: hour 24 is the *end-of-day sentinel*, valid only as
+ * exactly 24:00:00.000000000 — `24:59` is not a real time and must not travel
+ * outward to a live profile.
+ */
+const timeOfDaySchema = z
+  .object({
+    hours: z.number().int().min(0).max(END_OF_DAY_HOUR).optional(),
+    minutes: z.number().int().min(0).max(59).optional(),
+    seconds: z.number().int().min(0).max(59).optional(),
+    nanos: z.number().int().min(0).max(MAX_NANOS).optional(),
+  })
+  .superRefine((time, ctx) => {
+    if (
+      time.hours === END_OF_DAY_HOUR &&
+      ((time.minutes ?? 0) > 0 || (time.seconds ?? 0) > 0 || (time.nanos ?? 0) > 0)
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        message:
+          "hour 24 is end-of-day and must be exactly 24:00:00 (no minutes, seconds, or nanos)",
+      });
+    }
+  });
+
+/**
+ * An absent TimeOfDay field means zero (Google's convention: an empty openTime
+ * is midnight), so ordering compares full nanos-of-day with 0 defaults.
+ */
+function timeOfDayToNanosOfDay(time: z.infer<typeof timeOfDaySchema>): number {
+  const seconds =
+    (time.hours ?? 0) * SECONDS_PER_HOUR +
+    (time.minutes ?? 0) * SECONDS_PER_MINUTE +
+    (time.seconds ?? 0);
+  return seconds * NANOS_PER_SECOND + (time.nanos ?? 0);
+}
+
+/**
+ * One open/close window in RegularHours.periods.
+ *
+ * Ordering is only meaningful WITHIN a single day. When `closeDay` differs from
+ * `openDay` the period legitimately crosses midnight (open MONDAY 18:00 → close
+ * TUESDAY 02:00), and a close earlier than the open is exactly how Google
+ * expresses that — so overnight windows are deliberately left unconstrained.
+ * A same-day window, though, must close strictly after it opens; equal times are
+ * a zero-length window, not a real one. Open 00:00 → close 24:00 (open all day)
+ * stays valid under this rule.
+ */
+const timePeriodSchema = z
+  .object({
+    openDay: z.enum(DAYS_OF_WEEK),
+    closeDay: z.enum(DAYS_OF_WEEK),
+    openTime: timeOfDaySchema,
+    closeTime: timeOfDaySchema,
+  })
+  .superRefine((period, ctx) => {
+    if (period.openDay !== period.closeDay) {
+      return;
+    }
+    if (timeOfDayToNanosOfDay(period.closeTime) <= timeOfDayToNanosOfDay(period.openTime)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["closeTime"],
+        message:
+          "closeTime must be after openTime on the same day; use a later closeDay for a window that crosses midnight",
+      });
+    }
+  });
 
 /** RegularHours — up to 8 windows per day across 7 days. */
 const regularHoursSchema = z.object({

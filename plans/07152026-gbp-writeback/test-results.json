@@ -1,22 +1,24 @@
 {
   "plan": "plans/07152026-gbp-writeback",
   "generatedAt": "2026-07-16",
-  "status": "Passed",
+  "status": "In Progress",
+  "notes": "NOT 'Passed'. T5 (migration up/down against real PostgreSQL) is pending: it cannot be executed in this environment, which has no live database. Every item that could be run was run, and each pass below cites a real run. The rollup stays 'In Progress' until T5 is executed against PostgreSQL — the same value test.html's own rollup computes while any item is pending.",
   "items": [
     {
       "id": "T1",
-      "title": "Mutating work-item routes require a write-capable role (admin or manager)",
+      "title": "Every mutating route on the router requires a write-capable role (admin or manager)",
       "surface": "api",
       "precondition": "Run the route tests against the imported Express app with the shared knex db mocked and a real signed JWT.",
       "steps": [
-        "As a viewer-role member, call each mutating route: business-info draft, work-item edit, regenerate-post, approve, reject, deploy, retry, revert.",
+        "Introspect the real router and assert the test table covers every non-GET route (coverage is checked, not claimed).",
+        "As a viewer-role member, call each of the 21 mutating routes: settings, review/post syncs, published-post mutations, media upload, post generation, review draft/slot/escalation/published-reply mutations, business-info draft, work-item edit, regenerate-post, approve, reject, deploy, retry, revert.",
         "As a manager-role member, call a mutating route (approve).",
         "As a viewer-role member, call the work-items read route."
       ],
-      "expected": "Every mutating call by a viewer returns 403 without invoking the feature service; the manager call passes the gate; the viewer read still returns 200.",
+      "expected": "The router-introspection coverage test passes (the table equals the router's mutating routes); every mutating call by a viewer returns 403 without invoking the feature service; the manager call passes the gate; the viewer read still returns 200.",
       "status": "pass",
-      "evidence": "src/__tests__/gbp-automation-write-routes.test.ts — all role-gate cases passed in the focused 46-test run and the 502-test full suite.",
-      "notes": "Uses the repo's requireRole middleware precedent (settings.ts, locations.ts, pms.ts). The role check runs on the server on every request.",
+      "evidence": "src/__tests__/gbp-automation-write-routes.test.ts — 46 tests passed, including the router-introspection coverage test and all 21 viewer-403 cases. Confirmed to be a real regression test rather than one that passes for free: with the router-level gate removed, the corresponding viewer-403 cases fail, and pass again once it is restored.",
+      "notes": "The gate is applied to the router by HTTP method (safe methods allowlisted) rather than per route, so a mutating route added later inherits it by default; the coverage test fails if the table ever falls behind the router. Role precedent: settings.ts, locations.ts, pms.ts. The check runs on the server on every request.",
       "waiver": ""
     },
     {
@@ -26,13 +28,15 @@
       "precondition": "Run the route tests with an admin-role member and the draft service spied.",
       "steps": [
         "Send malformed bodies: empty body, empty fields, numeric phone, phone as a string slot, unknown weekday in hours, out-of-range hour, category missing its resource name, empty title, non-http website, and a body containing only a non-writable field.",
+        "Send invalid Google time payloads: nanos above 999,999,999; hour 24 carrying minutes (24:59); a same-day window closing before it opens; a zero-length same-day window (close equals open).",
+        "Send VALID time payloads that must not be broken by the tightened rules: an overnight window crossing midnight (close < open on a later closeDay), a 24:00 end-of-day close, an open-all-day 00:00-24:00 window, an empty openTime meaning midnight, nanos at exactly 999,999,999, and two split same-day windows (lunch break).",
         "Send a well-formed body with nested phone, hours, and category shapes.",
         "Send a valid field together with a non-writable key."
       ],
-      "expected": "Every malformed body returns 400 VALIDATION_ERROR before the controller runs; the well-formed body returns 201; the non-writable key is stripped and never appears in the staged patch.",
+      "expected": "Every malformed body and every invalid time payload returns 400 VALIDATION_ERROR before the controller runs; every valid time payload (including overnight and 24:00) returns 201; the well-formed body returns 201; the non-writable key is stripped and never appears in the staged patch.",
       "status": "pass",
-      "evidence": "src/__tests__/gbp-automation-write-routes.test.ts — all validation cases passed. Schema: src/validation/gbpBusinessInfo.schemas.ts applied via validate(..., { mode: \"enforce\" }).",
-      "notes": "Enforced from day one because the endpoint is new (no legacy clients) and stages a live external update. The controller-side allowlist/sanitizer remains as defense in depth.",
+      "evidence": "src/__tests__/gbp-automation-write-routes.test.ts — 14 invalid-body cases and 6 valid-hours cases passed. Confirmed to be real regression tests: with the superRefine rules removed, the 4 new time cases (nanos max, 24:59, same-day close-before-open, zero-length) fail, and pass again once restored. Schema: src/validation/gbpBusinessInfo.schemas.ts applied via validate(..., { mode: \"enforce\" }).",
+      "notes": "Enforced from day one because the endpoint is new (no legacy clients) and stages a live external update. Overnight windows are deliberately NOT ordering-constrained: a close earlier than the open on a later closeDay is Google's own encoding for crossing midnight, and rejecting it would break real practice hours. The controller-side allowlist/sanitizer remains as defense in depth.",
       "waiver": ""
     },
     {
@@ -48,7 +52,7 @@
       "expected": "The deploy failure returns the item to the retryable failed-draft state (draft status plus error code, the exact retry gate); the retry then approves and enqueues. The revert failure releases the single-flight claim so a later revert can win it and enqueue.",
       "status": "pass",
       "evidence": "src/__tests__/gbp-business-info-writeback.test.ts — 'enqueue compensation' describe block, 4 tests passed.",
-      "notes": "Compensation is best-effort and logged; the caller always receives the queue failure as a 503-class transient error.",
+      "notes": "Compensation is best-effort; the caller always receives the queue failure as a typed transient error. A compensation event that itself fails is now logged rather than swallowed — see T6.",
       "waiver": ""
     },
     {
@@ -63,8 +67,43 @@
       ],
       "expected": "Zero type errors, zero clear structural violations, and the full suite green including all pre-existing write-back tests (capture-once, snapshot merge, guarded revert and reject).",
       "status": "pass",
-      "evidence": "tsc exit 0; conventions: CLEAR structural violations 0; full vitest suite 502/502 across 62 files on Node 22.",
+      "evidence": "tsc exit 0; check:conventions --strict exit 0 with CLEAR structural violations 0; full vitest suite 532/532 across 62 files on Node 22 (up from 502 — 30 tests added this round).",
       "notes": "No CI is configured for claude/* branches, so these gates were run locally on Node 22 and recorded here; raised separately with Dave.",
+      "waiver": ""
+    },
+    {
+      "id": "T5",
+      "title": "Migration applies and rolls back against real PostgreSQL",
+      "surface": "database",
+      "precondition": "A real PostgreSQL database with the pre-migration schema. NOT RUNNABLE in the authoring environment: no live database is available here, and an unmerged migration must not be applied to the shared dev DB (sandbox-safety).",
+      "steps": [
+        "Run npm run db:migrate and confirm the content_type CHECK admits 'business_info', the business_info_payload jsonb column exists, and business_info_writeback_enabled exists defaulting to false.",
+        "With NO business_info rows present, run npm run db:rollback and confirm the migration reverses cleanly.",
+        "Re-apply, insert a business_info work item, then run npm run db:rollback and confirm it REFUSES with the data-loss error rather than deleting the row.",
+        "Re-run the rollback with GBP_BUSINESS_INFO_ROLLBACK_DELETE_ROWS=true and confirm it deletes the rows and completes."
+      ],
+      "expected": "up applies additively with no data rewrite; down with no rows reverses cleanly; down WITH rows refuses and throws the data-loss error; down with the acknowledgement flag deletes the rows and completes.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "Pending, not passed. The migration's additive/reversible shape and the refuse-while-rows-exist guard were verified by compile and code review only — that is NOT proof of PostgreSQL behavior. This item is the reason the rollup is 'In Progress'. It runs on dev on merge, per the deployment path (dev/dave first, production only after merge to main).",
+      "waiver": ""
+    },
+    {
+      "id": "T6",
+      "title": "Multi-table writes are transactional and no compensation failure is swallowed",
+      "surface": "service",
+      "precondition": "Run the write-back service tests with the db.transaction mock handing the callback a sentinel handle and the logger mocked.",
+      "steps": [
+        "Create a business-info draft and assert the work-item write and the audit-event write both receive the same transaction handle.",
+        "Fail the draft's event write and assert the error surfaces rather than leaving a half-write.",
+        "Reject a pending item and assert the status flip and the event both receive the same transaction handle.",
+        "Lose the reject race (0 rows updated) and assert no event is written.",
+        "Fail both queue.add and the compensation event write on the deploy and revert paths; assert the failure is logged with workItemId and event type, and the typed queue error still reaches the caller."
+      ],
+      "expected": "Both writes in each pair carry the same transaction handle; a failed event write propagates; a lost race writes no event; each compensation-event failure is logged with workItemId and event type while the typed queue error still surfaces.",
+      "status": "pass",
+      "evidence": "src/__tests__/gbp-business-info-writeback.test.ts — '§10.5 — multi-table writes run inside one transaction' (4 tests) and '§3.2 — a failed compensation event is logged, never swallowed' (2 tests) passed. Confirmed to be real regression tests: with the service changes reverted, all 4 of these new tests fail.",
+      "notes": "SCOPE LIMIT — these prove the transaction is THREADED (both writes receive the same handle) and that errors surface. Real ROLLBACK-on-failure is PostgreSQL's behavior and is NOT proven here: the models are mocked and this suite has no live database. Rollback semantics ride on T5.",
       "waiver": ""
     }
   ]

@@ -67,6 +67,9 @@
       $("meta").textContent = "Plan: " + (data.plan || "—") + " · generated " + (data.generatedAt || "—");
       const status = rollup(data); data.status = status;
       const pill = $("pill"); pill.textContent = status; pill.className = "pill " + status.toLowerCase().replace(/\s/g, "");
+      // Surface the package-level note (e.g. WHY this is not Passed) in the page,
+      // not only in the raw JSON — an unread caveat is not an honest artifact.
+      if (data.notes) { showNotice(esc(data.notes)); } else { $("notice").hidden = true; }
       $("list").innerHTML = (data.items || []).map((it, idx) => `
         <div class="item ${it.status}">
           <h3><input type="checkbox" data-i="${idx}" ${it.status === "pass" ? "checked" : ""}>

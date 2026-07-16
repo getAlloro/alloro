@@ -60,12 +60,25 @@ const handlePostImageUpload = (req: Request, res: Response, next: NextFunction) 
 router.use(authenticateToken, rbacMiddleware, locationScopeMiddleware);
 
 /**
- * §5.4 — every authorization check is authoritative on the server. Mutating
- * work-item actions (draft creation, draft edits, approve/reject, deploy,
- * retry, revert) require a write-capable role; `viewer` stays read-only.
- * Same precedent as settings.ts / locations.ts / pms.ts.
+ * §5.4 — every authorization check is authoritative on the server. This router
+ * is write-gated BY DEFAULT: any state-changing method requires a write-capable
+ * role, and `viewer` stays read-only. Same role precedent as settings.ts /
+ * locations.ts / pms.ts.
+ *
+ * The gate is applied to the router rather than listed per route on purpose: a
+ * mutating route added later inherits it without anyone having to remember this
+ * line. Safe methods are enumerated (allowlist) so an unknown method is gated,
+ * never waved through.
  */
 const requireWriteRole = requireRole("admin", "manager");
+const READ_ONLY_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
+router.use((req: Request, res: Response, next: NextFunction) => {
+  if (READ_ONLY_METHODS.has(req.method)) {
+    return next();
+  }
+  return requireWriteRole(req, res, next);
+});
 
 router.get("/readiness", GbpAutomationController.getReadiness);
 router.get("/work-items", GbpAutomationController.listWorkItems);
@@ -81,7 +94,6 @@ router.post("/posts/media", handlePostImageUpload);
 router.post("/posts/generate", GbpAutomationController.generatePostDraftNow);
 router.post(
   "/business-info/draft",
-  requireWriteRole,
   // §11.2 — enforced from day one: a new endpoint staging a live external
   // update must reject a malformed body, never soak it.
   validate(businessInfoDraftSchema, { mode: "enforce" }),
@@ -99,20 +111,15 @@ router.delete(
   "/reviews/:reviewId/published-reply",
   GbpReviewManagementController.deletePublishedReply
 );
-router.patch("/work-items/:id", requireWriteRole, GbpAutomationController.updateDraft);
-router.post(
-  "/work-items/:id/regenerate-post",
-  requireWriteRole,
-  GbpAutomationController.regeneratePostDraft
-);
-router.post("/work-items/:id/approve", requireWriteRole, GbpAutomationController.approve);
-router.post("/work-items/:id/reject", requireWriteRole, GbpAutomationController.reject);
+router.patch("/work-items/:id", GbpAutomationController.updateDraft);
+router.post("/work-items/:id/regenerate-post", GbpAutomationController.regeneratePostDraft);
+router.post("/work-items/:id/approve", GbpAutomationController.approve);
+router.post("/work-items/:id/reject", GbpAutomationController.reject);
 router.get("/work-items/:id/deploy-preview", GbpAutomationController.deployPreview);
-router.post("/work-items/:id/deploy", requireWriteRole, GbpAutomationController.deploy);
-router.post("/work-items/:id/retry", requireWriteRole, GbpAutomationController.retry);
+router.post("/work-items/:id/deploy", GbpAutomationController.deploy);
+router.post("/work-items/:id/retry", GbpAutomationController.retry);
 router.post(
   "/work-items/:id/revert-business-info",
-  requireWriteRole,
   GbpAutomationController.revertBusinessInfo
 );
 router.get("/work-items/:id/attempts", GbpAutomationController.getAttempts);
