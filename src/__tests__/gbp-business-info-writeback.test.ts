@@ -22,8 +22,11 @@ const h = vi.hoisted(() => ({
   updateWorkItem: vi.fn(),
   markPublished: vi.fn(),
   markFailedToDraft: vi.fn(),
+  markDeploying: vi.fn(),
+  approveModel: vi.fn(),
   rejectIfPending: vi.fn(),
   claimRevert: vi.fn(),
+  releaseRevertClaim: vi.fn(),
   createAttempt: vi.fn(),
   markSucceeded: vi.fn(),
   markFailed: vi.fn(),
@@ -42,7 +45,13 @@ vi.mock("../controllers/gbp/gbp-services/location-handler.service", () => ({
 vi.mock("../auth/oauth2Helper", () => ({
   getValidOAuth2ClientByConnection: h.getOAuth,
 }));
-vi.mock("../database/connection", () => ({ db: {} }));
+vi.mock("../database/connection", () => ({
+  db: {
+    // enqueueDeployment/approve wrap their status flip + event in a transaction;
+    // run the callback with an inert trx handle (models are mocked anyway).
+    transaction: async (fn: (trx: unknown) => Promise<unknown>) => fn({}),
+  },
+}));
 vi.mock("../workers/queues", () => ({
   getGbpAutomationQueue: () => ({ add: h.queueAdd }),
 }));
@@ -66,8 +75,11 @@ vi.mock("../models/GbpWorkItemModel", () => ({
     updateById: h.updateWorkItem,
     markPublished: h.markPublished,
     markFailedToDraft: h.markFailedToDraft,
+    markDeploying: h.markDeploying,
+    approve: h.approveModel,
     rejectBusinessInfoIfPending: h.rejectIfPending,
     claimBusinessInfoRevert: h.claimRevert,
+    releaseBusinessInfoRevertClaim: h.releaseRevertClaim,
   },
 }));
 vi.mock("../models/GbpDeploymentAttemptModel", () => ({
@@ -139,9 +151,13 @@ beforeEach(() => {
   h.createAttempt.mockResolvedValue({ id: "att-1" });
   h.markPublished.mockResolvedValue(1);
   h.markFailedToDraft.mockResolvedValue(1);
+  h.markDeploying.mockResolvedValue(1);
+  h.approveModel.mockResolvedValue(1);
   h.updateWorkItem.mockResolvedValue(1);
   h.rejectIfPending.mockResolvedValue(1);
   h.claimRevert.mockResolvedValue(1);
+  h.releaseRevertClaim.mockResolvedValue(1);
+  h.queueAdd.mockResolvedValue({ id: "job-1" });
 });
 
 describe("parseBusinessInfoDraftInput — boundary validation (§11.2)", () => {
@@ -438,5 +454,87 @@ describe("enqueueRevert — single-flight (Finding 5 / Sonnet #2)", () => {
       /in progress|already/i
     );
     expect(h.queueAdd).not.toHaveBeenCalled();
+  });
+});
+
+describe("enqueue compensation — a queue failure never strands the item (review finding 3)", () => {
+  const params = { organizationId: 1, workItemId: "wi-1", userId: 5 };
+
+  it("returns a deploy-marked item to the retryable failed-draft state when queue.add fails", async () => {
+    h.findScopedWorkItem.mockResolvedValue(deployingItem({ status: "approved" }));
+    h.queueAdd.mockRejectedValue(new Error("queue backend unavailable"));
+
+    await expect(GbpBusinessInfoDeploymentService.enqueueDeployment(params)).rejects.toThrow(
+      /could not be queued/i
+    );
+
+    // The compensating write is the exact state retryDeployment gates on:
+    // status back to draft with a last_error_code set.
+    expect(h.markFailedToDraft).toHaveBeenCalledWith(
+      "wi-1",
+      "DEPLOY_ENQUEUE_FAILED",
+      expect.any(String)
+    );
+  });
+
+  it("the compensated item is retryable end-to-end (retry approves and re-enqueues)", async () => {
+    const compensated = deployingItem({
+      status: "draft",
+      last_error_code: "DEPLOY_ENQUEUE_FAILED",
+    });
+    h.findScopedWorkItem
+      .mockResolvedValueOnce(compensated) // retryDeployment gate
+      .mockResolvedValueOnce(compensated) // approve()'s scoped read
+      .mockResolvedValueOnce(deployingItem({ status: "approved" })); // enqueueDeployment's read
+    h.findWorkItem.mockResolvedValue(deployingItem({ status: "deploying" }));
+
+    await GbpBusinessInfoDeploymentService.retryDeployment(params);
+
+    expect(h.queueAdd).toHaveBeenCalledTimes(1);
+  });
+
+  it("releases the single-flight revert claim when the revert queue.add fails", async () => {
+    h.findScopedWorkItem.mockResolvedValue(
+      deployingItem({
+        status: "published",
+        business_info_payload: {
+          patch: { phoneNumbers: { primaryPhone: "+1 555 100 2000" } },
+          updateMask: ["phoneNumbers"],
+          previousValues: { phoneNumbers: { primaryPhone: "+1 555 000 0000" } },
+        },
+      })
+    );
+    h.claimRevert.mockResolvedValue(1);
+    h.queueAdd.mockRejectedValue(new Error("queue backend unavailable"));
+
+    await expect(GbpBusinessInfoDeploymentService.enqueueRevert(params)).rejects.toThrow(
+      /could not be queued/i
+    );
+
+    // The claim is released, so a later revert attempt can win it again.
+    expect(h.releaseRevertClaim).toHaveBeenCalledWith("wi-1");
+  });
+
+  it("a released claim allows a later revert to enqueue (no permanent lockout)", async () => {
+    const published = deployingItem({
+      status: "published",
+      business_info_payload: {
+        patch: { phoneNumbers: { primaryPhone: "+1 555 100 2000" } },
+        updateMask: ["phoneNumbers"],
+        previousValues: { phoneNumbers: { primaryPhone: "+1 555 000 0000" } },
+      },
+    });
+    h.findScopedWorkItem.mockResolvedValue(published);
+    h.findWorkItem.mockResolvedValue(published);
+
+    // First attempt: enqueue fails, claim is released.
+    h.claimRevert.mockResolvedValueOnce(1);
+    h.queueAdd.mockRejectedValueOnce(new Error("queue backend unavailable"));
+    await expect(GbpBusinessInfoDeploymentService.enqueueRevert(params)).rejects.toThrow();
+
+    // Second attempt: the claim is winnable again and the job enqueues.
+    h.claimRevert.mockResolvedValueOnce(1);
+    await GbpBusinessInfoDeploymentService.enqueueRevert(params);
+    expect(h.queueAdd).toHaveBeenCalledTimes(2);
   });
 });

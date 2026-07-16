@@ -3,7 +3,13 @@ import multer from "multer";
 import { GbpAutomationController } from "../controllers/gbp-automation/GbpAutomationController";
 import { GbpReviewManagementController } from "../controllers/gbp-automation/GbpReviewManagementController";
 import { authenticateToken } from "../middleware/auth";
-import { rbacMiddleware, locationScopeMiddleware } from "../middleware/rbac";
+import {
+  rbacMiddleware,
+  locationScopeMiddleware,
+  requireRole,
+} from "../middleware/rbac";
+import { validate } from "../middleware/validate";
+import { businessInfoDraftSchema } from "../validation/gbpBusinessInfo.schemas";
 
 const router = express.Router();
 const MAX_GBP_POST_IMAGE_SIZE_MB = 25;
@@ -53,6 +59,14 @@ const handlePostImageUpload = (req: Request, res: Response, next: NextFunction) 
 
 router.use(authenticateToken, rbacMiddleware, locationScopeMiddleware);
 
+/**
+ * §5.4 — every authorization check is authoritative on the server. Mutating
+ * work-item actions (draft creation, draft edits, approve/reject, deploy,
+ * retry, revert) require a write-capable role; `viewer` stays read-only.
+ * Same precedent as settings.ts / locations.ts / pms.ts.
+ */
+const requireWriteRole = requireRole("admin", "manager");
+
 router.get("/readiness", GbpAutomationController.getReadiness);
 router.get("/work-items", GbpAutomationController.listWorkItems);
 router.get("/settings", GbpAutomationController.getSettings);
@@ -65,7 +79,14 @@ router.patch("/posts/published", GbpAutomationController.updatePublishedPost);
 router.delete("/posts/published", GbpAutomationController.deletePublishedPost);
 router.post("/posts/media", handlePostImageUpload);
 router.post("/posts/generate", GbpAutomationController.generatePostDraftNow);
-router.post("/business-info/draft", GbpAutomationController.createBusinessInfoDraft);
+router.post(
+  "/business-info/draft",
+  requireWriteRole,
+  // §11.2 — enforced from day one: a new endpoint staging a live external
+  // update must reject a malformed body, never soak it.
+  validate(businessInfoDraftSchema, { mode: "enforce" }),
+  GbpAutomationController.createBusinessInfoDraft
+);
 router.post("/reviews/:reviewId/draft", GbpAutomationController.generateDraft);
 router.post("/reviews/:reviewId/post-draft", GbpAutomationController.createPostDraftFromReview);
 router.patch("/reviews/:reviewId/draft-slot", GbpAutomationController.saveReviewDraftSlot);
@@ -78,14 +99,22 @@ router.delete(
   "/reviews/:reviewId/published-reply",
   GbpReviewManagementController.deletePublishedReply
 );
-router.patch("/work-items/:id", GbpAutomationController.updateDraft);
-router.post("/work-items/:id/regenerate-post", GbpAutomationController.regeneratePostDraft);
-router.post("/work-items/:id/approve", GbpAutomationController.approve);
-router.post("/work-items/:id/reject", GbpAutomationController.reject);
+router.patch("/work-items/:id", requireWriteRole, GbpAutomationController.updateDraft);
+router.post(
+  "/work-items/:id/regenerate-post",
+  requireWriteRole,
+  GbpAutomationController.regeneratePostDraft
+);
+router.post("/work-items/:id/approve", requireWriteRole, GbpAutomationController.approve);
+router.post("/work-items/:id/reject", requireWriteRole, GbpAutomationController.reject);
 router.get("/work-items/:id/deploy-preview", GbpAutomationController.deployPreview);
-router.post("/work-items/:id/deploy", GbpAutomationController.deploy);
-router.post("/work-items/:id/retry", GbpAutomationController.retry);
-router.post("/work-items/:id/revert-business-info", GbpAutomationController.revertBusinessInfo);
+router.post("/work-items/:id/deploy", requireWriteRole, GbpAutomationController.deploy);
+router.post("/work-items/:id/retry", requireWriteRole, GbpAutomationController.retry);
+router.post(
+  "/work-items/:id/revert-business-info",
+  requireWriteRole,
+  GbpAutomationController.revertBusinessInfo
+);
 router.get("/work-items/:id/attempts", GbpAutomationController.getAttempts);
 
 export default router;

@@ -1,5 +1,6 @@
 import { getValidOAuth2ClientByConnection } from "../../../auth/oauth2Helper";
 import { db } from "../../../database/connection";
+import logger from "../../../lib/logger";
 import { GooglePropertyModel, IGoogleProperty } from "../../../models/GooglePropertyModel";
 import { GbpAutomationSettingsModel } from "../../../models/GbpAutomationSettingsModel";
 import { GbpDeploymentAttemptModel } from "../../../models/GbpDeploymentAttemptModel";
@@ -166,17 +167,49 @@ export class GbpBusinessInfoDeploymentService {
         trx
       );
     });
-    await getGbpAutomationQueue("deployment").add(
-      "deploy-business-info",
-      { workItemId: item.id, userId: params.userId, actorEmail: params.actorEmail || null },
-      {
-        jobId: `gbp-business-info-${item.id}-${Date.now()}`,
-        attempts: 3,
-        backoff: { type: "exponential", delay: 30000 },
-        removeOnComplete: { age: 86400, count: 1000 },
-        removeOnFail: { age: 604800, count: 5000 },
-      }
-    );
+    try {
+      await getGbpAutomationQueue("deployment").add(
+        "deploy-business-info",
+        { workItemId: item.id, userId: params.userId, actorEmail: params.actorEmail || null },
+        {
+          jobId: `gbp-business-info-${item.id}-${Date.now()}`,
+          attempts: 3,
+          backoff: { type: "exponential", delay: 30000 },
+          removeOnComplete: { age: 86400, count: 1000 },
+          removeOnFail: { age: 604800, count: 5000 },
+        }
+      );
+    } catch (enqueueError) {
+      // Compensate: the item was marked `deploying` but no job exists, so nothing
+      // would ever pick it up. Restore the retryable failed-draft state (status
+      // `draft` + last_error_code, the exact gate retryDeployment checks) so the
+      // item is never stranded. Compensation is best-effort — the caller always
+      // sees the failure either way.
+      logger.error(
+        { err: enqueueError, workItemId: item.id },
+        "[GBP] business-info deployment enqueue failed; returning item to draft"
+      );
+      await GbpWorkItemModel.markFailedToDraft(
+        item.id,
+        "DEPLOY_ENQUEUE_FAILED",
+        "The deployment could not be queued."
+      ).catch((compensationError) => {
+        logger.error(
+          { err: compensationError, workItemId: item.id },
+          "[GBP] business-info enqueue compensation failed"
+        );
+      });
+      await GbpWorkEventModel.create({
+        work_item_id: item.id,
+        actor_user_id: params.userId,
+        event_type: "business_info_deploy_enqueue_failed",
+        metadata: { actorEmail: params.actorEmail || null },
+      }).catch(() => undefined);
+      throw new GbpAutomationError(
+        "DEPLOY_QUEUE_TRANSIENT_FAILURE",
+        "The deployment could not be queued; the update was returned to draft. Retry in a moment."
+      );
+    }
     return (await GbpWorkItemModel.findById(item.id))!;
   }
 
@@ -214,17 +247,45 @@ export class GbpBusinessInfoDeploymentService {
         "A revert for this profile update is already in progress or was already applied."
       );
     }
-    await getGbpAutomationQueue("deployment").add(
-      "revert-business-info",
-      { workItemId: item.id, userId: params.userId, actorEmail: params.actorEmail || null },
-      {
-        jobId: `gbp-business-info-revert-${item.id}-${Date.now()}`,
-        attempts: 3,
-        backoff: { type: "exponential", delay: 30000 },
-        removeOnComplete: { age: 86400, count: 1000 },
-        removeOnFail: { age: 604800, count: 5000 },
-      }
-    );
+    try {
+      await getGbpAutomationQueue("deployment").add(
+        "revert-business-info",
+        { workItemId: item.id, userId: params.userId, actorEmail: params.actorEmail || null },
+        {
+          jobId: `gbp-business-info-revert-${item.id}-${Date.now()}`,
+          attempts: 3,
+          backoff: { type: "exponential", delay: 30000 },
+          removeOnComplete: { age: 86400, count: 1000 },
+          removeOnFail: { age: 604800, count: 5000 },
+        }
+      );
+    } catch (enqueueError) {
+      // Compensate: the single-flight claim was taken but no job exists, so no
+      // future revert attempt could ever win the claim. Release it so the owner
+      // can retry. Best-effort — the caller always sees the failure either way.
+      logger.error(
+        { err: enqueueError, workItemId: item.id },
+        "[GBP] business-info revert enqueue failed; releasing revert claim"
+      );
+      await GbpWorkItemModel.releaseBusinessInfoRevertClaim(item.id).catch(
+        (compensationError) => {
+          logger.error(
+            { err: compensationError, workItemId: item.id },
+            "[GBP] business-info revert-claim release failed"
+          );
+        }
+      );
+      await GbpWorkEventModel.create({
+        work_item_id: item.id,
+        actor_user_id: params.userId,
+        event_type: "business_info_revert_enqueue_failed",
+        metadata: { actorEmail: params.actorEmail || null },
+      }).catch(() => undefined);
+      throw new GbpAutomationError(
+        "REVERT_QUEUE_TRANSIENT_FAILURE",
+        "The revert could not be queued. Try again in a moment."
+      );
+    }
     return (await GbpWorkItemModel.findById(item.id))!;
   }
 

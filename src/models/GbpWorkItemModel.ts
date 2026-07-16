@@ -554,4 +554,22 @@ export class GbpWorkItemModel extends BaseModel {
         updated_at: new Date(),
       });
   }
+
+  /**
+   * Release a revert claim that never produced a queue job (the compensating
+   * write for an enqueue failure). Guarded so a completed revert is never
+   * un-marked: only the pending flag is cleared, and only while not reverted.
+   */
+  static async releaseBusinessInfoRevertClaim(
+    id: string,
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.table(trx)
+      .where({ id, content_type: "business_info" })
+      .whereRaw("COALESCE(metadata->>'reverted','false') <> 'true'")
+      .update({
+        metadata: (trx || db).raw("metadata || '{\"revertPending\":false}'::jsonb"),
+        updated_at: new Date(),
+      });
+  }
 }
