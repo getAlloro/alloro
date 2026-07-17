@@ -10,6 +10,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:integration:os": "vitest run -c vitest.integration.config.ts",
+    "test:taste-profile:pg": "tsx scripts/verify-taste-profile-postgres.ts",
     "billing:reset-test-org": "tsx scripts/billing-reset-test-org.ts",
     "check:conventions": "bash scripts/check-conventions.sh",
     "audit:constitution": "bash scripts/check-conventions.sh --audit",

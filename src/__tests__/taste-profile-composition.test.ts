@@ -206,6 +206,45 @@ describe("enforceHonesty / isRealSource", () => {
     expect(isRealSource('page_content: "oral appliance"')).toBe(true);
   });
 
+  it("accepts only RECOGNIZED source forms, not any present string", () => {
+    // The three forms this system actually produces.
+    expect(isRealSource("review:1001")).toBe(true);
+    expect(isRealSource("https://reviews.example/1")).toBe(true);
+    expect(isRealSource("http://site.example/team")).toBe(true);
+    for (const field of ["business_data", "page_content", "post_content"]) {
+      expect(isRealSource(`${field}: "a real excerpt"`)).toBe(true);
+    }
+
+    // An invented label is not provenance. Accepting any `field: value` pair
+    // would put an unfollowable citation in the audit trail that reads exactly
+    // like a followable one.
+    expect(isRealSource('made_up_field: "anything"')).toBe(false);
+    expect(isRealSource('internal_notes: "trust me"')).toBe(false);
+    expect(isRealSource("as told to us: someone")).toBe(false);
+
+    // A bare reference with no payload is not a source either.
+    expect(isRealSource("review:")).toBe(false);
+    expect(isRealSource("review:   ")).toBe(false);
+    expect(isRealSource("https://")).toBe(false);
+    expect(isRealSource("just some prose with no source at all")).toBe(false);
+  });
+
+  it("drops a claim carrying an unrecognized source label (end to end)", () => {
+    const { profile, audit } = composeTasteProfile(
+      baseCandidates({
+        hero_quote: {
+          value: "They were wonderful",
+          source: 'vibes_field: "everyone says so"',
+        },
+      })
+    );
+
+    expect(profile.hero_quote).toBeNull();
+    expect(audit.dropped).toContainEqual(
+      expect.objectContaining({ field: "hero_quote", reason: "no_source" })
+    );
+  });
+
   it("BLOCKS map / No.1 / spelled-metric / dollars promises (FIX #1)", () => {
     for (const leak of [
       "we will get you to the top of the map",
@@ -346,5 +385,156 @@ describe("buildCandidatesFromExtractors — wire-together + source resolution", 
     expect(profile.credentials).toHaveLength(1);
     expect(profile.practice_facts).toHaveLength(1);
     expect(audit.dropped.some((d) => d.field === "hero_quote")).toBe(true);
+  });
+});
+
+/**
+ * Source resolution must attach a review's receipt ONLY to words that review
+ * actually said. These cover the ways a source can look resolved while the
+ * quote did not come from the review it points at — each one would end up in
+ * the audit trail as a clean, followable link to a real review, which is a
+ * worse outcome than no source at all.
+ */
+describe("buildCandidatesFromExtractors — a source is the origin, not a lookalike", () => {
+  const realReview = {
+    id: 2001,
+    authorName: "Jane D.",
+    text: "the staff explained every step and never rushed me",
+    url: "https://reviews.example/2001",
+  };
+
+  function bundleWith(
+    themeOverrides: Partial<ThemeExtractionResult>,
+    reviews: Array<{ id?: number; authorName?: string; text?: string; url?: string }>
+  ): ExtractorBundle {
+    return {
+      businessName: "Art of Sleep",
+      businessCategory: "Sleep dentist",
+      themeResult: {
+        heroQuote: undefined,
+        heroReviewerName: undefined,
+        topThemes: [],
+        uniqueStrength: undefined,
+        suggestedHeadline: "A calm visit",
+        customerVoiceSummary: "Patients feel cared for.",
+        ...themeOverrides,
+      } as ThemeExtractionResult,
+      distilled: { doctors: [], services: [] },
+      archetype: { archetype: "family-friendly", tone_descriptor: "warm" },
+      reviews,
+    };
+  }
+
+  it("does not attach a reviewer's source to words that reviewer never wrote", () => {
+    // A quote attributed to a real reviewer, but absent from their review.
+    // Matching on the name alone would hand this line that reviewer's real url.
+    const candidates = buildCandidatesFromExtractors(
+      bundleWith(
+        {
+          heroQuote: "This practice is the best in the entire state",
+          heroReviewerName: "Jane D.",
+        },
+        [realReview]
+      )
+    );
+
+    expect(candidates.hero_quote?.source).toBeNull();
+
+    const { profile, audit } = composeTasteProfile(candidates);
+    expect(profile.hero_quote).toBeNull();
+    expect(audit.dropped).toContainEqual(
+      expect.objectContaining({ field: "hero_quote", reason: "no_source" })
+    );
+  });
+
+  it("does not let a long claim inherit a short review's source by wrapping it", () => {
+    // The review really does say "Great!" — but it never said the rest. A
+    // containment test that accepts the quote CONTAINING the review text would
+    // resolve this to the short review's receipt.
+    const shortReview = {
+      id: 2002,
+      authorName: "Sam P.",
+      text: "Great!",
+      url: "https://reviews.example/2002",
+    };
+    const candidates = buildCandidatesFromExtractors(
+      bundleWith(
+        {
+          heroQuote:
+            "Great! They fixed years of pain in a single visit and the whole family goes here now",
+          heroReviewerName: "Sam P.",
+        },
+        [shortReview]
+      )
+    );
+
+    expect(candidates.hero_quote?.source).toBeNull();
+    expect(composeTasteProfile(candidates).profile.hero_quote).toBeNull();
+  });
+
+  it("keeps a quote that IS an excerpt of the review it names", () => {
+    // The honest case must still resolve — the fix drops fabrications, not
+    // genuinely sourced claims.
+    const candidates = buildCandidatesFromExtractors(
+      bundleWith(
+        { heroQuote: "never rushed me", heroReviewerName: "Jane D." },
+        [realReview]
+      )
+    );
+
+    expect(candidates.hero_quote?.source).toBe("https://reviews.example/2001");
+    expect(composeTasteProfile(candidates).profile.hero_quote?.source).toBe(
+      "https://reviews.example/2001"
+    );
+  });
+
+  it("drops a quote whose attribution contradicts the review it came from", () => {
+    // The words are in Jane's review, but the claim credits Sam. The receipt
+    // and the attribution disagree, so we make no claim.
+    const candidates = buildCandidatesFromExtractors(
+      bundleWith(
+        { heroQuote: "never rushed me", heroReviewerName: "Sam P." },
+        [realReview]
+      )
+    );
+
+    expect(candidates.hero_quote?.source).toBeNull();
+  });
+
+  it("drops an ambiguous quote rather than guessing which review said it", () => {
+    // A generic line appearing in several reviews: the words are real, but WHICH
+    // review said them is unknown. Picking the first would present a guess as a
+    // receipt.
+    const candidates = buildCandidatesFromExtractors(
+      bundleWith({ heroQuote: "highly recommend", heroReviewerName: undefined }, [
+        { id: 3001, authorName: "A.", text: "highly recommend this office" },
+        { id: 3002, authorName: "B.", text: "would highly recommend to anyone" },
+      ])
+    );
+
+    expect(candidates.hero_quote?.source).toBeNull();
+  });
+
+  it("uses the reviewer name only to disambiguate between real origins", () => {
+    // Same ambiguous quote, but the name narrows it to exactly one review that
+    // genuinely contains the words — a legitimate resolution.
+    const candidates = buildCandidatesFromExtractors(
+      bundleWith({ heroQuote: "highly recommend", heroReviewerName: "B." }, [
+        { id: 3001, authorName: "A.", text: "highly recommend this office" },
+        { id: 3002, authorName: "B.", text: "would highly recommend to anyone" },
+      ])
+    );
+
+    expect(candidates.hero_quote?.source).toBe("review:3002");
+  });
+
+  it("drops a claim whose origin review has nothing real to link to", () => {
+    const candidates = buildCandidatesFromExtractors(
+      bundleWith({ heroQuote: "never rushed me", heroReviewerName: "Jane D." }, [
+        { authorName: "Jane D.", text: "the staff never rushed me" }, // no id, no url
+      ])
+    );
+
+    expect(candidates.hero_quote?.source).toBeNull();
   });
 });
