@@ -2,9 +2,24 @@
 # check-conventions.sh — mechanized subset of the /code-constitution verification checklist.
 #
 # Read-only static checks. Surfaces structural violations so they can't grow silently.
-# Default exits 0 (the backend is mid-remediation and carries known debt).
-# Pass --strict to exit 1 when any CLEAR structural violation exists — wire that into
-# CI once the debt is cleared, or use a ratchet/baseline (see NOTE at the bottom).
+#
+# STRICT IS THE DEFAULT (fail-closed). Exits 1 when any CLEAR structural violation exists.
+# Pass --no-strict to opt out (report only, always exit 0).
+#
+# WHY THE DEFAULT FLIPPED (2026-07-16): this script previously defaulted to STRICT=0 and
+# required `--strict` to enforce. But `npm run check:conventions --strict` — the exact
+# command mandated by CLAUDE.md, AGENTS.md, and Code Constitution §18 — does NOT pass the
+# flag through: npm consumes a bare `--strict` as its own option, so "$@" arrives EMPTY,
+# STRICT stayed 0, and the gate could never exit 1. Every agent that followed the
+# documented instruction ran a no-op and reported a green. The CHANGELOG carries dozens of
+# "check:conventions --strict: 0 violations" entries produced by a check that was disabled.
+# Only `-- --strict` ever worked, and almost nobody wrote it.
+#
+# Fixing the string in three documents would leave the trap: the fourth document written
+# next month says `--strict` again. Flipping the default makes every existing invocation —
+# broken or not — actually enforce, and makes all three documents retroactively true
+# without editing the Constitution (which lives outside this repo; not ours to edit).
+# `--strict` is still accepted and is now a no-op, so nothing that passes it breaks.
 # Pass --audit to print the full untruncated list for every check (the refactor backlog;
 #   `npm run audit:constitution`). Advisory — never changes the exit code.
 #
@@ -20,12 +35,14 @@
 set -uo pipefail
 cd "$(dirname "$0")/.." || exit 2
 
-STRICT=0
+STRICT=1
 AUDIT=0
 for arg in "$@"; do
   case "$arg" in
-    --strict) STRICT=1 ;;
-    --audit)  AUDIT=1 ;;
+    --strict)    STRICT=1 ;;   # no-op: strict is the default. Kept so the documented
+                               # (and npm-swallowed) form stays valid instead of erroring.
+    --no-strict) STRICT=0 ;;   # explicit opt-out: report only, never fail.
+    --audit)     AUDIT=1 ;;
   esac
 done
 CEILING=800
