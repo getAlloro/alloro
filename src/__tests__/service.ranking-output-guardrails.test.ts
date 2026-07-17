@@ -48,6 +48,52 @@ describe("ranking output guardrail search-position bands", () => {
 });
 
 describe("ranking output guardrail Google post honesty", () => {
+  const unsupportedPostRankClaims = [
+    "Publish weekly Google posts to stay visible in local search.",
+    "Use weekly Google posts so you remain in the top three.",
+    "Weekly Google posts support higher rankings.",
+    "We recommend posting weekly to keep your top-three standing.",
+    "Posting weekly helps you show higher in Google Maps.",
+  ];
+
+  it.each(unsupportedPostRankClaims)(
+    "rewrites a paraphrased post-to-rank relationship: %s",
+    (claim) => {
+      const result = sanitizeRankingLlmAnalysis(
+        {
+          top_recommendations: [],
+          gaps: [],
+          overview_card: { text: claim, highlights: [claim] },
+        },
+        { searchPosition: 3 },
+      );
+
+      expect(result.overview_card.text).toContain("profile current");
+      expect(result.overview_card.text).not.toBe(claim);
+      expect(result.overview_card.highlights[0]).toContain("profile current");
+    },
+  );
+
+  it.each([
+    "Review growth can improve rank, while Google posts reassure patients.",
+    "Reviews improve local search visibility. Google posts reassure patients.",
+    "Google posts reassure patients; steady review growth improves rank.",
+    "Google posts reassure patients, while reviews improve rank.",
+    "Google posts reassure patients, and reviews improve rank.",
+  ])("preserves independent post and rank statements byte-for-byte: %s", (copy) => {
+    const result = sanitizeRankingLlmAnalysis(
+      {
+        top_recommendations: [],
+        gaps: [],
+        overview_card: { text: copy, highlights: [copy] },
+      },
+      { searchPosition: 3 },
+    );
+
+    expect(result.overview_card.text).toBe(copy);
+    expect(result.overview_card.highlights).toEqual([copy]);
+  });
+
   it("rewrites post-to-rank claims in every top recommendation narrative field", () => {
     const result = sanitizeRankingLlmAnalysis(
       {

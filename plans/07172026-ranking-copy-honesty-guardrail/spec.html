@@ -81,8 +81,8 @@
         <div><dt>Intended user</dt><dd>Practice owners reading Local Rankings recommendations and the Practice Hub walkthrough.</dd></div>
         <div><dt>Surface</dt><dd>Ranking LLM output persisted for Local Rankings, plus the Local Visibility onboarding step.</dd></div>
         <div><dt>System of record</dt><dd>The sampled rank remains a factual ranking input; post freshness remains an engagement signal, not a rank lever.</dd></div>
-        <div><dt>In scope</dt><dd>Prompt rules, central generated-output sanitation, focused backend regressions, wizard copy, plan and acceptance artifacts.</dd></div>
-        <div><dt>Out of scope</dt><dd>Ranking calculations, factor weights, rank collection, existing persisted analyses, frontend rendering structure, PR replies/resolution, Alloro Docs edits, deployment, merge, and push.</dd></div>
+        <div><dt>In scope</dt><dd>Prompt rules, central generated-output sanitation, two-direction causal regressions, wizard copy, Alloro Docs parity in a clean linked worktree, plan and acceptance artifacts.</dd></div>
+        <div><dt>Out of scope</dt><dd>Ranking calculations, factor weights, rank collection, existing persisted analyses, frontend rendering structure, deployment, and merge.</dd></div>
       </dl>
     </section>
 
@@ -209,7 +209,7 @@
         <li><input type="checkbox" checked disabled> <code>overview_card.text</code> drops the post-to-rank promise while retaining the real rank fact.</li>
         <li><input type="checkbox" checked disabled> Wizard copy no longer promises a fresh-post-due indicator.</li>
         <li><input type="checkbox" checked disabled> Focused tests and all requested build/convention/diff gates pass, or any failure is recorded without being disguised.</li>
-        <li><input type="checkbox" checked disabled> Docs parity need is reported from read-only evidence.</li>
+        <li><input type="checkbox" checked disabled> Alloro Docs parity is implemented and build-verified in a clean linked docs worktree.</li>
       </ul>
     </section>
 
@@ -220,6 +220,12 @@
         <p><strong>Change:</strong> Implemented the prompt rule, central generated-copy rewrite, recommendation and overview regressions, wizard correction, verification pass, and read-only docs assessment.</p>
         <p><strong>Reason:</strong> Execution completion: every in-scope task and requested gate passed; Alloro Docs remains a separately reported follow-up by explicit scope.</p>
         <p><strong>Updated Done criteria:</strong> none.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 2 - 2026-07-17</h3>
+        <p><strong>Change:</strong> Replaced sentence-level post/rank co-occurrence with a directional causal matcher. Added a two-direction corpus: five paraphrased post-to-rank promises rewrite, while five independent rank-fact and post-engagement clause shapes stay byte-identical. Completed the required Alloro Docs parity in a clean linked docs worktree at commit <code>3c6c80f</code>, leaving the dirty primary docs checkout untouched.</p>
+        <p><strong>Reason:</strong> Independent QA disproved both sides of Rev 1's evidence: five natural causal paraphrases survived, and a truthful sentence containing a rank fact plus a separate post statement was corrupted. The same audit correctly rejected a Passed docs item that merely named unfinished parity work.</p>
+        <p><strong>Updated Done criteria:</strong> the guard must prove both causal-rewrite and independent-clause preservation; the two stale Alloro Docs claims must be changed and the docs production build must pass.</p>
       </article>
     </section>
   </main>

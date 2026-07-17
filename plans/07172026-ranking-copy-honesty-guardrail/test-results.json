@@ -5,7 +5,7 @@
   "items": [
     {
       "id": "A1",
-      "title": "Generated ranking recommendations never claim posts protect or improve rank",
+      "title": "Generated ranking recommendations never claim posts cause a rank outcome",
       "surface": "cli",
       "precondition": "Synthetic ranking analysis containing the exact reviewed post-to-rank recommendation",
       "steps": [
@@ -15,8 +15,8 @@
       ],
       "expected": "The central backend guardrail removes the false rank outcome from every recommendation narrative field without dropping the recommendation",
       "status": "pass",
-      "evidence": "src/__tests__/service.ranking-output-guardrails.test.ts — 6/6 passed; the exact reviewed sentence and post-to-rank title, timeline, and expected outcome were rewritten by sanitizeRankingLlmAnalysis",
-      "notes": "The recommendation remains present and keeps its one-item priority contract.",
+      "evidence": "src/__tests__/service.ranking-output-guardrails.test.ts — 16/16 passed. Five paraphrased causal claims rewrite, including stay visible, remain top three, support higher rankings, keep standing, and show higher in Maps. Five independent post/rank clause fixtures remain byte-identical.",
+      "notes": "The guard matches a directional causal relationship rather than sentence-level co-occurrence. The recommendation remains present and keeps its one-item priority contract.",
       "waiver": ""
     },
     {
@@ -31,7 +31,7 @@
       ],
       "expected": "The measured rank remains visible and only the unsupported causal claim changes",
       "status": "pass",
-      "evidence": "src/__tests__/service.ranking-output-guardrails.test.ts — overview regression passed with 'ranked #3 in Local Search' preserved and the weekly-post protection claim absent from text and highlights",
+      "evidence": "src/__tests__/service.ranking-output-guardrails.test.ts — the overview regression preserves 'ranked #3 in Local Search' while removing the weekly-post protection claim; the two-direction corpus also preserves unrelated rank facts and post-engagement clauses byte-for-byte.",
       "notes": "Synthetic data only; no stored ranking analysis was read or rewritten.",
       "waiver": ""
     },
@@ -63,24 +63,24 @@
       ],
       "expected": "Every requested command exits zero, with exact counts and any advisory output recorded",
       "status": "pass",
-      "evidence": "Focused tests: backend 6/6, frontend 15/15. npx tsc --noEmit: exit 0. Backend build: exit 0. Frontend production build: exit 0. npm run check:conventions -- --strict: exit 0 with 0 backend structural violations. git diff --check: exit 0.",
+      "evidence": "Focused tests: backend 16/16, frontend 15/15. Full backend suite: 68 files / 512 tests passed. npx tsc --noEmit and backend build: exit 0. Frontend production build: exit 0. npm run check:conventions -- --strict: exit 0 with 0 backend structural violations. git diff --check: exit 0. Alloro Docs production build also passed.",
       "notes": "Frontend build retained existing third-party eval, mixed static/dynamic import, and large-chunk warnings. Convention output retained existing advisory baselines: one frontend any, one dangerouslySetInnerHTML, test-only token reads, six test raw queries, and tenant-scope heuristics; none are in this patch.",
       "waiver": ""
     },
     {
       "id": "A5",
-      "title": "Alloro Docs parity is assessed without editing the docs checkout",
-      "surface": "none",
-      "precondition": "Read-only access to /Users/rustinedave/Desktop/alloro-docs",
+      "title": "Alloro Docs parity removes the same post-to-rank claims",
+      "surface": "cli",
+      "precondition": "Clean linked docs worktree based on the current local alloro-docs HEAD",
       "steps": [
-        "1. Search Local Rankings, Practice Hub, and Reviews & Posts guidance for post-to-rank claims",
-        "2. Check the docs worktree status",
-        "3. Record whether a separate clean docs change is required"
+        "1. Replace the Local Rankings replica's weekly-post rank-protection claim with a patient-consideration outcome",
+        "2. Replace Reviews & Posts guidance saying fresh posts help ranking",
+        "3. Run the docs production build and search the changed files for remaining post/rank causal claims"
       ],
-      "expected": "The report identifies exact stale guidance and leaves the dirty docs working tree untouched",
+      "expected": "Documentation and the app state the same engagement-only post contract, without absorbing the dirty primary docs checkout",
       "status": "pass",
-      "evidence": "Read-only search found stale guidance at alloro-docs/src/components/replicas/LocalRankingsReplica.tsx:78 and alloro-docs/src/data/pages/reviews-posts.ts:92; docs status remained ahead 3 with the same four pre-existing modified files",
-      "notes": "A separate clean Alloro Docs parity change is required. This task did not edit or stage the docs checkout.",
+      "evidence": "alloro-docs commit 3c6c80f in /Users/rustinedave/Desktop/alloro-docs-worktrees/ranking-copy-honesty updates exactly the two stale files. npm run build passed (2,125 modules); changed-file post/rank causal search returned no match.",
+      "notes": "The original dirty alloro-docs checkout remains untouched. This focused docs commit must be published through the docs repository's normal path alongside the app PR.",
       "waiver": ""
     }
   ]

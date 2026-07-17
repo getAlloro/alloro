@@ -25,8 +25,30 @@ const WEBSITE_ACTION_PATTERN =
   /\b(website|web provider|page speed|pagespeed|site speed|speed up|load time|loading|core web vitals|lighthouse|performance score)\b/i;
 const GOOGLE_POST_PATTERN =
   /\b(?:google(?: business profile)?|gbp|business profile)\s+(?:posts?|updates?)\b|\bposting\b|\bposts?\b/i;
-const POST_RANK_OUTCOME_PATTERN =
-  /\b(?:(?:protect|improve|widen|boost|lift|raise|strengthen|maintain|hold|advance|move|recover)\w*\b[^.!?]{0,96}\b(?:rank(?:ing)?|position|standing|lead|top[- ](?:three|3|20)|local search|map pack|visibility|findability)\b|(?:break into|move (?:closer|toward)|show up in|climb|outrank)\b|(?:rank(?:ing)?|position|standing|lead|top[- ](?:three|3|20)|local search|map pack|visibility|findability)\b[^.!?]{0,80}\b(?:by|from|through|with|because of)\b)/i;
+const POST_SOURCE =
+  "(?:(?:google(?: business profile)?|gbp|business profile)\\s+(?:posts?|updates?)|posting|posts?)";
+const RANK_OUTCOME =
+  "(?:rank(?:ing|ings)?|position|standing|lead|top[- ](?:three|3|20)|" +
+  "local search|map pack|google maps|maps|visibility|visible|findability)";
+const POST_CAUSAL_VERB =
+  "(?:protect|improve|widen|boost|lift|raise|strengthen|maintain|hold|" +
+  "advance|move|recover|stay|remain|support|help|keep|get|show|appear|" +
+  "rank|break|climb|outrank)";
+/**
+ * Directional relationship, not mere co-occurrence. The old guard separately
+ * searched for any post token and any rank-outcome token in one sentence, so
+ * "Review growth improves rank, while posts reassure patients" was corrupted.
+ * These alternatives require posts to be the source of a nearby causal verb,
+ * or a rank outcome to name posts through an explicit causal preposition.
+ */
+const POST_TO_RANK_CAUSAL_PATTERN = new RegExp(
+  `(?:\\b${POST_SOURCE}\\b[^.!?;,]{0,40}\\b${POST_CAUSAL_VERB}\\w*\\b` +
+    `[^.!?;]{0,64}\\b${RANK_OUTCOME}\\b|` +
+    `\\b${RANK_OUTCOME}\\b[^.!?;]{0,80}\\b` +
+    `(?:by|from|through|with|because\\s+of|due\\s+to|using)\\b` +
+    `[^.!?;]{0,48}\\b${POST_SOURCE}\\b)`,
+  "i",
+);
 const RECOMMENDED_ACTION_PREFIX = /^recommended action:\s*/i;
 const WEEKLY_POST_PATTERN = /\b(?:weekly|each week|every week|once a week)\b/i;
 const HONEST_POST_ACTION =
@@ -172,10 +194,7 @@ function normalizeLeadProtectionLanguage(
 }
 
 function rewritePostRankSentence(sentence: string): string {
-  if (
-    !GOOGLE_POST_PATTERN.test(sentence) ||
-    !POST_RANK_OUTCOME_PATTERN.test(sentence)
-  ) {
+  if (!POST_TO_RANK_CAUSAL_PATTERN.test(sentence)) {
     return sentence;
   }
 
@@ -204,8 +223,7 @@ function rewritePostRankSentence(sentence: string): string {
 function rewritePostRankClaims(value: unknown): unknown {
   if (
     typeof value !== "string" ||
-    !GOOGLE_POST_PATTERN.test(value) ||
-    !POST_RANK_OUTCOME_PATTERN.test(value)
+    !POST_TO_RANK_CAUSAL_PATTERN.test(value)
   ) {
     return value;
   }
