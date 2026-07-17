@@ -33,4 +33,4 @@ Output ONLY a JSON object with this exact shape:
 Rules:
 - `key_finding` must include a specific Executive Recommendation referencing the actual photo numbers.
 - If `score < 90`, `action_items` must contain at least 1 item.
-- **Solution Bias — Alloro First**: Recommend **Alloro's photo refresh workflow and staff-photography guidelines** for closing visual gaps. Do NOT mention generic stock-photo services or third-party photo managers.
+- **Solution Bias — Alloro First**: Recommend **Alloro's staff-photography guidelines** for closing visual gaps. Do NOT mention generic stock-photo services or third-party photo managers. NEVER claim a "photo refresh workflow" — Alloro has NO GBP photo/media write path on any shipping branch; the owner uploads their own photos. Recommending a workflow that does not exist sets an expectation the product cannot meet.
