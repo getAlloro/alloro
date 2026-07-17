@@ -87,6 +87,51 @@ export type FindabilitySensorReadingInput = Omit<
   "id" | "created_at" | "updated_at"
 >;
 
+function toFiniteDecimal(value: unknown, field: string): number {
+  if (
+    (typeof value !== "number" && typeof value !== "string") ||
+    (typeof value === "string" && value.trim() === "")
+  ) {
+    throw new Error(
+      `Findability Sensor database field "${field}" did not contain a finite decimal.`,
+    );
+  }
+  const normalized = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(normalized)) {
+    throw new Error(
+      `Findability Sensor database field "${field}" did not contain a finite decimal.`,
+    );
+  }
+  return normalized;
+}
+
+function toFiniteNullableDecimal(value: unknown, field: string): number | null {
+  return value === null || value === undefined
+    ? null
+    : toFiniteDecimal(value, field);
+}
+
+/**
+ * PostgreSQL's `pg` driver returns NUMERIC/DECIMAL columns as strings by
+ * default. The model API promises finite numbers, so normalize every decimal
+ * column at the persistence boundary instead of making each consumer remember
+ * which fields need `Number(...)` (§4.5).
+ */
+function normalizeReadingDecimals(
+  row: IFindabilitySensorReading,
+): IFindabilitySensorReading {
+  return {
+    ...row,
+    radius_miles: toFiniteDecimal(row.radius_miles, "radius_miles"),
+    center_lat: toFiniteNullableDecimal(row.center_lat, "center_lat"),
+    center_lng: toFiniteNullableDecimal(row.center_lng, "center_lng"),
+    solv_percent: toFiniteNullableDecimal(row.solv_percent, "solv_percent"),
+    arp: toFiniteNullableDecimal(row.arp, "arp"),
+    atrp: toFiniteNullableDecimal(row.atrp, "atrp"),
+    coverage: toFiniteDecimal(row.coverage, "coverage"),
+  };
+}
+
 /**
  * Columns an on-conflict re-run refreshes. Deliberately excludes the identity
  * key (organization_id, location_id, keyword, run_date) and `created_at`, so a
@@ -153,7 +198,9 @@ export class FindabilitySensorReadingModel extends BaseModel {
       )
       .merge(READING_MERGE_COLUMNS)
       .returning("*");
-    return this.deserializeJsonFields(written);
+    return normalizeReadingDecimals(
+      this.deserializeJsonFields(written) as IFindabilitySensorReading,
+    );
   }
 
   /**
@@ -171,7 +218,11 @@ export class FindabilitySensorReadingModel extends BaseModel {
     const rows = await this.table(trx)
       .where({ organization_id: organizationId, location_id: locationId ?? null })
       .orderBy("observed_at", "desc");
-    return rows.map((row: unknown) => this.deserializeJsonFields(row));
+    return rows.map((row: unknown) =>
+      normalizeReadingDecimals(
+        this.deserializeJsonFields(row) as IFindabilitySensorReading,
+      ),
+    );
   }
 
   // ── Sealed unscoped entry points (§11.7/§5.5) ────────────────────────────
@@ -299,6 +350,15 @@ export type FindabilitySensorKeywordConfigInput = Omit<
   "id" | "created_at" | "updated_at"
 >;
 
+function normalizeConfigDecimals(
+  row: IFindabilitySensorKeywordConfig,
+): IFindabilitySensorKeywordConfig {
+  return {
+    ...row,
+    radius_miles: toFiniteDecimal(row.radius_miles, "radius_miles"),
+  };
+}
+
 /**
  * Columns an on-conflict save refreshes. Excludes the identity key
  * (organization_id, location_id) and `created_at` — a re-save edits the
@@ -334,7 +394,11 @@ export class FindabilitySensorKeywordConfigModel extends BaseModel {
     const row = await this.table(trx)
       .where({ organization_id: organizationId, location_id: locationId ?? null })
       .first();
-    return row ? this.deserializeJsonFields(row) : undefined;
+    return row
+      ? normalizeConfigDecimals(
+          this.deserializeJsonFields(row) as IFindabilitySensorKeywordConfig,
+        )
+      : undefined;
   }
 
   /**
@@ -369,7 +433,9 @@ export class FindabilitySensorKeywordConfigModel extends BaseModel {
       .onConflict((trx || db).raw("(organization_id, COALESCE(location_id, -1))"))
       .merge(CONFIG_MERGE_COLUMNS)
       .returning("*");
-    return this.deserializeJsonFields(written);
+    return normalizeConfigDecimals(
+      this.deserializeJsonFields(written) as IFindabilitySensorKeywordConfig,
+    );
   }
 
   // ── Sealed unscoped entry points (§11.7/§5.5) ────────────────────────────

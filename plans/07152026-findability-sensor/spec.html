@@ -53,7 +53,7 @@
 <div class="wrap">
 
   <header class="hero">
-    <span class="pill"><span class="dot"></span>In Progress &middot; Rev 6 &middot; acceptance 10/10 on real PostgreSQL &middot; awaiting review</span>
+    <span class="pill"><span class="dot"></span>Completed &middot; Rev 7 &middot; PostgreSQL NUMERIC boundary remediation</span>
     <h1>A5 · Slice 1 — The Findability Sensor</h1>
     <p class="sub">The honest instrument under the fuel gauge. Replace today's single, flickering rank point with stable, proximity-aware sampling of the <em>service</em> searches that bring new customers, across the practice's real area. Slice 1 of the scientist-loop engine (sensor → gauge → hypothesize → act → watch → learn). Not a grid the owner reads — the sampling is plumbing.</p>
     <div class="meta">
@@ -186,6 +186,7 @@
       <li>(Rev 2) Snapshots carry a coverage/known-pin count so a scan with many <code>api_error</code> pins is legible as low-confidence, not silently averaged into a confident-looking SoLV.</li>
       <li>(Rev 6) T7/T8 <b>pass against a real PostgreSQL 16.14</b> on a disposable cluster: the migration's up/down/re-up is clean, both expression indexes are confirmed from <code>pg_indexes</code>, and PostgreSQL infers the <code>ON CONFLICT</code> target through the real <code>upsertConfig</code>/<code>upsertReading</code> (no 42P10) for a real AND a null location. The <b>isolation caveat is recorded, not hidden</b>: the migration was proven in isolation, not as part of the full chain, which cannot run from an empty DB (no migration creates <code>google_accounts</code>) &mdash; a pre-existing repo property this PR neither introduced nor claims to fix.</li>
       <li>(Rev 6) <b>Every</b> unscoped <code>BaseModel</code> entry point is sealed on <b>both</b> tenant models (&sect;11.7/&sect;5.5) &mdash; enumerated from source (11 public statics; 9 sealed &times; 2 models; <code>transaction</code>/<code>beginTransaction</code> deliberately open as non-table access), with <code>count()</code>'s runtime-only seal documented as the honest limit. Cross-org isolation is <b>proven behaviorally</b> (&sect;20.2), against both the in-memory evaluator and real PostgreSQL, and fails against the unsealed model.</li>
+      <li>(Rev 7) Every PostgreSQL <code>NUMERIC</code>/<code>DECIMAL</code>-backed findability field is normalized at the model boundary to a finite JavaScript number; nullable metrics stay null. The contract is proven by the Postgres-shaped unit evaluator and a guarded disposable-PostgreSQL integration test that asserts raw rows are strings while model results are finite numbers (&sect;4.5/&sect;20.2).</li>
       <li>Test section passes; <code>npm run check:all</code> clean; <code>npm test</code> green; a fresh adversary (<code>alloro-proof</code>) ran and its findings are fixed; <code>&sect;N.M</code> confirmed at the <code>alloro-engineer</code> pass.</li>
       <li>Opened as a PR to <code>dev/dave</code> with this spec linked. (Gauge, Reader, Hypothesizer, Actor, Watcher/E2 = documented follow-on slices.)</li>
     </ul>
@@ -193,6 +194,12 @@
 
   <section id="revision-log">
     <h2>Revision Log</h2>
+    <article class="rev">
+      <h3>Rev 7 &mdash; 2026-07-17</h3>
+      <p><strong>Change:</strong> Final-review remediation on PR #167. PostgreSQL returns every sensor <code>NUMERIC</code>/<code>DECIMAL</code> column as a string by default, while the model promised <code>number</code>. <code>FindabilitySensorModel</code> now normalizes <code>radius_miles</code>, <code>center_lat</code>, <code>center_lng</code>, <code>solv_percent</code>, <code>arp</code>, <code>atrp</code>, and <code>coverage</code> at every model return boundary, rejects non-finite database values, and preserves nullable metrics as null. The in-memory evaluator now mirrors PostgreSQL's string-return behavior. A new guarded <code>src/integration-tests/findability-sensor-postgres.itest.ts</code> runs against only a local database named <code>alloro_findability_sensor_test_*</code>, proves the raw driver values are strings, and proves both upsert and scoped-read model APIs return finite numbers.</p>
+      <p><strong>Reason:</strong> User QA: final review found a false runtime type contract. The existing real-PostgreSQL receipt proved conflict inference and values but never asserted <code>typeof</code>, so a downstream arithmetic consumer could receive string concatenation or fail on number methods despite TypeScript promising numbers. This closes the class at the model boundary under &sect;4.5 and covers the failure/contract path under &sect;20.2.</p>
+      <p><strong>Updated Done criteria:</strong> all eight decimal-backed fields normalize to finite numbers on write-return and read-return; nullable reading metrics remain null; unit tests emulate the <code>pg</code> parser; the guarded real-PostgreSQL verifier asserts raw string versus model number for every field. Verified at this head: focused sensor suite <b>67/67</b>; disposable PostgreSQL verifier <b>2/2</b>; full suite <b>523/523</b> across 62 files; <code>tsc --noEmit</code>, strict conventions, lint, and dependency-cruiser all exit 0. Verification receipts are recorded in <code>test-results.json</code>.</p>
+    </article>
     <article class="rev">
       <h3>Rev 6 &mdash; 2026-07-16</h3>
       <p><strong>Change:</strong> Third-round review on PR #167. The blocking item is closed with a real run, and the tenant-scope finding is fixed as a CLASS rather than at the two lines the reviewer named.

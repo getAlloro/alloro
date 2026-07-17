@@ -43,6 +43,19 @@ const uniqueKeyFor: Record<string, (row: Row) => string> = {
     `${r.organization_id}|${r.location_id ?? -1}|${r.keyword}|${r.run_date}`,
 };
 
+const decimalFieldsFor: Record<string, string[]> = {
+  findability_sensor_keyword_configs: ["radius_miles"],
+  findability_sensor_readings: [
+    "radius_miles",
+    "center_lat",
+    "center_lng",
+    "solv_percent",
+    "arp",
+    "atrp",
+    "coverage",
+  ],
+};
+
 const tables = new Map<string, Row[]>();
 let nextId = 1;
 
@@ -54,6 +67,17 @@ function reset(): void {
 function rowsOf(table: string): Row[] {
   if (!tables.has(table)) tables.set(table, []);
   return tables.get(table) as Row[];
+}
+
+/** Mirror `pg`'s default NUMERIC parser: decimal columns are returned as strings. */
+function readAsPostgres(table: string, row: Row): Row {
+  const result = { ...row };
+  for (const field of decimalFieldsFor[table] ?? []) {
+    if (result[field] !== null && result[field] !== undefined) {
+      result[field] = String(result[field]);
+    }
+  }
+  return result;
 }
 
 class UniqueViolation extends Error {
@@ -92,11 +116,11 @@ function makeBuilder(table: string): Record<string, unknown> {
       for (const col of mergeCols ?? []) {
         if (col in incoming) existing[col] = incoming[col];
       }
-      return [{ ...existing }];
+      return [readAsPostgres(table, existing)];
     }
     const created = { id: nextId++, ...incoming };
     rows.push(created);
-    return [{ ...created }];
+    return [readAsPostgres(table, created)];
   };
 
   const resolve = (): Promise<unknown> =>
@@ -108,7 +132,8 @@ function makeBuilder(table: string): Record<string, unknown> {
       const matches = rows.filter((r) =>
         Object.entries(conds).every(([k, v]) => (r[k] ?? null) === (v ?? null)),
       );
-      return single ? matches[0] : matches;
+      const postgresRows = matches.map((row) => readAsPostgres(table, row));
+      return single ? postgresRows[0] : postgresRows;
     });
 
   const builder: Record<string, unknown> = {
@@ -218,10 +243,17 @@ describe("upsertConfig — one configuration per (organization, location)", () =
     const second = await FindabilitySensorKeywordConfigModel.upsertConfig(
       config({ grid_size: 9, radius_miles: 5, enabled: true }),
     );
+    const readBack = await FindabilitySensorKeywordConfigModel.findForLocation(7, 42);
 
     expect(second.id).toBe(first.id);
     expect(second.created_at).toBe(createdAt); // birth timestamp survives
     expect(second.grid_size).toBe(9);
+    expect(second.radius_miles).toBe(5);
+    expect(typeof second.radius_miles).toBe("number");
+    expect(Number.isFinite(second.radius_miles)).toBe(true);
+    expect(readBack?.radius_miles).toBe(5);
+    expect(typeof readBack?.radius_miles).toBe("number");
+    expect(Number.isFinite(readBack?.radius_miles)).toBe(true);
     expect(second.enabled).toBe(true);
   });
 
@@ -292,6 +324,64 @@ describe("upsertReading — one snapshot per (org, location, keyword, run_date)"
 
     expect(rowsOf("findability_sensor_readings")).toHaveLength(1);
     expect(second.solv_percent).toBe(75);
+  });
+
+  it("normalizes every PostgreSQL NUMERIC-backed metric to a finite number", async () => {
+    const saved = await FindabilitySensorReadingModel.upsertReading(
+      reading({
+        radius_miles: 2.75,
+        center_lat: 30.2672,
+        center_lng: -97.7431,
+        solv_percent: 75.25,
+        arp: 4.5,
+        atrp: 8.25,
+        coverage: 0.89,
+      }),
+    );
+    const [readBack] = await FindabilitySensorReadingModel.latestForLocation(7, 42);
+
+    for (const row of [saved, readBack]) {
+      const metrics = [
+        row.radius_miles,
+        row.center_lat,
+        row.center_lng,
+        row.solv_percent,
+        row.arp,
+        row.atrp,
+        row.coverage,
+      ];
+      expect(metrics.every((metric) => typeof metric === "number")).toBe(true);
+      expect(metrics.every((metric) => Number.isFinite(metric))).toBe(true);
+      expect(row).toMatchObject({
+        radius_miles: 2.75,
+        center_lat: 30.2672,
+        center_lng: -97.7431,
+        solv_percent: 75.25,
+        arp: 4.5,
+        atrp: 8.25,
+        coverage: 0.89,
+      });
+    }
+  });
+
+  it("preserves nullable NUMERIC-backed metrics as null", async () => {
+    const saved = await FindabilitySensorReadingModel.upsertReading(
+      reading({
+        center_lat: null,
+        center_lng: null,
+        solv_percent: null,
+        arp: null,
+        atrp: null,
+      }),
+    );
+
+    expect(saved).toMatchObject({
+      center_lat: null,
+      center_lng: null,
+      solv_percent: null,
+      arp: null,
+      atrp: null,
+    });
   });
 
   it("a different run_date is a new point in the time-series, not a conflict", async () => {

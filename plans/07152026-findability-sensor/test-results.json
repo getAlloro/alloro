@@ -1,10 +1,10 @@
 {
   "plan": "plans/07152026-findability-sensor",
-  "generatedAt": "2026-07-16",
+  "generatedAt": "2026-07-17",
   "status": "Passed",
   "environment": {
     "postgres": "PostgreSQL 16.14 (Homebrew) on aarch64-apple-darwin25.4.0",
-    "cluster": "Disposable local cluster created with initdb for this verification (port 5444, own superuser role, own database). Not dev, not production, not the shared sandbox — no shared database was written to.",
+    "cluster": "Disposable local clusters created with initdb for verification (latest model-boundary proof on port 55808, own superuser role, own database). Not dev, not production, not the shared sandbox — no shared database was written to.",
     "node": "v22.23.1",
     "migrationScope": "ISOLATED — the A5 migration was run as the ONLY migration in the migrations directory. The full 192-migration chain was NOT run; see the caveat on T7."
   },
@@ -20,7 +20,7 @@
       ],
       "expected": "Exactly one configuration row exists; neither call throws.",
       "status": "pass",
-      "evidence": "src/__tests__/findability-sensor-model.test.ts passed in the 36-test focused run and the 521-test full suite. Adversarially verified: this test FAILS against the pre-fix check-then-create upsertConfig with 'duplicate key value violates unique constraint'.",
+      "evidence": "src/__tests__/findability-sensor-model.test.ts passed in the current 67-test focused sensor run and the 523-test full suite. Adversarially verified: this test FAILS against the pre-fix check-then-create upsertConfig with 'duplicate key value violates unique constraint'.",
       "notes": "Review finding #1. The DB now owns the rule via fs_configs_dedup_uidx; the model converges on it rather than racing it.",
       "waiver": ""
     },
@@ -141,12 +141,13 @@
         "Run npx tsc --noEmit.",
         "Run npm run check:conventions -- --strict.",
         "Run npm test.",
-        "Run npm run lint."
+        "Run npm run lint.",
+        "Run npm run depcruise."
       ],
       "expected": "Typecheck 0 errors; 0 clear backend structural violations; the full suite green with no regression.",
       "status": "pass",
-      "evidence": "tsc --noEmit exit 0. check:conventions --strict exit 0, 'CLEAR structural violations - backend (size + console + db): 0'. npm test exit 0: 62 files, 521 tests passed (485 baseline + 36 sensor-model + the pure core). npm run lint exit 0; the files this batch touches produce no lint findings.",
-      "notes": "CI could not be attached: no workflow is configured to run on claude/* branches, so these are local runs on the pushed commit. Already raised with Dave.",
+      "evidence": "tsc --noEmit exit 0. check:conventions --strict exit 0, 'CLEAR structural violations - backend (size + console + db): 0'. npm test exit 0: 62 files, 523 tests passed. npm run lint exit 0 with 2,385 repository-baseline warnings and 0 errors. npm run depcruise exit 0 with 39 warnings and 0 errors.",
+      "notes": "The added dependency-cruiser warning is the real-PostgreSQL integration test's direct database import; it is test-only and required to compare raw pg values with model-return values. CI could not be attached: no workflow is configured to run on claude/* branches, so these are local runs at this head.",
       "waiver": ""
     },
     {
@@ -162,8 +163,25 @@
       ],
       "expected": "Scoped reads return only the caller's organization's rows; a cross-org read returns undefined (indistinguishable from missing); every sealed entry point throws and cites its Article; the enumeration finds no unsealed unscoped entry point.",
       "status": "pass",
-      "evidence": "src/__tests__/findability-sensor-model.test.ts: 36 tests pass, 24 of them new. Adversarially verified: 20 of the new tests FAIL against the unsealed model (confirmed by reverting the model and re-running: 'Tests 20 failed | 16 passed'), so they are load-bearing rather than shape assertions. Compile-time seal proven by execution, not assertion: a probe file calling the sealed methods with arguments produced 7x 'error TS2554: Expected 0 arguments, but got N' and tsc exited 2. Cross-org isolation ALSO proven against real PostgreSQL 16.14: with org 7 and org 8 holding the same location/keyword/day, latestForLocation(7,42) returned only org 7's row (solv 11.00, never org 8's 99.00); findForLocation(7,null) returned undefined against a null-location config owned ONLY by org 8 (no leak), while findForLocation(8,null) still returned it correctly.",
+      "evidence": "src/__tests__/findability-sensor-model.test.ts: 38 tests pass at this head (the prior 36 plus 2 NUMERIC-boundary tests). Adversarially verified: 20 of the tenant/seal tests FAIL against the unsealed model (confirmed by reverting the model and re-running: 'Tests 20 failed | 16 passed'), so they are load-bearing rather than shape assertions. Compile-time seal proven by execution, not assertion: a probe file calling the sealed methods with arguments produced 7x 'error TS2554: Expected 0 arguments, but got N' and tsc exited 2. Cross-org isolation ALSO proven against real PostgreSQL 16.14: with org 7 and org 8 holding the same location/keyword/day, latestForLocation(7,42) returned only org 7's row (solv 11.00, never org 8's 99.00); findForLocation(7,null) returned undefined against a null-location config owned ONLY by org 8 (no leak), while findForLocation(8,null) still returned it correctly.",
       "notes": "§11.7/§5.5 sealed and §20.2 proven here rather than assumed. BaseModel's public static surface was ENUMERATED FROM SOURCE (11 methods), not from a remembered list: the 9 unscoped table entry points (findById, findOne, findMany, create, createReturningId, updateById, deleteById, count, paginate) are sealed on BOTH models; transaction and beginTransaction are deliberately left open because they open a transaction, touch no table, carry no WHERE clause and so no tenant hazard. HONEST LIMIT: count() is RUNTIME-sealed only — BaseModel.count() is callable with zero arguments, so TS2554 cannot fire on it; the probe confirmed a zero-arg count() call raises no compile error. The enumeration guard reads BaseModel.ts source deliberately, because TypeScript's `protected` is erased at runtime and reflection cannot distinguish a public entry point from a protected helper.",
+      "waiver": ""
+    },
+    {
+      "id": "T11",
+      "title": "Every PostgreSQL NUMERIC-backed metric is a finite number at the model boundary",
+      "surface": "cli",
+      "precondition": "Run the unit evaluator and the dedicated integration verifier against a disposable local PostgreSQL database named alloro_findability_sensor_test_*.",
+      "steps": [
+        "Make the unit evaluator return every DECIMAL-backed field as a string, matching pg's default parser.",
+        "Assert config radius_miles and all seven reading metrics are finite numbers on both upsert return and scoped read.",
+        "Run npm run test:integration:findability-sensor against PostgreSQL 16.14 and compare raw SELECT typeof results with model results.",
+        "Assert nullable reading metrics remain null instead of being coerced to zero."
+      ],
+      "expected": "Raw PostgreSQL NUMERIC values are strings; all eight model fields are finite JavaScript numbers at every return boundary; nullable metrics remain null.",
+      "status": "pass",
+      "evidence": "Unit proof: focused sensor run 67/67, including Postgres-shaped string values and null preservation. Real-server proof: npm run test:integration:findability-sensor exit 0, 1 file and 2/2 tests against PostgreSQL 16.14 on a disposable local cluster (port 55808). The verifier asserted typeof raw config radius_miles and all seven raw reading metrics was 'string', while both upsert and scoped-read model results were typeof 'number', finite, and equal to the inserted decimal values.",
+      "notes": "The package script targets only this verifier, and test:integration:os now explicitly targets src/integration-tests/os so the two database contracts cannot accidentally run against each other's fixture schema. The disposable server was stopped after the run.",
       "waiver": ""
     }
   ]
