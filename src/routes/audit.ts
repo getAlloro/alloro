@@ -1,6 +1,7 @@
 import express, { NextFunction, Request, Response } from "express";
 import * as auditController from "../controllers/audit/audit.controller";
 import { validateTrackingKey } from "../controllers/leadgen-tracking/feature-utils/util.tracking-auth";
+import { auditStartLimiter } from "../middleware/publicRateLimiter";
 
 const auditRoutes = express.Router();
 
@@ -21,7 +22,7 @@ function requireTrackingKey(
   next();
 }
 
-auditRoutes.post("/start", auditController.startAudit);
+auditRoutes.post("/start", auditStartLimiter, auditController.startAudit);
 auditRoutes.post(
   "/:auditId/retry",
   requireTrackingKey,
