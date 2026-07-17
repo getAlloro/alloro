@@ -267,6 +267,22 @@
       "evidence": "The modifier-bearing hard-gate regression failed against the prior #158 service and passes after merging 74c1f4eda. Focused write/publish/generated-copy/GBP safety run: exit 0, 4 files / 119 tests. Full suite: exit 0, 68 files / 1291 tests. npx tsc --noEmit: exit 0. npm run check:conventions -- --strict: exit 0, 0 clear structural violations. npm run lint: exit 0, 0 errors / 2385 advisory warnings. npm run depcruise: exit 0, 0 errors / 38 existing warnings. Changed-file ESLint and git diff --check: exit 0.",
       "notes": "The rollback receipt is at the mocked model transaction seam, not a live PostgreSQL server. This PR changes no migration. The GBP identity snapshot remains an activation precondition for the dormant slice; it was not invented or marked complete here.",
       "waiver": ""
+    },
+    {
+      "id": "T16",
+      "title": "Coordinated finite predicates end unrelated copular negation scope",
+      "surface": "cli",
+      "precondition": "Rev 10 claimNegation grammar exercised through the real GeneratedCopySafetyService and GbpContentSafetyService entry points",
+      "steps": [
+        "1. Validate 'This is not complicated and results in a higher ranking.' through GeneratedCopySafetyService.",
+        "2. Validate 'This is not difficult and produces permanent results.' through GbpContentSafetyService.",
+        "3. Re-run the existing modifier-bearing positive-predicate block corpus and coordinated does-not/will-not pass corpus."
+      ],
+      "expected": "Both exact strings block; finite/modal predicate detection is structural rather than a closed claim-verb inventory; a coordinated predicate carrying its own negator remains publishable",
+      "status": "pass",
+      "evidence": "Focused generated-copy + GBP service run passed 2 files / 49 tests. Full backend suite passed 66 files / 1,221 tests. npx tsc --noEmit, npm run check:conventions -- --strict, and git diff --check exited 0 with 0 clear backend structural violations. claimNegation.ts is 681 lines.",
+      "notes": "The plan remains In Progress because Slice 1a is still in PR review and its existing live-worker item T7 is waived, not observed. Rev 10 itself is fully verified locally.",
+      "waiver": ""
     }
   ]
 }

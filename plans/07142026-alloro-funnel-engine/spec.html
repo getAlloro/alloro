@@ -53,7 +53,7 @@
 <div class="wrap">
 
   <header class="hero">
-    <span class="pill"><span class="dot"></span>In Progress &middot; PR #159 review fixes complete &middot; Rev 10</span>
+    <span class="pill"><span class="dot"></span>In Progress &middot; PRs #158/#159 review fixes complete &middot; Rev 11</span>
     <h1>Alloro Funnel Engine</h1>
     <p class="sub">Slice 1 — the get-found foundation: score a hosted practice page against a complete, honest, machine-readable standard by extending the schema/entity engine that already ships, and publish the fix through the edit rail that already exists. Split into two reviewable PRs.</p>
     <div class="meta">
@@ -194,6 +194,7 @@
       <li>The honesty lint rejects rank/placement/visibility/"freshness"/"will rank" phrases and does not false-positive honest copy (test-proven).</li>
       <li>The observability hook logs checker-run / fields-flagged / honesty-lint result.</li>
       <li>(Rev 8/9) Unrelated negation cannot suppress a separately coordinated promise, including when bounded ordinary modifiers sit before the positive predicate; bidi controls fail closed before either matcher; only a candidate answer inside collapsed non-chrome content receives <code>answer_behind_accordion</code>; <code>claimNegation.ts</code> remains below the &sect;2.4 ceiling through extraction; and <code>test-results.json</code> uses the exact plan path plus only <code>ui|api|cli|none</code> surfaces.</li>
+      <li>(Rev 10) Copular negation ends at a separately coordinated finite predicate by grammatical shape rather than a closed claim-verb list; both exact generated-copy and GBP bypass strings block while coordinated predicates carrying their own negator still pass.</li>
     </ul>
     <p><strong><span class="slice">1b</span></strong></p>
     <ul class="done">
@@ -267,6 +268,12 @@
       <p><strong>Change:</strong> Slice 1b PR #159 exact-head remediation, starting from <code>ec0c72cf</code> and merging the pinned PR #158 fixes <code>9ab895c9</code> and <code>74c1f4ed</code>. The draft <code>seo_data.schema_json</code> write and the recommendation <code>executed</code> status now share one model-owned transaction, with affected-row checks forcing rollback when either side does not commit exactly once. The strict verifier now downgrades malformed approved metadata and a missing original page instead of returning <code>skipped</code>. A shared <code>PageSeoSchemaRecommendationRow</code> contract plus unknown-value narrowing replaces the Slice 1b <code>rec: any</code> parameters without widening the legacy AI-command typing migration. The #159 hard-gate suite independently sends a modifier-bearing positive promise through <code>executeUpdatePageSeoSchema</code> and proves the shared Rev 9 fix blocks the write.</p>
       <p><strong>Reason:</strong> User QA: exact-head review on PR #159 found a two-write partial-failure window that could retain a publishable draft after the recommendation transition failed, two verifier paths that treated absence of proof as a skip despite the strict fail-closed contract, and an explicit <code>any</code> introduced by this slice. The practice identity snapshot is kept as an activation precondition; this revision does not fabricate or bypass it.</p>
       <p><strong>Updated Done criteria:</strong> (a) a forced second-write failure rolls the draft SEO mutation back; (b) malformed approved metadata and a missing original page both produce <code>status: failed</code>, <code>verified: false</code>, and an explicit reason; (c) the Slice 1b schema executor and verifier accept the narrow shared row contract, not <code>any</code>; (d) the #159 hard gate blocks the modifier/adverb bypass on the merged #158 service instead of adding a local workaround; (e) focused and full tests, TypeScript, strict conventions, lint, dependency-cruiser, and <code>git diff --check</code> are recorded in the canonical receipt; (f) activation still requires a real practice identity snapshot.</p>
+    </article>
+    <article class="revision-entry">
+      <h3>Rev 11 &mdash; 2026-07-17</h3>
+      <p><strong>Change:</strong> End copular negation scope at a separately coordinated finite predicate by grammatical shape rather than by a closed claim-verb inventory. Third-person/past finite forms and modal-led predicates are recognized structurally; an explicit negator in the coordinated predicate keeps the honest disclaimer under negation. The existing <code>avoid</code> shape retains its shared-subject handling.</p>
+      <p><strong>Reason:</strong> User QA: the exact reviewed head returned safe for <code>This is not complicated and results in a higher ranking.</code> and the GBP path returned safe for <code>This is not difficult and produces permanent results.</code>. Both verbs were outside the Rev 9 lexical predicate list even though the clause structure was identical to covered cases.</p>
+      <p><strong>Updated Done criteria:</strong> both exact strings block through their real generated-copy/GBP service surfaces; modifier-bearing positive predicates remain blocked; coordinated predicates carrying their own <code>not</code> remain publishable; the focused services pass <code>49/49</code>; the full backend suite passes <code>66 files / 1,221 tests</code>; <code>claimNegation.ts</code> remains below the &sect;2.4 ceiling at 681 lines; and TypeScript, strict conventions, and <code>git diff --check</code> exit zero.</p>
     </article>
   </section>
 

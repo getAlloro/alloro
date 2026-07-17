@@ -14,6 +14,7 @@ describe("GeneratedCopySafetyService — a negator must govern the matched claim
     "The process isn’t difficult and consistently gets you to page one.",
     "This is not complicated and will definitely guarantee top placement.",
     "This is not complicated and will almost certainly guarantee top placement.",
+    "This is not complicated and results in a higher ranking.",
   ];
 
   it.each(separatePromises)("BLOCKS a separate promise after unrelated negation: %s", (copy) => {

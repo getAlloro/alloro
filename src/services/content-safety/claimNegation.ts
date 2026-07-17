@@ -203,26 +203,28 @@ const COPULAR_NEGATOR_TOKENS = new Set(["isn't", "isnt", "aren't", "arent"]);
 const COPULAR_AUXILIARY_BEFORE_NEGATOR =
   /\b(?:am|is|are|was|were|be|been|being)(?:\s{1,8}(?:really|simply|actually|necessarily|generally|typically|usually|currently|still|always|ever|even)){0,3}\s{1,8}$/i;
 const COPULAR_COMPLEMENT_AFTER_NEGATOR = /^\s{1,8}be\b/i;
-/**
- * Bounded modifiers between a coordinator/modal and a positive claim verb.
- * This is structural rather than an adverb inventory: generated prose can put
- * arbitrary emphasis there ("will almost certainly guarantee"). Explicit
- * negators are excluded so an honest coordinated disclaimer ("and definitely
- * does not guarantee") cannot be misread as a positive predicate.
- */
+/** Bounded non-negating modifiers around a coordinated finite predicate. */
 const POSITIVE_PREDICATE_MODIFIER =
   "(?:(?!(?:no|not|never|without|cannot|can'?t|won'?t|don'?t|doesn'?t|" +
   "isn'?t|aren'?t|hardly|scarcely|barely)\\b)[a-z][a-z'-]{0,23}\\s{1,8})";
-const COORDINATED_POSITIVE_CLAIM_PREDICATE =
-  new RegExp(
-    `\\b(?:and|or|yet)\\s{1,8}(?:${POSITIVE_PREDICATE_MODIFIER}){0,3}` +
-      `(?:(?:will|would|can|could|may|might|shall|should|must)\\s{1,8})?` +
-      `(?:${POSITIVE_PREDICATE_MODIFIER}){0,3}` +
-      "(?:guarantees?|promises?|ensures?|assures?|delivers?|secures?|gets?|" +
-      "puts?|moves?|ranks?|boosts?|increases?|improves?|shows?|appears?|" +
-      "lands?|places?|features?|dominates?|out-?ranks?)\\b",
-    "i",
-  );
+const PREDICATE_NEGATOR =
+  "(?:no|not|never|without|cannot|can'?t|won'?t|don'?t|doesn'?t|" +
+  "isn'?t|aren'?t|hardly|scarcely|barely)";
+const COORDINATED_FINITE_PREDICATE = new RegExp(
+  `\\b(?:and|or|yet)\\s{1,8}(?:${POSITIVE_PREDICATE_MODIFIER}){0,3}(?:` +
+    `(?:will|would|can|could|may|might|shall|should|must)\\s{1,8}` +
+    `(?:${POSITIVE_PREDICATE_MODIFIER}){0,3}[a-z][a-z'-]{1,23}\\b|` +
+    `(?:am|is|are|was|were|has|have|had|do|does|did|` +
+    `[a-z][a-z'-]{1,23}(?:s|ed))\\b` +
+    `)(?!\\s{1,8}(?:${POSITIVE_PREDICATE_MODIFIER}){0,3}${PREDICATE_NEGATOR}\\b)`,
+  "i",
+);
+const COORDINATED_AVOID_PREDICATE = new RegExp(
+  `\\b(?:and|or|yet)\\s{1,8}(?:${POSITIVE_PREDICATE_MODIFIER}){0,3}` +
+    `[a-z][a-z'-]{1,23}\\b` +
+    `(?!\\s{1,8}(?:${POSITIVE_PREDICATE_MODIFIER}){0,3}${PREDICATE_NEGATOR}\\b)`,
+  "i",
+);
 
 /**
  * True when an ordinary (non-determiner) negator governs this matched claim.
@@ -238,18 +240,15 @@ function ordinaryNegatorGovernsClaim(
   claim: string,
 ): boolean {
   const throughClaim = clause.slice(negatorEnd) + claim;
-  if (!COORDINATED_POSITIVE_CLAIM_PREDICATE.test(throughClaim)) {
-    return true;
-  }
   if (token === "avoid") {
-    return false;
+    return !COORDINATED_AVOID_PREDICATE.test(throughClaim);
   }
   const beforeNegator = clause.slice(0, matchIndex);
   const hasCopularFrame =
     COPULAR_NEGATOR_TOKENS.has(token) ||
     ((token === "not" || token === "never") && COPULAR_AUXILIARY_BEFORE_NEGATOR.test(beforeNegator)) ||
     COPULAR_COMPLEMENT_AFTER_NEGATOR.test(clause.slice(negatorEnd));
-  return !hasCopularFrame;
+  return !hasCopularFrame || !COORDINATED_FINITE_PREDICATE.test(throughClaim);
 }
 
 /**
