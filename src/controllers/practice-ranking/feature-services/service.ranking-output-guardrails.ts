@@ -33,20 +33,30 @@ const RANK_OUTCOME =
 const POST_CAUSAL_VERB =
   "(?:protect|improve|widen|boost|lift|raise|strengthen|maintain|hold|" +
   "advance|move|recover|stay|remain|support|help|keep|get|show|appear|" +
-  "rank|break|climb|outrank)";
+  "rank|break|climb|outrank|drive|push|give|lead|result|produce|cause|" +
+  "deliver|secure)";
 /**
- * Directional relationship, not mere co-occurrence. The old guard separately
- * searched for any post token and any rank-outcome token in one sentence, so
- * "Review growth improves rank, while posts reassure patients" was corrupted.
- * These alternatives require posts to be the source of a nearby causal verb,
- * or a rank outcome to name posts through an explicit causal preposition.
+ * A coordinator ends the post-source clause only when it introduces an
+ * explicit subject before another causal predicate. The negative lookahead
+ * prevents the predicate itself (or a normal adverb) from being mistaken for
+ * that subject, so "posts consistently improve rankings" remains a claim while
+ * "posts help patients and review growth improves rank" splits at `and`.
  */
-const POST_TO_RANK_CAUSAL_PATTERN = new RegExp(
-  `(?:\\b${POST_SOURCE}\\b[^.!?;,]{0,40}\\b${POST_CAUSAL_VERB}\\w*\\b` +
-    `[^.!?;]{0,64}\\b${RANK_OUTCOME}\\b|` +
-    `\\b${RANK_OUTCOME}\\b[^.!?;]{0,80}\\b` +
+const COORDINATED_NEW_CAUSAL_SUBJECT = new RegExp(
+  `\\b(?:and|but|or|yet|while|whereas)\\s+` +
+    `(?:(?!(?:${POST_CAUSAL_VERB})\\w*\\b|[a-z][a-z'-]*ly\\b)` +
+    `[a-z][a-z'-]{0,23}\\s+){1,4}` +
+    `(?=(?:${POST_CAUSAL_VERB})\\w*\\b)`,
+  "i",
+);
+const POST_SOURCE_CAUSAL_OUTCOME = new RegExp(
+  `\\b${POST_CAUSAL_VERB}\\w*\\b[^.!?;]{0,64}\\b${RANK_OUTCOME}\\b`,
+  "i",
+);
+const RANK_OUTCOME_FROM_POST = new RegExp(
+  `\\b${RANK_OUTCOME}\\b[^.!?;]{0,80}\\b` +
     `(?:by|from|through|with|because\\s+of|due\\s+to|using)\\b` +
-    `[^.!?;]{0,48}\\b${POST_SOURCE}\\b)`,
+    `[^.!?;]{0,48}\\b${POST_SOURCE}\\b`,
   "i",
 );
 const RECOMMENDED_ACTION_PREFIX = /^recommended action:\s*/i;
@@ -194,7 +204,7 @@ function normalizeLeadProtectionLanguage(
 }
 
 function rewritePostRankSentence(sentence: string): string {
-  if (!POST_TO_RANK_CAUSAL_PATTERN.test(sentence)) {
+  if (!hasPostToRankCausalClaim(sentence)) {
     return sentence;
   }
 
@@ -220,11 +230,32 @@ function rewritePostRankSentence(sentence: string): string {
     : rewrittenAction;
 }
 
+function hasPostToRankCausalClaim(sentence: string): boolean {
+  if (RANK_OUTCOME_FROM_POST.test(sentence)) {
+    return true;
+  }
+
+  const sourceScan = new RegExp(`\\b${POST_SOURCE}\\b`, "gi");
+  let source: RegExpExecArray | null;
+  while ((source = sourceScan.exec(sentence)) !== null) {
+    const afterSource = sentence.slice(source.index + source[0].length);
+    const boundaryCandidates = [
+      afterSource.search(/[.!?;]/),
+      afterSource.search(COORDINATED_NEW_CAUSAL_SUBJECT),
+    ].filter((index) => index >= 0);
+    const boundary =
+      boundaryCandidates.length > 0 ? Math.min(...boundaryCandidates) : -1;
+    const sourceClause =
+      boundary >= 0 ? afterSource.slice(0, boundary) : afterSource;
+    if (POST_SOURCE_CAUSAL_OUTCOME.test(sourceClause)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function rewritePostRankClaims(value: unknown): unknown {
-  if (
-    typeof value !== "string" ||
-    !POST_TO_RANK_CAUSAL_PATTERN.test(value)
-  ) {
+  if (typeof value !== "string" || !hasPostToRankCausalClaim(value)) {
     return value;
   }
 

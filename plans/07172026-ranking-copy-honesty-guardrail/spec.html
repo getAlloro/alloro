@@ -210,6 +210,7 @@
         <li><input type="checkbox" checked disabled> Wizard copy no longer promises a fresh-post-due indicator.</li>
         <li><input type="checkbox" checked disabled> Focused tests and all requested build/convention/diff gates pass, or any failure is recorded without being disguised.</li>
         <li><input type="checkbox" checked disabled> Alloro Docs parity is implemented and build-verified in a clean linked docs worktree.</li>
+        <li><input type="checkbox" checked disabled> Clause-aware causal matching rewrites the direct <code>drive</code> claim while preserving a separately coordinated review-growth rank clause byte-for-byte.</li>
       </ul>
     </section>
 
@@ -226,6 +227,12 @@
         <p><strong>Change:</strong> Replaced sentence-level post/rank co-occurrence with a directional causal matcher. Added a two-direction corpus: five paraphrased post-to-rank promises rewrite, while five independent rank-fact and post-engagement clause shapes stay byte-identical. Completed the required Alloro Docs parity in a clean linked docs worktree at commit <code>3c6c80f</code>, leaving the dirty primary docs checkout untouched.</p>
         <p><strong>Reason:</strong> Independent QA disproved both sides of Rev 1's evidence: five natural causal paraphrases survived, and a truthful sentence containing a rank fact plus a separate post statement was corrupted. The same audit correctly rejected a Passed docs item that merely named unfinished parity work.</p>
         <p><strong>Updated Done criteria:</strong> the guard must prove both causal-rewrite and independent-clause preservation; the two stale Alloro Docs claims must be changed and the docs production build must pass.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 3 - 2026-07-17</h3>
+        <p><strong>Change:</strong> Replace the remaining proximity-only source-first matcher with a clause-aware causal check. The post source must govern a causal rank predicate in its own clause; a coordinating conjunction followed by a new explicit subject ends that source clause before a later rank predicate.</p>
+        <p><strong>Reason:</strong> User QA: the exact reviewed head missed the natural claim <code>Weekly Google posts drive higher rankings.</code> while corrupting the truthful two-cause sentence <code>Google posts help patients and review growth improves rank.</code>.</p>
+        <p><strong>Updated Done criteria:</strong> the first sentence rewrites to the honest patient-consideration action; the second remains byte-identical; the nearby <code>pushes ... map pack</code> direct-cause variant also rewrites; the expanded focused guardrail file passes <code>20/20</code>; the full backend suite passes <code>68 files / 516 tests</code>; and TypeScript, strict conventions, and <code>git diff --check</code> exit zero. No frontend or docs file changed in this revision.</p>
       </article>
     </section>
   </main>

@@ -52,6 +52,8 @@ describe("ranking output guardrail Google post honesty", () => {
     "Publish weekly Google posts to stay visible in local search.",
     "Use weekly Google posts so you remain in the top three.",
     "Weekly Google posts support higher rankings.",
+    "Weekly Google posts drive higher rankings.",
+    "Posting regularly pushes you up the map pack.",
     "We recommend posting weekly to keep your top-three standing.",
     "Posting weekly helps you show higher in Google Maps.",
   ];
@@ -80,6 +82,8 @@ describe("ranking output guardrail Google post honesty", () => {
     "Google posts reassure patients; steady review growth improves rank.",
     "Google posts reassure patients, while reviews improve rank.",
     "Google posts reassure patients, and reviews improve rank.",
+    "Google posts help patients and review growth improves rank.",
+    "Google posts reassure patients and steady review growth improves ranking.",
   ])("preserves independent post and rank statements byte-for-byte: %s", (copy) => {
     const result = sanitizeRankingLlmAnalysis(
       {
