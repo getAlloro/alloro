@@ -8,11 +8,10 @@
  * IO, whose "incomplete" signal GATES NOTHING and is never owner-facing.
  *
  * Input contract: the condensed `client_gbp` record Alloro already builds in the
- * audit pipeline (src/workers/processors/auditLeadgen.processor.ts, verified
- * fields: categoryName, categories, address, phone, website, hasWebsite,
- * hasPhone, hasHours, openingHoursSummary, imagesCount). This module reads those
- * real fields only — it never invents a field, and it tolerates a key being
- * absent (treated as "not provided" = missing, no crash). No net-new fetch.
+ * leadgen audit, or the existing AI-ready GBP profile used by the SEO audit.
+ * `mapAiReadyGbpToCompletenessInput` converts the latter without a new provider
+ * request. It marks only fields that source actually returned as gradable, so a
+ * provider omission (currently photo count) is not misreported as owner missing.
  *
  * Honesty rule (spec Constraint, Value #6): a complete profile improves
  * eligibility/trust, NOT ranking. Callers must never present this score, or the
@@ -21,11 +20,24 @@
  * Evidence tier: DIRECTIONAL.
  */
 
+/** The real, owner-fillable GBP fields graded for completeness (stable keys). */
+export const GBP_COMPLETENESS_FIELDS = [
+  "category",
+  "website",
+  "phone",
+  "hours",
+  "address",
+  "photos",
+] as const;
+
+export type GbpCompletenessField = (typeof GBP_COMPLETENESS_FIELDS)[number];
+
 /**
  * Permissive shape of the practice's own condensed GBP record. Every field is
- * optional: a field absent from the record grades as "missing", not an error.
- * Field names match the verified condensed record; both the explicit boolean
- * flags (hasWebsite/hasPhone/hasHours) and the raw values are accepted.
+ * optional: a field absent from the standard condensed record grades as
+ * "missing", not an error. An adapter for a narrower source may set
+ * `gradableFields` so fields the source never returned are skipped rather than
+ * falsely reported as missing.
  */
 export interface GbpCompletenessInput {
   categoryName?: string | null;
@@ -39,19 +51,8 @@ export interface GbpCompletenessInput {
   hasHours?: boolean | null;
   openingHoursSummary?: string | null;
   imagesCount?: number | null;
+  gradableFields?: readonly GbpCompletenessField[];
 }
-
-/** The real, owner-fillable GBP fields graded for completeness (stable keys). */
-export const GBP_COMPLETENESS_FIELDS = [
-  "category",
-  "website",
-  "phone",
-  "hours",
-  "address",
-  "photos",
-] as const;
-
-export type GbpCompletenessField = (typeof GBP_COMPLETENESS_FIELDS)[number];
 
 export interface GbpCompletenessResult {
   /** True only when a real GBP record with at least one known signal was given. */
@@ -67,8 +68,75 @@ export interface GbpCompletenessResult {
   gbpIncomplete: boolean;
 }
 
-function nonEmptyStr(value: unknown): boolean {
+function nonEmptyStr(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
+}
+
+function objectValue(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function stringValue(value: unknown): string | null {
+  return nonEmptyStr(value) ? value.trim() : null;
+}
+
+function stringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((entry): entry is string => nonEmptyStr(entry)).map((entry) => entry.trim())
+    : [];
+}
+
+function formatStorefrontAddress(value: unknown): string | null {
+  const address = objectValue(value);
+  if (!address) return null;
+  const lines = stringArray(address.addressLines);
+  const parts = [
+    ...lines,
+    stringValue(address.locality),
+    stringValue(address.administrativeArea),
+    stringValue(address.postalCode),
+  ].filter((part): part is string => Boolean(part));
+  return parts.length > 0 ? parts.join(", ") : null;
+}
+
+/**
+ * Adapt the already-fetched `getGBPAIReadyData()` result used by organization
+ * audits to the flat completeness contract. The current source returns profile
+ * identity/hours but no photo count; photos therefore remain ungraded unless a
+ * numeric count is present in a future response.
+ */
+export function mapAiReadyGbpToCompletenessInput(
+  gbpData: Record<string, unknown> | null | undefined,
+): GbpCompletenessInput | null {
+  const profile = objectValue(gbpData?.profile);
+  if (!profile) return null;
+
+  const primaryCategory = stringValue(profile.primaryCategory);
+  const categories = [
+    ...(primaryCategory ? [primaryCategory] : []),
+    ...stringArray(profile.additionalCategories),
+  ];
+  const imagesCountValue = gbpData?.imagesCount ?? profile.imagesCount;
+  const imagesCount = typeof imagesCountValue === "number" ? imagesCountValue : null;
+  const gradableFields = imagesCount === null
+    ? GBP_COMPLETENESS_FIELDS.filter((field) => field !== "photos")
+    : GBP_COMPLETENESS_FIELDS;
+  const regularHourPeriods = objectValue(profile.regularHours)?.periods;
+
+  return {
+    primaryCategory,
+    categories,
+    address: formatStorefrontAddress(profile.storefrontAddress),
+    phone: stringValue(profile.phoneNumber),
+    website: stringValue(profile.websiteUri),
+    hasHours:
+      profile.hasHours === true ||
+      (Array.isArray(regularHourPeriods) && regularHourPeriods.length > 0),
+    imagesCount,
+    gradableFields,
+  };
 }
 
 function fieldPresent(input: GbpCompletenessInput, field: GbpCompletenessField): boolean {
@@ -112,9 +180,12 @@ export function scoreGbpCompleteness(
   };
   if (!input || typeof input !== "object") return empty;
 
+  const fields = GBP_COMPLETENESS_FIELDS.filter(
+    (field) => !input.gradableFields || input.gradableFields.includes(field),
+  );
   const presentFields: GbpCompletenessField[] = [];
   const missingFields: GbpCompletenessField[] = [];
-  for (const field of GBP_COMPLETENESS_FIELDS) {
+  for (const field of fields) {
     if (fieldPresent(input, field)) presentFields.push(field);
     else missingFields.push(field);
   }
@@ -131,7 +202,7 @@ export function scoreGbpCompleteness(
     hasData: true,
     presentFields,
     missingFields,
-    completeness: presentFields.length / GBP_COMPLETENESS_FIELDS.length,
+    completeness: presentFields.length / fields.length,
     gbpIncomplete: missingFields.length > 0,
   };
 }

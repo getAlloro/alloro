@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  mapAiReadyGbpToCompletenessInput,
   scoreGbpCompleteness,
   GBP_COMPLETENESS_FIELDS,
 } from "../services/ai-seo-audit/gbpCompletenessScoring";
@@ -7,7 +8,7 @@ import {
   runGetFoundChecker,
   INTERNAL_GBP_INCOMPLETE_SIGNAL,
 } from "../services/ai-seo-audit/getFoundChecker";
-import { GbpContentSafetyService } from "../controllers/gbp-automation/feature-services/GbpContentSafetyService";
+import { GeneratedCopySafetyService } from "../services/content-safety/GeneratedCopySafetyService";
 import { condenseGbp } from "../controllers/audit/audit-utils/payloadCondensers";
 
 /**
@@ -119,6 +120,54 @@ describe("scoreGbpCompleteness — against the real condenseGbp producer", () =>
   });
 });
 
+describe("scoreGbpCompleteness — AI-ready production profile adapter", () => {
+  it("maps the existing organization-audit GBP profile without inventing photo evidence", () => {
+    const mapped = mapAiReadyGbpToCompletenessInput({
+      profile: {
+        primaryCategory: "Dentist",
+        additionalCategories: ["Cosmetic Dentist"],
+        websiteUri: null,
+        phoneNumber: "+1-512-555-0100",
+        hasHours: true,
+        storefrontAddress: {
+          addressLines: ["123 Main St"],
+          locality: "Austin",
+          administrativeArea: "TX",
+          postalCode: "78701",
+        },
+      },
+    });
+    const result = scoreGbpCompleteness(mapped);
+
+    expect(result.hasData).toBe(true);
+    expect(result.presentFields).toEqual(["category", "phone", "hours", "address"]);
+    expect(result.missingFields).toEqual(["website"]);
+    expect(result.missingFields).not.toContain("photos");
+    expect(result.completeness).toBeCloseTo(0.8, 5);
+
+    const checker = runGetFoundChecker({
+      url: "https://example.com/",
+      html: minimalPage(),
+      gbpCompleteness: mapped,
+    });
+    const recommendation = checker.recommendations.find(
+      (entry) => entry.code === "gbp_completeness",
+    );
+    expect(recommendation?.detail).toContain("website");
+    expect(recommendation?.detail).not.toContain("photo");
+  });
+
+  it("grades photos when the AI-ready source carries a real count", () => {
+    const mapped = mapAiReadyGbpToCompletenessInput({
+      imagesCount: 0,
+      profile: { primaryCategory: "Dentist" },
+    });
+    const result = scoreGbpCompleteness(mapped);
+
+    expect(result.missingFields).toContain("photos");
+  });
+});
+
 describe("getFoundChecker — GBP completeness wiring", () => {
   it("emits a gbp_completeness recommendation when a record is supplied and incomplete", () => {
     const result = runGetFoundChecker({
@@ -155,7 +204,7 @@ describe("getFoundChecker — GBP completeness wiring", () => {
 
     // Honesty gate accepts the owner-facing title + detail.
     for (const copy of [rec.title, rec.detail]) {
-      const safety = GbpContentSafetyService.validateGeneratedCopy(copy);
+      const safety = GeneratedCopySafetyService.validateGeneratedCopy(copy);
       expect(safety.isSafe).toBe(true);
     }
     // No rank/visibility language, and the internal signal never surfaces.

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { OrganizationAuditContext } from "../services/ai-seo-audit/types";
 
 /**
  * Locks the Slice 1a production integration point.
@@ -96,7 +97,10 @@ async function importExecuteTargets() {
 describe("get-found checker — production integration point", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    createTarget.mockResolvedValue({ id: "target-1", url: "https://example.com/", metadata: {} });
+    createTarget.mockImplementation(async (input: Record<string, unknown>) => ({
+      ...input,
+      id: "target-1",
+    }));
     collectUrlAuditSnapshot.mockResolvedValue(snapshotFixture());
     scoreAuditTarget.mockReturnValue({
       summary: { score: 80, dataCoverage: 100, confidence: "high", hardCaps: [], categories: [] },
@@ -118,6 +122,91 @@ describe("get-found checker — production integration point", () => {
     expect(runGetFoundChecker).toHaveBeenCalledWith({
       url: "https://example.com/final",
       html: SNAPSHOT_HTML,
+    });
+  });
+
+  it("passes the matching location's live GBP profile to the checker", async () => {
+    const executeTargets = await importExecuteTargets();
+    const organizationContext = organizationContextFixture([
+      locationContextFixture(11, "First", {
+        profile: { primaryCategory: "Orthodontist" },
+      }),
+      locationContextFixture(22, "Second", {
+        profile: {
+          primaryCategory: "Dentist",
+          additionalCategories: ["Cosmetic Dentist"],
+          websiteUri: "https://second.example",
+          phoneNumber: "+1-512-555-0100",
+          hasHours: true,
+          storefrontAddress: {
+            addressLines: ["22 Second St"],
+            locality: "Austin",
+            administrativeArea: "TX",
+            postalCode: "78701",
+          },
+        },
+      }),
+    ]);
+
+    await executeTargets(
+      "run-1",
+      [{ ...TARGET_INPUT, location_id: 22 }],
+      organizationContext,
+      null,
+    );
+
+    expect(runGetFoundChecker).toHaveBeenCalledWith({
+      url: "https://example.com/final",
+      html: SNAPSHOT_HTML,
+      gbpCompleteness: expect.objectContaining({
+        primaryCategory: "Dentist",
+        categories: ["Dentist", "Cosmetic Dentist"],
+        website: "https://second.example",
+        phone: "+1-512-555-0100",
+        address: "22 Second St, Austin, TX, 78701",
+        hasHours: true,
+      }),
+    });
+    const checkerInput = runGetFoundChecker.mock.calls[0][0];
+    expect(checkerInput.gbpCompleteness.primaryCategory).not.toBe("Orthodontist");
+    expect(checkerInput.gbpCompleteness.gradableFields).not.toContain("photos");
+  });
+
+  it("does not borrow a GBP profile for an unmapped multi-location page", async () => {
+    const executeTargets = await importExecuteTargets();
+    const organizationContext = organizationContextFixture([
+      locationContextFixture(11, "First", {
+        profile: { primaryCategory: "Orthodontist" },
+      }),
+      locationContextFixture(22, "Second", {
+        profile: { primaryCategory: "Dentist" },
+      }),
+    ]);
+
+    await executeTargets("run-1", [TARGET_INPUT], organizationContext, null);
+
+    expect(runGetFoundChecker).toHaveBeenCalledWith({
+      url: "https://example.com/final",
+      html: SNAPSHOT_HTML,
+    });
+  });
+
+  it("uses the only location for an unmapped single-location page", async () => {
+    const executeTargets = await importExecuteTargets();
+    const organizationContext = organizationContextFixture([
+      locationContextFixture(11, "Only", {
+        profile: { primaryCategory: "Orthodontist" },
+      }),
+    ]);
+
+    await executeTargets("run-1", [TARGET_INPUT], organizationContext, null);
+
+    expect(runGetFoundChecker).toHaveBeenCalledWith({
+      url: "https://example.com/final",
+      html: SNAPSHOT_HTML,
+      gbpCompleteness: expect.objectContaining({
+        primaryCategory: "Orthodontist",
+      }),
     });
   });
 
@@ -143,3 +232,41 @@ describe("get-found checker — production integration point", () => {
     expect(persistResults).toHaveBeenCalledTimes(1);
   });
 });
+
+function locationContextFixture(
+  id: number,
+  name: string,
+  gbpData: Record<string, unknown> | null,
+): OrganizationAuditContext["locations"][number] {
+  return {
+    id,
+    name,
+    domain: null,
+    businessData: null,
+    googlePropertyCount: gbpData ? 1 : 0,
+    selectedGoogleProperty: null,
+    gbpData,
+    gbpError: null,
+  };
+}
+
+function organizationContextFixture(
+  locations: OrganizationAuditContext["locations"],
+): OrganizationAuditContext {
+  return {
+    organizationId: 1,
+    organizationName: "Example",
+    projectId: "project-1",
+    projectUrl: "https://example.com",
+    projectIdentity: { name: "Example" },
+    locations,
+    gsc: {
+      hasActiveIntegration: false,
+      latestReportDate: null,
+      rowsForUrls: {},
+      error: null,
+    },
+    pages: [],
+    totalPublishedPages: 0,
+  };
+}
