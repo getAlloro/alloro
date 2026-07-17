@@ -1,7 +1,7 @@
 {
   "plan": "plans/07152026-nap-consistency-monitor",
   "generatedAt": "2026-07-17",
-  "status": "In Progress",
+  "status": "Passed",
   "items": [
     {
       "id": "T1",
@@ -509,12 +509,12 @@
         "Inspect the recorded observation against the live listings."
       ],
       "expected": "The monitor records an observation whose conflicts match what the live listings actually show.",
-      "status": "pending",
-      "evidence": "",
+      "status": "fail",
+      "evidence": "Not run before merge. The owner accepted the existing Layer 1 and combined-batch receipts and directed the PR to merge without incurring a live SerpApi charge.",
       "notes": "HONESTLY NOT RUN and deliberately deferred — the post-merge Dave/dev smoke test. Rev 6 changed step 1: the schedule is no longer seeded, so an operator creates it first. Creating AND enabling incur real SerpApi cost and are Corey's call, not a merge step. Every proof in this file is unit-level with injected seams; no live provider call has been made.",
-      "waiver": "",
+      "waiver": "Owner-directed merge waiver recorded 2026-07-17. After T15 and its real SerpApi cost were stated explicitly, Dave instructed the remaining PRs to be fixed and merged. This accepts the missing live-provider receipt for merge only; it does not claim a live run passed, authorize provider spend, or enable/create the schedule.",
       "layer": 2
     }
   ],
-  "layerNote": "§20.5 defines this artifact as the Layer 2 acceptance checklist — behavioural validation against the RUNNING app. Every item marked `layer: 1` is a Layer 1 automated-test receipt (vitest, injected seams or mocked collaborators; no network, no Redis and no database); it is listed here for traceability and is NOT behavioural validation. T22 is weaker still: a static code-review receipt, not an executed test — it says so in its notes. T24-T29 prove stable logical context, pre-measurement idempotency, owned-run recovery, Redis-cache failure recovery, atomic row acquisition, shared full-lifetime execution ownership, non-consuming contention deferral, and pool-safe connection retirement against real application functions with test doubles; they do NOT prove Redis/BullMQ or PostgreSQL at runtime. NO Layer 2 validation has been performed for this plan: T14 is fail-with-Dave's explicit PostgreSQL-results waiver, while T15 remains pending and unwaived. The roll-up therefore stays In Progress and must not be read as an accepted feature. Specifically NOT proven anywhere in this file: that either migration's DDL and conflict inference are valid PostgreSQL, that advisory locks behave under a live pool/process failure, that BullMQ persists/retries against Redis, or that a live SerpApi run records correct production data."
+  "layerNote": "§20.5 defines this artifact as the Layer 2 acceptance checklist — behavioural validation against the RUNNING app. Every item marked `layer: 1` is a Layer 1 automated-test receipt (vitest, injected seams or mocked collaborators; no network, no Redis and no database); it is listed here for traceability and is NOT behavioural validation. T22 is weaker still: a static code-review receipt, not an executed test — it says so in its notes. T24-T29 prove stable logical context, pre-measurement idempotency, owned-run recovery, Redis-cache failure recovery, atomic row acquisition, shared full-lifetime execution ownership, non-consuming contention deferral, and pool-safe connection retirement against real application functions with test doubles; they do NOT prove Redis/BullMQ or PostgreSQL at runtime. NO Layer 2 validation has been performed for this plan: T14 is fail-with-Dave's explicit PostgreSQL-results waiver and T15 is fail-with-Dave's explicit owner-directed merge waiver. The schema therefore rolls up to Passed through written waivers, not through fabricated runtime passes. Specifically NOT proven anywhere in this file: that either migration's DDL and conflict inference are valid PostgreSQL, that advisory locks behave under a live pool/process failure, that BullMQ persists/retries against Redis, or that a live SerpApi run records correct production data."
 }
