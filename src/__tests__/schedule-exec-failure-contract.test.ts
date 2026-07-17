@@ -106,6 +106,7 @@ function makeJob(
   const job = {
     name: "run-schedule",
     id: "sched-7-1752537600000",
+    token: "worker-token",
     data: {
       scheduleId: 7,
       logicalRunAt: "2026-07-16T23:59:59.000Z",
@@ -113,6 +114,7 @@ function makeJob(
     },
     attemptsMade,
     opts: attempts === undefined ? {} : { attempts },
+    moveToDelayed: vi.fn().mockResolvedValue(undefined),
     async updateData(data: Record<string, unknown>) {
       if (remainingUpdateDataFailures > 0) {
         remainingUpdateDataFailures -= 1;
@@ -219,9 +221,16 @@ describe("processScheduleExec — retry ownership and logical time (§21.1/§21.
     const firstAttempt = processScheduleExec(makeJob(0, 2));
     await vi.waitFor(() => expect(handler).toHaveBeenCalledOnce());
 
-    await expect(processScheduleExec(makeJob(1, 2))).resolves.toBeUndefined();
+    const redelivery = makeJob(1, 2);
+    await expect(processScheduleExec(redelivery)).rejects.toMatchObject({
+      name: "DelayedError",
+    });
     expect(handler).toHaveBeenCalledOnce();
     expect(releaseExecutionLock).not.toHaveBeenCalled();
+    expect(redelivery.moveToDelayed).toHaveBeenCalledWith(
+      expect.any(Number),
+      "worker-token",
+    );
 
     finishFirst?.();
     await expect(firstAttempt).resolves.toBeUndefined();
@@ -364,6 +373,40 @@ describe("processScheduleExec — retry ownership and logical time (§21.1/§21.
 });
 
 describe("processScheduleExec — next_run_at advances only on a terminal attempt", () => {
+  it("rethrows an execution-lock acquisition failure without advancing while retries remain", async () => {
+    const lockError = new Error("PostgreSQL lock query failed");
+    acquireExecutionLock.mockRejectedValueOnce(lockError);
+
+    await expect(processScheduleExec(makeJob(0, 3))).rejects.toBe(lockError);
+
+    expect(updateById).not.toHaveBeenCalled();
+    expect(errorLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        err: lockError.message,
+        phase: "execution-lock",
+        terminal: false,
+      }),
+      expect.stringContaining("could not acquire execution ownership"),
+    );
+  });
+
+  it("advances and dead-letters a terminal execution-lock acquisition failure", async () => {
+    const lockError = new Error("PostgreSQL pool unavailable");
+    acquireExecutionLock.mockRejectedValueOnce(lockError);
+
+    await expect(processScheduleExec(makeJob(2, 3))).rejects.toBe(lockError);
+
+    expect(updateById).toHaveBeenCalledOnce();
+    expect(errorLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        err: lockError.message,
+        phase: "execution-lock",
+        terminal: true,
+      }),
+      expect.stringContaining("could not acquire execution ownership"),
+    );
+  });
+
   it("does NOT advance while retries remain — the retry is the retry", async () => {
     getAgentHandler.mockReturnValue({
       displayName: "x",

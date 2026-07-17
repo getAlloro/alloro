@@ -43,7 +43,7 @@ describe("ScheduleRunModel logical job ownership", () => {
           connectionQueries.push({ sql, bindings });
           return { rows: [{ acquired: true }] };
         },
-      })) as typeof db.raw,
+      })) as unknown as typeof db.raw,
     );
 
     const lock = await ScheduleRunModel.acquireExecutionLock(7);
@@ -65,6 +65,86 @@ describe("ScheduleRunModel logical job ownership", () => {
     ]);
     expect(releaseConnection).toHaveBeenCalledWith(connection);
     expect(destroyConnection).not.toHaveBeenCalled();
+  });
+
+  it("closes, marks disposed, and releases a connection when lock acquisition fails", async () => {
+    const connection: { __knex__disposed?: unknown } = {};
+    vi.spyOn(db.client, "acquireConnection").mockResolvedValue(connection);
+    const releaseConnection = vi
+      .spyOn(db.client, "releaseConnection")
+      .mockResolvedValue(undefined);
+    const destroyConnection = vi
+      .spyOn(db.client, "destroyRawConnection")
+      .mockResolvedValue(undefined);
+    const lockError = new Error("lock query failed");
+    vi.spyOn(db, "raw").mockReturnValue({
+      connection: vi.fn().mockRejectedValue(lockError),
+    } as never);
+
+    await expect(
+      ScheduleRunModel.acquireExecutionLock(7),
+    ).rejects.toBe(lockError);
+
+    expect(connection.__knex__disposed).toBe(lockError);
+    expect(destroyConnection).toHaveBeenCalledWith(connection);
+    expect(releaseConnection).toHaveBeenCalledWith(connection);
+  });
+
+  it("retires the pooled connection when PostgreSQL reports no lock was released", async () => {
+    const connection: { __knex__disposed?: unknown } = {};
+    vi.spyOn(db.client, "acquireConnection").mockResolvedValue(connection);
+    const releaseConnection = vi
+      .spyOn(db.client, "releaseConnection")
+      .mockResolvedValue(undefined);
+    const destroyConnection = vi
+      .spyOn(db.client, "destroyRawConnection")
+      .mockResolvedValue(undefined);
+    let queryCount = 0;
+    vi.spyOn(db, "raw").mockImplementation(
+      (() => ({
+        connection: async () => ({
+          rows: [{ acquired: queryCount++ === 0 }],
+        }),
+      })) as unknown as typeof db.raw,
+    );
+
+    const lock = await ScheduleRunModel.acquireExecutionLock(7);
+    await expect(lock!.release()).rejects.toThrow(
+      "did not release the execution lock",
+    );
+
+    expect(connection.__knex__disposed).toBeInstanceOf(Error);
+    expect(destroyConnection).toHaveBeenCalledWith(connection);
+    expect(releaseConnection).toHaveBeenCalledWith(connection);
+  });
+
+  it("retires the pooled connection when the unlock query throws", async () => {
+    const connection: { __knex__disposed?: unknown } = {};
+    vi.spyOn(db.client, "acquireConnection").mockResolvedValue(connection);
+    const releaseConnection = vi
+      .spyOn(db.client, "releaseConnection")
+      .mockResolvedValue(undefined);
+    const destroyConnection = vi
+      .spyOn(db.client, "destroyRawConnection")
+      .mockResolvedValue(undefined);
+    const unlockError = new Error("connection lost during unlock");
+    let queryCount = 0;
+    vi.spyOn(db, "raw").mockImplementation(
+      (() => ({
+        connection: async () => {
+          queryCount += 1;
+          if (queryCount === 2) throw unlockError;
+          return { rows: [{ acquired: true }] };
+        },
+      })) as unknown as typeof db.raw,
+    );
+
+    const lock = await ScheduleRunModel.acquireExecutionLock(7);
+    await expect(lock!.release()).rejects.toBe(unlockError);
+
+    expect(connection.__knex__disposed).toBe(unlockError);
+    expect(destroyConnection).toHaveBeenCalledWith(connection);
+    expect(releaseConnection).toHaveBeenCalledWith(connection);
   });
 
   it("locks the parent schedule row with FOR UPDATE", async () => {

@@ -40,7 +40,32 @@ interface AdvisoryLockResult {
   rows: Array<{ acquired: boolean }>;
 }
 
+interface DisposableKnexConnection {
+  __knex__disposed?: unknown;
+}
+
 const SCHEDULE_EXECUTION_LOCK_NAMESPACE = 1095519311;
+
+async function retireExecutionLockConnection(
+  connection: DisposableKnexConnection,
+  reason: unknown,
+): Promise<void> {
+  // Knex/Tarn accounts for a checked-out resource only through release().
+  // Closing the pg socket alone leaves the resource in Tarn's used list.
+  // Marking it disposed makes Knex reject/destroy it if the released resource
+  // is considered for another acquisition.
+  connection.__knex__disposed = reason;
+
+  let destroyError: unknown;
+  try {
+    await db.client.destroyRawConnection(connection);
+  } catch (error) {
+    destroyError = error;
+  }
+
+  await db.client.releaseConnection(connection);
+  if (destroyError) throw destroyError;
+}
 
 // ── Schedules ───────────────────────────────────────────────────────
 
@@ -223,7 +248,8 @@ export class ScheduleRunModel {
   static async acquireExecutionLock(
     scheduleId: number,
   ): Promise<ScheduleExecutionLock | undefined> {
-    const connection = await db.client.acquireConnection();
+    const connection =
+      await db.client.acquireConnection() as DisposableKnexConnection;
 
     try {
       const result = await db
@@ -238,7 +264,9 @@ export class ScheduleRunModel {
         return undefined;
       }
     } catch (error) {
-      await db.client.destroyRawConnection(connection).catch(() => undefined);
+      await retireExecutionLockConnection(connection, error).catch(
+        () => undefined,
+      );
       throw error;
     }
 
@@ -262,8 +290,11 @@ export class ScheduleRunModel {
           }
           await db.client.releaseConnection(connection);
         } catch (error) {
-          // Never return a connection with uncertain lock state to the pool.
-          await db.client.destroyRawConnection(connection).catch(() => undefined);
+          // Close the session to release any uncertain advisory lock, then
+          // release the disposed resource through Knex's pool accounting.
+          await retireExecutionLockConnection(connection, error).catch(
+            () => undefined,
+          );
           throw error;
         }
       },

@@ -454,8 +454,27 @@
       ],
       "expected": "One schedule has at most one executing handler across BullMQ redelivery and manual triggers. The lock covers external work, not only row creation, and cannot remain hidden on a pooled connection.",
       "status": "pass",
-      "evidence": "src/__tests__/schedule-exec-failure-contract.test.ts, schedule-manual-execution-lock.test.ts, and schedule-run-logical-ownership-model.test.ts — focused run 3 files / 25 tests; full normal Vitest 69 files / 535 tests; TypeScript and strict conventions passed on Node 22 (2026-07-17).",
-      "notes": "Layer 1 only. The production model emits PostgreSQL advisory-lock SQL, but the connection is mocked; live PostgreSQL behavior remains covered only by Dave's T14 waiver. The processor/controller tests prove both entry points use the same full-lifetime lock contract.",
+      "evidence": "src/__tests__/schedule-exec-failure-contract.test.ts, schedule-manual-execution-lock.test.ts, and schedule-run-logical-ownership-model.test.ts — focused run 3 files / 30 tests; full normal Vitest 69 files / 540 tests; TypeScript and strict conventions passed on Node 22 (2026-07-17).",
+      "notes": "Layer 1 only. The production model emits PostgreSQL advisory-lock SQL, but the connection is mocked; live PostgreSQL behavior remains covered only by Dave's T14 waiver. The processor/controller tests prove both entry points use the same full-lifetime lock contract. T29 separately proves contention deferral and uncertain-connection pool accounting.",
+      "waiver": "",
+      "layer": 1
+    },
+    {
+      "id": "T29",
+      "title": "Lock contention defers without false completion and uncertain connections do not leak the Knex pool (§10.6 / §21.2)",
+      "surface": "none",
+      "precondition": "Drive the real schedule processor with a BullMQ job double exposing token/moveToDelayed, and drive the real model against Knex connection doubles for acquire-query, unlock-false, and unlock-throw failures.",
+      "steps": [
+        "Hold the first scheduled handler under the execution lock, deny the redelivery's lock acquisition, and assert it moves to delayed with the worker token.",
+        "Assert the redelivery throws DelayedError, consumes no handler call, and does not release the first owner's lock.",
+        "Reject the lock query on a non-terminal attempt and assert the job rejects without advancing next_run_at.",
+        "Reject the lock query on the terminal attempt and assert the job rejects, advances next_run_at, and logs execution-lock dead-letter context.",
+        "Inject acquire-query failure, unlock returning false, and unlock throwing; assert each closes the socket, marks the connection disposed, and releases it through Knex pool accounting."
+      ],
+      "expected": "Contention is a non-consuming delay, never a completed job. Real lock acquisition failures retain bounded retry/dead-letter behavior. No advisory-lock error leaves a PostgreSQL session lock or a Tarn used-slot behind.",
+      "status": "pass",
+      "evidence": "src/__tests__/schedule-exec-failure-contract.test.ts and schedule-run-logical-ownership-model.test.ts passed inside the focused 3-file / 30-test run and the full 69-file / 540-test run; TypeScript, strict conventions, focused ESLint, and dependency cruise passed on Node 22 (2026-07-17).",
+      "notes": "Layer 1 only. BullMQ and Knex APIs are real but Redis/PostgreSQL are represented by job/connection doubles. BullMQ's installed source confirms moveToDelayed uses skipAttempt=true and Worker treats DelayedError as already moved. Live PostgreSQL behavior remains waived only under T14.",
       "waiver": "",
       "layer": 1
     },
@@ -474,7 +493,7 @@
       "expected": "Both additive migrations run; `schedules` is untouched; the logical-run conflict target is accepted by PostgreSQL; no error.",
       "status": "fail",
       "evidence": "Not run against PostgreSQL in this review round. Mocked migration/model tests prove code shape only.",
-      "notes": "HONESTLY NOT RUN. With the seed removed there is no schedules insert to verify. T10-T13 and T27 assert migration/conflict shape through mocked Knex seams; T28 asserts advisory-lock shape against a mocked connection. They do not prove PostgreSQL DDL, index inference, or live lock behaviour.",
+      "notes": "HONESTLY NOT RUN. With the seed removed there is no schedules insert to verify. T10-T13 and T27 assert migration/conflict shape through mocked Knex seams; T28/T29 assert advisory-lock and pool-retirement shape against mocked connections. They do not prove PostgreSQL DDL, index inference, or live lock behaviour.",
       "waiver": "Dave explicitly waived PostgreSQL results for this PR batch on 2026-07-16. This waiver accepts only the missing live PostgreSQL result; it does not convert the item to pass and does not cover T15's live SerpApi acceptance.",
       "layer": 2
     },
@@ -497,5 +516,5 @@
       "layer": 2
     }
   ],
-  "layerNote": "§20.5 defines this artifact as the Layer 2 acceptance checklist — behavioural validation against the RUNNING app. Every item marked `layer: 1` is a Layer 1 automated-test receipt (vitest, injected seams or mocked collaborators; no network, no Redis and no database); it is listed here for traceability and is NOT behavioural validation. T22 is weaker still: a static code-review receipt, not an executed test — it says so in its notes. T24-T28 prove stable logical context, pre-measurement idempotency, owned-run recovery, Redis-cache failure recovery, atomic row acquisition, and shared full-lifetime execution ownership against real application functions with test doubles; they do NOT prove Redis/BullMQ or PostgreSQL at runtime. NO Layer 2 validation has been performed for this plan: T14 is fail-with-Dave's explicit PostgreSQL-results waiver, while T15 remains pending and unwaived. The roll-up therefore stays In Progress and must not be read as an accepted feature. Specifically NOT proven anywhere in this file: that either migration's DDL and conflict inference are valid PostgreSQL, that advisory locks behave under a live pool/process failure, that BullMQ persists/retries against Redis, or that a live SerpApi run records correct production data."
+  "layerNote": "§20.5 defines this artifact as the Layer 2 acceptance checklist — behavioural validation against the RUNNING app. Every item marked `layer: 1` is a Layer 1 automated-test receipt (vitest, injected seams or mocked collaborators; no network, no Redis and no database); it is listed here for traceability and is NOT behavioural validation. T22 is weaker still: a static code-review receipt, not an executed test — it says so in its notes. T24-T29 prove stable logical context, pre-measurement idempotency, owned-run recovery, Redis-cache failure recovery, atomic row acquisition, shared full-lifetime execution ownership, non-consuming contention deferral, and pool-safe connection retirement against real application functions with test doubles; they do NOT prove Redis/BullMQ or PostgreSQL at runtime. NO Layer 2 validation has been performed for this plan: T14 is fail-with-Dave's explicit PostgreSQL-results waiver, while T15 remains pending and unwaived. The roll-up therefore stays In Progress and must not be read as an accepted feature. Specifically NOT proven anywhere in this file: that either migration's DDL and conflict inference are valid PostgreSQL, that advisory locks behave under a live pool/process failure, that BullMQ persists/retries against Redis, or that a live SerpApi run records correct production data."
 }

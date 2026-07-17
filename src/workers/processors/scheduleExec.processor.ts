@@ -64,13 +64,14 @@
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
-import { Job } from "bullmq";
+import { DelayedError, Job } from "bullmq";
 import { CronExpressionParser } from "cron-parser";
 import {
   ScheduleModel,
   ScheduleRunModel,
   ISchedule,
   IScheduleRun,
+  ScheduleExecutionLock,
 } from "../../models/ScheduleModel";
 import {
   AgentRunContext,
@@ -90,6 +91,8 @@ export interface ScheduleExecJobData {
   /** Paid handler result cached before completion bookkeeping. */
   resultSummary?: Record<string, unknown>;
 }
+
+const EXECUTION_LOCK_CONTENTION_DELAY_MS = 60_000;
 
 function computeNextRunAt(schedule: ISchedule): Date {
   if (schedule.schedule_type === "cron" && schedule.cron_expression) {
@@ -358,6 +361,60 @@ async function handleAttemptFailure(
   throw error;
 }
 
+async function handlePreRunFailure(
+  job: Job<ScheduleExecJobData>,
+  schedule: ISchedule,
+  error: unknown,
+): Promise<never> {
+  const message = messageFrom(error);
+  const { attempt, maxAttempts, isTerminal } = attemptState(job);
+
+  logger.error(
+    {
+      err: message,
+      jobName: job.name,
+      jobId: job.id,
+      scheduleId: schedule.id,
+      agentKey: schedule.agent_key,
+      phase: "execution-lock",
+      attempt,
+      maxAttempts,
+      terminal: isTerminal,
+    },
+    `[SCHEDULE-EXEC] could not acquire execution ownership for "${schedule.agent_key}"`,
+  );
+
+  if (isTerminal) {
+    try {
+      await advanceSchedule(
+        schedule,
+        "error",
+        {
+          jobId: job.id,
+          scheduleId: schedule.id,
+          agentKey: schedule.agent_key,
+          attempts: attempt,
+          phase: "execution-lock",
+        },
+        `[SCHEDULE-EXEC] "${schedule.agent_key}" DEAD-LETTERED before execution — no attempts left`,
+      );
+    } catch (advanceError) {
+      logger.error(
+        {
+          err: messageFrom(advanceError),
+          originalErr: message,
+          scheduleId: schedule.id,
+          agentKey: schedule.agent_key,
+          phase: "execution-lock",
+        },
+        `[SCHEDULE-EXEC] could not advance next_run_at after execution-lock failure for schedule ${schedule.id}`,
+      );
+    }
+  }
+
+  throw error;
+}
+
 export async function processScheduleExec(job: Job<ScheduleExecJobData>): Promise<void> {
   const { scheduleId } = job.data;
 
@@ -373,13 +430,27 @@ export async function processScheduleExec(job: Job<ScheduleExecJobData>): Promis
     return;
   }
 
-  const executionLock = await ScheduleRunModel.acquireExecutionLock(schedule.id);
+  let executionLock: ScheduleExecutionLock | undefined;
+  try {
+    executionLock = await ScheduleRunModel.acquireExecutionLock(schedule.id);
+  } catch (error) {
+    await handlePreRunFailure(job, schedule, error);
+  }
+
   if (!executionLock) {
     logger.info(
       { jobId: job.id, scheduleId: schedule.id, agentKey: schedule.agent_key },
-      `[SCHEDULE-EXEC] Schedule ${schedule.id} already executing — skipping`,
+      `[SCHEDULE-EXEC] Schedule ${schedule.id} already executing — deferring this delivery`,
     );
-    return;
+    try {
+      await job.moveToDelayed(
+        Date.now() + EXECUTION_LOCK_CONTENTION_DELAY_MS,
+        job.token,
+      );
+    } catch (error) {
+      await handlePreRunFailure(job, schedule, error);
+    }
+    throw new DelayedError();
   }
 
   try {
