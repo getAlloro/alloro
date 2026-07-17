@@ -22,6 +22,8 @@ import type { Job } from "bullmq";
 const {
   findById,
   updateById,
+  acquireExecutionLock,
+  releaseExecutionLock,
   acquireRunForLogicalJob,
   findRunByLogicalKey,
   findRunByIdForSchedule,
@@ -36,6 +38,8 @@ const {
 } = vi.hoisted(() => ({
   findById: vi.fn(),
   updateById: vi.fn(),
+  acquireExecutionLock: vi.fn(),
+  releaseExecutionLock: vi.fn(),
   acquireRunForLogicalJob: vi.fn(),
   findRunByLogicalKey: vi.fn(),
   findRunByIdForSchedule: vi.fn(),
@@ -55,6 +59,7 @@ vi.mock("../models/ScheduleModel", () => ({
     updateById: (...a: unknown[]) => updateById(...a),
   },
   ScheduleRunModel: {
+    acquireExecutionLock: (...a: unknown[]) => acquireExecutionLock(...a),
     acquireRunForLogicalJob: (...a: unknown[]) =>
       acquireRunForLogicalJob(...a),
     findRunByLogicalKey: (...a: unknown[]) => findRunByLogicalKey(...a),
@@ -122,6 +127,9 @@ function makeJob(
 beforeEach(() => {
   vi.clearAllMocks();
   findById.mockResolvedValue({ ...SCHEDULE });
+  acquireExecutionLock.mockResolvedValue({
+    release: releaseExecutionLock,
+  });
   acquireRunForLogicalJob.mockResolvedValue({
     id: 99,
     schedule_id: 7,
@@ -192,6 +200,34 @@ describe("processScheduleExec — a failing agent must not resolve (§21.2/§3.2
 });
 
 describe("processScheduleExec — retry ownership and logical time (§21.1/§21.2)", () => {
+  it("holds one execution lock across the full handler so a redelivery cannot overlap paid work", async () => {
+    let finishFirst: (() => void) | undefined;
+    const firstCanFinish = new Promise<void>((resolve) => {
+      finishFirst = resolve;
+    });
+    const handler = vi
+      .fn()
+      .mockImplementationOnce(async () => {
+        await firstCanFinish;
+        return { summary: { first: true } };
+      });
+    getAgentHandler.mockReturnValue({ displayName: "x", handler });
+    acquireExecutionLock
+      .mockResolvedValueOnce({ release: releaseExecutionLock })
+      .mockResolvedValueOnce(undefined);
+
+    const firstAttempt = processScheduleExec(makeJob(0, 2));
+    await vi.waitFor(() => expect(handler).toHaveBeenCalledOnce());
+
+    await expect(processScheduleExec(makeJob(1, 2))).resolves.toBeUndefined();
+    expect(handler).toHaveBeenCalledOnce();
+    expect(releaseExecutionLock).not.toHaveBeenCalled();
+
+    finishFirst?.();
+    await expect(firstAttempt).resolves.toBeUndefined();
+    expect(releaseExecutionLock).toHaveBeenCalledOnce();
+  });
+
   it("keeps a one-attempt run alive when Redis loses runId and result-summary cache writes", async () => {
     const handler = vi.fn().mockResolvedValue({
       summary: { recoveredFromPostgres: true },

@@ -4,6 +4,7 @@ import {
   ScheduleModel,
   ScheduleRunModel,
 } from "../models/ScheduleModel";
+import { db } from "../database/connection";
 
 const RUN: IScheduleRun = {
   id: 99,
@@ -23,6 +24,49 @@ afterEach(() => {
 });
 
 describe("ScheduleRunModel logical job ownership", () => {
+  it("holds and releases a PostgreSQL advisory lock on the same dedicated connection", async () => {
+    const connection = { id: "schedule-lock-connection" };
+    const acquireConnection = vi
+      .spyOn(db.client, "acquireConnection")
+      .mockResolvedValue(connection);
+    const releaseConnection = vi
+      .spyOn(db.client, "releaseConnection")
+      .mockResolvedValue(undefined);
+    const destroyConnection = vi
+      .spyOn(db.client, "destroyRawConnection")
+      .mockResolvedValue(undefined);
+    const connectionQueries: Array<{ sql: string; bindings: readonly unknown[] }> = [];
+    vi.spyOn(db, "raw").mockImplementation(
+      ((sql: string, bindings: readonly unknown[]) => ({
+        connection: async (usedConnection: unknown) => {
+          expect(usedConnection).toBe(connection);
+          connectionQueries.push({ sql, bindings });
+          return { rows: [{ acquired: true }] };
+        },
+      })) as typeof db.raw,
+    );
+
+    const lock = await ScheduleRunModel.acquireExecutionLock(7);
+    expect(lock).toBeDefined();
+    expect(acquireConnection).toHaveBeenCalledOnce();
+    expect(releaseConnection).not.toHaveBeenCalled();
+
+    await lock!.release();
+
+    expect(connectionQueries).toEqual([
+      {
+        sql: "SELECT pg_try_advisory_lock(?, ?) AS acquired",
+        bindings: [1095519311, 7],
+      },
+      {
+        sql: "SELECT pg_advisory_unlock(?, ?) AS acquired",
+        bindings: [1095519311, 7],
+      },
+    ]);
+    expect(releaseConnection).toHaveBeenCalledWith(connection);
+    expect(destroyConnection).not.toHaveBeenCalled();
+  });
+
   it("locks the parent schedule row with FOR UPDATE", async () => {
     const first = vi.fn().mockResolvedValue({ id: 7 });
     const forUpdate = vi.fn(() => ({ first }));

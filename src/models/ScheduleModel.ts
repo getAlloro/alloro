@@ -32,6 +32,16 @@ export interface IScheduleRun {
   created_at: Date;
 }
 
+export interface ScheduleExecutionLock {
+  release(): Promise<void>;
+}
+
+interface AdvisoryLockResult {
+  rows: Array<{ acquired: boolean }>;
+}
+
+const SCHEDULE_EXECUTION_LOCK_NAMESPACE = 1095519311;
+
 // ── Schedules ───────────────────────────────────────────────────────
 
 export class ScheduleModel extends BaseModel {
@@ -198,6 +208,66 @@ export class ScheduleRunModel {
         trx,
       );
     });
+  }
+
+  /**
+   * Own one schedule's execution for the full handler lifetime.
+   *
+   * A PostgreSQL session advisory lock closes the gap left by a transaction
+   * row lock: the row lock protects check + insert, but releases before paid
+   * work starts. Keeping this dedicated connection checked out until release
+   * prevents scheduled/scheduled, manual/manual, and scheduled/manual overlap.
+   * PostgreSQL releases the lock automatically if the process or connection
+   * dies, so a BullMQ redelivery can recover without a permanent lease row.
+   */
+  static async acquireExecutionLock(
+    scheduleId: number,
+  ): Promise<ScheduleExecutionLock | undefined> {
+    const connection = await db.client.acquireConnection();
+
+    try {
+      const result = await db
+        .raw<AdvisoryLockResult>(
+          "SELECT pg_try_advisory_lock(?, ?) AS acquired",
+          [SCHEDULE_EXECUTION_LOCK_NAMESPACE, scheduleId],
+        )
+        .connection(connection);
+
+      if (!result.rows[0]?.acquired) {
+        await db.client.releaseConnection(connection);
+        return undefined;
+      }
+    } catch (error) {
+      await db.client.destroyRawConnection(connection).catch(() => undefined);
+      throw error;
+    }
+
+    let released = false;
+    return {
+      release: async (): Promise<void> => {
+        if (released) return;
+        released = true;
+
+        try {
+          const result = await db
+            .raw<AdvisoryLockResult>(
+              "SELECT pg_advisory_unlock(?, ?) AS acquired",
+              [SCHEDULE_EXECUTION_LOCK_NAMESPACE, scheduleId],
+            )
+            .connection(connection);
+          if (!result.rows[0]?.acquired) {
+            throw new Error(
+              `PostgreSQL did not release the execution lock for schedule ${scheduleId}.`,
+            );
+          }
+          await db.client.releaseConnection(connection);
+        } catch (error) {
+          // Never return a connection with uncertain lock state to the pool.
+          await db.client.destroyRawConnection(connection).catch(() => undefined);
+          throw error;
+        }
+      },
+    };
   }
 
   static async claimLogicalRunKey(

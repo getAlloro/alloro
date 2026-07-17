@@ -417,7 +417,7 @@
       ],
       "expected": "PostgreSQL and the current processor stack own execution. Redis job metadata is best-effort retry cache and cannot turn a successful SQL acquisition into a stranded running row.",
       "status": "pass",
-      "evidence": "src/__tests__/schedule-exec-failure-contract.test.ts — 16/16 passed, including one-attempt runId/resultSummary cache failures and a legacy logical-context cache failure; focused scheduler run 3 files / 23 tests and full normal Vitest 68 files / 531 tests passed on Node 22 (2026-07-17).",
+      "evidence": "src/__tests__/schedule-exec-failure-contract.test.ts passed, including one-attempt runId/resultSummary cache failures and a legacy logical-context cache failure; focused scheduler/manual run 3 files / 25 tests and full normal Vitest 69 files / 535 tests passed on Node 22 (2026-07-17).",
       "notes": "Layer 1 only. The processor is real; Redis failures are injected through the BullMQ job double. This proves the processor does not abort on cache failure, not live Redis availability. T14 carries the explicit PostgreSQL waiver; T15 remains pending.",
       "waiver": "",
       "layer": 1
@@ -435,8 +435,27 @@
       ],
       "expected": "The active-run check and insert are one transaction under a parent-row lock, so worker concurrency cannot turn check-then-insert into duplicate paid execution.",
       "status": "pass",
-      "evidence": "src/__tests__/schedule-run-logical-ownership-model.test.ts — 5/5 passed, including the FOR UPDATE query-shape test and two concurrent different-key acquisitions; focused scheduler run 3 files / 23 tests and full normal Vitest 68 files / 531 tests passed on Node 22 (2026-07-17).",
+      "evidence": "src/__tests__/schedule-run-logical-ownership-model.test.ts passed, including the FOR UPDATE query-shape test and two concurrent different-key acquisitions; focused scheduler/manual run 3 files / 25 tests and full normal Vitest 69 files / 535 tests passed on Node 22 (2026-07-17).",
       "notes": "Layer 1 only. The transaction ordering is simulated while the real model method emits the PostgreSQL FOR UPDATE query. Live lock behavior is covered by Dave's T14 PostgreSQL waiver, not claimed as a pass.",
+      "waiver": "",
+      "layer": 1
+    },
+    {
+      "id": "T28",
+      "title": "Scheduled and manual runs share one full-lifetime PostgreSQL execution lock (§10.5 / §21.1 / §21.2)",
+      "surface": "none",
+      "precondition": "Drive the real scheduled processor and manual controller with an injected ScheduleRunModel execution-lock seam; separately drive the real model advisory-lock method against a Knex connection double.",
+      "steps": [
+        "Pause a scheduled handler after it acquires the lock, deliver the same logical job again, and deny the second lock acquisition.",
+        "Assert only the first delivery enters the handler and that release occurs only after it finishes.",
+        "Pause one manual handler, trigger the same schedule again, and deny the second acquisition.",
+        "Assert one run row and one handler invocation; assert a scheduled owner also returns HTTP 409 to a manual trigger.",
+        "Assert model acquire/unlock queries use the same dedicated connection and that only the cleanly unlocked connection returns to the pool."
+      ],
+      "expected": "One schedule has at most one executing handler across BullMQ redelivery and manual triggers. The lock covers external work, not only row creation, and cannot remain hidden on a pooled connection.",
+      "status": "pass",
+      "evidence": "src/__tests__/schedule-exec-failure-contract.test.ts, schedule-manual-execution-lock.test.ts, and schedule-run-logical-ownership-model.test.ts — focused run 3 files / 25 tests; full normal Vitest 69 files / 535 tests; TypeScript and strict conventions passed on Node 22 (2026-07-17).",
+      "notes": "Layer 1 only. The production model emits PostgreSQL advisory-lock SQL, but the connection is mocked; live PostgreSQL behavior remains covered only by Dave's T14 waiver. The processor/controller tests prove both entry points use the same full-lifetime lock contract.",
       "waiver": "",
       "layer": 1
     },
@@ -455,7 +474,7 @@
       "expected": "Both additive migrations run; `schedules` is untouched; the logical-run conflict target is accepted by PostgreSQL; no error.",
       "status": "fail",
       "evidence": "Not run against PostgreSQL in this review round. Mocked migration/model tests prove code shape only.",
-      "notes": "HONESTLY NOT RUN. With the seed removed there is no schedules insert to verify. T10-T13 and T26 assert shape through mocked Knex seams; they do not prove PostgreSQL DDL, index inference, or deployment locking behaviour.",
+      "notes": "HONESTLY NOT RUN. With the seed removed there is no schedules insert to verify. T10-T13 and T27 assert migration/conflict shape through mocked Knex seams; T28 asserts advisory-lock shape against a mocked connection. They do not prove PostgreSQL DDL, index inference, or live lock behaviour.",
       "waiver": "Dave explicitly waived PostgreSQL results for this PR batch on 2026-07-16. This waiver accepts only the missing live PostgreSQL result; it does not convert the item to pass and does not cover T15's live SerpApi acceptance.",
       "layer": 2
     },
@@ -478,5 +497,5 @@
       "layer": 2
     }
   ],
-  "layerNote": "§20.5 defines this artifact as the Layer 2 acceptance checklist — behavioural validation against the RUNNING app. Every item marked `layer: 1` is a Layer 1 automated-test receipt (vitest, injected seams or mocked collaborators; no network, no Redis and no database); it is listed here for traceability and is NOT behavioural validation. T22 is weaker still: a static code-review receipt, not an executed test — it says so in its notes. T24/T25/T26 prove stable logical context, pre-measurement idempotency, owned-run recovery, and the exact SQL-success/Redis-cache-failure recovery path against real application functions with test doubles; they do NOT prove Redis/BullMQ or PostgreSQL at runtime. NO Layer 2 validation has been performed for this plan: T14 is fail-with-Dave's explicit PostgreSQL-results waiver, while T15 remains pending and unwaived. The roll-up therefore stays In Progress and must not be read as an accepted feature. Specifically NOT proven anywhere in this file: that either migration's DDL and conflict inference are valid PostgreSQL, that BullMQ persists/retries against Redis, or that a live SerpApi run records correct production data."
+  "layerNote": "§20.5 defines this artifact as the Layer 2 acceptance checklist — behavioural validation against the RUNNING app. Every item marked `layer: 1` is a Layer 1 automated-test receipt (vitest, injected seams or mocked collaborators; no network, no Redis and no database); it is listed here for traceability and is NOT behavioural validation. T22 is weaker still: a static code-review receipt, not an executed test — it says so in its notes. T24-T28 prove stable logical context, pre-measurement idempotency, owned-run recovery, Redis-cache failure recovery, atomic row acquisition, and shared full-lifetime execution ownership against real application functions with test doubles; they do NOT prove Redis/BullMQ or PostgreSQL at runtime. NO Layer 2 validation has been performed for this plan: T14 is fail-with-Dave's explicit PostgreSQL-results waiver, while T15 remains pending and unwaived. The roll-up therefore stays In Progress and must not be read as an accepted feature. Specifically NOT proven anywhere in this file: that either migration's DDL and conflict inference are valid PostgreSQL, that advisory locks behave under a live pool/process failure, that BullMQ persists/retries against Redis, or that a live SerpApi run records correct production data."
 }

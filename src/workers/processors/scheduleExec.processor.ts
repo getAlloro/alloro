@@ -373,75 +373,100 @@ export async function processScheduleExec(job: Job<ScheduleExecJobData>): Promis
     return;
   }
 
-  logger.info(`[SCHEDULE-EXEC] Executing "${schedule.agent_key}" (${agent.displayName})`);
-
-  const logicalData = await ensureLogicalContext(job, schedule);
-  const owned = await resolveOwnedRun(job, schedule, logicalData);
-  if (!owned) return;
-  const { run } = owned;
-  let data = owned.data;
-
-  // If the paid handler completed before bookkeeping failed, its summary is
-  // persisted in BullMQ data. Retry completion only; do not pay the provider
-  // again. A completed run similarly means only schedule advancement remains.
-  if (run.status !== "completed") {
-    try {
-      let summary = data.resultSummary;
-      if (summary === undefined) {
-        const result = await agent.handler({
-          logicalRunAt: data.logicalRunAt,
-          logicalRunDate: data.logicalRunDate,
-        });
-        summary = result.summary;
-        data = await cacheJobData(
-          job,
-          { resultSummary: summary },
-          {
-            jobId: job.id,
-            scheduleId: schedule.id,
-            runId: run.id,
-            cacheField: "resultSummary",
-          },
-        ) as
-          ScheduleExecJobData & AgentRunContext;
-      }
-
-      await ScheduleRunModel.completeRun(run.id, summary);
-    } catch (error) {
-      await handleAttemptFailure(job, schedule, run, error);
-    }
+  const executionLock = await ScheduleRunModel.acquireExecutionLock(schedule.id);
+  if (!executionLock) {
+    logger.info(
+      { jobId: job.id, scheduleId: schedule.id, agentKey: schedule.agent_key },
+      `[SCHEDULE-EXEC] Schedule ${schedule.id} already executing — skipping`,
+    );
+    return;
   }
 
   try {
-    await advanceSchedule(
-      schedule,
-      "info",
-      {
-        jobId: job.id,
-        scheduleId: schedule.id,
-        runId: run.id,
-        agentKey: schedule.agent_key,
-        logicalRunAt: data.logicalRunAt,
-        logicalRunDate: data.logicalRunDate,
-      },
-      `[SCHEDULE-EXEC] "${schedule.agent_key}" completed`
-    );
-  } catch (error) {
-    // The run is already completed. Leave it completed and rethrow; the next
-    // attempt identifies the same runId and retries only this bookkeeping.
-    logger.error(
-      {
-        err: messageFrom(error),
-        jobName: job.name,
-        jobId: job.id,
-        scheduleId: schedule.id,
-        runId: run.id,
-        agentKey: schedule.agent_key,
-        logicalRunAt: data.logicalRunAt,
-        logicalRunDate: data.logicalRunDate,
-      },
-      `[SCHEDULE-EXEC] completed run ${run.id} but could not advance schedule bookkeeping — retry will not rerun the agent`
-    );
-    throw error;
+    logger.info(`[SCHEDULE-EXEC] Executing "${schedule.agent_key}" (${agent.displayName})`);
+
+    const logicalData = await ensureLogicalContext(job, schedule);
+    const owned = await resolveOwnedRun(job, schedule, logicalData);
+    if (!owned) return;
+    const { run } = owned;
+    let data = owned.data;
+
+    // If the paid handler completed before bookkeeping failed, its summary is
+    // persisted in BullMQ data. Retry completion only; do not pay the provider
+    // again. A completed run similarly means only schedule advancement remains.
+    if (run.status !== "completed") {
+      try {
+        let summary = data.resultSummary;
+        if (summary === undefined) {
+          const result = await agent.handler({
+            logicalRunAt: data.logicalRunAt,
+            logicalRunDate: data.logicalRunDate,
+          });
+          summary = result.summary;
+          data = await cacheJobData(
+            job,
+            { resultSummary: summary },
+            {
+              jobId: job.id,
+              scheduleId: schedule.id,
+              runId: run.id,
+              cacheField: "resultSummary",
+            },
+          ) as
+            ScheduleExecJobData & AgentRunContext;
+        }
+
+        await ScheduleRunModel.completeRun(run.id, summary);
+      } catch (error) {
+        await handleAttemptFailure(job, schedule, run, error);
+      }
+    }
+
+    try {
+      await advanceSchedule(
+        schedule,
+        "info",
+        {
+          jobId: job.id,
+          scheduleId: schedule.id,
+          runId: run.id,
+          agentKey: schedule.agent_key,
+          logicalRunAt: data.logicalRunAt,
+          logicalRunDate: data.logicalRunDate,
+        },
+        `[SCHEDULE-EXEC] "${schedule.agent_key}" completed`
+      );
+    } catch (error) {
+      // The run is already completed. Leave it completed and rethrow; the next
+      // attempt identifies the same runId and retries only this bookkeeping.
+      logger.error(
+        {
+          err: messageFrom(error),
+          jobName: job.name,
+          jobId: job.id,
+          scheduleId: schedule.id,
+          runId: run.id,
+          agentKey: schedule.agent_key,
+          logicalRunAt: data.logicalRunAt,
+          logicalRunDate: data.logicalRunDate,
+        },
+        `[SCHEDULE-EXEC] completed run ${run.id} but could not advance schedule bookkeeping — retry will not rerun the agent`
+      );
+      throw error;
+    }
+  } finally {
+    try {
+      await executionLock.release();
+    } catch (error) {
+      logger.error(
+        {
+          err: messageFrom(error),
+          jobId: job.id,
+          scheduleId: schedule.id,
+          agentKey: schedule.agent_key,
+        },
+        `[SCHEDULE-EXEC] could not release the execution lock for schedule ${schedule.id}`,
+      );
+    }
   }
 }
