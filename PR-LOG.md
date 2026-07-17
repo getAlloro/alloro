@@ -9,7 +9,7 @@ the migration source for the enable state.
 > no PR and an eighth duplicate spec got written. **A typed ledger rots the day after it's typed.**
 > This one can't — it's regenerated from the source.
 
-`origin/dev/dave` @ `4cdb0eaf` · 47 feature PRs (promotion PRs excluded) · showing the most recent 60
+`origin/dev/dave` @ `4cdb0eaf` · 49 feature PRs (promotion PRs excluded) · showing the most recent 60
 
 ## ⛔ Merged but DARK — landed, and doing nothing
 
@@ -27,6 +27,8 @@ the other 60%."* — **this section is the 60%, and nothing else tracks it.**
 
 | PR | What it is | Where it lives | Plan | Does it DO anything? |
 |---|---|---|---|---|
+| [#182](https://github.com/getAlloro/alloro/pull/182) | fix(security): rate-limit POST /api/audit/start — the one p… | `claude/audit-start-rate-limit` | — | ⏳ open — not landed |
+| [#181](https://github.com/getAlloro/alloro/pull/181) | docs(pr-log): a generated ledger — what every PR is, where … | `claude/pr-log-and-template` | — | ⏳ open — not landed |
 | [#180](https://github.com/getAlloro/alloro/pull/180) | feat: add isolated test worktree adapter | `codex/isolated-test-worktree-adapter` | `plans/07172026-isolated-test-worktree-adapter` | ✏️ draft |
 | [#179](https://github.com/getAlloro/alloro/pull/179) | docs: the funnel is staked — give it a door an agent can find | `claude/funnel-map-doors` | `plans/07142026-alloro-funnel-engine` | ⏳ open — not landed |
 | [#178](https://github.com/getAlloro/alloro/pull/178) | fix(honesty): the audit tells prospects we do 3 things we d… | `claude/audit-honest-capabilities` | — | ⏳ open — not landed |
