@@ -52,7 +52,7 @@
     <div class="eyebrow">Alloro Funnel Engine &middot; Measurement Rail</div>
     <h1>M0 &mdash; Submission Source-Capture</h1>
     <p class="sub">Finish-and-verify of an existing clean PR (#156): the honest "where did this raised hand come from" column on Alloro's own hosted form. The <b>capture half</b> of the connection-measurement moat &mdash; not the full attribution&rarr;A/B loop (that stays at E1, slot #17).</p>
-    <span class="pill">Status: Completed locally &mdash; Rev 12: same-host reverse-proxy trust and malformed-JSON boundaries verified &middot; all requested gates green &middot; push intentionally withheld</span>
+    <span class="pill">Status: Completed locally &mdash; Rev 13: composite-suite app-import receipt stabilized &middot; all requested gates green &middot; push intentionally withheld</span>
     <div class="meta">
       <span><b>Branch:</b> <code>claude/slice-4-connection-measurement</code> (PR #156, base <code>dev/dave</code>)</span>
       <span><b>Lane:</b> Claude builds &middot; Dave reviews + merges</span>
@@ -306,6 +306,12 @@
       <p><strong>Change:</strong> Pin Express proxy trust to the deployed topology: only a same-host loopback reverse proxy is trusted, so Apache's right-most forwarded client address keys the public contact limiter and a caller-supplied address farther left cannot collapse unrelated visitors into one bucket. Add a canonical <code>CONTACT_INVALID_JSON</code> 400 response for <code>entity.parse.failed</code> before the route/controller boundary.</p>
       <p><strong>Reason:</strong> User QA: Rev 11 introduced an IP limiter without configuring Express's trusted proxy boundary, so deployed requests could share the proxy address or forwarded headers could be interpreted incorrectly. The same early parser returned malformed JSON through the generic error path instead of the API envelope required by &sect;8.1.</p>
       <p><strong>Updated Done criteria:</strong> (a) the real app reports the loopback-only trust setting used by the same-host Apache-to-PM2 topology, confirmed read-only on both deployed servers where Alloro's Apache <code>ProxyPass</code> targets <code>127.0.0.1:3000</code>; (b) two right-most forwarded client addresses get separate limiter buckets even when they carry the same spoofed left-most value; (c) one client reaches canonical 429 without consuming the other client's allowance; (d) malformed contact JSON returns canonical <code>CONTACT_INVALID_JSON</code> at 400 before reCAPTCHA or webhook work; (e) the focused route suite passes <code>11/11</code>, the full backend suite passes <code>65 files / 568 tests</code>, and TypeScript, strict conventions, and <code>git diff --check</code> exit zero. The existing PostgreSQL item <code>A8</code> remains fail plus Dave's written waiver; this revision has no migration change.</p>
+    </article>
+    <article class="revision-entry">
+      <h3>Rev 13 - 2026-07-17</h3>
+      <p><strong>Change:</strong> Give the enforce-flag file&rsquo;s one-time dynamic import of the complete Express application a 30-second setup timeout. The five request assertions keep Vitest&rsquo;s normal per-test timeout; only module-graph construction gets the wider bound.</p>
+      <p><strong>Reason:</strong> Integration QA: the exact #156 suite passed independently, but the 14-PR composite tree crossed Vitest&rsquo;s 10-second hook limit while transforming the larger app graph. The hook timed out before any request test ran. This is setup cost, not a slow endpoint, and Rev 11 had already recorded the same cold-import sensitivity under a smaller parallel run.</p>
+      <p><strong>Updated Done criteria:</strong> the enforce-flag file completes all five behavioral assertions in the full composite tree without weakening their test timeout or changing application behavior.</p>
     </article>
   </section>
 </main>

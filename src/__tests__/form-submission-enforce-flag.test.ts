@@ -105,7 +105,7 @@ beforeAll(async () => {
   vi.stubEnv("VALIDATION_ENFORCE", "1");
   ({ app: enforceApp } = await import("../app"));
   ({ validate: enforceValidate } = await import("../middleware/validate"));
-});
+}, 30_000);
 
 afterAll(() => {
   vi.unstubAllEnvs();
