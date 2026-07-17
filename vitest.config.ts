@@ -53,7 +53,10 @@ export default defineConfig({
     // Node, not jsdom — this is a backend HTTP harness.
     environment: "node",
     // Only pick up the smoke files; ignore source/build dirs.
-    include: ["src/__tests__/**/*.{test,spec}.ts"],
+    include: [
+      "src/__tests__/**/*.{test,spec}.ts",
+      "scripts/test-worktree/**/*.{test,spec}.ts",
+    ],
     // Deterministic env (JWT_SECRET, NODE_ENV, super-admin) BEFORE app import.
     setupFiles: ["src/__tests__/setup.ts"],
     // Smoke suite is small + hermetic; a single fork keeps mocks isolated and

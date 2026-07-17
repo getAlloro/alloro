@@ -15,7 +15,11 @@ import { sendViaMailgun } from "./transport/mailgunTransport";
 import { sendViaN8n } from "./transport/n8nTransport";
 import logger from "../lib/logger";
 
-dotenv.config();
+const IS_WORKTREE_TEST_MODE =
+  process.env.ALLORO_WORKTREE_TEST_MODE === "true";
+if (!IS_WORKTREE_TEST_MODE) {
+  dotenv.config();
+}
 
 const WEBHOOK_URL = process.env.ALLORO_EMAIL_SERVICE_WEBHOOK || "";
 const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "")
@@ -38,8 +42,22 @@ function normalizeMessageId(id?: string | null): string | null {
   return id.replace(/[<>]/g, "").trim() || null;
 }
 
+function resolveLogDirectory(): string {
+  if (!IS_WORKTREE_TEST_MODE) {
+    return path.join(__dirname, "..", "logs");
+  }
+
+  const configured = process.env.ALLORO_EMAIL_LOG_DIR;
+  if (!configured || !path.isAbsolute(configured)) {
+    throw new Error(
+      "ALLORO_EMAIL_LOG_DIR must be an absolute path in worktree test mode.",
+    );
+  }
+  return configured;
+}
+
 // Log file path
-const LOG_DIR = path.join(__dirname, "..", "logs");
+const LOG_DIR = resolveLogDirectory();
 const LOG_FILE = path.join(LOG_DIR, "email.log");
 
 /**
@@ -197,7 +215,8 @@ export async function sendEmail(
     fromName: options.fromName || DEFAULT_FROM_NAME,
   };
 
-  const { payload, intercepted, originalRecipients } = options.allowLiveSend
+  const { payload, intercepted, originalRecipients } =
+    options.allowLiveSend && !IS_WORKTREE_TEST_MODE
     ? {
         payload: builtPayload,
         intercepted: false,

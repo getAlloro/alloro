@@ -1,0 +1,104 @@
+{
+  "plan": "plans/07172026-isolated-test-worktree-adapter",
+  "generatedAt": "2026-07-17",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "T1",
+      "title": "Linked-worktree gate and private runtime manifest",
+      "surface": "cli",
+      "precondition": "Run from the adapter worktree and separately from the primary Alloro checkout.",
+      "steps": [
+        "Run the adapter from the primary checkout and confirm it refuses before startup.",
+        "Start a runtime from a verified secondary linked worktree.",
+        "Inspect the emitted manifest, permissions, safety fields, origin, ports, and stop command."
+      ],
+      "expected": "Primary checkout is refused; the linked worktree emits a mode-0600, secret-free manifest tied to its path and HEAD.",
+      "status": "pass",
+      "evidence": "Primary invocation returned: Test Worktree refused. Final manifests for runtimes isolated-test-worktree-adapt-f9de255b6a54 and isolated-test-worktree-adapt-d32ab89350a8 were mode 0600 and contained no JWT, password, API-key, secret, refresh-token, or access-token fields.",
+      "notes": "Fresh -tw rerun on 2026-07-17: runtime isolated-test-worktree-adapt-e9ab4d9cb0f0 was tied to the exact linked-worktree path and HEAD, reported six distinct OS-assigned ports, and passed the local database health check with all fail-closed safety modes enabled.",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Disposable database, Redis, schema, and fixture isolation",
+      "surface": "cli",
+      "precondition": "Docker Desktop is running.",
+      "steps": [
+        "Start baseline and gbp-posts runtimes concurrently.",
+        "Verify each runtime has distinct Postgres and Redis ports and containers.",
+        "Query synthetic row counts after the adapter seeds each fixture twice."
+      ],
+      "expected": "Each runtime owns separate local dependencies and double-seeding leaves deterministic row counts.",
+      "status": "pass",
+      "evidence": "Final same-source run: baseline counts users=2, organizations=1, organization_users=1, google_connections=0, work_items=0; gbp-posts counts 2,1,1,1,1. Explicit peer-worktree run reported pathsDistinct=true, originsDistinct=true, portsDistinct=true, runtimeIdsDistinct=true.",
+      "notes": "Committed schema is structure-only, generated from alloro-dev PostgreSQL 17.9, and verified to exclude data statements, owners, grants, email-like values, and secrets.",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "One-time authenticated admin and Pilot bootstrap",
+      "surface": "ui",
+      "precondition": "Start the baseline runtime and open its authenticatedBootstrapUrl in an isolated browser context.",
+      "steps": [
+        "Open the tokenless bootstrap URL.",
+        "Confirm redirect to /admin and that auth exists only in the unique origin localStorage.",
+        "Open organization 900001 Pilot for user 900002.",
+        "Retry the bootstrap URL."
+      ],
+      "expected": "Admin opens without manual login, Pilot enters synthetic One Endodontics, no auth cookie or token URL is used, and bootstrap reuse returns 410.",
+      "status": "pass",
+      "evidence": "evidence/final-baseline-pilot.png; bootstrap=200, localStorage token present, auth cookie absent, Pilot iframe title=Pilot session for worktree-client@example.test, synthetic organization visible, second bootstrap=410.",
+      "notes": "Fresh -tw rerun on 2026-07-17: the tokenless bootstrap redirected to /admin, the private token file was consumed, reuse returned 410, and the embedded Pilot rendered the synthetic One Endodontics dashboard for Worktree Client. A non-blocking existing product error was also observed: SetupProgressContext attempted PUT /api/onboarding/setup-progress without an organization ID while the Pilot UI remained usable.",
+      "waiver": ""
+    },
+    {
+      "id": "T4",
+      "title": "Local email and AI captures with outbound-write blocking",
+      "surface": "api",
+      "precondition": "Start the baseline and gbp-posts fixtures.",
+      "steps": [
+        "POST a synthetic email to the manifest email-capture port.",
+        "Generate a GBP local-post draft with a local synthetic image URL.",
+        "Attempt a non-local server-side POST through the outbound guard."
+      ],
+      "expected": "Email and Anthropic requests are captured locally, the GBP draft is deterministic, and the non-local POST is blocked before network access.",
+      "status": "pass",
+      "evidence": "Email capture JSONL recorded 1 synthetic message; Anthropic capture JSONL recorded the local fixture call; GBP endpoint returned 201 with safety_status=safe and evidence/final-gbp-posts.png shows Drafts 1; outbound attempt returned ALLORO_WORKTREE_OUTBOUND_BLOCKED with destination-only redacted logging.",
+      "notes": "The original product concern was independently reproduced: an image-less post draft fails with featured_image_required. That product-flow fix is outside this infrastructure plan.",
+      "waiver": ""
+    },
+    {
+      "id": "T5",
+      "title": "Named-worker allowlist and recurring-schedule suppression",
+      "surface": "cli",
+      "precondition": "Start gbp-posts with --workers gbp-automation.",
+      "steps": [
+        "Inspect worker-ready.json.",
+        "Scan the isolated Redis instance for repeat schedule keys.",
+        "Run the invalid-worker CLI case and the registry parity tests."
+      ],
+      "expected": "Only gbp-automation starts, recurringScheduleCount is zero, no repeat keys exist, and unknown workers fail without leaving runtime artifacts.",
+      "status": "pass",
+      "evidence": "worker-ready.json listed only gbp-automation and recurringScheduleCount=0; Redis repeat-key count=0; invalid worker exited 1 with runtime_dirs=0; targeted adapter/worker/email suite passed 42/42.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T6",
+      "title": "Full verification and clean teardown",
+      "surface": "cli",
+      "precondition": "All implementation tasks are complete.",
+      "steps": [
+        "Run strict constitution checks, check:all, backend and frontend builds, TypeScript checks, targeted tests, and the full Vitest suite.",
+        "Stop both concurrent runtimes using their manifest stop commands.",
+        "Confirm no adapter containers, processes, runtime directories, or temporary peer worktree remain."
+      ],
+      "expected": "All required gates pass and teardown removes only adapter-owned resources.",
+      "status": "pass",
+      "evidence": "Strict conventions: 0 structural violations. check:all: exit 0. Backend build: pass. Frontend build: pass with existing bundle warnings. Root and adapter TypeScript: pass. Targeted tests: 42/42. Full suite: 542/542. Both final stop commands returned stopped; no alloro-tw containers/processes/runtime directories remained; disposable peer worktree was removed.",
+      "notes": "check:all retained existing advisory totals: 438 lint warnings and 34 dependency warnings, with zero errors. Fresh -tw rerun on 2026-07-17: check:all exited 0, the targeted adapter suite passed 42/42, the manifest stop command returned stopped, all runtime PIDs exited, all labeled containers were removed, the private runtime directory was removed, and git diff --check passed.",
+      "waiver": ""
+    }
+  ]
+}

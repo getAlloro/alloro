@@ -22,17 +22,18 @@ The global `-s` and `-tw` command rules apply to Alloro with these project-speci
 ### Contained Acceptance (`--test-worktree` / `-tw`)
 
 - Hard-fail unless the current checkout is proven to be a secondary linked Git worktree.
-- The expected Alloro adapter command is `npm run test:worktree`. **This adapter is not assumed to exist.** If the package script is absent, refuse safely and use `-s` to plan its implementation.
+- Start the adapter with `npm run test:worktree -- --fixture baseline`. Use `--fixture gbp-posts` for synthetic GBP review/post data, `--workers gbp-automation` to enable only that named worker, and `--keep` when the runtime must remain available for a later acceptance pass.
+- The command returns a private machine-readable manifest. Use its `appOrigin`, one-time `authenticatedBootstrapUrl`, evidence paths, and exact `stopCommand`; do not guess ports or origins.
 - The adapter must build a runtime from the verified worktree, use OS-assigned ports, and return a machine-readable manifest with the app origin, authenticated bootstrap URL, health URL, safety modes, logs, and teardown command.
 - Build an allowlisted runtime environment. Do not copy or activate the checkout's `.env` wholesale, and never enable commented-out production database values.
-- Use an isolated local writable database cloned from a sanitized persistent seed when useful. Never write to dev or production by default.
-- Seed deterministic local users and issue a local-only session so browser acceptance does not require manual reauthentication.
+- Use the committed structure-only schema baseline with deterministic synthetic fixtures. Each runtime gets a separate writable Postgres container and Redis container; never write to dev or production by default.
+- The one-time bootstrap page consumes a mode-0600 token file, stores the local JWT only in the unique runtime origin's `localStorage`, deletes the file, and redirects to `/admin`. Tokens must never appear in URLs, cookies, manifests, or logs.
 - Route email to a local capture sink. Isolate Redis and queue namespaces. Keep workers and recurring schedules off unless a named test explicitly requires them.
 - Disable third-party writes by default. Test/sandbox integrations require an explicit user request.
 - Run acceptance against the manifest origin. For the admin flow, open `{origin}/admin`; when client-dashboard state matters, use the seeded Pilot flow into One Endodontics.
 - Update the active plan's `test-results.json` with real browser/API/CLI evidence, then tear the runtime down unless `--keep` was requested.
 
-These instructions define the safe contract. They do not implement the Docker services, database clone, seeds, auth bootstrap, email sink, browser launcher, or package script.
+The implementation lives under `scripts/test-worktree/`; `package.json` owns the stable adapter entry point. The adapter launches the runtime and emits evidence paths, while the `-tw` agent or a human drives browser acceptance and records the active plan results.
 
 ## Plan Specs
 

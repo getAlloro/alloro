@@ -2,8 +2,11 @@ import type { Knex } from "knex";
 import * as dotenv from "dotenv";
 import logger from "../lib/logger";
 
-// Load environment variables
-dotenv.config();
+// The contained worktree adapter supplies a complete allowlisted environment.
+// Reading the checkout's .env in that mode would break its isolation contract.
+if (process.env.ALLORO_WORKTREE_TEST_MODE !== "true") {
+  dotenv.config();
+}
 
 // SSL on for remote (RDS) hosts, off for local Postgres which has no TLS.
 // Override explicitly with DB_SSL=true|false.
