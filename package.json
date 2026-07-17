@@ -11,6 +11,7 @@
     "test:watch": "vitest",
     "test:integration:os": "vitest run -c vitest.integration.config.ts",
     "test:taste-profile:pg": "tsx scripts/verify-taste-profile-postgres.ts",
+    "test:integration:findability-sensor": "vitest run -c vitest.integration.config.ts src/integration-tests/findability-sensor-postgres.itest.ts",
     "billing:reset-test-org": "tsx scripts/billing-reset-test-org.ts",
     "check:conventions": "bash scripts/check-conventions.sh",
     "audit:constitution": "bash scripts/check-conventions.sh --audit",
