@@ -6,14 +6,37 @@
 
 import { Request, Response } from "express";
 import { CronExpressionParser } from "cron-parser";
-import { ScheduleModel, ScheduleRunModel, ISchedule } from "../../models/ScheduleModel";
-import { getAgentHandler, getRegisteredAgents } from "../../services/agentRegistry";
+import {
+  ScheduleModel,
+  ScheduleRunModel,
+  ISchedule,
+  ScheduleExecutionLock,
+} from "../../models/ScheduleModel";
+import {
+  createAgentRunContext,
+  getAgentHandler,
+  getRegisteredAgents,
+} from "../../services/agentRegistry";
 import logger from "../../lib/logger";
 
 function handleError(res: Response, error: unknown, operation: string): Response {
   logger.error({ err: error }, `[ADMIN-SCHEDULES] ${operation} failed:`);
   const message = error instanceof Error ? error.message : String(error);
   return res.status(500).json({ success: false, error: message });
+}
+
+async function releaseExecutionLock(
+  executionLock: ScheduleExecutionLock,
+  context: Record<string, unknown>,
+): Promise<void> {
+  try {
+    await executionLock.release();
+  } catch (error) {
+    logger.error(
+      { ...context, err: error instanceof Error ? error.message : String(error) },
+      "[ADMIN-SCHEDULES] could not release schedule execution lock",
+    );
+  }
 }
 
 function computeNextRunAt(schedule: Partial<ISchedule>): Date {
@@ -205,29 +228,82 @@ export async function triggerRun(req: Request, res: Response): Promise<any> {
       return res.status(404).json({ success: false, error: "Schedule not found" });
     }
 
-    const isRunning = await ScheduleRunModel.hasActiveRun(schedule.id);
-    if (isRunning) {
-      return res.status(409).json({ success: false, error: "Schedule is already running" });
-    }
-
     const agent = getAgentHandler(schedule.agent_key);
     if (!agent) {
       return res.status(400).json({ success: false, error: `No handler registered for "${schedule.agent_key}"` });
     }
 
-    // Create run record and execute in background
-    const run = await ScheduleRunModel.createRun(schedule.id);
+    let executionLock = await ScheduleRunModel.acquireExecutionLock(schedule.id);
+    if (!executionLock) {
+      return res.status(409).json({ success: false, error: "Schedule is already running" });
+    }
 
-    // Return immediately — run executes in background
-    res.json({ success: true, data: { runId: run.id, message: `"${schedule.display_name}" triggered` } });
-
-    // Background execution
     try {
-      const result = await agent.handler();
-      await ScheduleRunModel.completeRun(run.id, result.summary);
-      await ScheduleModel.updateById(schedule.id, { last_run_at: new Date() });
-    } catch (error: any) {
-      await ScheduleRunModel.failRun(run.id, error.message || String(error));
+      const isRunning = await ScheduleRunModel.hasActiveRun(schedule.id);
+      if (isRunning) {
+        return res.status(409).json({ success: false, error: "Schedule is already running" });
+      }
+
+      // Create run record and execute in background while holding the same
+      // database execution lock used by scheduled jobs.
+      const run = await ScheduleRunModel.createRun(schedule.id);
+
+      // Return immediately — run executes in background
+      res.json({ success: true, data: { runId: run.id, message: `"${schedule.display_name}" triggered` } });
+
+      const backgroundLock = executionLock;
+      executionLock = undefined;
+
+      // ---- Background execution. Everything past the response above MUST be
+      // self-contained: the reply is already sent, so an error escaping to the
+      // outer catch would call handleError() on a finished response and throw
+      // ERR_HTTP_HEADERS_SENT instead of reporting anything useful.
+      void (async () => {
+        try {
+          const result = await agent.handler(createAgentRunContext(new Date()));
+          await ScheduleRunModel.completeRun(run.id, result.summary);
+          await ScheduleModel.updateById(schedule.id, { last_run_at: new Date() });
+          logger.info(
+            { scheduleId: schedule.id, runId: run.id, agentKey: schedule.agent_key },
+            `[ADMIN-SCHEDULES] manual run of "${schedule.agent_key}" completed`
+          );
+        } catch (error: unknown) {
+          const message = error instanceof Error ? error.message : String(error);
+          logger.error(
+            { err: message, scheduleId: schedule.id, runId: run.id, agentKey: schedule.agent_key },
+            `[ADMIN-SCHEDULES] manual run of "${schedule.agent_key}" FAILED`
+          );
+          try {
+            await ScheduleRunModel.failRun(run.id, message);
+          } catch (markError: unknown) {
+            logger.error(
+              {
+                err: markError instanceof Error
+                  ? markError.message
+                  : String(markError),
+                originalErr: message,
+                scheduleId: schedule.id,
+                runId: run.id,
+                agentKey: schedule.agent_key,
+              },
+              `[ADMIN-SCHEDULES] could not mark run ${run.id} failed — the run row may be stranded 'running' and block re-triggering`
+            );
+          }
+        } finally {
+          await releaseExecutionLock(backgroundLock, {
+            scheduleId: schedule.id,
+            runId: run.id,
+            agentKey: schedule.agent_key,
+          });
+        }
+      })();
+    } finally {
+      if (executionLock) {
+        await releaseExecutionLock(executionLock, {
+          scheduleId: schedule.id,
+          agentKey: schedule.agent_key,
+        });
+      }
     }
   } catch (error) {
     return handleError(res, error, "triggerRun");
