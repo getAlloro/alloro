@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ranking Copy Honesty Guardrail Spec</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); margin-top: 12px; }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 840px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; letter-spacing: 0; }
+    h2 { font-size: 1.35rem; letter-spacing: 0; }
+    h3 { font-size: 1rem; letter-spacing: 0; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-completed">Completed</span>
+      </div>
+      <h1>Ranking Copy Honesty Guardrail</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/07172026-ranking-copy-honesty-guardrail</dd></div>
+        <div><dt>Size</dt><dd>Medium</dd></div>
+        <div><dt>Risk</dt><dd>Level 2</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>PR 155 removes static owner-facing claims that Google Business Profile posts improve local rank, but its ranking LLM and backend output guardrail can still generate the same false promise. The dashboard walkthrough also promises a post-due indicator that the PR removed from the Local Visibility card.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Make the ranking prompt and central output guardrail enforce one product rule: Google posts may be recommended for profile freshness and patient consideration, but never as a way to protect, improve, or recover rank. Preserve valid rank facts, cover both <code>top_recommendations</code> and <code>overview_card.text</code> with regression tests, and make the onboarding walkthrough describe only the rank that the dashboard actually shows.</p>
+    </section>
+
+    <section class="spec-card" id="scope-ledger">
+      <h2>Scope Ledger</h2>
+      <dl>
+        <div><dt>Objective</dt><dd>Close the exact-head PR 155 generated-copy and wizard-copy blockers.</dd></div>
+        <div><dt>Intended user</dt><dd>Practice owners reading Local Rankings recommendations and the Practice Hub walkthrough.</dd></div>
+        <div><dt>Surface</dt><dd>Ranking LLM output persisted for Local Rankings, plus the Local Visibility onboarding step.</dd></div>
+        <div><dt>System of record</dt><dd>The sampled rank remains a factual ranking input; post freshness remains an engagement signal, not a rank lever.</dd></div>
+        <div><dt>In scope</dt><dd>Prompt rules, central generated-output sanitation, focused backend regressions, wizard copy, plan and acceptance artifacts.</dd></div>
+        <div><dt>Out of scope</dt><dd>Ranking calculations, factor weights, rank collection, existing persisted analyses, frontend rendering structure, PR replies/resolution, Alloro Docs edits, deployment, merge, and push.</dd></div>
+      </dl>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Verified PR and worktree state</h3>
+      <ul>
+        <li>PR 155 head and worktree starting HEAD: <code>8bffb297f4b4089f14edf4c7ea07a761e58d2e72</code>.</li>
+        <li>PR source: <code>claude/honesty-posts-not-rank</code>; remediation branch: <code>codex/pr155-review-fixes-0717</code>.</li>
+        <li>Execution worktree: <code>/Users/rustinedave/Desktop/alloro-worktrees/pr155-review-fixes-0717</code>.</li>
+        <li>The only pre-existing untracked path is <code>node_modules</code>; it is excluded from this plan and commit.</li>
+      </ul>
+
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>src/controllers/practice-ranking/feature-services/service.ranking-llm.ts</code> — ranking prompt and the central call to the output sanitizer.</li>
+        <li><code>src/controllers/practice-ranking/feature-services/service.ranking-output-guardrails.ts</code> — existing website, score, and rank-language sanitation applied before persistence.</li>
+        <li><code>src/__tests__/service.ranking-output-guardrails.test.ts</code> — mirrored backend unit test for the guardrail.</li>
+        <li><code>frontend/src/components/onboarding-wizard/wizardConfig.ts</code> — Practice Hub Local Visibility walkthrough copy.</li>
+      </ul>
+
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li><strong>Backend reference (§6.1):</strong> keep business rules in the existing practice-ranking <code>feature-services/</code> unit, with no controller, model, route, or database change.</li>
+        <li><strong>Guardrail pattern:</strong> extend the current pure <code>sanitizeText</code> pipeline and sanitize recommendation narrative fields before the existing one-item backfill/cap.</li>
+        <li><strong>Frontend reference (§12.1):</strong> this is static configuration only; preserve the existing wizard step shape and selectors without adding state or data flow.</li>
+      </ul>
+
+      <h3>Code Constitution Contract</h3>
+      <p>This work must conform to §§1.2, 2.1–2.4, 4.2–4.5, 6.1–6.3, 7.1, 9.1, 12.2–12.4, 13.1–13.3, 17.1–17.2, and 20.1–20.5.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Block post-to-rank claims in generated recommendation titles, descriptions, and expected outcomes.</li>
+            <li>Block the same claims in <code>overview_card.text</code> and other generated narrative fields that already use the central sanitizer.</li>
+            <li>Keep valid rank statements such as “ranked #3 in Local Search.”</li>
+            <li>Use honest replacement copy about a current profile and patients who are deciding.</li>
+            <li>Keep the one-recommendation contract and safe backfill behavior unchanged.</li>
+            <li>Keep the wizard selector and step identity unchanged.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>Do not remove all rank language; factual measured positions are valid.</li>
+            <li>Do not change ranking math, LLM schema, persistence, or frontend rendering.</li>
+            <li>Do not add a dependency or a second output-validation path.</li>
+            <li>Do not edit <code>/Users/rustinedave/Desktop/alloro-docs</code> or any other worktree.</li>
+            <li>Do not stage <code>node_modules</code>, push, resolve review state, or post GitHub comments.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 2 — customer-facing generated copy changes at a central persistence boundary.</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><strong>R1 — valid rank facts are removed.</strong> <strong>Mitigation:</strong> detect only a sentence containing both a post cause and a causal rank outcome; leave separate factual rank sentences untouched and assert that behavior.</li>
+        <li><strong>R2 — a recommendation field bypasses sanitation.</strong> <strong>Mitigation:</strong> sanitize title, description, and expected outcome before the existing backfill/cap and test the exact review probe.</li>
+        <li><strong>R3 — prompt drift reintroduces the claim.</strong> <strong>Mitigation:</strong> state the rule in general ranking guidance, overview-card guidance, and the single-recommendation contract while keeping the deterministic guardrail authoritative.</li>
+        <li><strong>R4 — docs remain misleading.</strong> <strong>Mitigation:</strong> report a separate docs parity change for the stale Local Rankings replica and Reviews &amp; Posts guidance; do not mix it into this dirty docs checkout.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> every newly generated ranking analysis passing through <code>sanitizeRankingLlmAnalysis</code>; the Local Rankings action banner and overview consumers of those persisted fields; the Practice Hub onboarding Local Visibility tooltip. Existing stored analyses are not rewritten.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li><strong>Selected path:</strong> narrow central rewrite plus prompt prevention. This gives deterministic protection without deleting valid rank reporting.</li>
+        <li><strong>Rejected path:</strong> frontend-only filtering. It would leave false copy persisted and available to other consumers such as Summary.</li>
+        <li><strong>Rejected path:</strong> remove any recommendation mentioning posts. Posting remains a legitimate engagement action; only the rank promise is false.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <article class="task-card">
+        <h3>T1: Ranking prompt honesty rule</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Tell the ranking LLM that posts convert and reassure but do not protect or improve rank; require true ranking levers for rank outcomes and honest engagement outcomes for post recommendations.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/practice-ranking/feature-services/service.ranking-llm.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Source inspection plus backend type-check and build.</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T2: Central generated-copy guardrail and regressions</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add a pure post-plus-rank sentence guard, route recommendation narrative fields through it, and add regressions for the exact <code>top_recommendations</code> probe and an <code>overview_card.text</code> that must retain its rank fact.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/practice-ranking/feature-services/service.ranking-output-guardrails.ts</code>, <code>src/__tests__/service.ranking-output-guardrails.test.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd><code>npx vitest run src/__tests__/service.ranking-output-guardrails.test.ts</code></dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T3: Honest Local Visibility walkthrough</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Remove the post-due promise and describe the sampled Google Maps position that the card still renders.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/components/onboarding-wizard/wizardConfig.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Focused owner-copy test and frontend production build.</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T4: Verification, acceptance record, and read-only docs report</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Run focused tests and every requested gate, record exact results in <code>test-results.json</code>, mark this spec honestly, and report the separate docs parity residual without editing the docs repo.</dd></div>
+          <div><dt>Files</dt><dd><code>plans/07172026-ranking-copy-honesty-guardrail/spec.html</code>, <code>test.html</code>, <code>test-results.json</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1–T3</dd></div>
+          <div><dt>Verify</dt><dd>Focused backend/frontend tests; <code>npx tsc --noEmit</code>; frontend build; <code>npm run check:conventions -- --strict</code>; <code>git diff --check</code>.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" checked disabled> Prompt forbids post-to-rank recommendations and states honest post outcomes.</li>
+        <li><input type="checkbox" checked disabled> The central guardrail rewrites the exact reviewed recommendation probe.</li>
+        <li><input type="checkbox" checked disabled> <code>overview_card.text</code> drops the post-to-rank promise while retaining the real rank fact.</li>
+        <li><input type="checkbox" checked disabled> Wizard copy no longer promises a fresh-post-due indicator.</li>
+        <li><input type="checkbox" checked disabled> Focused tests and all requested build/convention/diff gates pass, or any failure is recorded without being disguised.</li>
+        <li><input type="checkbox" checked disabled> Docs parity need is reported from read-only evidence.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-07-17</h3>
+        <p><strong>Change:</strong> Implemented the prompt rule, central generated-copy rewrite, recommendation and overview regressions, wizard correction, verification pass, and read-only docs assessment.</p>
+        <p><strong>Reason:</strong> Execution completion: every in-scope task and requested gate passed; Alloro Docs remains a separately reported follow-up by explicit scope.</p>
+        <p><strong>Updated Done criteria:</strong> none.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

@@ -1,0 +1,87 @@
+{
+  "plan": "plans/07172026-ranking-copy-honesty-guardrail",
+  "generatedAt": "2026-07-17",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "A1",
+      "title": "Generated ranking recommendations never claim posts protect or improve rank",
+      "surface": "cli",
+      "precondition": "Synthetic ranking analysis containing the exact reviewed post-to-rank recommendation",
+      "steps": [
+        "1. Pass the generated analysis through sanitizeRankingLlmAnalysis",
+        "2. Inspect top_recommendations title, description, and expected_outcome",
+        "3. Confirm the post action remains but every causal rank promise is replaced with an honest patient-consideration outcome"
+      ],
+      "expected": "The central backend guardrail removes the false rank outcome from every recommendation narrative field without dropping the recommendation",
+      "status": "pass",
+      "evidence": "src/__tests__/service.ranking-output-guardrails.test.ts — 6/6 passed; the exact reviewed sentence and post-to-rank title, timeline, and expected outcome were rewritten by sanitizeRankingLlmAnalysis",
+      "notes": "The recommendation remains present and keeps its one-item priority contract.",
+      "waiver": ""
+    },
+    {
+      "id": "A2",
+      "title": "Overview copy keeps rank facts while removing the post-to-rank promise",
+      "surface": "cli",
+      "precondition": "Synthetic overview text with a real #3 Local Search fact and a generated weekly-post protection claim",
+      "steps": [
+        "1. Pass the overview through sanitizeRankingLlmAnalysis at search position 3",
+        "2. Confirm the factual rank sentence remains",
+        "3. Confirm the post action no longer says it protects or improves position, standing, or rank"
+      ],
+      "expected": "The measured rank remains visible and only the unsupported causal claim changes",
+      "status": "pass",
+      "evidence": "src/__tests__/service.ranking-output-guardrails.test.ts — overview regression passed with 'ranked #3 in Local Search' preserved and the weekly-post protection claim absent from text and highlights",
+      "notes": "Synthetic data only; no stored ranking analysis was read or rewritten.",
+      "waiver": ""
+    },
+    {
+      "id": "A3",
+      "title": "Prompt and Local Visibility walkthrough state the honest product contract",
+      "surface": "cli",
+      "precondition": "Updated ranking prompt and wizard configuration",
+      "steps": [
+        "1. Inspect the prompt rule for post outcomes and true ranking levers",
+        "2. Run the focused owner-copy frontend sweep",
+        "3. Confirm the wizard no longer promises a fresh Google post due indicator"
+      ],
+      "expected": "Prompt prevention and frontend static copy agree with the deterministic backend guardrail",
+      "status": "pass",
+      "evidence": "Prompt source inspected; frontend ownerCopyHonesty.test.ts plus rankingsDashboard.utils.test.ts passed 15/15; repository search found no shipped wizard copy promising a fresh Google post due",
+      "notes": "The Local Visibility step keeps its existing selector and now describes only the sampled tracked-search position.",
+      "waiver": ""
+    },
+    {
+      "id": "A4",
+      "title": "Requested repository verification gates pass",
+      "surface": "cli",
+      "precondition": "Implementation complete in the isolated PR 155 remediation worktree",
+      "steps": [
+        "1. Run focused backend and frontend tests",
+        "2. Run npx tsc --noEmit and the frontend production build",
+        "3. Run npm run check:conventions -- --strict and git diff --check"
+      ],
+      "expected": "Every requested command exits zero, with exact counts and any advisory output recorded",
+      "status": "pass",
+      "evidence": "Focused tests: backend 6/6, frontend 15/15. npx tsc --noEmit: exit 0. Backend build: exit 0. Frontend production build: exit 0. npm run check:conventions -- --strict: exit 0 with 0 backend structural violations. git diff --check: exit 0.",
+      "notes": "Frontend build retained existing third-party eval, mixed static/dynamic import, and large-chunk warnings. Convention output retained existing advisory baselines: one frontend any, one dangerouslySetInnerHTML, test-only token reads, six test raw queries, and tenant-scope heuristics; none are in this patch.",
+      "waiver": ""
+    },
+    {
+      "id": "A5",
+      "title": "Alloro Docs parity is assessed without editing the docs checkout",
+      "surface": "none",
+      "precondition": "Read-only access to /Users/rustinedave/Desktop/alloro-docs",
+      "steps": [
+        "1. Search Local Rankings, Practice Hub, and Reviews & Posts guidance for post-to-rank claims",
+        "2. Check the docs worktree status",
+        "3. Record whether a separate clean docs change is required"
+      ],
+      "expected": "The report identifies exact stale guidance and leaves the dirty docs working tree untouched",
+      "status": "pass",
+      "evidence": "Read-only search found stale guidance at alloro-docs/src/components/replicas/LocalRankingsReplica.tsx:78 and alloro-docs/src/data/pages/reviews-posts.ts:92; docs status remained ahead 3 with the same four pre-existing modified files",
+      "notes": "A separate clean Alloro Docs parity change is required. This task did not edit or stage the docs checkout.",
+      "waiver": ""
+    }
+  ]
+}

@@ -84,7 +84,7 @@ export const WIZARD_STEPS: WizardStep[] = [
     targetSelector: "[data-wizard-target='dashboard-visibility']",
     title: "Local Visibility",
     description:
-      "Your estimated Google Maps position. Plus whether a fresh Google post is due — posts keep your profile active for patients who are deciding.",
+      "Your sampled Google Maps position for the tracked search, so you can see where your practice appears at a glance.",
     scrollToElement: true,
   },
 

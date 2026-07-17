@@ -23,6 +23,16 @@ type RankingLlmGuardrailContext = {
 
 const WEBSITE_ACTION_PATTERN =
   /\b(website|web provider|page speed|pagespeed|site speed|speed up|load time|loading|core web vitals|lighthouse|performance score)\b/i;
+const GOOGLE_POST_PATTERN =
+  /\b(?:google(?: business profile)?|gbp|business profile)\s+(?:posts?|updates?)\b|\bposting\b|\bposts?\b/i;
+const POST_RANK_OUTCOME_PATTERN =
+  /\b(?:(?:protect|improve|widen|boost|lift|raise|strengthen|maintain|hold|advance|move|recover)\w*\b[^.!?]{0,96}\b(?:rank(?:ing)?|position|standing|lead|top[- ](?:three|3|20)|local search|map pack|visibility|findability)\b|(?:break into|move (?:closer|toward)|show up in|climb|outrank)\b|(?:rank(?:ing)?|position|standing|lead|top[- ](?:three|3|20)|local search|map pack|visibility|findability)\b[^.!?]{0,80}\b(?:by|from|through|with|because of)\b)/i;
+const RECOMMENDED_ACTION_PREFIX = /^recommended action:\s*/i;
+const WEEKLY_POST_PATTERN = /\b(?:weekly|each week|every week|once a week)\b/i;
+const HONEST_POST_ACTION =
+  "Publish a useful Google post to keep your profile current for patients who are deciding";
+const HONEST_WEEKLY_POST_ACTION =
+  "Publish a useful Google post weekly to keep your profile current for patients who are deciding";
 const LEADER_SEARCH_POSITION = 1;
 const TOP_THREE_SEARCH_POSITIONS = new Set([2, 3]);
 
@@ -161,19 +171,74 @@ function normalizeLeadProtectionLanguage(
     .replace(/\bprotect that lead\b/gi, "improve that position");
 }
 
+function rewritePostRankSentence(sentence: string): string {
+  if (
+    !GOOGLE_POST_PATTERN.test(sentence) ||
+    !POST_RANK_OUTCOME_PATTERN.test(sentence)
+  ) {
+    return sentence;
+  }
+
+  const trimmed = sentence.trim();
+  const punctuation = /[.!?]$/.test(trimmed) ? trimmed.slice(-1) : "";
+  const withoutPunctuation = punctuation ? trimmed.slice(0, -1) : trimmed;
+  const prefixMatch = withoutPunctuation.match(RECOMMENDED_ACTION_PREFIX);
+  const actionPrefix = prefixMatch?.[0] ?? "";
+  const body = actionPrefix
+    ? withoutPunctuation.slice(actionPrefix.length)
+    : withoutPunctuation;
+  const postIndex = body.search(GOOGLE_POST_PATTERN);
+  const factSeparator = postIndex > 0 ? body.lastIndexOf(",", postIndex) : -1;
+  const rankFactPrefix =
+    factSeparator >= 0 ? body.slice(0, factSeparator).trim() : "";
+  const honestAction = WEEKLY_POST_PATTERN.test(body)
+    ? HONEST_WEEKLY_POST_ACTION
+    : HONEST_POST_ACTION;
+  const rewrittenAction = `${actionPrefix}${honestAction}${punctuation}`;
+
+  return rankFactPrefix
+    ? `${rankFactPrefix}. ${rewrittenAction}`
+    : rewrittenAction;
+}
+
+function rewritePostRankClaims(value: unknown): unknown {
+  if (
+    typeof value !== "string" ||
+    !GOOGLE_POST_PATTERN.test(value) ||
+    !POST_RANK_OUTCOME_PATTERN.test(value)
+  ) {
+    return value;
+  }
+
+  return value
+    .split(/(?<=[.!?])\s+/u)
+    .map(rewritePostRankSentence)
+    .join(" ");
+}
+
 function sanitizeText(
   value: unknown,
   context: RankingLlmGuardrailContext,
 ): unknown {
-  return normalizeLeadProtectionLanguage(
-    normalizeOwnerRankingLanguage(
-      normalizeVisibleScoreMentions(
-        stripWebsiteActionSentences(value),
-        context.visibleScore,
+  return rewritePostRankClaims(
+    normalizeLeadProtectionLanguage(
+      normalizeOwnerRankingLanguage(
+        normalizeVisibleScoreMentions(
+          stripWebsiteActionSentences(value),
+          context.visibleScore,
+        ),
       ),
+      context,
     ),
-    context,
   );
+}
+
+function sanitizeOptionalText(
+  value: string | undefined,
+  context: RankingLlmGuardrailContext,
+): string | undefined {
+  const sanitized = sanitizeText(value, context);
+  return typeof sanitized === "string" ? sanitized : undefined;
 }
 
 function sanitizeHighlights(
@@ -186,6 +251,33 @@ function sanitizeHighlights(
     .filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
     .map((entry) => entry.trim())
     .slice(0, 3);
+}
+
+function sanitizeRecommendation(
+  recommendation: RankingRecommendation,
+  context: RankingLlmGuardrailContext,
+): RankingRecommendation {
+  return {
+    ...recommendation,
+    title: sanitizeOptionalText(recommendation.title, context),
+    description: sanitizeOptionalText(recommendation.description, context),
+    timeline: sanitizeOptionalText(recommendation.timeline, context),
+    expected_outcome: sanitizeOptionalText(
+      recommendation.expected_outcome,
+      context,
+    ),
+  };
+}
+
+function sanitizeGap(
+  gap: RankingGap,
+  context: RankingLlmGuardrailContext,
+): RankingGap {
+  return {
+    ...gap,
+    reason: sanitizeOptionalText(gap.reason, context),
+    recommended_action: sanitizeOptionalText(gap.recommended_action, context),
+  };
 }
 
 function isWebsiteActionRecommendation(rec: RankingRecommendation): boolean {
@@ -234,12 +326,18 @@ export function sanitizeRankingLlmAnalysis<T extends Record<string, any>>(
 ): T {
   const next: Record<string, any> = { ...analysis };
   const recommendations = Array.isArray(next.top_recommendations)
-    ? next.top_recommendations.filter(
-        (rec: RankingRecommendation) => !isWebsiteActionRecommendation(rec),
-      )
+    ? next.top_recommendations
+        .filter(
+          (rec: RankingRecommendation) => !isWebsiteActionRecommendation(rec),
+        )
+        .map((rec: RankingRecommendation) =>
+          sanitizeRecommendation(rec, context),
+        )
     : [];
   const gaps = Array.isArray(next.gaps)
-    ? next.gaps.filter((gap: RankingGap) => !isWebsiteActionGap(gap))
+    ? next.gaps
+        .filter((gap: RankingGap) => !isWebsiteActionGap(gap))
+        .map((gap: RankingGap) => sanitizeGap(gap, context))
     : [];
 
   next.top_recommendations = backfillRecommendations(recommendations);
