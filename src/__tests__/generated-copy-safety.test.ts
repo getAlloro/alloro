@@ -8,6 +8,12 @@ describe("GeneratedCopySafetyService — a negator must govern the matched claim
     "The process isn’t difficult and gets you to page one.",
     "This cannot be complicated and guarantees top placement.",
     "We avoid jargon and guarantee a higher ranking.",
+    "This is not complicated and absolutely guarantees top placement.",
+    "This is not expensive yet reliably promises first page placement.",
+    "We avoid jargon and confidently guarantee a higher ranking.",
+    "The process isn’t difficult and consistently gets you to page one.",
+    "This is not complicated and will definitely guarantee top placement.",
+    "This is not complicated and will almost certainly guarantee top placement.",
   ];
 
   it.each(separatePromises)("BLOCKS a separate promise after unrelated negation: %s", (copy) => {
@@ -20,6 +26,9 @@ describe("GeneratedCopySafetyService — a negator must govern the matched claim
     "We do not guarantee rankings or promise page-one placement.",
     "We will not rank you #1 or get you to page one.",
     "Good dentistry is not only about your google rankings.",
+    "This is not complicated and definitely does not guarantee top placement.",
+    "This is not complicated and will definitely not guarantee top placement.",
+    "This is not complicated and will almost certainly not guarantee top placement.",
   ];
 
   it.each(sharedNegation)("PASSES a claim that the negator actually governs: %s", (copy) => {
