@@ -54,7 +54,7 @@
 <div class="wrap">
 
   <header class="hero">
-    <span class="pill complete"><span class="dot"></span>Completed &middot; Rev 9</span>
+    <span class="pill complete"><span class="dot"></span>Completed &middot; Rev 10</span>
     <h1>A3 — AI-Answer Visibility (AEO) Observation</h1>
     <p class="sub">Completed as a dormant pure internal foundation. The branch defines a multi-engine observation system, but it has zero production callers: no route, worker, schedule, agent-registry entry, UI, or API surface invokes it. Observe-only. Never a rank, never a guarantee. Live database/provider execution belongs to the future wiring slice.</p>
     <div class="meta">
@@ -74,8 +74,8 @@
     <h2>What — in scope (the SYSTEM, not one engine)</h2>
     <div class="card">
       <h3>Current execution boundary — dormant by design</h3>
-      <p><strong>This PR ships an internal foundation, not a running feature.</strong> The per-location runner, adapters, detector, model, and additive migration exist and are covered by Layer 1 tests. Nothing in production can call them on this branch. Therefore this slice makes no live database, migration-deployment, provider, operator, or customer behavior claim, and its canonical Layer 2 acceptance is the single passing N/A item: <code>No behavioral surface — verified by Layer 1 tests</code>.</p>
-      <p>A future executor/caller slice must own the route/worker/schedule/registry wiring and must run the real migration, PostgreSQL idempotency, and provider smoke tests before enabling that caller. Those checks are not passes or waivers for this slice; they are outside its contract.</p>
+      <p><strong>This PR ships an internal foundation, not a running feature.</strong> The per-location runner, adapters, detector, model, and additive migration exist and are covered by Layer 1 tests. Nothing in production can call them on this branch. Provider, operator, and customer behavior therefore use a passing N/A Layer 2 item. The migration is tracked separately as an unrun PostgreSQL item carrying Dave's explicit 2026-07-16 waiver; it is not represented as a pass.</p>
+      <p>A future executor/caller slice must own the route/worker/schedule/registry wiring and must run real PostgreSQL idempotency and provider smoke tests before enabling that caller. The current migration waiver permits this dormant foundation to merge but still requires deployment monitoring.</p>
     </div>
     <div class="reuse">
       <p><b>Reuse first (verified against code + the existing science spec).</b></p>
@@ -169,7 +169,7 @@
       <li>Persistence is idempotent — same (location, prompt, engine, run-date) inserted twice → one row.</li>
       <li>Output carries <code>capture_method</code> on every observation; assert no field is ever labeled/rendered as "rank"; assert no rank/guarantee string in any operator copy.</li>
       <li><strong>Fresh Layer 1 evidence at code head <code>c7eb4212</code>, Node 22.23.1:</strong> focused A3 Vitest 1/1 file and 138/138 tests; normal full <code>npm test</code> 61/61 files and 594/594 tests; <code>npx tsc --noEmit</code> exit 0; strict conventions exit 0 with 0 structural backend violations.</li>
-      <li><strong>Layer 2:</strong> canonical single passing N/A item because this dormant internal foundation has no behavioral surface.</li>
+      <li><strong>Layer 2:</strong> provider/customer behavior is N/A because this dormant internal foundation has no caller; the unrun PostgreSQL migration proof is a separate waived-fail item, never a pass.</li>
       <li><strong>Future wiring acceptance:</strong> migration execution, real PostgreSQL idempotency, and live Gemini/SerpApi/Perplexity smoke tests move with the executor/caller slice and must pass before a caller is enabled.</li>
     </ul>
   </section>
@@ -182,7 +182,7 @@
       <li>Prompt-set builder + deterministic appearance detector; runner persists idempotent observations with mandatory <code>capture_method</code>.</li>
       <li>No rank field surfaced; no guarantee/placement language (test-proven); every reading proxy-labeled + churn-caveated.</li>
       <li>Zero production callers are added; executor, registry/schedule wiring, migration execution, and live provider smoke tests remain a separate follow-on contract.</li>
-      <li>Layer 1 passes at the exact counts in Rev 9; Layer 2 is the canonical single passing N/A item under &sect;20.5.</li>
+      <li>Layer 1 passes at the exact counts in Rev 9; Layer 2 records provider/customer behavior as N/A and the unrun PostgreSQL migration proof as an explicit Dave-waived failure under &sect;20.5.</li>
       <li>Opened as PR #165 to <code>dev/dave</code> with this completed dormant-foundation scope recorded honestly.</li>
     </ul>
   </section>
@@ -242,6 +242,12 @@
       <p><strong>Change:</strong> Evidence-only remediation for PR #165 after the exact-head re-review found no remaining code issue. The old <code>test-results.json</code> mixed Layer 1 proof into Layer 2 and had <b>27 items: 22 pass, 5 pending</b>, while its own rationale still said <b>21 of 26</b> and its notes repeated both <b>573</b> and <b>594</b> as full-suite totals. Replaced it with the canonical single passing N/A item, <code>No behavioral surface — verified by Layer 1 tests</code>, and restored <code>test.html</code> to the canonical viewer. The current spec contract now states the real boundary: this branch is a <b>dormant pure internal foundation with zero production callers</b>. No source or production code changed.</p>
       <p><strong>Reason:</strong> User QA: no code finding remained, but stale and contradictory acceptance evidence made the PR look unfinished. The five live database/provider checks were also in the wrong layer. Because this branch has no route, worker, schedule, agent-registry entry, UI, API, or other production caller, those checks are not current Layer 2 behavior and do not need fabricated passes or waivers. They move with the future executor/caller slice, which must run them before enabling production execution.</p>
       <p><strong>Updated Done criteria:</strong> hero status is <b>Completed</b> for the dormant-foundation scope; Layer 2 rolls up <b>Passed</b> from exactly one N/A item; no live database, migration-deployment, or provider behavior is claimed. Fresh Layer 1 evidence on code head <code>c7eb4212d3daa76201e0c5ea1d8eb4defa536441</code> under Node <code>22.23.1</code>: focused A3 Vitest <b>1/1 file, 138/138 tests</b>; normal full <code>npm test</code> <b>61/61 files, 594/594 tests</b>; <code>npx tsc --noEmit</code> exit 0; <code>npm run check:conventions -- --strict</code> exit 0 with <b>0 structural backend violations</b>; <code>git diff --check</code> exit 0. Strict-check advisories are preserved exactly and are pre-existing/out of scope: 1 historical migration over the size ceiling, 20 route files without an inline auth reference, 1 <code>dangerouslySetInnerHTML</code> file, 2 token-read files, 6 backend <code>.raw()</code> integration-test files, and 102 tenant-scope heuristic model entries. <b>Residuals remain explicit:</b> live migration/PostgreSQL/provider behavior is unproven until the future wiring slice; Rev 8's accepted detector limits remain (bounded connector-language coverage, the adversary-only Cyrillic homoglyph prefix, lowercase-head ambiguity, and no location signal for same-name practices).</p>
+    </article>
+    <article class="rev">
+      <h3>Rev 10 &mdash; 2026-07-17</h3>
+      <p><strong>Change:</strong> Corrected the Rev 9 acceptance boundary after an independent audit identified that the branch is not entirely N/A: it contains an additive migration that the deploy workflow will execute. Provider, operator, and customer behavior remains N/A because there is still no production caller. The migration now has its own CLI acceptance item, recorded as unrun and failed with Dave's explicit PostgreSQL-results waiver from 2026-07-16.</p>
+      <p><strong>Reason:</strong> User QA: a dormant runtime does not make an automatically deployed schema change disappear. The prior single-item artifact understated the deployment surface.</p>
+      <p><strong>Updated Done criteria:</strong> the acceptance artifact may roll up Passed through the written waiver, but the PostgreSQL migration item itself remains a failure, never a pass; deployment monitoring remains required.</p>
     </article>
   </section>
 
