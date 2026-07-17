@@ -15,7 +15,7 @@
       ],
       "expected": "Known missing fields are exact; no-listing records skip; provider-unobserved photo data is not reported as owner-missing; a real numeric photo count restores photo grading",
       "status": "pass",
-      "evidence": "Focused composed receipt: 7 files / 769 tests, exit 0. The GBP completeness suite includes the production-profile adapter and unknown-photo regressions.",
+      "evidence": "Final focused composed receipt: 7 files / 778 tests, exit 0. The GBP completeness suite includes the production-profile adapter and unknown-photo regressions.",
       "notes": "Fixtures are synthetic. No Google API or database write occurred.",
       "waiver": ""
     },
@@ -32,7 +32,7 @@
       ],
       "expected": "The production call passes real already-fetched GBP completeness data without a second request or any cross-location fallback",
       "status": "pass",
-      "evidence": "src/__tests__/get-found-production-wiring.test.ts passed inside the 769-test focused receipt and the 1,225-test full receipt.",
+      "evidence": "src/__tests__/get-found-production-wiring.test.ts passed inside the final 778-test focused receipt and the 1,234-test full receipt.",
       "notes": "This proves the real executeTargets call path at the collaborator seam; it is not a claim that a deployed worker was exercised.",
       "waiver": ""
     },
@@ -40,15 +40,15 @@
       "id": "T3",
       "title": "The corrected PR 158 safety stack remains intact after composition",
       "surface": "cli",
-      "precondition": "PR 164 merged with pinned commit 9ab895c92c8c022b475ca532d04316069bbe2189",
+      "precondition": "PR 164 contains pinned #158 commits 9ab895c92c8c022b475ca532d04316069bbe2189 and 74c1f4edadc0b82a7dd4ebd4eecd38f8f030d743",
       "steps": [
         "Run the answer-first, generated-copy safety, copy-normalization, and GBP content-safety suites",
         "Run the get-found checker and GBP completeness suites on the merged tree"
       ],
-      "expected": "GeneratedCopySafetyService remains the neutral dependency; Unicode/HTML, bidi, unrelated-negator, answer-first, and GBP completeness regressions all pass",
+      "expected": "GeneratedCopySafetyService remains the neutral dependency; Unicode/HTML, bidi, direct and modifier-bearing unrelated-negator, answer-first, and GBP completeness regressions all pass",
       "status": "pass",
-      "evidence": "Focused composed receipt: 7 files / 769 tests, exit 0. Merge commit 50c44781b has parents 462a204fa and 9ab895c92.",
-      "notes": "The latest plans/07142026-alloro-funnel-engine spec and acceptance history were preserved by the merge.",
+      "evidence": "Final focused composed receipt: 7 files / 778 tests, exit 0. Merge commit 50c44781b has parents 462a204fa and 9ab895c92. Follow-up merge 239e78e4 has parents 9e674c440 and 74c1f4eda.",
+      "notes": "The latest plans/07142026-alloro-funnel-engine Rev 9 spec and acceptance history were preserved by the follow-up merge.",
       "waiver": ""
     },
     {
@@ -66,7 +66,7 @@
       ],
       "expected": "Every command exits 0; no new structural violation or test regression is introduced",
       "status": "pass",
-      "evidence": "TypeScript exit 0; strict conventions exit 0 with 0 structural violations; full Vitest 67 files / 1,225 tests, exit 0; ESLint exit 0 with 0 errors / 2,384 repository warnings; dependency-cruiser exit 0 with 0 errors / 38 repository warnings; git diff --check exit 0.",
+      "evidence": "TypeScript exit 0; strict conventions exit 0 with 0 structural violations; full Vitest 67 files / 1,234 tests, exit 0; ESLint exit 0 with 0 errors / 2,384 repository warnings; dependency-cruiser exit 0 with 0 errors / 38 repository warnings; git diff --check exit 0.",
       "notes": "Each exit was read directly. check:all was not used as evidence because its shell chain does not preserve every intermediate exit.",
       "waiver": ""
     },

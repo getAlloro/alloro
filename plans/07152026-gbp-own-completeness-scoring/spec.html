@@ -52,7 +52,7 @@
 <div class="wrap">
 
   <header class="hero">
-    <span class="pill"><span class="dot"></span>Completed &middot; Rev 3</span>
+    <span class="pill"><span class="dot"></span>Completed &middot; Rev 4</span>
     <h1>A2 — GBP Own-Completeness Scoring</h1>
     <p class="sub">Get-found, in-lane. Score the practice's <em>own</em> Google Business Profile for completeness — deterministically, read-only — and return the exact set of missing fields as advisory recommendations. Extends the shipping get-found checker; scores data Alloro already has.</p>
     <div class="meta">
@@ -145,6 +145,7 @@
       <li><strong>Wire into <code>getFoundChecker.ts</code></strong> — add optional condensed <code>client_gbp</code> to <code>GetFoundCheckInput</code>; when present, run the score, push a <code>gbp_completeness</code> advisory recommendation (owner-facing, eligibility/trust framed, no rank word) in <code>buildRecommendations</code>; extend the observability log with the GBP missing-field count. Skip cleanly when absent.</li>
       <li><strong>Honesty pass</strong> — run any new recommendation copy through <code>GeneratedCopySafetyService.validateGeneratedCopy</code>; confirm no rank/visibility phrase can appear.</li>
       <li><strong>(Rev 3) Wire the production organization-audit path</strong> — merge the corrected #158 safety stack; select the target's matching location from <code>OrganizationAuditContext</code>; adapt its existing AI-ready GBP profile; prove exact-location, single-location fallback, multi-location skip, and unknown-photo behavior without a new provider request.</li>
+      <li><strong>(Rev 4) Compose the frozen #158 negation follow-up</strong> — merge <code>74c1f4eda</code> as a second parent, preserve Slice 1a Rev 9, and prove modifier-bearing unrelated promises still block while modifier-bearing disclaimers still pass.</li>
     </ol>
   </section>
 
@@ -172,6 +173,7 @@
       <li><code>executeTargets</code> supplies real, correctly scoped organization-audit GBP data to the checker in production, with no cross-location fallback and no second Google request.</li>
       <li>The acceptance package contains canonical <code>test.html</code> and truthful <code>test-results.json</code>; the exact focused and full-suite receipts are recorded.</li>
       <li>Focused and full tests, TypeScript, strict conventions, lint, dependency-cruiser, and diff checks pass with each exit read directly.</li>
+      <li>(Rev 4) The final #164 tree contains #158 follow-up <code>74c1f4eda</code> as merge history, preserves its Rev 9 spec and receipt, and passes the composed modifier-negation regression corpus.</li>
       <li>Opened as a PR to <code>dev/dave</code> with this spec linked for Dave's review.</li>
     </ul>
   </section>
@@ -195,6 +197,12 @@
       <p><strong>Change:</strong> Merged the corrected PR #158 stack at <code>9ab895c9</code>, preserved <code>GeneratedCopySafetyService</code> and Slice 1a's latest spec/history, and wired A2 into the real organization-audit path. <code>auditTargetExecutionService</code> now selects the matching location's already-fetched GBP data and adapts <code>getGBPAIReadyData().profile</code> to the completeness contract. Exact-location, safe single-location fallback, unmapped multi-location skip, and advisory-failure behavior are test-proven. The adapter does not treat the current source's absent photo count as proof that the owner lacks photos; photos become gradable only when a numeric count exists. Added canonical acceptance artifacts. No SQL migration and no new provider request.</p>
       <p><strong>Reason:</strong> User QA: exact-head PR #164 review found that only tests supplied <code>gbpCompleteness</code>; the live call remained <code>runGetFoundChecker({ url, html })</code>, so A2 never emitted in production. The stacked branch also conflicted with #158's neutral safety-service refactor and lacked &sect;20.5 artifacts.</p>
       <p><strong>Updated Done criteria:</strong> the production organization-audit path supplies correctly scoped live GBP completeness data; no profile can cross a location boundary; provider-unobserved fields are not reported as owner-missing; #158's Unicode/HTML and unrelated-negator regressions pass in the composed receipt; canonical acceptance artifacts contain no pending item and every unrun behavioral item has an explicit written waiver.</p>
+    </article>
+    <article class="revision-entry">
+      <h3>Rev 4 &mdash; 2026-07-17</h3>
+      <p><strong>Change:</strong> Merged frozen #158 follow-up <code>74c1f4eda</code> through merge commit <code>239e78e4</code>, retaining Slice 1a's append-only Rev 9 spec and acceptance receipt. The shared claim-negation grammar now catches positive predicates hidden behind bounded ordinary modifiers or modal-plus-adverb phrases while continuing to permit modifiers before an actual negator. No #164 production-wiring behavior changed. No SQL migration was added.</p>
+      <p><strong>Reason:</strong> User QA: the required #158 follow-up closed an additional modifier/adverb negation bypass after the initial #164 composition had already been committed.</p>
+      <p><strong>Updated Done criteria:</strong> the exact merged tree passes direct, single-adverb, modal-plus-adverb, and multi-modifier must-block cases plus paired must-pass disclaimer cases; the focused composed receipt, full suite, TypeScript, strict conventions, lint, dependency-cruiser, and diff checks are recorded from this final tree.</p>
     </article>
   </section>
 
