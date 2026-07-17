@@ -11,7 +11,12 @@ import { SeoGenerationJobModel } from "../../models/website-builder/SeoGeneratio
 import { ProjectModel } from "../../models/website-builder/ProjectModel";
 import { PageModel } from "../../models/website-builder/PageModel";
 import { PostModel } from "../../models/website-builder/PostModel";
+import { MetricActionService } from "../../services/MetricActionService";
 import logger from "../../lib/logger";
+
+const METRIC_ACTION_WRITE_MAX_ATTEMPTS = 3;
+const METRIC_ACTION_WRITE_RETRY_DELAY_MS = 25;
+const SEO_BULK_JOB_NAME = "seo-bulk-generate";
 
 export interface SeoBulkGenerateData {
   jobRecordId: string;
@@ -19,6 +24,27 @@ export interface SeoBulkGenerateData {
   entityType: "page" | "post";
   postTypeId?: string;
   pagePaths?: string[];
+}
+
+interface SeoBulkEntity {
+  id: string;
+  title: string;
+  content: string;
+  path?: string;
+  seoData: unknown;
+}
+
+interface SeoMetadataChangeCounts {
+  affectedCount: number;
+  titleChangeCount: number;
+  descriptionChangeCount: number;
+}
+
+interface RecordSeoMetricActionInput extends SeoMetadataChangeCounts {
+  jobId: string;
+  projectId: string;
+  entityType: "page" | "post";
+  failedCount: number;
 }
 
 export async function processSeoBulkGenerate(job: Job<SeoBulkGenerateData>): Promise<void> {
@@ -57,7 +83,7 @@ export async function processSeoBulkGenerate(job: Job<SeoBulkGenerateData>): Pro
   const footerHtml = project?.footer || "";
 
   // Fetch entities to process
-  let entities: Array<{ id: string; title: string; content: string; path?: string }>;
+  let entities: SeoBulkEntity[];
 
   if (entityType === "page") {
     entities = await getPageEntities(projectId, pagePaths);
@@ -79,6 +105,11 @@ export async function processSeoBulkGenerate(job: Job<SeoBulkGenerateData>): Pro
   // Track accumulated titles/descriptions for uniqueness within this batch
   const batchTitles = [...allMeta.titles];
   const batchDescriptions = [...allMeta.descriptions];
+  const metadataChangeCounts: SeoMetadataChangeCounts = {
+    affectedCount: 0,
+    titleChangeCount: 0,
+    descriptionChangeCount: 0,
+  };
 
   for (let i = 0; i < entities.length; i++) {
     const entity = entities[i];
@@ -114,16 +145,22 @@ export async function processSeoBulkGenerate(job: Job<SeoBulkGenerateData>): Pro
       }
       mergedSeoData.insights = mergedInsights;
 
+      const metadataChange = MetricActionService.detectSeoMetadataChange(
+        entity.seoData,
+        mergedSeoData
+      );
+
       // Track new titles/descriptions for uniqueness in subsequent entities
       if (mergedSeoData.meta_title) batchTitles.push(mergedSeoData.meta_title as string);
       if (mergedSeoData.meta_description) batchDescriptions.push(mergedSeoData.meta_description as string);
 
       // Save seo_data to DB
       const seoDataJson = JSON.stringify(mergedSeoData);
+      let persistedRowCount: number;
       if (entityType === "page") {
-        await PageModel.updateSeoDataById(entity.id, seoDataJson);
+        persistedRowCount = await PageModel.updateSeoDataById(entity.id, seoDataJson);
       } else {
-        await PostModel.updateSeoDataByIdJsClock(entity.id, seoDataJson);
+        persistedRowCount = await PostModel.updateSeoDataByIdJsClock(entity.id, seoDataJson);
       }
 
       // For pages, propagate seo_data to all sibling versions with null seo_data
@@ -141,6 +178,14 @@ export async function processSeoBulkGenerate(job: Job<SeoBulkGenerateData>): Pro
 
       await SeoGenerationJobModel.incrementCompleted(jobRecordId);
       await SeoGenerationJobModel.updateItemStatus(jobRecordId, entity.id, "done");
+      if (
+        persistedRowCount > 0 &&
+        (metadataChange.titleChanged || metadataChange.descriptionChanged)
+      ) {
+        metadataChangeCounts.affectedCount += 1;
+        if (metadataChange.titleChanged) metadataChangeCounts.titleChangeCount += 1;
+        if (metadataChange.descriptionChanged) metadataChangeCounts.descriptionChangeCount += 1;
+      }
       logger.info(`[SEO-BULK]   [${i + 1}/${entities.length}] ✓ Done "${entity.title}" (${Date.now() - entityStart}ms)`);
     } catch (err: any) {
       logger.error({ err: err.message }, `[SEO-BULK]   [${i + 1}/${entities.length}] ✗ Failed "${entity.title}" (${Date.now() - entityStart}ms):`);
@@ -155,10 +200,23 @@ export async function processSeoBulkGenerate(job: Job<SeoBulkGenerateData>): Pro
 
   // Final status
   const finalJob = await SeoGenerationJobModel.findById(jobRecordId);
-  if (finalJob && finalJob.failed_count > 0 && finalJob.completed_count === 0) {
+  const isFullyFailed = Boolean(
+    finalJob && finalJob.failed_count > 0 && finalJob.completed_count === 0
+  );
+  if (isFullyFailed) {
     await SeoGenerationJobModel.markFailed(jobRecordId);
   } else {
     await SeoGenerationJobModel.markCompleted(jobRecordId);
+  }
+
+  if (!isFullyFailed && metadataChangeCounts.affectedCount > 0) {
+    await recordSeoMetricActionWithRetry({
+      jobId: jobRecordId,
+      projectId,
+      entityType,
+      failedCount: finalJob?.failed_count ?? 0,
+      ...metadataChangeCounts,
+    });
   }
 
   const elapsed = Math.round((Date.now() - jobStart) / 1000);
@@ -175,7 +233,81 @@ export async function processSeoBulkGenerate(job: Job<SeoBulkGenerateData>): Pro
 // Helpers
 // ---------------------------------------------------------------------------
 
-async function getPageEntities(projectId: string, pagePaths?: string[]) {
+function metricActionLogContext(input: RecordSeoMetricActionInput) {
+  return {
+    jobName: SEO_BULK_JOB_NAME,
+    seoJobId: input.jobId,
+    projectId: input.projectId,
+    entityType: input.entityType,
+  };
+}
+
+async function resolveMetricActionOrganizationId(
+  input: RecordSeoMetricActionInput
+): Promise<number | null> {
+  try {
+    const projectContext = await ProjectModel.findOrganizationIdById(input.projectId);
+    if (projectContext?.organization_id == null) {
+      logger.warn(
+        metricActionLogContext(input),
+        "[SEO-BULK] Skipping metric action because the project has no organization"
+      );
+      return null;
+    }
+    return projectContext.organization_id;
+  } catch (error: unknown) {
+    logger.error(
+      { err: error, ...metricActionLogContext(input) },
+      "[SEO-BULK] Failed to resolve organization for metric action"
+    );
+    return null;
+  }
+}
+
+function waitForMetricActionRetry(attempt: number): Promise<void> {
+  return new Promise<void>((resolve) => {
+    setTimeout(resolve, METRIC_ACTION_WRITE_RETRY_DELAY_MS * attempt);
+  });
+}
+
+async function recordSeoMetricActionWithRetry(
+  input: RecordSeoMetricActionInput
+): Promise<void> {
+  const organizationId = await resolveMetricActionOrganizationId(input);
+  if (organizationId == null) return;
+
+  for (let attempt = 1; attempt <= METRIC_ACTION_WRITE_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      await MetricActionService.recordSeoBulkUpdate({
+        organizationId,
+        locationId: null,
+        projectId: input.projectId,
+        jobId: input.jobId,
+        entityType: input.entityType,
+        affectedCount: input.affectedCount,
+        titleChangeCount: input.titleChangeCount,
+        descriptionChangeCount: input.descriptionChangeCount,
+        failedCount: input.failedCount,
+      });
+      return;
+    } catch (error: unknown) {
+      const context = {
+        err: error,
+        ...metricActionLogContext(input),
+        attempt,
+        maxAttempts: METRIC_ACTION_WRITE_MAX_ATTEMPTS,
+      };
+      if (attempt === METRIC_ACTION_WRITE_MAX_ATTEMPTS) {
+        logger.error(context, "[SEO-BULK] Metric action write failed after bounded retries");
+      } else {
+        logger.warn(context, "[SEO-BULK] Metric action write failed; retrying");
+        await waitForMetricActionRetry(attempt);
+      }
+    }
+  }
+}
+
+async function getPageEntities(projectId: string, pagePaths?: string[]): Promise<SeoBulkEntity[]> {
   // Get pages — filtered by paths if specified, otherwise all
   if (pagePaths && pagePaths.length > 0) {
     logger.info(`[SEO-BULK]   Filtering to ${pagePaths.length} selected paths`);
@@ -191,7 +323,7 @@ async function getPageEntities(projectId: string, pagePaths?: string[]) {
     grouped.set(page.path, group);
   }
 
-  const entities: Array<{ id: string; title: string; content: string; path: string }> = [];
+  const entities: SeoBulkEntity[] = [];
 
   for (const [path, versions] of grouped) {
     const best =
@@ -214,13 +346,14 @@ async function getPageEntities(projectId: string, pagePaths?: string[]) {
       title: path,
       content,
       path,
+      seoData: best.seo_data,
     });
   }
 
   return entities;
 }
 
-async function getPostEntities(projectId: string, postTypeId: string) {
+async function getPostEntities(projectId: string, postTypeId: string): Promise<SeoBulkEntity[]> {
   const posts = await PostModel.findByProjectAndTypeForSeo(projectId, postTypeId);
 
   return posts.map((post: any) => ({
@@ -228,6 +361,7 @@ async function getPostEntities(projectId: string, postTypeId: string) {
     title: post.title,
     content: post.content || "",
     path: undefined,
+    seoData: post.seo_data,
   }));
 }
 

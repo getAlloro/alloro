@@ -23,6 +23,48 @@ type RankingLlmGuardrailContext = {
 
 const WEBSITE_ACTION_PATTERN =
   /\b(website|web provider|page speed|pagespeed|site speed|speed up|load time|loading|core web vitals|lighthouse|performance score)\b/i;
+const GOOGLE_POST_PATTERN =
+  /\b(?:google(?: business profile)?|gbp|business profile)\s+(?:posts?|updates?)\b|\bposting\b|\bposts?\b/i;
+const POST_SOURCE =
+  "(?:(?:google(?: business profile)?|gbp|business profile)\\s+(?:posts?|updates?)|posting|posts?)";
+const RANK_OUTCOME =
+  "(?:rank(?:ing|ings)?|position|standing|lead|top[- ](?:three|3|20)|" +
+  "local search|map pack|google maps|maps|visibility|visible|findability)";
+const POST_CAUSAL_VERB =
+  "(?:protect|improve|widen|boost|lift|raise|strengthen|maintain|hold|" +
+  "advance|move|recover|stay|remain|support|help|keep|get|show|appear|" +
+  "rank|break|climb|outrank|drive|push|give|lead|result|produce|cause|" +
+  "deliver|secure)";
+/**
+ * A coordinator ends the post-source clause only when it introduces an
+ * explicit subject before another causal predicate. The negative lookahead
+ * prevents the predicate itself (or a normal adverb) from being mistaken for
+ * that subject, so "posts consistently improve rankings" remains a claim while
+ * "posts help patients and review growth improves rank" splits at `and`.
+ */
+const COORDINATED_NEW_CAUSAL_SUBJECT = new RegExp(
+  `\\b(?:and|but|or|yet|while|whereas)\\s+` +
+    `(?:(?!(?:${POST_CAUSAL_VERB})\\w*\\b|[a-z][a-z'-]*ly\\b)` +
+    `[a-z][a-z'-]{0,23}\\s+){1,4}` +
+    `(?=(?:${POST_CAUSAL_VERB})\\w*\\b)`,
+  "i",
+);
+const POST_SOURCE_CAUSAL_OUTCOME = new RegExp(
+  `\\b${POST_CAUSAL_VERB}\\w*\\b[^.!?;]{0,64}\\b${RANK_OUTCOME}\\b`,
+  "i",
+);
+const RANK_OUTCOME_FROM_POST = new RegExp(
+  `\\b${RANK_OUTCOME}\\b[^.!?;]{0,80}\\b` +
+    `(?:by|from|through|with|because\\s+of|due\\s+to|using)\\b` +
+    `[^.!?;]{0,48}\\b${POST_SOURCE}\\b`,
+  "i",
+);
+const RECOMMENDED_ACTION_PREFIX = /^recommended action:\s*/i;
+const WEEKLY_POST_PATTERN = /\b(?:weekly|each week|every week|once a week)\b/i;
+const HONEST_POST_ACTION =
+  "Publish a useful Google post to keep your profile current for patients who are deciding";
+const HONEST_WEEKLY_POST_ACTION =
+  "Publish a useful Google post weekly to keep your profile current for patients who are deciding";
 const LEADER_SEARCH_POSITION = 1;
 const TOP_THREE_SEARCH_POSITIONS = new Set([2, 3]);
 
@@ -161,19 +203,91 @@ function normalizeLeadProtectionLanguage(
     .replace(/\bprotect that lead\b/gi, "improve that position");
 }
 
+function rewritePostRankSentence(sentence: string): string {
+  if (!hasPostToRankCausalClaim(sentence)) {
+    return sentence;
+  }
+
+  const trimmed = sentence.trim();
+  const punctuation = /[.!?]$/.test(trimmed) ? trimmed.slice(-1) : "";
+  const withoutPunctuation = punctuation ? trimmed.slice(0, -1) : trimmed;
+  const prefixMatch = withoutPunctuation.match(RECOMMENDED_ACTION_PREFIX);
+  const actionPrefix = prefixMatch?.[0] ?? "";
+  const body = actionPrefix
+    ? withoutPunctuation.slice(actionPrefix.length)
+    : withoutPunctuation;
+  const postIndex = body.search(GOOGLE_POST_PATTERN);
+  const factSeparator = postIndex > 0 ? body.lastIndexOf(",", postIndex) : -1;
+  const rankFactPrefix =
+    factSeparator >= 0 ? body.slice(0, factSeparator).trim() : "";
+  const honestAction = WEEKLY_POST_PATTERN.test(body)
+    ? HONEST_WEEKLY_POST_ACTION
+    : HONEST_POST_ACTION;
+  const rewrittenAction = `${actionPrefix}${honestAction}${punctuation}`;
+
+  return rankFactPrefix
+    ? `${rankFactPrefix}. ${rewrittenAction}`
+    : rewrittenAction;
+}
+
+function hasPostToRankCausalClaim(sentence: string): boolean {
+  if (RANK_OUTCOME_FROM_POST.test(sentence)) {
+    return true;
+  }
+
+  const sourceScan = new RegExp(`\\b${POST_SOURCE}\\b`, "gi");
+  let source: RegExpExecArray | null;
+  while ((source = sourceScan.exec(sentence)) !== null) {
+    const afterSource = sentence.slice(source.index + source[0].length);
+    const boundaryCandidates = [
+      afterSource.search(/[.!?;]/),
+      afterSource.search(COORDINATED_NEW_CAUSAL_SUBJECT),
+    ].filter((index) => index >= 0);
+    const boundary =
+      boundaryCandidates.length > 0 ? Math.min(...boundaryCandidates) : -1;
+    const sourceClause =
+      boundary >= 0 ? afterSource.slice(0, boundary) : afterSource;
+    if (POST_SOURCE_CAUSAL_OUTCOME.test(sourceClause)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function rewritePostRankClaims(value: unknown): unknown {
+  if (typeof value !== "string" || !hasPostToRankCausalClaim(value)) {
+    return value;
+  }
+
+  return value
+    .split(/(?<=[.!?])\s+/u)
+    .map(rewritePostRankSentence)
+    .join(" ");
+}
+
 function sanitizeText(
   value: unknown,
   context: RankingLlmGuardrailContext,
 ): unknown {
-  return normalizeLeadProtectionLanguage(
-    normalizeOwnerRankingLanguage(
-      normalizeVisibleScoreMentions(
-        stripWebsiteActionSentences(value),
-        context.visibleScore,
+  return rewritePostRankClaims(
+    normalizeLeadProtectionLanguage(
+      normalizeOwnerRankingLanguage(
+        normalizeVisibleScoreMentions(
+          stripWebsiteActionSentences(value),
+          context.visibleScore,
+        ),
       ),
+      context,
     ),
-    context,
   );
+}
+
+function sanitizeOptionalText(
+  value: string | undefined,
+  context: RankingLlmGuardrailContext,
+): string | undefined {
+  const sanitized = sanitizeText(value, context);
+  return typeof sanitized === "string" ? sanitized : undefined;
 }
 
 function sanitizeHighlights(
@@ -186,6 +300,33 @@ function sanitizeHighlights(
     .filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
     .map((entry) => entry.trim())
     .slice(0, 3);
+}
+
+function sanitizeRecommendation(
+  recommendation: RankingRecommendation,
+  context: RankingLlmGuardrailContext,
+): RankingRecommendation {
+  return {
+    ...recommendation,
+    title: sanitizeOptionalText(recommendation.title, context),
+    description: sanitizeOptionalText(recommendation.description, context),
+    timeline: sanitizeOptionalText(recommendation.timeline, context),
+    expected_outcome: sanitizeOptionalText(
+      recommendation.expected_outcome,
+      context,
+    ),
+  };
+}
+
+function sanitizeGap(
+  gap: RankingGap,
+  context: RankingLlmGuardrailContext,
+): RankingGap {
+  return {
+    ...gap,
+    reason: sanitizeOptionalText(gap.reason, context),
+    recommended_action: sanitizeOptionalText(gap.recommended_action, context),
+  };
 }
 
 function isWebsiteActionRecommendation(rec: RankingRecommendation): boolean {
@@ -234,12 +375,18 @@ export function sanitizeRankingLlmAnalysis<T extends Record<string, any>>(
 ): T {
   const next: Record<string, any> = { ...analysis };
   const recommendations = Array.isArray(next.top_recommendations)
-    ? next.top_recommendations.filter(
-        (rec: RankingRecommendation) => !isWebsiteActionRecommendation(rec),
-      )
+    ? next.top_recommendations
+        .filter(
+          (rec: RankingRecommendation) => !isWebsiteActionRecommendation(rec),
+        )
+        .map((rec: RankingRecommendation) =>
+          sanitizeRecommendation(rec, context),
+        )
     : [];
   const gaps = Array.isArray(next.gaps)
-    ? next.gaps.filter((gap: RankingGap) => !isWebsiteActionGap(gap))
+    ? next.gaps
+        .filter((gap: RankingGap) => !isWebsiteActionGap(gap))
+        .map((gap: RankingGap) => sanitizeGap(gap, context))
     : [];
 
   next.top_recommendations = backfillRecommendations(recommendations);

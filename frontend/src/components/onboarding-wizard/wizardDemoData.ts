@@ -18,7 +18,8 @@ export const WIZARD_DEMO_DATA = {
   // ───────────────────────── Dashboard — Hero ─────────────────────────
   // Shape: ResolvedTopAction (from useTopAction)
   heroAction: {
-    taskId: 1,
+    resultId: 1,
+    createdAt: new Date().toISOString(),
     title: "Respond to 3 pending Google reviews",
     urgency: "high" as const,
     priority_score: 92,
@@ -41,7 +42,7 @@ export const WIZARD_DEMO_DATA = {
     },
     cta: {
       primary: { label: "Open Reviews", action_url: "/dashboard" },
-      secondary: { label: "View All Tasks", action_url: "/tasks" },
+      secondary: { label: "View Local Rankings", action_url: "/rankings" },
     },
     domain_summaries: [
       {
@@ -120,16 +121,6 @@ export const WIZARD_DEMO_DATA = {
       top_source: "Google Ads",
     },
   },
-
-  // ───────────────────────── Dashboard — Action Queue ─────────────────────────
-  // Shape: ActionQueueRow[] (from useActionQueue)
-  actionQueueItems: [
-    { id: 1, title: "Respond to 3 pending Google reviews", urgency: "High" as const, due: "Today", agent: "summary" as const, domain: "review" },
-    { id: 2, title: "Update GBP business description", urgency: "Med" as const, due: "May 25", agent: "summary" as const, domain: "gbp" },
-    { id: 3, title: "Review referral source anomaly", urgency: "Med" as const, due: "May 26", agent: "re" as const, domain: "referral" },
-    { id: 4, title: "Upload May PMS data", urgency: "Low" as const, due: "Jun 1", agent: "summary" as const, domain: "pms-data-quality" },
-    { id: 5, title: "Add photos to Google Business Profile", urgency: "Low" as const, due: "Jun 3", agent: "summary" as const, domain: "gbp" },
-  ],
 
   // ───────────────────────── Dashboard — Website Card ─────────────────────────
   // Shape: FormSubmissionsStats + TimeseriesPoint[]
@@ -335,97 +326,6 @@ export const WIZARD_DEMO_DATA = {
     bounceRate: { prevMonth: 0.38, currMonth: 0.32 },
     deadClicks: { prevMonth: 24, currMonth: 18 },
     trendScore: 65,
-  },
-
-  // ───────────────────────── Tasks ─────────────────────────
-  // Shape: GroupedActionItems (ActionItem[] per category)
-  tasks: {
-    USER: [
-      {
-        id: 1,
-        title: "Respond to 3 pending Google reviews",
-        description:
-          "You have 3 reviews from the past week that need responses. Responding improves your local ranking.",
-        category: "USER" as const,
-        status: "pending" as const,
-        is_approved: true,
-        created_by_admin: false,
-        agent_type: "GBP_OPTIMIZATION" as const,
-        created_at: new Date(Date.now() - 3 * 86_400_000).toISOString(),
-        updated_at: new Date(Date.now() - 3 * 86_400_000).toISOString(),
-        due_date: new Date(Date.now() + 2 * 86_400_000).toISOString(),
-        metadata: { urgency: "Immediate" },
-      },
-      {
-        id: 2,
-        title: "Update Google Business Profile hours",
-        description:
-          "Your holiday hours may be outdated. Verify and update to avoid patient confusion.",
-        category: "USER" as const,
-        status: "pending" as const,
-        is_approved: true,
-        created_by_admin: false,
-        agent_type: "GBP_OPTIMIZATION" as const,
-        created_at: new Date(Date.now() - 5 * 86_400_000).toISOString(),
-        updated_at: new Date(Date.now() - 5 * 86_400_000).toISOString(),
-        due_date: new Date(Date.now() + 5 * 86_400_000).toISOString(),
-        metadata: { urgency: "High" },
-      },
-      {
-        id: 3,
-        title: "Add 5 new photos to GBP listing",
-        description:
-          "Listings with 10+ photos get 35% more clicks. You currently have 7 — add 5 more.",
-        category: "USER" as const,
-        status: "pending" as const,
-        is_approved: true,
-        created_by_admin: false,
-        agent_type: "GBP_OPTIMIZATION" as const,
-        created_at: new Date(Date.now() - 2 * 86_400_000).toISOString(),
-        updated_at: new Date(Date.now() - 2 * 86_400_000).toISOString(),
-        due_date: new Date(Date.now() + 7 * 86_400_000).toISOString(),
-        metadata: { urgency: "Normal" },
-      },
-    ],
-    ALLORO: [
-      {
-        id: 101,
-        title: "Monitoring review sentiment",
-        description: "Automatically tracking patient sentiment across platforms.",
-        category: "ALLORO" as const,
-        status: "in_progress" as const,
-        is_approved: true,
-        created_by_admin: false,
-        agent_type: "GBP_OPTIMIZATION" as const,
-        created_at: new Date(Date.now() - 10 * 86_400_000).toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-      {
-        id: 102,
-        title: "Tracking local rankings",
-        description: "Monitoring your position against 15 local competitors.",
-        category: "ALLORO" as const,
-        status: "in_progress" as const,
-        is_approved: true,
-        created_by_admin: false,
-        agent_type: "RANKING" as const,
-        created_at: new Date(Date.now() - 14 * 86_400_000).toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-      {
-        id: 103,
-        title: "Analyzing referral source patterns",
-        description:
-          "Identifying growth opportunities and declining referral relationships.",
-        category: "ALLORO" as const,
-        status: "in_progress" as const,
-        is_approved: true,
-        created_by_admin: false,
-        agent_type: "REFERRAL_ENGINE_ANALYSIS" as const,
-        created_at: new Date(Date.now() - 7 * 86_400_000).toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-    ],
   },
 
   // ───────────────────────── Websites — Project ─────────────────────────

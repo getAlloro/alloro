@@ -4,7 +4,7 @@
  * Runs gap analysis via Claude (replaces the former n8n → Gemini webhook).
  * Takes the same payload shape the pipeline already builds, calls
  * service.llm-runner, then delegates persistence to the existing
- * webhook-handler helpers (archiveAndCreateTasks, saveLlmAnalysis).
+ * webhook-handler persistence helper (saveLlmAnalysis).
  */
 
 import { runAgent } from "../../../agents/service.llm-runner";
@@ -122,7 +122,7 @@ const SYSTEM_PROMPT = `You are an expert SEO and local search analyst specializi
 1. **Gap Analysis**: Where the practice underperforms vs competitors
 2. **Driver Analysis**: Which factors impact their ranking most
 3. **Recommendations**: Prioritized actions to improve
-4. **Search Position Awareness**: When \`search_position\` is provided in the input, treat it as a sampled Google Maps estimate, not a guaranteed live rank. Factor the estimate into recommendations without over-claiming precision. If they're showing above what their Practice Health score would predict, identify what's protecting that advantage and recommend preserving it. If below, prioritize actions that influence the signals Google weights most for local pack ranking (review count, recency, profile completeness, NAP consistency). If \`search_position.not_in_top_20\` is true, treat breaking into the top 20 as the primary goal.
+4. **Search Position Awareness**: When \`search_position\` is provided in the input, treat it as a sampled Google Maps estimate, not a guaranteed live rank. Factor the estimate into recommendations without over-claiming precision. If they're showing above what their Practice Health score would predict, identify what's protecting that advantage and recommend preserving it. If below, prioritize actions that influence the signals Google weights most for local pack ranking (review count, recency, profile completeness, NAP consistency). If \`search_position.not_in_top_20\` is true, treat breaking into the top 20 as the primary goal. Never use Google posts or posting as the action that protects, improves, widens, or recovers rank.
 
 ## Rules
 - Be specific with numbers and comparisons
@@ -139,16 +139,17 @@ const SYSTEM_PROMPT = `You are an expert SEO and local search analyst specializi
   - Not in the top 20 (\`search_position.not_in_top_20\` is true): say the practice was not found in the top 20 and choose one action toward entering the top 20. Do not fabricate a numeric position.
   - Position unavailable (\`status\` is \`bias_unavailable\` or \`api_error\`, or \`search_position.position\` is null without \`not_in_top_20\`): say "position pending this month" and never fall back to #1 or a fabricated rank.
 - In \`overview_card.text\`, use the practice or location name, the sampled local rank, and the rounded owner-visible score. Use "Alloro Health Score" in this field instead of "Local Search Score".
-- The \`overview_card.text\` recommended action should point to the clearest owner action. Use "protect the lead" only when the sampled rank is #1. For a top-set (2 or 3) practice, use language that protects or widens the standing, never "close the gap to #1". For positions 4 through 20, aim toward the top three. Only a practice not found in the top 20 should be told to break into the top 20. Never frame a top-set practice as deficient.
+- The \`overview_card.text\` recommended action should point to the clearest owner action. Use "protect the lead" only when the sampled rank is #1. For a top-set (2 or 3) practice, use language that protects or widens the standing, never "close the gap to #1". For positions 4 through 20, aim toward the top three. Only a practice not found in the top 20 should be told to break into the top 20. Never frame a top-set practice as deficient. Any action tied to protecting or improving rank must use a supported ranking lever such as review growth or recency, category/profile completeness, or NAP consistency, never a Google post.
 - Use \`engagement_summary\` for review reply and Google post language. This is a compact summary, not the full review dataset.
 - If \`engagement_summary.all_reviews_replied\` is true or \`unanswered_reviews_total\` is 0, do not mention unanswered reviews, pending review replies, or review cleanup.
 - If \`engagement_summary.has_recent_post_15d\` is true, do not mention stale or missing Google posts as a problem.
+- Google posts are a consideration and engagement action. Posts can keep the profile current and reassure patients who are deciding, but they do not improve rank, protect a position, increase findability, or move the practice toward the top three. Preserve factual rank statements, but never connect a post action to a rank outcome in \`overview_card.text\`, \`top_recommendations\`, or any other owner-facing field.
 - Do not use em dashes in owner-facing copy. Use commas, periods, or parentheses.
 - Keep \`engagement_card.text\` concise: one or two sentences, no repeated explanation of the same post or review issue, and single spaces after periods.
 - If \`website_audit\` is missing, failed, skipped, or marked unmeasured, do not recommend website fixes from that absence alone. A website basics check is not a Lighthouse score or Core Web Vitals test.
 - Do not recommend website speed, page load, Lighthouse, Core Web Vitals, or technical website performance work anywhere. Website performance is owned by Alloro, not the practice. If website speed appears weak, omit it and choose review growth, Google profile activity, photos, category/profile completeness, NAP consistency, or review reply/posting actions instead.
 - Do not use titles like "Speed Up Your Website" or tell the doctor to ask a web provider for changes.
-- The single \`top_recommendations\` entry must be caught-unseen and specific, never generic homework. It MUST: (1) name a specific competitor (\`competitors[].name\`) or a specific profile factor; (2) cite one real number from the input the owner cannot see on their own Google profile (a competitor's \`reviews_last_30d\` versus the practice's, a \`photos_count\` gap, a post-freshness gap, or the live Maps top-5); (3) state exactly one move the owner can act on this week. BANNED as the single recommendation because any tool says them: "get more reviews", "your rating is lower than average", "post more often", "add more photos", "keep review momentum". If the only real action is one of those, frame it around a specific competitor and number, or return no recommendation (the safe fallback handles it) rather than shipping generic homework. The card is the DECISION, not a finding to weigh: after reading it the owner should have nothing left to evaluate, no "consider", no "you could", no menu of options, just the one move already chosen for them from patterns they cannot see for themselves. Prefer framing the authority as what the top-performing practices in their category already do that this practice does not (a proven play), over framing it as a competitor beating them (a threat): the proven-play framing is more durable, more honest, and less adversarial.
+- The single \`top_recommendations\` entry must be caught-unseen and specific, never generic homework. It MUST: (1) name a specific competitor (\`competitors[].name\`) or a specific profile factor; (2) cite one real number from the input the owner cannot see on their own Google profile (a competitor's \`reviews_last_30d\` versus the practice's, a \`photos_count\` gap, a post-freshness gap, or the live Maps top-5); (3) state exactly one move the owner can act on this week. BANNED as the single recommendation because any tool says them: "get more reviews", "your rating is lower than average", "post more often", "add more photos", "keep review momentum". If the only real action is one of those, frame it around a specific competitor and number, or return no recommendation (the safe fallback handles it) rather than shipping generic homework. A recommendation may use a real post-freshness gap, but its title, description, and expected outcome must describe profile currency or patient reassurance, never rank protection or improvement. The card is the DECISION, not a finding to weigh: after reading it the owner should have nothing left to evaluate, no "consider", no "you could", no menu of options, just the one move already chosen for them from patterns they cannot see for themselves. Prefer framing the authority as what the top-performing practices in their category already do that this practice does not (a proven play), over framing it as a competitor beating them (a threat): the proven-play framing is more durable, more honest, and less adversarial.
 - Specialist versus generalist review counts: when a competitor's total review count is many multiples of the practice's AND that competitor's \`primary_category\` is a generalist category (for example "Dentist" or "Dental clinic") while the client is a specialist, do NOT frame the review-count difference as a gap the practice must close. The practice is not losing to a better practice, it is being outshown by a louder, broader one. Choose a winnable move: a comparison against a like-for-like specialist competitor, or a review recency and velocity signal. Never tell a specialist to match a generalist's review count.
 - Open with relief, not fear, and close with quiet status. Begin owner-facing copy by naming what is protected or working before naming the gap (never "you turned up empty" or "you're failing"), and land the card so the owner finishes feeling like the sharp operator who is on top of this, not a student who is behind. Relief removes the pain; the status beat creates the pull.
 
@@ -389,8 +390,7 @@ function buildLeanRankingInput(
 /**
  * Run the ranking gap analysis via Claude and persist results.
  *
- * On success: saves llm_analysis, archives old tasks, creates new tasks,
- * marks ranking as completed.
+ * On success: saves llm_analysis and marks ranking as completed.
  *
  * On failure: marks ranking as completed without AI insights (graceful).
  */
@@ -451,10 +451,9 @@ export async function runRankingAnalysis(
     // Ensure practice_ranking_id is set correctly
     llmAnalysis.practice_ranking_id = rankingId;
 
-    // Save LLM analysis and mark completed.
-    // Note: ranking no longer creates its own USER tasks. Summary v2 is the
-    // sole writer of category="USER" tasks; it consumes top_recommendations
-    // via additional_data.ranking_recommendations on the next monthly run.
+    // Save LLM analysis and mark completed. Summary consumes
+    // top_recommendations through additional_data.ranking_recommendations on
+    // the next monthly run.
     await llmWebhookHandler.saveLlmAnalysis(rankingId, llmAnalysis);
 
     _log(`[RANKING] [${rankingId}] LLM analysis saved successfully`);

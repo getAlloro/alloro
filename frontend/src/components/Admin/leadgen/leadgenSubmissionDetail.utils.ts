@@ -20,10 +20,19 @@ import {
   FileText,
 } from "lucide-react";
 import type {
+  LeadgenEvent,
   LeadgenEventName,
   SubmissionDetail,
 } from "../../../types/leadgen";
-import { STAGE_LABEL } from "./LeadgenSubmissionsTable";
+import { STAGE_LABEL } from "./leadgenSubmissionDisplay.utils";
+
+const REPORT_SURFACE_EVENTS = new Set<LeadgenEventName>([
+  "stage_viewed_5",
+  "email_gate_shown",
+  "email_submitted",
+  "results_viewed",
+  "report_engaged_1min",
+]);
 
 export const EVENT_ICONS: Partial<Record<LeadgenEventName, typeof Mail>> = {
   landed: MousePointerClick,
@@ -59,7 +68,11 @@ const CTA_EVENT_LABEL: Record<string, string> = {
   email_field_blurred_empty: "Left email field empty",
 };
 
-export function eventLabel(name: LeadgenEventName): string {
+export function eventLabel(name: LeadgenEventName, hasAudit: boolean): string {
+  if (!hasAudit && REPORT_SURFACE_EVENTS.has(name)) {
+    return "Unverified report activity";
+  }
+
   return (
     (STAGE_LABEL as Record<string, string>)[name] ??
     CTA_EVENT_LABEL[name] ??
@@ -134,6 +147,17 @@ export function formatGapShort(ms: number): string {
   const hr = Math.floor(min / 60);
   const remMin = min % 60;
   return remMin > 0 ? `${hr}h ${remMin}m` : `${hr}h`;
+}
+
+export function buildStepDurations(events: LeadgenEvent[]): string[] {
+  return events.map((event, index) => {
+    const nextEvent = events[index + 1];
+    if (!nextEvent) return "current";
+    const durationMs =
+      new Date(nextEvent.created_at).getTime() -
+      new Date(event.created_at).getTime();
+    return formatGapShort(durationMs);
+  });
 }
 
 /**

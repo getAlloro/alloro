@@ -51,7 +51,6 @@ export function PracticeRanking() {
     expandedJobId,
     expandedBatches,
     jobResults,
-    rankingTasks,
     loadingResults,
     deletingJob,
     deletingBatch,
@@ -584,7 +583,6 @@ export function PracticeRanking() {
                                 retryingJob={retryingJob}
                                 loadingResults={loadingResults}
                                 jobResults={jobResults}
-                                rankingTasks={rankingTasks}
                                 refreshingCompetitors={refreshingCompetitors}
                                 onRefreshCompetitors={() =>
                                   refreshCompetitors(job.specialty, job.location || "")
@@ -627,7 +625,6 @@ export function PracticeRanking() {
                     retryingJob={retryingJob}
                     loadingResults={loadingResults}
                     jobResults={jobResults}
-                    rankingTasks={rankingTasks}
                     refreshingCompetitors={refreshingCompetitors}
                     onRefreshCompetitors={() =>
                       refreshCompetitors(job.specialty, job.location || "")

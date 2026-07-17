@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Remove Action Items Hub and Legacy Task Generation Spec</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); margin-top: 14px; }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .status-card { border-color: var(--ink) !important; }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 920px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; letter-spacing: 0; }
+    h2 { font-size: 1.35rem; letter-spacing: 0; }
+    h3 { font-size: 1rem; letter-spacing: 0; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; overflow-wrap: anywhere; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    ul, ol { padding-left: 1.3rem; }
+    li + li { margin-top: 0.45rem; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    .sequence { display: grid; gap: 10px; }
+    .sequence div { border-left: 3px solid var(--ink); padding: 10px 14px; background: var(--soft); }
+    .callout { border: 1px solid var(--ink); border-radius: 8px; padding: 18px; background: var(--soft); }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill">Completed</span>
+      </div>
+      <h1>Remove Action Items Hub and legacy task generation</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/07152026-remove-action-items-hub</dd></div>
+        <div><dt>Size</dt><dd>Large</dd></div>
+        <div><dt>Risk</dt><dd>Level 3 — Structural Risk</dd></div>
+        <div><dt>Worktree</dt><dd>codex/remove-action-items-hub</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>The legacy Action Items system is no longer part of the product direction, but it still exposes admin and client pages, writes task rows as a side effect of agent runs, and leaks task-specific states and copy into PMS, Ranking, onboarding, notifications, and telemetry.</p>
+      <p>Removing only the visible hub would leave hidden generators and broken deep links behind. Removing the shared monthly-agent jobs would be worse: those jobs also produce Summary and Referral insights that active dashboards still use.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Retire the legacy <code>tasks</code> product surface end to end: remove its pages, navigation, API, task-specific model and writers, pipeline states, Ranking action plans, onboarding/demo data, notifications, telemetry entries, and task-oriented copy.</p>
+      <div class="callout">
+        <strong>Safety boundary:</strong> keep monthly agents and their PMS triggers running, preserve Summary and Referral output, leave the physical <code>tasks</code> table and historical rows untouched, and keep Project Management <code>pm_tasks</code> fully operational. No live worker or cron process is stopped because exploration found no task-specific scheduler.
+      </div>
+      <p>Practice Hub widgets that currently read Summary data through <code>/api/tasks</code> will be moved first to the existing latest-agent-output endpoint. Old URLs will redirect to active pages instead of becoming dead links.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Verified runtime facts — July 15, 2026</h3>
+      <ul>
+        <li>The task writers are direct calls from monthly-agent processing, not independent scheduled jobs.</li>
+        <li>The registered <code>minds-worker</code> schedules are Proofline and Ranking. Neither should be stopped.</li>
+        <li>Production and dev have historical <code>tasks</code> rows. They are retained for rollback and audit; this plan has no schema or data migration.</li>
+        <li>Project Management uses the separate <code>pm_tasks</code> domain and <code>/api/pm/tasks</code>. It is explicitly excluded.</li>
+        <li><code>useTopAction</code> currently parses Summary metadata from legacy task records, while <code>GET /api/agents/latest/:googleAccountId</code> already exposes the underlying latest Summary output.</li>
+      </ul>
+
+      <h3>Backend files and consumers</h3>
+      <ul>
+        <li><code>src/controllers/agents/feature-services/service.task-creator.ts</code> — task writer implementation to retire.</li>
+        <li><code>src/controllers/agents/feature-services/service.monthly-agent-processor.ts</code> — remove task-writer calls while preserving Summary and Referral agent output.</li>
+        <li><code>src/controllers/agents/feature-services/service.gbp-optimizer-runner.ts</code> and <code>service.monthly-agents-test-runner.ts</code> — remove stale task-writer and simulator coupling.</li>
+        <li><code>src/agents/monthlyAgents/Summary.md</code> and <code>src/controllers/agents/types/agent-output-schemas.ts</code> — remove the generated <code>/tasks/[id]</code> CTA contract while preserving dashboard Summary output.</li>
+        <li><code>src/routes/tasks.ts</code>, <code>src/controllers/tasks/</code>, <code>src/models/TaskModel.ts</code>, and <code>src/app.ts</code> — legacy task HTTP domain and mount.</li>
+        <li><code>src/controllers/pms/pms-services/pms-retry.service.ts</code> — remove legacy task cleanup without changing monthly-agent reruns.</li>
+        <li><code>src/models/MissionControlModel.ts</code> — remove the hidden pending-task count query and its reporting contract.</li>
+        <li><code>src/models/LocationModel.ts</code> — retain its narrow task-location cleanup because the database foreign key otherwise cascade-deletes historical task rows when a location is deleted.</li>
+        <li><code>src/controllers/agents/feature-services/service.monthly-agents-runner.ts</code>, <code>src/utils/pms/pmsAutomationStatus.ts</code>, and PMS services — remove task counts and the <code>task_creation</code> stage.</li>
+        <li><code>src/controllers/practice-ranking/PracticeRankingController.ts</code>, <code>src/routes/practiceRanking.ts</code>, and Ranking formatter/validator utilities — remove legacy Ranking task/action-plan output while preserving Ranking calculations.</li>
+        <li><code>src/utils/core/notificationHelper.ts</code>, <code>src/emails/templates/AdminSendNotification.ts</code>, and <code>src/emails/types.ts</code> — replace task counts and action-item wording with insight completion copy.</li>
+        <li><code>src/routes/agentsV2.ts</code>, <code>src/controllers/agents/AgentsController.ts</code>, and <code>service.agent-orchestrator.ts</code> — remove the deprecated alternate <code>process-all</code> entry point while retaining supported agent exports and routes.</li>
+        <li><code>src/controllers/app-telemetry/feature-utils/appTelemetryCatalog.ts</code> — remove the retired task route from the telemetry catalog.</li>
+      </ul>
+
+      <h3>Frontend files and consumers</h3>
+      <ul>
+        <li><code>frontend/src/components/Admin/org/ActionItemsHub.tsx</code>, its supporting folder/utilities, <code>OrgTasksTab.tsx</code>, and <code>Admin/pms-pipeline/CreateTaskModal.tsx</code> — admin task UI to remove.</li>
+        <li><code>frontend/src/components/tasks/</code>, <code>frontend/src/api/tasks.ts</code>, and <code>frontend/src/types/tasks.ts</code> — client task UI and data layer to remove.</li>
+        <li><code>frontend/src/pages/Admin.tsx</code>, <code>AdminSidebar.tsx</code>, <code>OrganizationDetail.tsx</code>, organization navigation config, <code>App.tsx</code>, <code>PilotEmbed.tsx</code>, and <code>Dashboard.tsx</code> — routes, tabs, navigation, and compatibility redirects.</li>
+        <li><code>frontend/src/hooks/queries/useTopAction.ts</code>, its tests, <code>OneThingBanner.tsx</code>, and <code>ChoosableComparisonStrip.tsx</code> — preserve Practice Hub behavior by sourcing typed Summary output directly.</li>
+        <li><code>frontend/src/hooks/queries/useAdminOrgTabQueries.ts</code>, <code>useAdminStandaloneQueries.ts</code>, and <code>frontend/src/lib/queryClient.ts</code> — remove task queries and keys while retaining the Summary query key.</li>
+        <li><code>frontend/src/components/PracticeRanking/RankingResultsView.tsx</code> and <code>frontend/src/hooks/queries/usePracticeRanking.ts</code> — remove Action Plans and Start Task links only.</li>
+        <li><code>frontend/src/components/onboarding/wizardConfig.ts</code>, <code>wizardDemoData.ts</code>, notification routing, and <code>frontend/src/lib/telemetry/routeTelemetry.ts</code> — remove task-specific walkthroughs, demo data, links, and catalog entries.</li>
+        <li>PMS progress components and task-oriented product copy — end the visible pipeline at insights completion and ignore legacy <code>task_creation</code> fields in historical payloads.</li>
+      </ul>
+
+      <h3>Documentation parity</h3>
+      <ul>
+        <li>Alloro Docs has no active To-Do page to delete. Narrowly update stale task/action-item wording in <code>src/components/replicas/IntegrationsReplica.tsx</code> and <code>src/data/pages/signin.ts</code> from an isolated docs worktree.</li>
+        <li>The docs checkout contains unrelated changes. Execution must preserve them and keep any docs edit isolated.</li>
+      </ul>
+
+      <h3>Patterns and Code Constitution</h3>
+      <ul>
+        <li>Backend deletion and rewiring must retain Routes → Controllers → Services → Models boundaries under <strong>§7.1–§7.4</strong>, response contracts under <strong>§8.1</strong>, and Pino logging under <strong>§9.1</strong>. Reference analog: <code>src/controllers/gbp-automation/</code> per <strong>§6.1</strong>.</li>
+        <li>The replacement Summary client must use the <code>frontend/src/api/</code> + React Query hook + feature-component triad under <strong>§12.1</strong>, respect import boundaries under <strong>§12.4</strong>, and follow Component → Hook → API → Backend under <strong>§14.1–§14.3</strong>.</li>
+        <li>Server state must use React Query under <strong>§15.1</strong>; user-facing failures keep the shared error contract under <strong>§16.1</strong>.</li>
+        <li>Automated and behavioral verification must satisfy <strong>§20.1–§20.5</strong>. The worker registry and locking rules in <strong>§21</strong> remain unchanged because no worker is being added, removed, or stopped.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Rewire Practice Hub Summary consumers before the legacy task API is removed.</li>
+            <li>Keep monthly Summary and Referral agents, PMS triggers, Proofline, Ranking, and <code>minds-worker</code> running.</li>
+            <li>Preserve the physical <code>tasks</code> table and existing rows.</li>
+            <li>Retain only the location-deletion nulling step required to prevent foreign-key cascade deletion of historical task rows.</li>
+            <li>Keep <code>pm_tasks</code>, PM screens, and <code>/api/pm/tasks</code> unchanged.</li>
+            <li>Redirect old task URLs to current, useful destinations.</li>
+            <li>Tolerate historical PMS payloads containing <code>task_creation</code> without exposing that stage.</li>
+            <li>Use typed frontend API functions and React Query per §12.1 and §14.1–§15.1.</li>
+            <li>Run <code>npm run check:all</code> and the full test/build gates after implementation.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>Do not stop PM2 processes, delete schedules, or disable monthly-agent endpoints used by PMS.</li>
+            <li>Do not drop, truncate, archive, or rewrite historical task data.</li>
+            <li>Do not edit historical migrations.</li>
+            <li>Do not remove Ranking, Summary, Referral, Proofline, or Project Management features.</li>
+            <li>Do not replace server state with component-local fetches or raw <code>fetch</code> calls.</li>
+            <li>Do not refactor unrelated code or absorb the separate Journey Insights action-events work.</li>
+            <li>Do not overwrite unrelated changes in the app or docs repositories.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out of scope</h3>
+      <ul>
+        <li>Physical deletion of the legacy <code>tasks</code> schema or data.</li>
+        <li>Any redesign of agent-generated Summary or Referral content.</li>
+        <li>Any behavioral change to Project Management tasks.</li>
+        <li>New scheduling, queueing, or worker infrastructure.</li>
+        <li>Production deployment, data cleanup, or job control during implementation.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 3 — Structural Risk. This removes a cross-cutting legacy domain with UI, API, agent, PMS, Ranking, email, telemetry, and compatibility consumers.</p>
+      <h3>Risks and required mitigations</h3>
+      <ul>
+        <li><strong>Practice Hub regression:</strong> <code>useTopAction</code> currently depends on task records. <strong>Mitigation:</strong> implement and test the latest-Summary query first; do not remove <code>/api/tasks</code> until its widgets pass against the new source.</li>
+        <li><strong>Stopping useful automation:</strong> task creation shares execution with monthly insights. <strong>Mitigation:</strong> delete only writer calls and task-only status/count logic; keep monthly/PMS/worker triggers and verify their outputs.</li>
+        <li><strong>Project Management collateral damage:</strong> searches for “task” include <code>pm_tasks</code>. <strong>Mitigation:</strong> enforce an explicit PM exclusion list and acceptance-test the PM board/API.</li>
+        <li><strong>Broken bookmarks and notifications:</strong> old task URLs may still exist outside the codebase. <strong>Mitigation:</strong> redirect <code>/tasks</code> to <code>/dashboard</code>, <code>/admin/action-items</code> to <code>/admin/mission-control</code>, and stale organization task tabs to a supported agent tab.</li>
+        <li><strong>Historical payload drift:</strong> old PMS state may contain <code>task_creation</code>. <strong>Mitigation:</strong> ignore that field in rendering and state derivation; do not rewrite stored payloads.</li>
+        <li><strong>Dead imports and stale contracts:</strong> broad deletions can leave TypeScript and query-key references behind. <strong>Mitigation:</strong> use compiler/search gates, focused tests, <code>npm run check:all</code>, and full frontend/backend builds.</li>
+        <li><strong>Docs checkout overlap:</strong> unrelated docs files are already modified. <strong>Mitigation:</strong> re-check status and make only a narrow copy edit if parity requires it; otherwise record that no docs page exists.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> monthly agents, PMS automation and retry flows, Practice Hub summary widgets, Admin organization detail, client routing, Ranking results, onboarding, notifications/email, telemetry, and Alloro Docs copy. PM tasks, worker schedules, and historical DB records are protected boundaries.</p>
+      <h3>Pushback</h3>
+      <p>Stopping the monthly-agent or worker process is the wrong control point. It would suppress active insight generation and Ranking/Proofline work, while task creation is only a side effect. The recommended path is to remove the writer calls and legacy domain, then prove the still-supported jobs run without inserting task rows.</p>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+
+      <article class="task-card">
+        <h3>T1: Preserve Practice Hub Summary data without legacy tasks</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add a typed frontend API function for the existing latest-agent-output endpoint, keep Summary server state in React Query, update <code>useTopAction</code> to parse <code>summary.top_actions</code> and <code>domain_summaries</code> directly, and adapt its tests. Preserve current widget loading, selection, and empty-state behavior.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/api/agentSummary.ts</code> (new), <code>frontend/src/types/agentSummary.ts</code> (new), <code>frontend/src/hooks/queries/useTopAction.ts</code>, <code>frontend/src/hooks/queries/useTopAction.test.tsx</code>, <code>frontend/src/lib/queryClient.ts</code>, and direct widget consumers if their contract changes.</dd></div>
+          <div><dt>Depends on</dt><dd>None.</dd></div>
+          <div><dt>Verify</dt><dd>Focused hook tests; manual Pilot check for One Thing and comparison widgets using a real client Summary.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: Remove backend task writers, API, model, and stale task endpoints</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Remove task-writer calls and simulator paths while retaining agent output, unmount and delete the legacy task HTTP domain, remove <code>TaskModel</code> consumers, remove Ranking task/action-plan endpoints and formatter branches, remove task cleanup from PMS retry, and retire the deprecated alternate <code>process-all</code> path. Confirm no runtime writer remains for the <code>tasks</code> table.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/agents/feature-services/service.monthly-agent-processor.ts</code>, <code>service.task-creator.ts</code> (delete), <code>service.gbp-optimizer-runner.ts</code>, <code>service.monthly-agents-test-runner.ts</code>, <code>service.agent-orchestrator.ts</code>, <code>src/routes/agentsV2.ts</code>, <code>src/controllers/agents/AgentsController.ts</code>, <code>src/routes/tasks.ts</code> (delete), <code>src/controllers/tasks/</code> (delete), <code>src/models/TaskModel.ts</code> (delete), <code>src/models/MissionControlModel.ts</code>, <code>src/app.ts</code>, PMS retry service, and Practice Ranking controller/route/utilities. Keep the historical-preservation cleanup in <code>src/models/LocationModel.ts</code>.</dd></div>
+          <div><dt>Depends on</dt><dd>T1 contract complete before <code>/api/tasks</code> is removed.</dd></div>
+          <div><dt>Verify</dt><dd>Repository search finds no legacy task writer/import; <code>GET /api/tasks</code> is unavailable; monthly agents still store Summary and Referral outputs; a controlled dev run adds zero <code>tasks</code> rows.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: Remove task-specific PMS states, counts, email fields, and copy</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Remove <code>task_creation</code> from new automation status progression, task-count aggregation, <code>tasksCreated</code> payloads, and action-item email cards. Preserve monthly completion notifications with neutral insights-complete wording. Update PMS visual progress to end at supported output and safely ignore historical task fields.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/agents/feature-services/service.monthly-agents-runner.ts</code>, <code>src/utils/pms/pmsAutomationStatus.ts</code>, relevant PMS services, <code>src/utils/core/notificationHelper.ts</code>, <code>src/emails/templates/AdminSendNotification.ts</code>, <code>src/emails/types.ts</code>, <code>frontend/src/api/pms/steps.ts</code>, <code>frontend/src/api/pms/types.ts</code>, <code>PMSAutomationProgressDropdown.tsx</code>, <code>PMSPipelineModal.tsx</code>, <code>PMSAutomationCards.tsx</code>, and <code>ClientProgressTimeline.tsx</code>.</dd></div>
+          <div><dt>Depends on</dt><dd>None; coordinate shared monthly-runner edits with T2.</dd></div>
+          <div><dt>Verify</dt><dd>PMS status unit tests and a dev upload/rerun show insight completion without a Tasks Created stage or task metric.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: Remove admin and client task pages with compatibility redirects</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Delete Action Items Hub, organization Tasks tab, client Tasks view, related task components/API/types/query hooks, and the manual legacy create modal. Remove navigation and active route definitions. Add redirects for old client/admin URLs and safe fallback for old organization task-tab query strings.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/components/Admin/org/ActionItemsHub.tsx</code> and helpers (delete), <code>OrgTasksTab.tsx</code> (delete), <code>frontend/src/components/tasks/</code> (delete), <code>frontend/src/api/tasks.ts</code> (delete), <code>frontend/src/types/tasks.ts</code> (delete), <code>Admin/pms-pipeline/CreateTaskModal.tsx</code> (delete), <code>Admin.tsx</code>, <code>AdminSidebar.tsx</code>, <code>OrganizationDetail.tsx</code>, organization nav config, <code>App.tsx</code>, <code>PilotEmbed.tsx</code>, <code>Dashboard.tsx</code>, admin query hooks, and query keys.</dd></div>
+          <div><dt>Depends on</dt><dd>T1 and the T2 API removal contract.</dd></div>
+          <div><dt>Verify</dt><dd>No Action Items navigation or organization Tasks tab; old URLs redirect to the specified supported pages; client/admin builds and route acceptance pass.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T5: Remove downstream task concepts from Ranking, onboarding, notifications, and telemetry</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Remove Ranking Action Plans and Start Task links, task onboarding steps/demo data, task notification destinations, task telemetry catalogs, and remaining user-facing action-item wording. Route legacy task notifications to Dashboard.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/components/PracticeRanking/RankingResultsView.tsx</code>, <code>frontend/src/hooks/queries/usePracticeRanking.ts</code>, onboarding config/demo files, notification routing, <code>frontend/src/lib/telemetry/routeTelemetry.ts</code>, <code>src/utils/telemetry/appTelemetryCatalog.ts</code>, and matched PMS/dashboard copy files.</dd></div>
+          <div><dt>Depends on</dt><dd>T2–T4 contracts.</dd></div>
+          <div><dt>Verify</dt><dd>Repository search leaves no active Action Items/Tasks product route, Ranking action plan, onboarding step, or telemetry route; supported notification types still navigate correctly.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T6: Complete documentation parity and full-system verification</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Check Alloro Docs for visible task/action-item guidance, make only the narrow required copy update, and preserve unrelated docs changes. Run automated gates, create <code>test.html</code> and <code>test-results.json</code>, and execute behavioral checks against the running app and dev-safe data path.</dd></div>
+          <div><dt>Files</dt><dd><code>/Users/rustinedave/Desktop/alloro-docs-worktrees/remove-action-items-hub/src/components/replicas/IntegrationsReplica.tsx</code>, <code>src/data/pages/signin.ts</code>, and <code>plans/07152026-remove-action-items-hub/test.html</code> plus <code>test-results.json</code> during execution only.</dd></div>
+          <div><dt>Depends on</dt><dd>T1–T5.</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code>, <code>npm run check:all</code>, relevant tests, full backend tests, frontend build/tests, docs parity check, and all Layer 2 acceptance items.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="dependency-chain">
+      <h2>Dependency chain and execution boundaries</h2>
+      <div class="sequence">
+        <div><strong>First:</strong> T1 preserves the only active non-task product behavior currently coupled to legacy task records.</div>
+        <div><strong>Parallel group:</strong> T2 backend retirement and T3 PMS/email retirement can proceed in separate bounded file groups after the shared monthly-runner ownership is assigned to one group.</div>
+        <div><strong>Then:</strong> T4 removes the UI and routes against the settled backend/query contracts.</div>
+        <div><strong>Then:</strong> T5 removes downstream concepts after route destinations are final.</div>
+        <div><strong>Last:</strong> T6 checks docs parity and validates the integrated result.</div>
+      </div>
+      <p>Because this is a Large plan touching more than ten files, execution must use bounded sub-agents for independent groups. Each agent receives explicit file ownership; shared files such as the monthly runner and query-key registry have one owner only. The orchestrating agent performs integration, compiler, convention, test, and acceptance gates.</p>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" checked disabled> Practice Hub One Thing and comparison widgets read latest Summary output without <code>/api/tasks</code>.</li>
+        <li><input type="checkbox" checked disabled> No product runtime creates, serves, queries, or mutates legacy <code>tasks</code> rows. The only retained table access clears <code>location_id</code> before location deletion to prevent foreign-key cascade deletion of historical rows.</li>
+        <li><input type="checkbox" checked disabled> Monthly Summary/Referral processing, PMS upload/rerun triggers, Proofline, Ranking, and <code>minds-worker</code> remain operational.</li>
+        <li><input type="checkbox" checked disabled> Admin Action Items Hub, organization Tasks tab, client Tasks view, create modal, Ranking Action Plans, onboarding task steps, and task telemetry entries are removed.</li>
+        <li><input type="checkbox" checked disabled> <code>/tasks</code> redirects to <code>/dashboard</code>; <code>/admin/action-items</code> redirects to <code>/admin/mission-control</code>; stale organization task tabs fall back safely.</li>
+        <li><input type="checkbox" checked disabled> PMS progress and emails no longer expose task creation or task counts, including when historical status payloads contain <code>task_creation</code>.</li>
+        <li><input type="checkbox" checked disabled> Project Management screens and <code>/api/pm/tasks</code> pass unchanged acceptance checks.</li>
+        <li><input type="checkbox" checked disabled> Alloro Docs parity is checked and any required edit is isolated from unrelated docs work.</li>
+        <li><input type="checkbox" checked disabled> <code>npx tsc --noEmit</code> and <code>npm run check:all</code> pass with no errors caused by this work.</li>
+        <li><input type="checkbox" checked disabled> Relevant frontend hook/route/PMS tests, backend agent/PMS/Ranking tests, full test suites, and frontend production build pass or have documented pre-existing failures.</li>
+        <li><input type="checkbox" checked disabled> Layer 2 acceptance runs at <code>http://localhost:3000/admin</code>, including Pilot into One Endodontics, old deep-link redirects, no new task-row inserts, and worker/health checks.</li>
+        <li><input type="checkbox" checked disabled> <code>test-results.json</code> rolls up to <code>Passed</code> under §20.5 before finalization.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-07-15</h3>
+        <p><strong>Change:</strong> Marked the approved plan In Progress and began dependency-ordered execution in the separate worktree.</p>
+        <p><strong>Reason:</strong> Execution deviation: none; this records the required execution-state transition.</p>
+        <p><strong>Updated Done criteria:</strong> none.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 2 - 2026-07-15</h3>
+        <p><strong>Change:</strong> Added the hidden Mission Control task-count consumer, corrected the backend telemetry catalog path, and documented the required location-deletion preservation exception.</p>
+        <p><strong>Reason:</strong> Execution deviation: the blast-radius check found runtime consumers not listed during planning. Database migration history proves that removing the location cleanup would cascade-delete historical task rows, which conflicts with the plan's data-preservation boundary.</p>
+        <p><strong>Updated Done criteria:</strong> No product runtime task-table access remains; the sole retained access may null <code>location_id</code> to preserve rows during location deletion.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 3 - 2026-07-15</h3>
+        <p><strong>Change:</strong> Added the stale task wording found in the Alloro Docs sign-in description and isolated both docs edits in a dedicated docs worktree.</p>
+        <p><strong>Reason:</strong> Execution deviation: documentation parity search found one additional visible task reference outside the file identified during planning.</p>
+        <p><strong>Updated Done criteria:</strong> All current docs copy no longer presents legacy tasks or Action Items as an available product surface.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 4 - 2026-07-15</h3>
+        <p><strong>Change:</strong> Added the Summary prompt and output-schema copy to generator cleanup after finding that new Summary outputs were still instructed to emit <code>/tasks/[id]</code> links.</p>
+        <p><strong>Reason:</strong> Execution deviation: removing the task writer alone would leave a live agent-output contract that generates dead task URLs.</p>
+        <p><strong>Updated Done criteria:</strong> New Summary output CTAs target a supported Practice Hub route and no active agent prompt emits legacy task URLs.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 5 - 2026-07-15</h3>
+        <p><strong>Change:</strong> Removed stale task-generation guidance from Ranking, Summary schema, PMS query, comparison-test, and competitor-rerun copy after the integrated runtime path was clean.</p>
+        <p><strong>Reason:</strong> Execution deviation: the final repository search found obsolete comments and one visible sentence that could mislead users and future maintainers about the retired domain.</p>
+        <p><strong>Updated Done criteria:</strong> Active source, tests, and visible copy no longer describe legacy task generation, except explicit historical-compatibility normalization.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 6 - 2026-07-16</h3>
+        <p><strong>Change:</strong> Normalize task-count wording embedded in historical completed PMS status messages, even when the stored <code>currentStep</code> is already <code>complete</code>.</p>
+        <p><strong>Reason:</strong> User QA: browser/API acceptance against completed PMS job 151 found that the retired <code>task_creation</code> step and <code>tasksCreated</code> summary were removed, but the message still exposed “Complete - 11 tasks created.”</p>
+        <p><strong>Updated Done criteria:</strong> Historical PMS status responses expose no task-creation stage, task-count object, or task-count message while preserving Summary and Referral results.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 7 - 2026-07-16</h3>
+        <p><strong>Change:</strong> Marked execution Completed after automated gates and browser/API acceptance finished, and recorded the destructive/external PMS rerun safety waiver in <code>test-results.json</code>.</p>
+        <p><strong>Reason:</strong> Execution deviation: a new PMS rerun was not safe in the active local environment because it deletes existing generated outputs and calls real external services; the final response contract and unchanged historical task rows were verified read-only against completed job 151 instead.</p>
+        <p><strong>Updated Done criteria:</strong> none; §20.5 permits a written waiver and the acceptance artifact rolls up to Passed.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 8 - 2026-07-16</h3>
+        <p><strong>Change:</strong> Resolved the local <code>dev/dave</code> merge against the newer AI Data Insights retirement by keeping both removals: standalone admin queries now retain only Agent Outputs, and agent routes/controllers expose neither the deprecated <code>process-all</code> path nor the retired Guardian/Governance workflow.</p>
+        <p><strong>Reason:</strong> Execution deviation: local <code>dev/dave</code> contained seven unpublished commits, including the AI Data Insights removal, that were not present on the feature branch base.</p>
+        <p><strong>Updated Done criteria:</strong> The local merge must preserve both retired domains without restoring deleted hooks, routes, controllers, or generators.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

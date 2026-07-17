@@ -1,0 +1,102 @@
+{
+  "plan": "plans/07162026-project-board-comment-attachment-feed",
+  "generatedAt": "2026-07-16",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "T1",
+      "title": "Comments appears before Attachments",
+      "surface": "ui",
+      "precondition": "Signed in as a super admin with a Project Board task available.",
+      "steps": [
+        "Open /admin/pm/:projectId and open a task.",
+        "Inspect the task sidebar tabs."
+      ],
+      "expected": "Tabs read Details, Comments, Attachments; Details is selected by default and both counts show only completed records.",
+      "status": "fail",
+      "evidence": "User-authorized waiver on 2026-07-16; item not run.",
+      "notes": "Browser acceptance was skipped for the requested direct dev/dave merge.",
+      "waiver": "The user explicitly waived testing and requested a direct merge to dev/dave. This item was not run and is not claimed as a pass."
+    },
+    {
+      "id": "T2",
+      "title": "Comments shows one chronological conversation",
+      "surface": "ui",
+      "precondition": "The selected task has at least two comments and one attachment with different timestamps.",
+      "steps": [
+        "Select Comments.",
+        "Read the conversation from top to bottom.",
+        "Edit one owned comment and confirm mention and markdown rendering still work."
+      ],
+      "expected": "Real comments and real task attachments appear in stable oldest-to-newest order; comment edit, delete, mentions, markdown safety, and the comment-only count remain intact.",
+      "status": "fail",
+      "evidence": "User-authorized waiver on 2026-07-16; item not run.",
+      "notes": "Browser acceptance was skipped for the requested direct dev/dave merge.",
+      "waiver": "The user explicitly waived testing and requested a direct merge to dev/dave. This item was not run and is not claimed as a pass."
+    },
+    {
+      "id": "T3",
+      "title": "Comments upload is tracked in both tabs",
+      "surface": "ui",
+      "precondition": "Comments is selected and a small image plus a non-image file are available.",
+      "steps": [
+        "Drop the image onto the Comments drop target.",
+        "While it uploads, switch between Comments and Attachments.",
+        "Use the Comments file picker to attach the non-image file.",
+        "Wait for both uploads to finish."
+      ],
+      "expected": "Each upload creates one shared pending row with progress in both tabs, then becomes one completed attachment below the latest persisted conversation item and increments only the attachment count.",
+      "status": "fail",
+      "evidence": "User-authorized waiver on 2026-07-16; item not run.",
+      "notes": "Browser acceptance was skipped for the requested direct dev/dave merge.",
+      "waiver": "The user explicitly waived testing and requested a direct merge to dev/dave. This item was not run and is not claimed as a pass."
+    },
+    {
+      "id": "T4",
+      "title": "Attachments upload is appended to Comments",
+      "surface": "ui",
+      "precondition": "Attachments is selected and a file is available.",
+      "steps": [
+        "Drop or choose a file in Attachments.",
+        "Switch to Comments while the upload is in progress.",
+        "Wait for completion."
+      ],
+      "expected": "The same pending progress appears below the latest conversation item, then the completed file remains visible in Comments and as one Attachments library item.",
+      "status": "fail",
+      "evidence": "User-authorized waiver on 2026-07-16; item not run.",
+      "notes": "Browser acceptance was skipped for the requested direct dev/dave merge.",
+      "waiver": "The user explicitly waived testing and requested a direct merge to dev/dave. This item was not run and is not claimed as a pass."
+    },
+    {
+      "id": "T5",
+      "title": "Failed upload stays visibly failed",
+      "surface": "ui",
+      "precondition": "A file or network condition that makes the upload endpoint reject the request is available.",
+      "steps": [
+        "Start the failing upload from either tab.",
+        "Observe Comments and Attachments after failure."
+      ],
+      "expected": "One failed row with its error stays visible in both surfaces; it is not shown as completed and the attachment count does not increase.",
+      "status": "fail",
+      "evidence": "User-authorized waiver on 2026-07-16; item not run.",
+      "notes": "Browser acceptance was skipped for the requested direct dev/dave merge.",
+      "waiver": "The user explicitly waived testing and requested a direct merge to dev/dave. This item was not run and is not claimed as a pass."
+    },
+    {
+      "id": "T6",
+      "title": "Attachment actions stay synchronized",
+      "surface": "ui",
+      "precondition": "The task has an attachment the current user is allowed to delete.",
+      "steps": [
+        "Preview and download the attachment from Comments.",
+        "Delete the attachment from Comments and confirm the dialog.",
+        "Open Attachments."
+      ],
+      "expected": "Preview and download work; server-authorized delete removes the file from both tabs and decrements only the attachment count.",
+      "status": "fail",
+      "evidence": "User-authorized waiver on 2026-07-16; item not run.",
+      "notes": "Browser acceptance was skipped for the requested direct dev/dave merge.",
+      "waiver": "The user explicitly waived testing and requested a direct merge to dev/dave. This item was not run and is not claimed as a pass."
+    }
+  ]
+}

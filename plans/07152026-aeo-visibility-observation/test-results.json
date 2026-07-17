@@ -1,0 +1,35 @@
+{
+  "plan": "plans/07152026-aeo-visibility-observation",
+  "generatedAt": "2026-07-17",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "T0",
+      "title": "No provider or customer behavioral surface — verified by Layer 1 tests",
+      "surface": "none",
+      "precondition": "PR #165 remains a dormant pure internal foundation with no route, worker, schedule, agent-registry entry, UI, API, or other production caller.",
+      "steps": [],
+      "expected": "Layer 2 is not applicable until a future slice wires a production caller and owns live database/provider acceptance.",
+      "status": "pass",
+      "evidence": "Fresh verification on code head c7eb4212d3daa76201e0c5ea1d8eb4defa536441 with Node 22.23.1: focused A3 Vitest 1/1 file and 138/138 tests passed; normal full npm test 61/61 files and 594/594 tests passed; TypeScript npx tsc --noEmit exited 0; npm run check:conventions -- --strict exited 0 with 0 structural backend violations; git diff --check exited 0 after this evidence-only edit.",
+      "notes": "This N/A item applies only to provider, operator, and customer behavior. The branch's additive migration is tracked separately in T1. The previous artifact incorrectly mixed 22 passing Layer-1 checks with five live database/provider checks, then reported contradictory 21/26 and 22/27 totals. Live Gemini, SerpApi, and Perplexity checks remain outside this dormant slice and become acceptance requirements of the future executor/caller wiring slice. Strict-conventions advisories remain pre-existing and outside PR #165: 1 historical migration over the size ceiling, 20 route files without an inline auth reference, 1 dangerouslySetInnerHTML file, 2 token-read files, 6 backend .raw() integration-test files, and 102 tenant-scope heuristic model entries.",
+      "waiver": ""
+    },
+    {
+      "id": "T1",
+      "title": "Apply, roll back, and re-apply the AEO observation migration on PostgreSQL",
+      "surface": "cli",
+      "precondition": "An isolated PostgreSQL database compatible with the deployment migration runner.",
+      "steps": [
+        "Run the migration up against the isolated PostgreSQL database.",
+        "Run the migration down and verify the added table is removed cleanly.",
+        "Run the migration up again and verify the table and constraints are restored."
+      ],
+      "expected": "The additive migration applies, rolls back, and re-applies successfully on PostgreSQL.",
+      "status": "fail",
+      "evidence": "Not run for PR #165. This item is not a pass.",
+      "notes": "The migration is deployed automatically by the normal branch deployment workflow, so its runtime behavior must be represented even though this PR has no provider or customer caller.",
+      "waiver": "Dave waived PostgreSQL results on 2026-07-16 for this PR. This waiver permits merge without this isolated migration run; it does not convert the result to a pass, and deployment monitoring is still required."
+    }
+  ]
+}

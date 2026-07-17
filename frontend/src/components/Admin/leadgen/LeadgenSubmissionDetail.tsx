@@ -314,7 +314,7 @@ export default function LeadgenSubmissionDetail({
                   <SummaryCard detail={detail} />
                   <EventTimeline
                     events={detail.events}
-                    anchorIso={detail.session.last_seen_at}
+                    hasAudit={Boolean(detail.session.audit_id)}
                   />
                   {detail.audit && !payloadOpen && (
                     <AuditPayloadBar

@@ -32,6 +32,10 @@ import {
   upsertSession,
 } from "../controllers/leadgen-tracking/LeadgenTrackingController";
 import { validateTrackingKey } from "../controllers/leadgen-tracking/feature-utils/util.tracking-auth";
+import {
+  validateLeadgenBeaconPayload,
+  validateLeadgenEventPayload,
+} from "../validation/leadgenTracking.schemas";
 
 const router = Router();
 
@@ -82,7 +86,12 @@ function silentRequireTrackingKey(
 router.use(trackingLimiter);
 
 router.post("/session", requireTrackingKey, upsertSession);
-router.post("/event", requireTrackingKey, recordEvent);
+router.post(
+  "/event",
+  requireTrackingKey,
+  validateLeadgenEventPayload,
+  recordEvent
+);
 router.post("/email-notify", requireTrackingKey, submitEmailNotify);
 router.post("/email-paywall", requireTrackingKey, submitEmailPaywall);
 router.get(
@@ -94,6 +103,7 @@ router.post(
   "/beacon",
   beaconBodyParser,
   silentRequireTrackingKey,
+  validateLeadgenBeaconPayload,
   recordBeacon
 );
 

@@ -1,0 +1,19 @@
+{
+  "plan": "plans/07162026-taste-profile-spine",
+  "generatedAt": "2026-07-17",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "T0",
+      "title": "No behavioral surface — dormant internal foundation verified by Layer 1 tests",
+      "surface": "none",
+      "precondition": "PR #160 has no production writer or reader. PR #171 Path A removed the previously proposed writer and no longer owns this wiring.",
+      "steps": [],
+      "expected": "Layer-2 behavioral acceptance is N/A until a separately scoped owner adds a production writer, reader, and runnable surface.",
+      "status": "pass",
+      "evidence": "Layer 1 retained and passed: focused taste-profile suites 4 files / 69 tests; full suite 64 files / 525 tests; TypeScript and strict conventions clean. PostgreSQL 16.14 proof passed migration up/down/re-up, nullable and non-null uniqueness, rollback, and serialized concurrent approvals.",
+      "notes": "This single N/A item scopes only Layer 2. It does not replace or waive the Layer-1 model, migration, rollback, concurrency, and full-regression tests.",
+      "waiver": ""
+    }
+  ]
+}

@@ -3,6 +3,9 @@ import {
   isAcceptedEventName,
   isProgressionStage,
 } from "../controllers/leadgen-tracking/feature-utils/util.event-ordering";
+import { leadgenEventPayloadSchema } from "../validation/leadgenTracking.schemas";
+
+const SESSION_ID = "11111111-1111-4111-8111-111111111111";
 
 /**
  * The /leadgen/event boundary gate must accept every event the leadgen-tool
@@ -88,5 +91,37 @@ describe("isProgressionStage — interaction events never advance the funnel", (
   it("treats 'abandoned' and inherited members as non-stage", () => {
     expect(isProgressionStage("abandoned")).toBe(false);
     expect(isProgressionStage("toString")).toBe(false);
+  });
+});
+
+describe("leadgenEventPayloadSchema — shared JSON/beacon boundary", () => {
+  it("accepts the deployed event shape and strips unknown fields", () => {
+    const result = leadgenEventPayloadSchema.safeParse({
+      session_id: SESSION_ID,
+      event_name: "landed",
+      event_data: { source: "synthetic-test" },
+      ignored: "not forwarded",
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data).not.toHaveProperty("ignored");
+      expect(result.data.event_name).toBe("landed");
+    }
+  });
+
+  it("rejects malformed session IDs and unknown event names", () => {
+    expect(
+      leadgenEventPayloadSchema.safeParse({
+        session_id: "not-a-uuid",
+        event_name: "landed",
+      }).success
+    ).toBe(false);
+    expect(
+      leadgenEventPayloadSchema.safeParse({
+        session_id: SESSION_ID,
+        event_name: "invented_stage",
+      }).success
+    ).toBe(false);
   });
 });

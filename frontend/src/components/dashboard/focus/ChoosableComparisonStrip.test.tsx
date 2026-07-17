@@ -80,7 +80,7 @@ describe("ChoosableComparisonStrip", () => {
     expect(screen.queryByRole("link")).toBeNull();
   });
 
-  it("shows only a neutral loading skeleton while the task feed loads", () => {
+  it("shows only a neutral loading skeleton while Summary output loads", () => {
     hookMocks.useTopAction.mockReturnValue({
       latestChoosableSummary: null,
       isLoading: true,
@@ -96,7 +96,7 @@ describe("ChoosableComparisonStrip", () => {
 
   it.each([
     ["empty", null],
-    ["error", new Error("task feed unavailable")],
+    ["error", new Error("Summary output unavailable")],
   ])("renders nothing for the %s state", (_state, error) => {
     hookMocks.useTopAction.mockReturnValue({
       latestChoosableSummary: null,

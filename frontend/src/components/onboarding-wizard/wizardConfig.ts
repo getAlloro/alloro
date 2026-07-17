@@ -10,7 +10,6 @@ export type WizardPage =
   | "referralEngine"
   | "rankings"
   | "patientJourneyInsights"
-  | "tasks"
   | "website"
   | "support"
   | "settings"
@@ -85,7 +84,7 @@ export const WIZARD_STEPS: WizardStep[] = [
     targetSelector: "[data-wizard-target='dashboard-visibility']",
     title: "Local Visibility",
     description:
-      "Your estimated Google Maps position and whether a fresh Google post is due — the levers that move your local search ranking.",
+      "Your sampled Google Maps position for the tracked search, so you can see where your practice appears at a glance.",
     scrollToElement: true,
   },
 
@@ -201,35 +200,6 @@ export const WIZARD_STEPS: WizardStep[] = [
     scrollToElement: true,
   },
 
-  // ========== TO-DO LIST (Tasks) — 3 steps ==========
-  {
-    id: "tasks-overview",
-    page: "tasks",
-    targetSelector: null,
-    title: "To-Do List",
-    description:
-      "Your prioritized action plan. Complete these tasks to capture revenue opportunities and fix issues before they become problems.",
-    isPageOverview: true,
-  },
-  {
-    id: "tasks-team",
-    page: "tasks",
-    targetSelector: "[data-wizard-target='tasks-team']",
-    title: "Team Tasks",
-    description:
-      "Action items for your practice staff, prioritized by revenue impact. Check them off as you go — your completion rate is tracked.",
-    scrollToElement: true,
-  },
-  {
-    id: "tasks-alloro",
-    page: "tasks",
-    targetSelector: "[data-wizard-target='tasks-alloro']",
-    title: "Alloro Intelligence",
-    description:
-      "Background monitoring Alloro runs automatically: reputation tracking, rank monitoring, and lead flow integrity. These run 24/7.",
-    scrollToElement: true,
-  },
-
   // ========== WEBSITES — 3 steps ==========
   {
     id: "website-overview",
@@ -330,7 +300,7 @@ export const WIZARD_STEPS: WizardStep[] = [
     targetSelector: "[data-wizard-target='pms-upload']",
     title: "You're All Set!",
     description:
-      "That's the full tour. Upload your practice management data to start receiving personalized insights, action items, and growth recommendations.",
+      "That's the full tour. Upload your practice management data to start receiving personalized insights and growth recommendations.",
     scrollToElement: true,
     promptAction: {
       type: "click",
@@ -357,7 +327,6 @@ export function getPageRoute(page: WizardPage): string {
     referralEngine: "/referralEngine",
     rankings: "/rankings",
     patientJourneyInsights: "/patientJourneyInsights",
-    tasks: "/tasks",
     website: "/dfy/website",
     support: "/help",
     settings: "/settings",
@@ -378,7 +347,6 @@ export function getPageDisplayName(page: WizardPage): string {
     referralEngine: "Revenue Sources",
     rankings: "Local Rankings",
     patientJourneyInsights: "Patient Journey",
-    tasks: "To-Do List",
     website: "Websites",
     support: "Support",
     settings: "Settings",

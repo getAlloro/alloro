@@ -198,6 +198,16 @@
           <div><dt>Verify</dt><dd><code>git diff --check</code>, <code>npx tsc --noEmit</code>, <code>cd frontend &amp;&amp; npm run build</code>, <code>npm run check:all</code>, targeted Vitest tests, and <code>gh pr view 153 --json mergeable</code>.</dd></div>
         </dl>
       </article>
+
+      <article class="task-card">
+        <h3>T6: Restore Ranking Band Fallbacks (Rev 1)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Keep specific generated recommendation titles, but route generic titles such as <code>post</code>, <code>review</code>, and <code>photo</code> through the position-aware fallback copy preserved during the merge.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/components/dashboard/rankingsDashboard.utils.ts</code>, <code>frontend/src/components/dashboard/rankingsDashboard.utils.test.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T3, T5</dd></div>
+          <div><dt>Verify</dt><dd><code>npm --prefix frontend run test -- --run src/components/dashboard/rankingsDashboard.utils.test.ts</code></dd></div>
+        </dl>
+      </article>
     </section>
 
     <section class="spec-card" id="done">
@@ -212,7 +222,18 @@
         <li><input type="checkbox" checked disabled> <code>cd frontend &amp;&amp; npm run build</code> passes.</li>
         <li><input type="checkbox" checked disabled> <code>npm run check:all</code> exits 0 with existing advisory findings documented with <code>§N.M</code> citations.</li>
         <li><input type="checkbox" checked disabled> Targeted Vitest coverage passes for ranking guardrails and review-reply rehearsal.</li>
+        <li><input type="checkbox" checked disabled> Generic ranking recommendation titles use the preserved position-aware fallback instead of bypassing it.</li>
       </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-07-16</h3>
+        <p><strong>Change:</strong> Added T6 to correct a conflict-resolution regression where generic generated titles returned before the ranking-band fallback could run.</p>
+        <p><strong>Reason:</strong> Execution deviation: the full frontend suite exposed four ranking-copy failures that the earlier targeted merge verification did not include.</p>
+        <p><strong>Updated Done criteria:</strong> Generic <code>post</code>, <code>review</code>, and <code>photo</code> titles must retain the leader, top-three, ranked, and outside-top-20 action language.</p>
+      </article>
     </section>
   </main>
 </body>

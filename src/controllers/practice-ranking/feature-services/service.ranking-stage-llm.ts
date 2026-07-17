@@ -153,7 +153,7 @@ export async function runLlmStage(input: LlmStageInput): Promise<void> {
     log,
   );
 
-  // Get the ranking record for task creation context
+  // Get the ranking record for the persisted analysis context.
   const ranking = await PracticeRankingModel.findRawById(rankingId);
 
   // Build Search Position context for the LLM (Practice Health + Search Position split).

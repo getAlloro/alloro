@@ -8,7 +8,6 @@ import {
   Database,
   Bot,
   CheckCircle2,
-  ListChecks,
   FileText,
 } from "lucide-react";
 import {
@@ -32,8 +31,6 @@ interface PipelineNode {
   agent?: PipelineAgentNode;
   /** Special: when true, render the PMS source data instead of agent input/output. */
   pmsSource?: PipelinePmsJob;
-  /** Special: terminal node showing tasks created. */
-  taskSummary?: { total: number; user: number; alloro: number };
 }
 
 const STATUS_BADGE: Record<string, { label: string; className: string }> = {
@@ -137,16 +134,6 @@ export const PMSPipelineModal: React.FC<PMSPipelineModalProps> = ({
   const re = agents.find((a) => a.agent_type === "referral_engine");
   const summary = agents.find((a) => a.agent_type === "summary");
 
-  const taskSummary = (() => {
-    const stored = pmsJob?.automation_status_detail?.summary?.tasksCreated;
-    if (!stored) return undefined;
-    return {
-      total: stored.total ?? 0,
-      user: stored.user ?? 0,
-      alloro: stored.alloro ?? 0,
-    };
-  })();
-
   const nodes: PipelineNode[] = [
     {
       key: "pms",
@@ -175,13 +162,6 @@ export const PMSPipelineModal: React.FC<PMSPipelineModalProps> = ({
       icon: CheckCircle2,
       description: "Chief-of-Staff: picks top actions",
       agent: summary,
-    },
-    {
-      key: "tasks",
-      label: "Tasks Created",
-      icon: ListChecks,
-      description: "USER + ALLORO tasks from Summary + RE",
-      taskSummary,
     },
   ];
 
@@ -392,40 +372,6 @@ export const PMSPipelineModal: React.FC<PMSPipelineModalProps> = ({
                         ) : (
                           <div className="text-xs text-gray-500 italic">
                             No summary agent_results row found for this job.
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {activeNode?.key === "tasks" && (
-                      <div className="space-y-3">
-                        <h3 className="text-sm font-semibold text-gray-900">
-                          Tasks Created
-                        </h3>
-                        {activeNode.taskSummary ? (
-                          <div className="grid grid-cols-3 gap-3">
-                            <div className="bg-white border border-gray-200 rounded-lg p-3 text-center">
-                              <div className="text-2xl font-semibold text-gray-900">
-                                {activeNode.taskSummary.total}
-                              </div>
-                              <div className="text-xs text-gray-500">total</div>
-                            </div>
-                            <div className="bg-white border border-gray-200 rounded-lg p-3 text-center">
-                              <div className="text-2xl font-semibold text-gray-900">
-                                {activeNode.taskSummary.user}
-                              </div>
-                              <div className="text-xs text-gray-500">USER</div>
-                            </div>
-                            <div className="bg-white border border-gray-200 rounded-lg p-3 text-center">
-                              <div className="text-2xl font-semibold text-gray-900">
-                                {activeNode.taskSummary.alloro}
-                              </div>
-                              <div className="text-xs text-gray-500">ALLORO</div>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="text-xs text-gray-500 italic">
-                            Task counts not recorded for this run.
                           </div>
                         )}
                       </div>

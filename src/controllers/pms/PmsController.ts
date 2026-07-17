@@ -376,7 +376,7 @@ export async function clientApproveJob(req: Request, res: Response) {
         result.clientApproval ? "confirmed" : "reset"
       } successfully`,
       toastMessage: result.clientApproval
-        ? "We're now processing and setting up your action items. You'll be notified when ready!"
+        ? "We're now processing your data and preparing insights. You'll be notified when ready!"
         : undefined,
     });
   } catch (error: any) {

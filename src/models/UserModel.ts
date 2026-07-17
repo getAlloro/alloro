@@ -292,6 +292,26 @@ export class UserModel extends BaseModel {
     return this.table(trx).whereIn("id", ids).select("id", "email");
   }
 
+  static async findInternalProfilesByIds(
+    ids: number[],
+    trx?: QueryContext
+  ): Promise<
+    Array<{
+      id: number;
+      email: string;
+      name: string | null;
+      first_name: string | null;
+      last_name: string | null;
+    }>
+  > {
+    if (ids.length === 0) return [];
+    return this.table(trx)
+      .whereIn("id", ids)
+      .where({ is_internal: true })
+      .whereNotNull("email")
+      .select("id", "email", "name", "first_name", "last_name");
+  }
+
   // Resolve a list of emails (case-insensitive) to id/email/name fields.
   // Used by the PM user picker, which sources its roster from
   // SUPER_ADMIN_EMAILS and hydrates display names from the users table.

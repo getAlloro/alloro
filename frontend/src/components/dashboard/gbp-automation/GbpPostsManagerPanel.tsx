@@ -102,9 +102,10 @@ export function GbpPostsManagerPanel({
     <section className="rounded-[14px] border border-line-soft bg-white p-5 shadow-premium">
       {showVisibilityNote && (
         <p className="mb-4 text-[13px] font-medium leading-relaxed text-ink-muted">
-          Fresh Google Posts keep your Business Profile active and give Google
-          new, recent content to surface — which helps your practice show up in
-          local Map and Search results. Aim for a post every week or two.
+          Fresh Google Posts keep your Business Profile looking active and cared
+          for, so patients comparing you to another practice see a business
+          that's clearly open and paying attention. Aim for a post every week or
+          two.
         </p>
       )}
       <div className="flex flex-wrap items-center justify-between gap-3">

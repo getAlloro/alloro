@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Project Board Comment Emails Spec</title>
+  <style>
+    :root { color-scheme: light; --paper:#fff; --ink:#080808; --muted:#5f5f5f; --line:#d8d8d8; --soft:#f5f5f5; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--paper); color:var(--ink); font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; line-height:1.5; }
+    .spec-shell { width:min(1120px,calc(100% - 32px)); margin:0 auto; padding:48px 0; }
+    .spec-hero,.spec-card,.task-card { border:1px solid var(--line); border-radius:8px; background:var(--paper); }
+    .spec-hero { border-color:var(--ink); padding:32px; margin-bottom:20px; }
+    .hero-topline { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px; }
+    .spec-card { padding:28px; margin-top:16px; }
+    .task-card { padding:20px; margin-top:12px; background:var(--soft); }
+    .eyebrow,dt { color:var(--muted); font-size:.78rem; font-weight:700; letter-spacing:0; text-transform:uppercase; }
+    .eyebrow { margin:0; }
+    .status-pill { display:inline-flex; align-items:center; min-height:34px; padding:0 12px; border:1px solid var(--ink); border-radius:999px; background:var(--ink); color:var(--paper); font-size:.78rem; font-weight:800; letter-spacing:0; text-transform:uppercase; }
+    .status-card { border-color:var(--ink); }
+    h1,h2,h3,p { margin-top:0; }
+    h1 { max-width:860px; margin-bottom:24px; font-size:clamp(2.25rem,6vw,5rem); line-height:.95; letter-spacing:0; }
+    h2 { font-size:1.35rem; letter-spacing:0; }
+    h3 { font-size:1rem; letter-spacing:0; }
+    code { padding:.1rem .3rem; border:1px solid var(--line); border-radius:4px; background:var(--soft); font-size:.92em; }
+    .meta-grid,.split-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; }
+    .meta-grid { margin:0; }
+    .meta-grid div,.split-grid>div { border:1px solid var(--line); border-radius:8px; padding:16px; }
+    dd { margin:4px 0 0; font-weight:700; }
+    .checklist { list-style:none; padding-left:0; }
+    .checklist li { display:flex; gap:10px; align-items:flex-start; padding:10px 0; border-top:1px solid var(--line); }
+    @media (max-width:640px) { .spec-shell { width:min(100% - 20px,1120px); padding:24px 0; } .spec-hero,.spec-card { padding:20px; } }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill">Completed</span>
+      </div>
+      <h1>Project Board Comment Emails</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/07152026-project-board-comment-emails</dd></div>
+        <div><dt>Size</dt><dd>Large</dd></div>
+        <div><dt>Risk</dt><dd>Level 3</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>The PM board already supports task comments, mentions, task attachments, and in-app notifications, but the comment composer is not obvious enough and important collaboration events do not leave email evidence. Admin users need a clearer comment flow, image comments, and email delivery when someone is mentioned or a related card is moved.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Improve the PM task comment experience, add image attachments directly to comments, and send PM notification emails for comment mentions and meaningful card movement. Email is best-effort and recorded through the existing email service/logs; local and dev sends remain protected by the email interceptor.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>frontend/src/components/pm/CommentComposer.tsx</code> - current textarea, @ mention popup, submit flow.</li>
+        <li><code>frontend/src/components/pm/CommentsSection.tsx</code> - current comment list, markdown renderer, edit/delete shell.</li>
+        <li><code>frontend/src/components/pm/TaskDetailPanel.tsx</code> - task panel tabs and comment hosting.</li>
+        <li><code>frontend/src/api/pm.ts</code> and <code>frontend/src/types/pm.ts</code> - PM API client and shared PM types.</li>
+        <li><code>src/controllers/pm/PmCommentsController.ts</code> - comment create/list/edit/delete and in-app mention notification fan-out.</li>
+        <li><code>src/controllers/pm/PmAttachmentsController.ts</code> - S3-backed attachment upload and presigned URL delivery.</li>
+        <li><code>src/controllers/pm/PmTasksController.ts</code> - task movement, done completion, cross-project movement.</li>
+        <li><code>src/emails/emailService.ts</code> and <code>src/emails/templates/base.ts</code> - outbound email transport, logging, and email wrapper.</li>
+      </ul>
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li>Backend structure: Code Constitution <code>§6.1</code>, <code>§6.2</code>, <code>§6.3</code>, <code>§7.1</code>, <code>§7.4</code>, <code>§10.5</code>.</li>
+        <li>Frontend structure: <code>§12.1</code>, <code>§12.3</code>, <code>§13.1</code>, <code>§14.1</code>, <code>§14.2</code>, <code>§16.1</code>, <code>§17.2</code>.</li>
+        <li>Security and validation: <code>§5.2</code>, <code>§5.4</code>, <code>§11.2</code>, <code>§17.4</code>.</li>
+      </ul>
+      <p><strong>Reference files:</strong> <code>src/controllers/gbp-automation/</code> for backend layering and <code>frontend/src/api/pm.ts</code> plus <code>frontend/src/components/pm/AttachmentsSection.tsx</code> for frontend API/upload patterns.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Use a migration for any schema change.</li>
+            <li>Keep S3 delivery behind existing presigned URL endpoints.</li>
+            <li>Send mention emails to the actual mentioned internal users, not a broad admin blast.</li>
+            <li>Send movement emails only for cross-column moves and cross-project moves; same-column reorders are noise.</li>
+            <li>Use existing email interception so local/dev does not send live email.</li>
+            <li>Keep image-comment validation server-side.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>Do not redesign the whole PM board in this pass.</li>
+            <li>Do not introduce a new email transport or storage bucket.</li>
+            <li>Do not send email inside a DB transaction.</li>
+            <li>Do not render uploaded images or markdown through raw HTML.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Realtime push, notification preferences, Slack-style threads, watchers/subscribers, and customer-facing docs updates.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 3 - schema change plus email side effects on a production-facing admin workflow.</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><strong>Email noise.</strong> Movement can happen often. <strong>Mitigation:</strong> email only cross-column and cross-project moves, skip same-column reorder, skip actor self-email, de-duplicate recipients.</li>
+        <li><strong>Email inside transaction.</strong> Sending before commit could notify about rolled-back work. <strong>Mitigation:</strong> commit first, then call best-effort email service.</li>
+        <li><strong>S3 orphan images.</strong> A comment may be created but image upload may fail. <strong>Mitigation:</strong> upload images after comment creation, show inline upload error, and keep the text comment intact.</li>
+        <li><strong>Image abuse.</strong> Client MIME hints are not enough. <strong>Mitigation:</strong> if <code>comment_id</code> is present, backend accepts image MIME types only and verifies the comment belongs to the task.</li>
+        <li><strong>Component sprawl.</strong> Existing comment components are already large. <strong>Mitigation:</strong> split composer/menu/image strip/markdown/item helpers into PM feature components instead of adding more bulk.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> PM task comments, PM task attachments, PM task movement, PM notification emails, PM detail panel comment tab, and email logs.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li>Do not email every drag event. Future-us will hate that inbox. Only movement that changes task state or project context gets email.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <article class="task-card">
+        <h3>T1: Comment Attachment Schema</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add nullable <code>comment_id</code> to <code>pm_task_attachments</code>, reference <code>pm_task_comments</code>, and index it. Existing task attachments stay valid with <code>comment_id = null</code>.</dd></div>
+          <div><dt>Files</dt><dd><code>src/database/migrations/20260715000000_add_pm_comment_attachments.ts</code>, plan migration mirrors</dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>npm run db:migrate</code> on the intended dev DB before deployment; local code checks in this run.</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T2: Backend Comment Images And Emails</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Allow image uploads to an existing comment, include comment attachments in comment list responses, hide comment-owned files from the task Attachments tab, and add best-effort PM email delivery for mentions and movement.</dd></div>
+          <div><dt>Files</dt><dd><code>src/models/PmTaskAttachmentModel.ts</code>, <code>src/models/UserModel.ts</code>, <code>src/controllers/pm/PmAttachmentsController.ts</code>, <code>src/controllers/pm/PmCommentsController.ts</code>, <code>src/controllers/pm/PmTasksController.ts</code>, <code>src/controllers/pm/feature-services/PmNotificationEmailService.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>Targeted PM backend tests and TypeScript.</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T3: Comment Composer UX</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Refactor the composer into a clearer control with visible mention help, selected mention chips, image attach/drop/paste, image previews, and explicit upload/send states.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/components/pm/CommentComposer.tsx</code>, new PM comment subcomponents</dd></div>
+          <div><dt>Depends on</dt><dd>T2</dd></div>
+          <div><dt>Verify</dt><dd>Frontend type check and manual <code>/admin/pm/:projectId</code> composer flow.</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T4: Comment Image Rendering And Deep Links</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Render comment images under their comment, support notification/email deep links into the comments tab, and keep task attachment counts limited to standalone attachments.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/components/pm/CommentsSection.tsx</code>, <code>frontend/src/components/pm/TaskDetailPanel.tsx</code>, <code>frontend/src/pages/admin/ProjectBoard.tsx</code>, <code>frontend/src/api/pm.ts</code>, <code>frontend/src/types/pm.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T3</dd></div>
+          <div><dt>Verify</dt><dd>Open an email-style URL with task/comment params and confirm the panel opens to Comments.</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T5: Tests And Acceptance Artifact</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add targeted backend tests for mention email recipient resolution and movement email de-dupe, then generate <code>test.html</code> and <code>test-results.json</code>.</dd></div>
+          <div><dt>Files</dt><dd><code>src/__tests__/pm-notification-email.test.ts</code>, plan acceptance files</dd></div>
+          <div><dt>Depends on</dt><dd>T1-T4</dd></div>
+          <div><dt>Verify</dt><dd><code>npm run check:all</code>, targeted tests, and acceptance checklist.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" checked disabled> Comment composer shows mention affordance, selected mention chips, image picker, paste/drop image support, previews, and disabled/loading send state.</li>
+        <li><input type="checkbox" checked disabled> Comment images persist as S3-backed attachments tied to the comment and render under that comment.</li>
+        <li><input type="checkbox" checked disabled> Mention emails are sent to mentioned internal users after comment create and newly-added mentions after edit, with no self-email and no duplicates.</li>
+        <li><input type="checkbox" checked disabled> Movement emails are sent for cross-column and cross-project moves, with no same-column reorder email and no self-email.</li>
+        <li><input type="checkbox" checked disabled> Local/dev email sends are intercepted by the existing email interceptor and logged through <code>email_logs</code>.</li>
+        <li><input type="checkbox" checked disabled> The current unified task conversation feed remains intact: standalone task attachments stay chronological in the feed while comment-owned images render only under their comment.</li>
+        <li><input type="checkbox" checked disabled> TypeScript, conventions, and targeted tests pass or only pre-existing advisory debt remains.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-07-16</h3>
+        <p><strong>Change:</strong> Adapt the comment-image implementation to the unified task conversation feed that landed on <code>dev/dave</code> after this plan began. Standalone task attachments remain feed items; comment-owned images are excluded from that list and render beneath their parent comment.</p>
+        <p><strong>Reason:</strong> Execution deviation: the active branch gained the project-board attachment conversation feed before this unfinished plan resumed, so the original frontend patch cannot be applied without preserving the newer behavior.</p>
+        <p><strong>Updated Done criteria:</strong> Preserve the unified feed and prevent comment images from appearing twice.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 2 - 2026-07-16</h3>
+        <p><strong>Change:</strong> Completed implementation, corrected the focused backend test filename, added UI-state coverage for mention chips, previews, paste/drop, and saving state, and recorded live local API/S3/Mailgun acceptance.</p>
+        <p><strong>Reason:</strong> Execution deviation: the browser-control runtime was not exposed in this session, so visible composer behavior was verified through rendered component tests while storage, email, movement, cleanup, and deep-link contracts were exercised against the running app.</p>
+        <p><strong>Updated Done criteria:</strong> All existing Done criteria are met with passing automated and live runtime evidence.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

@@ -4,6 +4,15 @@ The repo-local operating notes for this project live in [`AGENTS.md`](AGENTS.md)
 
 @AGENTS.md
 
+## Global Workflow Commands
+
+The global command contract in `~/.claude/CLAUDE.md` applies here:
+
+- `--start` / `-s` creates a new linked worktree from the current branch's committed `HEAD` before planning, unless the user explicitly passes `--no-worktree`.
+- `--test-worktree` / `-tw` runs contained acceptance only from a verified secondary linked worktree and only through a repository-owned safe adapter.
+
+Read the Alloro-specific worktree root and runtime safety rules in `AGENTS.md`. The command contract does not mean the Alloro runtime adapter already exists; `-tw` must refuse safely until the adapter is present.
+
 ## Code Constitution (mandatory)
 
 All code work in this repo follows the **Code Constitution** — the numbered architecture contract for backend (`src/`) and frontend (`frontend/`), with stable `§N.M` Article IDs.

@@ -1,166 +1,196 @@
-/**
- * AnimatedSelect — click-to-open dropdown with Framer Motion popover.
- *
- * Used inside the PM TaskDetailPanel in place of a native <select> so we
- * can style the surface consistently with the rest of the PM dark theme
- * and get a real entrance animation on open.
- *
- * Not a combobox — no search input. Suited for short option lists
- * (the super-admin pool is tiny). Keyboard: ArrowUp/ArrowDown to move
- * the highlight, Enter to select, Escape to close.
- */
-
-import { useEffect, useRef, useState, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Check, ChevronDown } from "lucide-react";
 
-export interface AnimatedSelectOption<T extends string | number | null> {
+type SelectValue = string | number | null;
+export type AnimatedSelectOption<T extends SelectValue> = {
   value: T;
   label: string;
   hint?: string;
-}
-
-interface AnimatedSelectProps<T extends string | number | null> {
+  isDisabled?: boolean;
+};
+export type AnimatedSelectProps<T extends SelectValue> = {
   value: T;
   options: AnimatedSelectOption<T>[];
   onChange: (value: T) => void;
-  placeholder?: string;
+  ariaLabel?: string;
   className?: string;
+  id?: string;
+  isDisabled?: boolean;
+  menuPlacement?: "top" | "bottom";
+  placeholder?: string;
+  size?: "sm" | "md";
+  triggerClassName?: string;
+};
+function findEnabledIndex(
+  options: ReadonlyArray<{ isDisabled?: boolean }>,
+  start: number,
+  direction: 1 | -1,
+): number {
+  if (!options.length) return -1;
+  for (let offset = 1; offset <= options.length; offset += 1) {
+    const index = (start + direction * offset + options.length) % options.length;
+    if (!options[index]?.isDisabled) return index;
+  }
+  return -1;
+}
+function findBoundaryIndex(options: ReadonlyArray<{ isDisabled?: boolean }>, direction: 1 | -1): number {
+  const start = direction === 1 ? -1 : 0;
+  return findEnabledIndex(options, start, direction);
 }
 
-export function AnimatedSelect<T extends string | number | null>({
+export function AnimatedSelect<T extends SelectValue>({
   value,
   options,
   onChange,
+  ariaLabel,
+  className = "",
+  id,
+  isDisabled = false,
+  menuPlacement = "bottom",
   placeholder = "Select…",
-  className,
+  size = "md",
+  triggerClassName = "",
 }: AnimatedSelectProps<T>) {
-  const [open, setOpen] = useState(false);
-  const [highlight, setHighlight] = useState(0);
-  const wrapRef = useRef<HTMLDivElement>(null);
-
-  const currentIdx = options.findIndex((o) => o.value === value);
-  const current = currentIdx >= 0 ? options[currentIdx] : null;
+  const [isOpen, setIsOpen] = useState(false);
+  const [highlightIndex, setHighlightIndex] = useState(-1);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const listboxRef = useRef<HTMLUListElement>(null);
+  const generatedId = useId();
+  const shouldReduceMotion = useReducedMotion();
+  const triggerId = id ?? `pm-select-${generatedId}`;
+  const listboxId = `${triggerId}-listbox`;
+  const selectedIndex = options.findIndex((option) => option.value === value);
+  const selected = selectedIndex >= 0 ? options[selectedIndex] : null;
 
   useEffect(() => {
-    if (!open) return;
-    setHighlight(currentIdx >= 0 ? currentIdx : 0);
-  }, [open, currentIdx]);
-
+    if (!isOpen) return;
+    const initialIndex = selected?.isDisabled
+      ? findBoundaryIndex(options, 1)
+      : selectedIndex >= 0
+        ? selectedIndex
+        : findBoundaryIndex(options, 1);
+    setHighlightIndex(initialIndex);
+    listboxRef.current?.focus();
+  }, [isOpen, options, selected?.isDisabled, selectedIndex]);
   useEffect(() => {
-    if (!open) return;
-    const onDocClick = (e: MouseEvent) => {
-      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+    if (!isOpen) return;
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!wrapperRef.current?.contains(event.target as Node)) setIsOpen(false);
     };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setOpen(false);
-      } else if (e.key === "ArrowDown") {
-        e.preventDefault();
-        setHighlight((h) => (h + 1) % options.length);
-      } else if (e.key === "ArrowUp") {
-        e.preventDefault();
-        setHighlight((h) => (h - 1 + options.length) % options.length);
-      } else if (e.key === "Enter") {
-        e.preventDefault();
-        const opt = options[highlight];
-        if (opt) {
-          onChange(opt.value);
-          setOpen(false);
-        }
-      }
-    };
-    document.addEventListener("mousedown", onDocClick);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDocClick);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open, highlight, options, onChange]);
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [isOpen]);
+  useEffect(() => {
+    if (isDisabled) setIsOpen(false);
+  }, [isDisabled]);
 
-  const handlePick = useCallback(
-    (opt: AnimatedSelectOption<T>) => {
-      onChange(opt.value);
-      setOpen(false);
-    },
-    [onChange]
-  );
-
+  const handleSelect = (index: number) => {
+    const option = options[index];
+    if (!option || option.isDisabled) return;
+    onChange(option.value);
+    setIsOpen(false);
+    window.setTimeout(() => triggerRef.current?.focus(), 0);
+  };
+  const handleTriggerKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
+    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+    event.preventDefault();
+    setIsOpen(true);
+  };
+  const handleListboxKeyDown = (event: ReactKeyboardEvent<HTMLUListElement>) => {
+    if (event.key === "Tab") return setIsOpen(false);
+    if (event.key === "Escape") {
+      event.preventDefault();
+      setIsOpen(false);
+      return triggerRef.current?.focus();
+    }
+    let nextIndex = highlightIndex;
+    if (event.key === "ArrowDown") nextIndex = findEnabledIndex(options, highlightIndex, 1);
+    else if (event.key === "ArrowUp") nextIndex = findEnabledIndex(options, highlightIndex, -1);
+    else if (event.key === "Home") nextIndex = findBoundaryIndex(options, 1);
+    else if (event.key === "End") nextIndex = findBoundaryIndex(options, -1);
+    else if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      return handleSelect(highlightIndex);
+    }
+    else return;
+    event.preventDefault();
+    setHighlightIndex(nextIndex);
+  };
+  const sizeClass = size === "sm" ? "min-h-8 px-2.5 py-1.5 text-[12px]" : "min-h-10 px-3 py-2 text-sm";
+  const placementClass = menuPlacement === "top" ? "bottom-full mb-1" : "top-full mt-1";
   return (
-    <div ref={wrapRef} className={`relative ${className ?? ""}`}>
+    <div ref={wrapperRef} className={`relative ${className}`}>
       <button
+        ref={triggerRef}
+        id={triggerId}
         type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center justify-between rounded-lg border border-pm-border bg-pm-bg-primary py-2 px-3 text-sm text-pm-text-primary transition-colors hover:border-pm-border-hover focus:border-pm-accent focus:outline-none focus:ring-1 focus:ring-pm-accent"
+        aria-label={ariaLabel ?? placeholder}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+        aria-controls={isOpen ? listboxId : undefined}
+        disabled={isDisabled}
+        onClick={() => setIsOpen((open) => !open)}
+        onKeyDown={handleTriggerKeyDown}
+        className={`flex w-full items-center justify-between rounded-lg border border-pm-border bg-pm-bg-primary text-left text-pm-text-primary transition-colors hover:border-pm-border-hover focus:border-pm-accent focus:outline-none focus:ring-2 focus:ring-pm-accent/40 disabled:cursor-not-allowed disabled:opacity-50 ${sizeClass} ${triggerClassName}`}
       >
-        <span
-          className={current ? "text-pm-text-primary" : "text-pm-text-muted"}
-        >
-          {current ? current.label : placeholder}
+        <span className={`truncate ${selected ? "text-pm-text-primary" : "text-pm-text-muted"}`}>
+          {selected?.label ?? placeholder}
         </span>
         <motion.span
-          animate={{ rotate: open ? 180 : 0 }}
-          transition={{ duration: 0.15 }}
+          animate={{ rotate: isOpen ? 180 : 0 }}
+          transition={{ duration: shouldReduceMotion ? 0 : 0.15 }}
           className="ml-2 shrink-0 text-pm-text-muted"
+          aria-hidden="true"
         >
           <ChevronDown className="h-4 w-4" />
         </motion.span>
       </button>
 
       <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0, y: -4, scale: 0.98 }}
+        {isOpen && (
+          <motion.ul
+            ref={listboxRef}
+            id={listboxId}
+            role="listbox"
+            tabIndex={-1}
+            aria-label={ariaLabel ?? placeholder}
+            aria-activedescendant={highlightIndex >= 0 ? `${listboxId}-option-${highlightIndex}` : undefined}
+            onKeyDown={handleListboxKeyDown}
+            initial={shouldReduceMotion ? false : { opacity: 0, y: -4, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -4, scale: 0.98 }}
-            transition={{ duration: 0.12, ease: "easeOut" }}
-            className="absolute left-0 right-0 z-50 mt-1 overflow-hidden rounded-lg border shadow-lg"
-            style={{
-              borderColor: "var(--color-pm-border)",
-              backgroundColor: "var(--color-pm-bg-secondary)",
-            }}
+            exit={shouldReduceMotion ? { opacity: 1 } : { opacity: 0, y: -4, scale: 0.98 }}
+            transition={{ duration: shouldReduceMotion ? 0 : 0.12, ease: "easeOut" }}
+            className={`pm-scrollbar absolute left-0 right-0 z-50 max-h-64 overflow-y-auto rounded-lg border border-pm-border bg-pm-bg-secondary py-1 shadow-lg outline-none ${placementClass}`}
           >
-            <ul className="max-h-64 overflow-y-auto py-1">
-              {options.map((opt, i) => {
-                const selected = opt.value === value;
-                const highlighted = i === highlight;
-                return (
-                  <li key={`${String(opt.value)}-${i}`}>
-                    <button
-                      type="button"
-                      onClick={() => handlePick(opt)}
-                      onMouseEnter={() => setHighlight(i)}
-                      className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm transition-colors"
-                      style={{
-                        backgroundColor: highlighted
-                          ? "var(--color-pm-bg-hover)"
-                          : "transparent",
-                        color: "var(--color-pm-text-primary)",
-                      }}
-                    >
-                      <span className="flex min-w-0 flex-col">
-                        <span className="truncate">{opt.label}</span>
-                        {opt.hint && (
-                          <span
-                            className="text-[11px]"
-                            style={{ color: "var(--color-pm-text-muted)" }}
-                          >
-                            {opt.hint}
-                          </span>
-                        )}
-                      </span>
-                      {selected && (
-                        <Check
-                          className="h-4 w-4 shrink-0"
-                          style={{ color: "#D66853" }}
-                        />
-                      )}
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          </motion.div>
+            {options.map((option, index) => {
+              const isSelected = option.value === value;
+              const isHighlighted = index === highlightIndex;
+              return (
+                <li key={`${String(option.value)}-${index}`}>
+                  <button
+                    id={`${listboxId}-option-${index}`}
+                    type="button"
+                    role="option"
+                    tabIndex={-1}
+                    aria-selected={isSelected}
+                    aria-disabled={option.isDisabled || undefined}
+                    disabled={option.isDisabled}
+                    onClick={() => handleSelect(index)}
+                    onMouseEnter={() => !option.isDisabled && setHighlightIndex(index)}
+                    className={`flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm text-pm-text-primary transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${isHighlighted ? "bg-pm-bg-hover" : "bg-transparent"}`}
+                  >
+                    <span className="flex min-w-0 flex-col">
+                      <span className="truncate">{option.label}</span>
+                      {option.hint && <span className="truncate text-[11px] text-pm-text-muted">{option.hint}</span>}
+                    </span>
+                    {isSelected && <Check className="h-4 w-4 shrink-0 text-pm-accent" aria-hidden="true" />}
+                  </button>
+                </li>
+              );
+            })}
+          </motion.ul>
         )}
       </AnimatePresence>
     </div>

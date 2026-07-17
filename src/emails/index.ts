@@ -86,6 +86,29 @@ export {
   buildUserNotificationContent,
 } from "./templates/UserSendNotification";
 
+export {
+  buildInvitationEmail,
+  buildVerificationCodeEmail,
+  buildPasswordResetEmail,
+  buildTemporaryPasswordEmail,
+  type InvitationEmailParams,
+  type AccountCodeEmailParams,
+  type TemporaryPasswordEmailParams,
+} from "./templates/AccountEmailTemplates";
+
+export {
+  buildQuantityUpdateEmail,
+  buildLocationLifecycleEmail,
+  type QuantityUpdateEmailData,
+  type LocationLifecycleEmailData,
+  type LocationLifecycleEmailKind,
+} from "./templates/BillingEmailTemplates";
+
+export {
+  buildSystemTestEmail,
+  type SystemTestEmailData,
+} from "./templates/SystemTestEmail";
+
 // Base template utilities (for custom emails)
 export {
   wrapInBaseTemplate,
@@ -94,9 +117,12 @@ export {
   createCard,
   createTag,
   createDivider,
+  createCodeCard,
   createList,
   highlight,
+  escapeHtml,
   BRAND_COLORS,
+  EMAIL_FONT_STACKS,
   LOGO_URL,
   APP_URL,
 } from "./templates/base";

@@ -1,8 +1,7 @@
 /**
  * §11.6 pagination helpers for the admin OS domain — every list endpoint
- * returns the same meta shape { page, limit, total, totalPages }. Domain-local
- * copy of the admin-agent-insights helper (per §6.3, domains keep their own
- * feature-utils rather than importing across domains).
+ * returns the same meta shape { page, limit, total, totalPages }. Kept
+ * domain-local per §6.3 so admin OS controllers do not import across domains.
  *
  * Query values are parsed here (not trusted from zod-coerced req.query):
  * Express 5's req.query is a read-only getter, so the validate() middleware

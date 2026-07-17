@@ -61,7 +61,6 @@ export interface MissionControlBaseData {
   locationCounts: Record<number, number>;
   gbpConnections: Record<number, boolean>;
   websites: Record<number, MissionControlProjectSummary>;
-  pendingTaskCounts: Record<number, number>;
   unreadNotificationCounts: Record<number, number>;
   latestPms: Record<number, MissionControlPmsSummary>;
   latestRankings: Record<number, MissionControlRankingSummary>;
@@ -76,7 +75,6 @@ export class MissionControlModel {
       locationCounts,
       gbpConnections,
       websites,
-      pendingTaskCounts,
       unreadNotificationCounts,
       latestPms,
       latestRankings,
@@ -87,7 +85,6 @@ export class MissionControlModel {
       this.countByOrganization("locations"),
       this.getGbpConnections(),
       this.getLatestWebsiteSummaries(),
-      this.getPendingTaskCounts(),
       this.getUnreadNotificationCounts(),
       this.getLatestPmsSummaries(),
       this.getLatestRankingSummaries(),
@@ -100,7 +97,6 @@ export class MissionControlModel {
       locationCounts,
       gbpConnections,
       websites,
-      pendingTaskCounts,
       unreadNotificationCounts,
       latestPms,
       latestRankings,
@@ -249,17 +245,6 @@ export class MissionControlModel {
     }
 
     return summaries;
-  }
-
-  private static async getPendingTaskCounts(): Promise<Record<number, number>> {
-    const rows = await db("tasks")
-      .select("organization_id")
-      .whereNotNull("organization_id")
-      .whereIn("status", ["pending", "in_progress"])
-      .count<{ organization_id: number; count: string | number }[]>("* as count")
-      .groupBy("organization_id");
-
-    return rowsToCountMap(rows);
   }
 
   private static async getUnreadNotificationCounts(): Promise<

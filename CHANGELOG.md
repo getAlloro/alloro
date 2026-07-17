@@ -2,6 +2,169 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.169] - July 2026
+
+### Project Board comments add images and targeted alerts
+
+Project Board comments now accept screenshots and other images from the file picker, clipboard, or drag-and-drop while preserving the existing chronological conversation feed. New mentions and cross-column or cross-project task moves send targeted Alloro-branded email alerts with direct links to the relevant task tab; same-column reordering stays quiet. Built on `plans/07152026-project-board-comment-emails`; 500 backend tests, 167 frontend tests, TypeScript, production builds, lint, dependency checks, strict Constitution checks, and live local API, S3, and intercepted Mailgun acceptance pass. This release is published through `dev/dave`; production has not been promoted.
+
+**Key Changes:**
+- **Image-enabled comments.** The composer accepts multiple image files through selection, paste, or drop, shows removable previews, reports upload progress, supports image-only comments, and keeps a saved comment when one of its image uploads fails.
+- **Comment-owned storage.** Comment images use the existing attachment storage boundary with explicit comment metadata, task/comment/author validation, standalone-list exclusion, transactional metadata cleanup, and best-effort S3 deletion.
+- **Targeted mention alerts.** Creating a comment alerts mentioned internal users; editing alerts only newly added mentions. Self-mentions and duplicate recipients are filtered.
+- **Useful movement alerts.** Cross-column and cross-project task moves notify the task creator and assignee after the database commit. Same-column ordering changes send no email.
+- **Direct task links.** Alert links open the named task directly on the Comments or Details tab and clear cleanly when the panel closes.
+- **Regression correction.** The Rankings recommendation fallback again maps exact generic post, review, and photo labels by position while preserving specific raw recommendation titles.
+- **Worktree workflow policy.** Repository instructions now define linked-worktree-first planning and a fail-safe contained acceptance contract without claiming an adapter that does not yet exist.
+- **Docs parity.** Checked `alloro-docs`; no matching Project Board documentation surface exists, so no docs edit was required.
+
+**Commits:**
+- PM attachment, comment, task, user, and email-service backend files plus `20260715000000_add_pm_comment_attachments.ts` — comment image persistence, cleanup, and targeted email alerts.
+- Project Board API, hooks, task panel, comment composer, deep-link utility, types, and focused tests — image interactions, preserved conversation feed, and direct task opening.
+- `frontend/src/components/dashboard/rankingsDashboard.utils.ts` and the PR 153 plan revision — generic recommendation fallback regression fix.
+- `plans/07152026-project-board-comment-emails/` — completed spec and passing acceptance record with live API, S3, Mailgun, and cleanup evidence.
+- `AGENTS.md`, `CLAUDE.md`, and `plans/07162026-test-worktree-command-and-worktree-planning-default/` — documented worktree planning and contained test safety contract.
+
+## [0.0.168] - July 2026
+
+### Clearer team tables and consistent role controls
+
+Organization admins and managers now get stable, easier-to-scan Team Members and Pending Invitations tables. Structural labels and actions stay on one line, long names and emails truncate safely, narrow layouts scroll horizontally, and both role-editing and invitation flows use the same animated keyboard-accessible selector. Built on `plans/07162026-settings-team-table-polish`; focused selector tests, TypeScript, production builds, scoped lint, strict Constitution checks, and Alloro Docs build pass. Five authenticated browser checks were explicitly waived by Dave for the direct `dev/dave` release and remain recorded as waived failures, not passes. This change is included in the published dev release; production has not been promoted.
+
+**Key Changes:**
+- **Stable semantic tables.** Explicit column proportions, no-wrap structural fields, safe identity truncation, alternating rows, hover states, and horizontal overflow keep member and invitation data readable.
+- **One role selector.** Role changes and invitations share a settings-local animated listbox with mouse and keyboard control, focus restoration, reduced-motion support, and a top-layer popover that avoids table clipping.
+- **Staged role changes.** Selecting a role remains local until Save; Cancel restores the existing role without a request.
+- **Typed mutation boundary.** Invite, update, remove, and resend actions now flow through a typed API module and React Query mutation hook with shared query invalidation and toast feedback.
+- **Permissions preserved.** Existing admin and manager visibility, invitation limits, wizard demo data, endpoint paths, and server-side authorization remain unchanged.
+- **Docs parity.** The Team Members replica now matches the polished default table state on the dedicated Alloro Docs branch.
+
+**Commits:**
+- `frontend/src/api/settingsUsers.ts` and `frontend/src/hooks/queries/useSettingsUserMutations.ts` — typed Settings user mutations and cache invalidation.
+- `frontend/src/components/settings/UsersTab.tsx` and `frontend/src/components/settings/users/` — decomposed tables, invite modal, staged role flow, and animated selector.
+- `plans/07162026-settings-team-table-polish/` — completed spec and acceptance record with two passes and five explicit browser waivers.
+- Alloro Docs commit `3161efd` — default Team Members replica parity.
+
+## [0.0.167] - July 2026
+
+### Project Board comments include the task attachment timeline
+
+The Project Board task sidebar now puts Comments before Attachments and shows task-level file activity in the same chronological conversation as comments. Files can be dropped or selected from either tab, and one shared state tracks upload progress, failures, completed files, deletion, and attachment counts across both views. Built on `plans/07162026-project-board-comment-attachment-feed`; focused feed tests, root TypeScript, the frontend production build, lint review, strict Constitution checks, and diff checks pass. The previously observed ranking-copy regression is corrected in 0.0.169, and the full frontend suite now passes. All six browser acceptance checks were explicitly waived by the user for the direct `dev/dave` release and are recorded as waived failures rather than passes. This change is included in the published dev release; production has not been promoted.
+
+**Key Changes:**
+- **Comments-first task flow.** Sidebar tabs now read Details, Comments, Attachments while Details remains the default view and each count keeps its original meaning.
+- **One chronological conversation.** Existing comments and task attachments are merged by their real creation timestamps without creating synthetic comments or a second file relationship.
+- **Shared upload tracking.** Uploads started from either tab immediately show the same pending progress or failed state in both surfaces, then resolve to one completed task attachment.
+- **Comments file input.** Comments supports both drag-and-drop and a labeled keyboard-accessible multi-file picker.
+- **Existing actions preserved.** Attachment preview, download, server-authorized delete, comment edit/delete, mentions, and safe markdown remain on their existing API contracts.
+- **No backend or schema change.** The feature reuses the existing PM comment and task-attachment endpoints, storage policy, and database records.
+- **Docs parity.** Checked `alloro-docs`; no matching Project Board documentation surface exists, so no docs edit was required.
+
+**Commits:**
+- `frontend/src/hooks/queries/usePmTaskComments.ts`, `usePmTaskAttachments.ts`, and `frontend/src/lib/queryClient.ts` — shared React Query server state, mutations, and one upload-progress queue.
+- `frontend/src/components/pm/TaskDetailPanel.tsx`, `CommentsSection.tsx`, `AttachmentsSection.tsx`, `PmTaskFeed.tsx`, and `pmTaskFeed.utils.ts` — comments-first tabs, chronological mixed feed, cross-tab file state, and preserved attachment actions.
+- `frontend/src/components/pm/PmTaskFeed.test.tsx` — focused ordering, upload-entry, progress, failure, completion, and deletion coverage.
+- `plans/07162026-project-board-comment-attachment-feed/` — completed spec and acceptance record with six explicit browser waivers.
+
+## [0.0.166] - July 2026
+
+### Consistent Alloro transactional emails
+
+Alloro's account, authentication, billing, notification, and transport-test emails now share one branded responsive shell. Headings use the serif display stack, body copy uses the sans stack, codes and temporary passwords stay monospace, and calls to action use Alloro orange instead of the legacy blue treatment. Built on `plans/07162026-transactional-email-brand-consistency`; 495 tests, TypeScript, builds, lint, strict conventions, semantic template checks, 14 responsive screenshots, and 11 controlled inbox QA sends pass. The QA envelopes were intercepted to `dave@getalloro.com` only. This work is included in the published dev release; production has not been promoted.
+
+**Key Changes:**
+- **One email shell.** Invitation, verification, password-reset, temporary-password, billing, system-notification, and transport-test messages now use the shared Alloro logo, spacing, navy/orange palette, typography, footer, and responsive canvas.
+- **Purposeful typography.** Spectral with Georgia/Times fallbacks is reserved for headings; Plus Jakarta Sans with safe system fallbacks handles body copy; security codes and generated passwords use a monospace stack.
+- **Shared account builders.** Initial and resend invitation/verification paths now use the same pure HTML builders, preventing those variants from drifting apart.
+- **Safer dynamic content.** Changed templates escape organization, role, user, billing, notification, metadata, and transport values before rendering.
+- **Real inbox QA without customer mail.** Eleven synthetic variants were accepted by Mailgun after the interceptor proved the machine was non-live, rewrote the final recipient to Dave only, and stripped CC/BCC.
+- **Docs parity.** No Alloro Docs update was needed because this changes outbound email presentation, not dashboard behavior, controls, navigation, or guidance.
+
+**Commits:**
+- `src/emails/templates/base.ts`, `AccountEmailTemplates.ts`, `BillingEmailTemplates.ts`, and `SystemTestEmail.ts` — shared visual system and pure transactional builders.
+- Account, auth, billing, settings, notification, and admin email call sites — shared-builder adoption with existing delivery behavior preserved.
+- `src/__tests__/email-template-branding.test.ts` — brand, escaping, variant, behavior, and legacy-blue regression coverage.
+- `plans/07162026-transactional-email-brand-consistency/` — completed spec, passing acceptance record, and narrow/desktop visual evidence.
+
+## [0.0.165] - July 2026
+
+### Leadgen tracking integrity and honest admin submissions
+
+Leadgen analytics now distinguishes persisted account relationships from derived email or domain hints, requires audit-backed report progression, and measures one-minute report engagement from focused and visible time instead of page-mount time. Empty session shells were removed from local, dev, and production with verified recovery backups, while historical unaudited activity was retained and clearly classified. Built on `plans/07152026-leadgen-tracking-integrity-cleanup`; the Alloro app code is included in the published dev release, while the separate leadgen checkout remains local and production app promotion is still pending. Automated backend, frontend, timer, build, and convention gates pass. The positive focused-browser timer integration is an explicit user-authorized waiver and is not presented as a pass.
+
+**Key Changes:**
+- **Audit-bound event integrity.** JSON and beacon ingestion share boundary validation, session/event writes are transactional, audit identity is write-once, and every report-surface event requires a real audit. One-minute engagement also requires prior results visibility.
+- **Real engagement timing.** The leadgen client rotates idle sessions after 30 minutes, safely adopts direct-audit sessions, retries transient tracking failures in order, records dedup state only after success, and counts report time only while visible and focused.
+- **Honest admin analytics.** The submissions list returns one row per event-backed session, keeps persisted links separate from neutral match hints, shows abandonment independently, and labels unaudited report history as “Unverified report activity.”
+- **Safe data cleanup.** Exactly 15 strict-empty rows were backed up and removed from each of local, dev, and production. All three now retain 236 event-backed sessions; the seven unaudited report sessions and four false one-minute sessions remain as classified history. Dev and production health checks pass.
+- **No schema change.** The correction uses the existing leadgen session, event, audit, user, and organization structures.
+
+**Commits:**
+- `src/controllers/leadgen-tracking/`, `src/validation/leadgenTracking.schemas.ts`, `src/routes/leadgenTracking.ts`, and focused backend tests — transactional public ingestion and semantic audit enforcement.
+- `src/models/LeadgenSessionModel.ts` and `src/controllers/admin-leadgen/feature-services/service.funnel-aggregator.ts` — unique integrity-aware list, stats, and funnel queries.
+- `frontend/src/components/Admin/leadgen/` and `frontend/src/types/leadgen.ts` — honest row, stage, match, abandonment, and detail-timeline rendering with focused tests.
+- The separate `alloro-leadgen-tool` commit — visit TTL, audit adoption, reliable tracking queue, paywall success gating, and focused/visible report timer with deterministic tests.
+- `plans/07152026-leadgen-tracking-integrity-cleanup/` — completed spec and acceptance record with nine passes and one explicit browser-integration waiver.
+
+## [0.0.164] - July 2026
+
+### Journey Insights shows completed Alloro SEO work
+
+Patient Journey Insights now connects a completed Alloro action to the metric it is intended to influence. When bulk SEO regeneration successfully changes Google search titles or descriptions, the Google Visibility details show a temporary plain-English "Alloro did this" note beside Google clicks and click-through rate. The note says what changed, when it completed, and when the 30-day measurement window ends without claiming that Alloro caused an improvement. Built on `plans/07152026-journey-insights-alloro-actions`; focused tests, TypeScript, builds, strict conventions, `check:all`, 471 backend tests, and desktop/mobile browser acceptance passed. Jo's copy review was explicitly waived by Dave for the dev merge and remains recommended before production promotion.
+
+**Key Changes:**
+- **Durable action history.** Added an additive, reversible `metric_action_events` table with tenant, project, source, metric, timestamp, visibility-window, count, and metadata fields. Source uniqueness keeps worker retries idempotent, and historical SEO jobs are intentionally not backfilled.
+- **Truthful SEO trigger.** The bulk SEO worker records one action only after at least one changed title or description is successfully persisted. Unchanged and fully failed jobs create no action; partial jobs count only successful changes.
+- **Metric-linked client signal.** The tenant-scoped Patient Journey response returns only the latest eligible CTR action. Google Visibility details now show Google clicks, click-through rate, and the compact action note for its active 30-day window.
+- **Responsive verification.** One Endodontics was checked at desktop and 390px mobile widths. The selected July action rendered without overflow, and the previous month correctly omitted it.
+- **Docs parity.** Alloro Docs restores the current three-gate Patient Journey guide, month navigation, click-open Google Visibility details, CTR, and the temporary action-note behavior.
+
+**Commits:**
+- `src/database/migrations/20260715000000_create_metric_action_events.ts`, `src/models/MetricActionModel.ts`, and `src/services/MetricActionService.ts` - durable action storage, tenant-scoped reads, and plain-English action contract.
+- `src/workers/processors/seoBulkGenerate.processor.ts` and focused tests - persisted-change detection, one-action aggregation, idempotency, and bounded retry isolation.
+- `src/controllers/patient-journey/` and `frontend/src/components/dashboard/patient-journey/` - API attachment, clicks/CTR detail metrics, and the responsive client note.
+- `plans/07152026-journey-insights-alloro-actions/` - completed spec, migration parity artifacts, acceptance results, and browser evidence.
+- `alloro-docs` Patient Journey page, replica, navigation, and changelog - separate-repository documentation parity.
+
+## [0.0.163] - July 2026
+
+### Project Board add items from Mine and People
+
+Admins can now add tasks directly from the cross-project Project Board workload views. The To Do and In Progress columns on Mine and People show add controls, require a project before creation, lock the target column to the clicked lane, and assign the created task to the current admin or selected person so it remains visible after refresh. Built on `plans/07152026-project-board-add-items`; focused component tests, frontend build, root TypeScript, `check:all`, browser QA, and acceptance artifacts pass.
+
+**Key Changes:**
+- **Assigned-board creation.** Mine and People boards expose add controls for To Do and In Progress only; Done remains read-only for creation.
+- **Required project attachment.** Cross-project creates must select a project and use that project's real To Do or In Progress column id.
+- **Assignment-safe create.** Mine tasks attach to the signed-in admin, and People tasks attach to the selected assignee using the existing PM task create payload.
+- **Browser-found fixes.** The modal now cache-busts project reads, resolves the current user through the shared auth token path, and closes immediately after a successful create before background refresh work.
+- **No schema change.** The work reuses the existing PM task API and `assigned_to` field.
+- **Docs parity.** Checked `alloro-docs`; no matching customer-facing Projects/PM project-board documentation exists, so no docs edit was required.
+
+**Commits:**
+- `frontend/src/components/pm/CreateTaskModal.tsx`, `AssigneeTabView.tsx`, and `MeKanbanBoard.tsx` — assigned-board add controls, required project selection, locked columns, assignee payload, and post-create refresh.
+- `frontend/src/api/pm.ts`, `frontend/src/api/index.ts`, `frontend/src/utils/currentUser.ts`, and `frontend/src/utils/jwt.ts` — cache-busted PM modal fetches and centralized current-user token decoding.
+- `frontend/src/components/pm/*test.tsx`, `frontend/src/utils/currentUser.test.ts`, `frontend/src/utils/jwt.test.ts`, and `frontend/src/api/index.test.ts` — focused regression coverage for the modal, board controls, auth fallback, and JWT decoding.
+- `plans/07152026-project-board-add-items/` — completed spec, passing acceptance artifact, and browser QA screenshot evidence.
+
+## [0.0.162] - July 2026
+
+### Remove retired AI Data Insights admin workflow
+
+The retired admin AI Data Insights / Agent Enhancements workflow has been removed from the Admin Hub. Old AI Data Insights URLs now redirect to Mission Control, the sidebar no longer exposes the view, the `/api/admin/agent-insights` API surface is unmounted, and the dead Guardian/Governance runner code has been removed. Built on `plans/07152026-remove-ai-data-insights`; backend/frontend TypeScript, strict conventions, `check:all`, diff checks, authenticated API acceptance, and browser UI acceptance pass. Docs parity is N/A because the Alloro Docs repo has no matching references to the retired admin surface.
+
+**Key Changes:**
+- **Admin UI removal.** Removed the AI Data Insights list/detail pages, Agent Enhancements sidebar item, recommendation card, query hooks, cache keys, and frontend insight types.
+- **Safe old-route handling.** Direct visits to `/admin/ai-data-insights` and detail URLs redirect to `/admin/mission-control`.
+- **API removal.** Removed the `/api/admin/agent-insights` mount, route, controller domain, and related summary/recommendation helper code.
+- **Dead job cleanup.** Removed the disabled Guardian/Governance runner handler, webhook payload builder, validator/parser services, and stale model helpers that only supported that retired path.
+- **Plan-backed acceptance.** `test-results.json` passes with browser route/sidebar evidence and authenticated local API evidence for the removed admin route.
+
+**Commits:**
+- `frontend/src/pages/Admin.tsx`, `frontend/src/components/Admin/shell/AdminSidebar.tsx`, frontend admin pages/components/types/hooks/query cache — removed the retired admin view and redirected old URLs.
+- `src/app.ts`, `src/routes/adminAgentInsights.ts`, and `src/controllers/admin-agent-insights/` — unmounted and deleted the retired admin insights API domain.
+- `src/controllers/agents/`, `src/routes/agentsV2.ts`, `src/models/AgentRecommendationModel.ts`, and `src/models/AgentResultModel.ts` — removed Guardian/Governance runner glue and stale insight helpers.
+- `plans/07152026-remove-ai-data-insights/` — completed spec plus passing acceptance artifact.
+
 ## [0.0.161] - July 2026
 
 ### Admin OS import fidelity, multi-file drop, and editor parity

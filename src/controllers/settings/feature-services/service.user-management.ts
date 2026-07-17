@@ -2,6 +2,7 @@ import { OrganizationUserModel } from "../../../models/OrganizationUserModel";
 import { InvitationModel } from "../../../models/InvitationModel";
 import { OrganizationModel } from "../../../models/OrganizationModel";
 import { sendEmail } from "../../../emails/emailService";
+import { buildInvitationEmail } from "../../../emails/templates/AccountEmailTemplates";
 import {
   generateInvitationToken,
   calculateTokenExpiry,
@@ -109,33 +110,11 @@ export async function inviteUserToOrganization(
   const emailResult = await sendEmail({
     category: "account",
     subject: `You've been invited to join ${organizationName} on Alloro`,
-    body: `
-      <div style="font-family: sans-serif; padding: 20px; max-width: 600px;">
-        <h2 style="color: #1a1a1a;">You've been invited to Alloro</h2>
-        <p style="color: #4a5568; font-size: 16px;">
-          You've been invited to join <strong>${organizationName}</strong> on Alloro with the role of <strong>${assignedRole}</strong>.
-        </p>
-        <p style="color: #4a5568; font-size: 16px;">
-          Alloro helps you track and optimize your online presence with data-driven insights.
-        </p>
-        <div style="margin: 30px 0;">
-          <a href="${signupUrl}"
-             style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: 500;">
-            Create Your Account
-          </a>
-        </div>
-        <p style="color: #718096; font-size: 14px;">
-          Click the button above to create your account and join <strong>${organizationName}</strong>.
-        </p>
-        <p style="color: #718096; font-size: 14px; margin-top: 20px;">
-          If you didn't expect this invitation, you can safely ignore this email.
-        </p>
-        <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 30px 0;">
-        <p style="color: #a0aec0; font-size: 12px;">
-          This invitation was sent by Alloro on behalf of ${organizationName}.
-        </p>
-      </div>
-    `,
+    body: buildInvitationEmail({
+      organizationName,
+      role: assignedRole,
+      signupUrl,
+    }),
     recipients: [email.toLowerCase()],
   });
 
@@ -202,33 +181,11 @@ export async function resendInvitation(
   const emailResult = await sendEmail({
     category: "account",
     subject: `You've been invited to join ${organizationName} on Alloro`,
-    body: `
-      <div style="font-family: sans-serif; padding: 20px; max-width: 600px;">
-        <h2 style="color: #1a1a1a;">You've been invited to Alloro</h2>
-        <p style="color: #4a5568; font-size: 16px;">
-          You've been invited to join <strong>${organizationName}</strong> on Alloro with the role of <strong>${invite.role}</strong>.
-        </p>
-        <p style="color: #4a5568; font-size: 16px;">
-          Alloro helps you track and optimize your online presence with data-driven insights.
-        </p>
-        <div style="margin: 30px 0;">
-          <a href="${signupUrl}"
-             style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: 500;">
-            Create Your Account
-          </a>
-        </div>
-        <p style="color: #718096; font-size: 14px;">
-          Click the button above to create your account and join <strong>${organizationName}</strong>.
-        </p>
-        <p style="color: #718096; font-size: 14px; margin-top: 20px;">
-          If you didn't expect this invitation, you can safely ignore this email.
-        </p>
-        <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 30px 0;">
-        <p style="color: #a0aec0; font-size: 12px;">
-          This invitation was sent by Alloro on behalf of ${organizationName}.
-        </p>
-      </div>
-    `,
+    body: buildInvitationEmail({
+      organizationName,
+      role: invite.role,
+      signupUrl,
+    }),
     recipients: [invite.email],
   });
 

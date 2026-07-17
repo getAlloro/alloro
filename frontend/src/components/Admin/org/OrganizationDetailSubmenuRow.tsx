@@ -3,7 +3,6 @@ import {
   Archive,
   ArrowRightLeft,
   Bell,
-  CheckSquare,
   Code,
   Database,
   DollarSign,
@@ -38,7 +37,6 @@ const AGENT_TAB_CONFIG: Record<
   OrganizationDetailAgentTabKey,
   { label: string; icon: ReactNode }
 > = {
-  tasks: { label: "Tasks Hub", icon: <CheckSquare className="h-3.5 w-3.5" /> },
   notifications: { label: "Notifications", icon: <Bell className="h-3.5 w-3.5" /> },
   rankings: { label: "Rankings", icon: <Trophy className="h-3.5 w-3.5" /> },
   pms: { label: "PMS Ingestion", icon: <Database className="h-3.5 w-3.5" /> },

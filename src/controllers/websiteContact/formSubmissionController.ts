@@ -22,6 +22,7 @@
 
 import { Request, Response } from "express";
 import { sanitize } from "./websiteContact-utils/sanitization";
+import { deriveSubmissionSource } from "./feature-utils/sourceAttribution";
 import { sendEmailWebhook, WebhookError } from "./websiteContact-services/emailWebhookService";
 import { isIpFlooding, isDuplicateContent, hashContents } from "./websiteContact-services/floodDetectionService";
 import { analyzePatterns, SPAM_THRESHOLD } from "./websiteContact-services/contentPatternService";
@@ -420,6 +421,34 @@ export async function handleFormSubmission(req: Request, res: Response): Promise
       logger.error({ err: lookupErr }, "[Form Submission] Recipient lookup failed:");
     }
 
+    // ── Source attribution (Slice 4 moat): the honest entry channel ──
+    // The frontend carries the visitor's FIRST-TOUCH source to the submit; the
+    // submit Referer is the practice's own page (internal), so it is only a
+    // cross-site fallback. Unknown → null, never a guessed channel (Value #6).
+    // The derived PROVENANCE is persisted alongside the label (source_method),
+    // so a browser-supplied claim is never stored with the authority of a
+    // server-side classification (§5.2) — see sourceAttribution.ts.
+    const projectHosts = [
+      project.generated_hostname
+        ? `${project.generated_hostname}.sites.getalloro.com`
+        : null,
+      project.hostname ? `${project.hostname}.sites.getalloro.com` : null,
+      project.custom_domain || null,
+      project.custom_domain_alt || null,
+    ].filter((h): h is string => Boolean(h));
+    const derivedSource = deriveSubmissionSource({
+      bodySource: typeof req.body.source === "string" ? req.body.source : null,
+      utmSource:
+        typeof req.body.utm_source === "string" ? req.body.utm_source : null,
+      firstTouchReferer:
+        typeof req.body.first_touch_referrer === "string"
+          ? req.body.first_touch_referrer
+          : null,
+      referer:
+        typeof req.headers.referer === "string" ? req.headers.referer : null,
+      projectHosts,
+    });
+
     // ── 13. Persist submission FIRST (unflagged) — guarantees DB record before AI call ──
     let submissionId: string | null = null;
     try {
@@ -429,6 +458,8 @@ export async function handleFormSubmission(req: Request, res: Response): Promise
         contents: finalContents,
         recipients_sent_to: recipients,
         sender_ip: senderIp,
+        source: derivedSource.source,
+        source_method: derivedSource.method,
         content_hash: contentHash,
         is_flagged: false,
       });

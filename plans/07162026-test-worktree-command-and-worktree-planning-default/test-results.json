@@ -1,0 +1,74 @@
+{
+  "plan": "plans/07162026-test-worktree-command-and-worktree-planning-default",
+  "generatedAt": "2026-07-16",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "T1",
+      "title": "Shared Claude, Codex, and Alloro Chat command files stay identical",
+      "surface": "cli",
+      "precondition": "The three shared instruction files have been patched.",
+      "steps": [
+        "Compare ~/.claude/CLAUDE.md with ~/.codex/AGENTS.md.",
+        "Compare ~/.claude/CLAUDE.md with alloro-chat/AGENTS.md.",
+        "Count the -tw and Worktree Bootstrap sections."
+      ],
+      "expected": "All three files are byte-identical and each new section occurs exactly once.",
+      "status": "pass",
+      "evidence": "cmp passed twice; final SHA-256 for all three files is 400fc73ce4da9d955583764b8e3e89a35d7a3c969e2a671f7e87ec22703085dd; section-count assertions passed.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Planning and test commands enforce linked-worktree boundaries",
+      "surface": "cli",
+      "precondition": "Run assertions from the primary Alloro checkout.",
+      "steps": [
+        "Assert -s creates a new secondary linked worktree from current HEAD by default.",
+        "Assert the portable root is derived from the primary worktree.",
+        "Compare absolute git-dir and git-common-dir for the current checkout.",
+        "Assert -tw requires those paths to differ."
+      ],
+      "expected": "The policy creates a fresh planning worktree and refuses -tw in this primary checkout.",
+      "status": "pass",
+      "evidence": "Text assertions passed; current Alloro git-dir equals git-common-dir, so the documented -tw hard gate classifies it as primary and refuses it.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "Alloro safety policy covers ports, auth, data, mail, queues, and missing adapter",
+      "surface": "cli",
+      "precondition": "Read Alloro AGENTS.md and package.json.",
+      "steps": [
+        "Assert the Alloro worktree root and seeded local auth are documented.",
+        "Assert dev/production DB writes are disabled by default.",
+        "Assert email uses a local capture sink.",
+        "Assert the shared network policy uses OS-assigned port 0.",
+        "Check whether package.json currently declares test:worktree."
+      ],
+      "expected": "Every safety invariant is present and the missing runtime adapter is reported honestly.",
+      "status": "pass",
+      "evidence": "All text assertions passed. package.json has no test:worktree script, matching the documented safe-refusal behavior.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T4",
+      "title": "Changes remain within instruction and plan scope",
+      "surface": "cli",
+      "precondition": "The Alloro and Alloro Chat trees already contain unrelated user work.",
+      "steps": [
+        "Inspect scoped diffs for Alloro CLAUDE.md and AGENTS.md.",
+        "Inspect the Alloro Chat AGENTS.md diff.",
+        "Run scoped whitespace checks."
+      ],
+      "expected": "Only requested instruction files and this plan are changed by this work; unrelated application changes remain untouched.",
+      "status": "pass",
+      "evidence": "Scoped diffs contain only the requested workflow sections; scoped git diff --check passes in both repos. Existing PM source changes and alloro-chat/package-lock.json remain outside this patch.",
+      "notes": "",
+      "waiver": ""
+    }
+  ]
+}

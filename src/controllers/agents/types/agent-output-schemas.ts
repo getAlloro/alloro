@@ -3,7 +3,7 @@
  *
  * These types define the EXACT structure n8n must return for each agent.
  * All governance/lineage overhead has been stripped — only fields consumed
- * by the backend (task creation) and frontend (dashboard rendering) remain.
+ * by agent-output persistence and frontend dashboard rendering remain.
  *
  * Each agent's n8n workflow writes its result directly to `agent_results`
  * via the `run_id` correlation key. The `agent_output` column must conform
@@ -117,7 +117,7 @@ export interface OpportunityItem {
 /**
  * Opportunity Agent Output (array wrapper)
  *
- * Consumed by: Task creator (opportunities[]), ApprovedInsightCard (title, steps, expected_lift)
+ * Consumed by: monthly agent inspection and ApprovedInsightCard (title, steps, expected_lift)
  */
 export interface OpportunityAgentOutputItem {
   opportunities: OpportunityItem[];
@@ -145,7 +145,7 @@ export interface CroOptimizerItem {
 /**
  * CRO Optimizer Agent Output (array wrapper)
  *
- * Consumed by: Task creator only (no frontend rendering)
+ * Consumed by: monthly agent inspection only (no frontend rendering)
  */
 export interface CroOptimizerAgentOutputItem {
   opportunities: CroOptimizerItem[];
@@ -212,8 +212,8 @@ export interface ReferralPracticeAction {
 /**
  * Referral Engine Agent Output
  *
- * Consumed by: Task creator (alloro_automation_opportunities + practice_action_plan),
- * Dashboard (growth summary, referral matrices, executive summary)
+ * Consumed by: monthly Summary context and Dashboard (growth summary,
+ * referral matrices, executive summary)
  */
 export interface ReferralEngineAgentOutput {
   executive_summary?: string[];
@@ -430,8 +430,8 @@ export const DomainSummarySchema = z.object({
 export const SummaryV2OutputSchema = z
   .object({
     // Simplified to a single "one thing that matters" action. Upper bound kept
-    // at 5 so older multi-action outputs still validate; the task-creator
-    // persists only the top-ranked entry. plans/06092026-practice-hub-simplification.
+    // at 5 so older multi-action outputs still validate; the dashboard selects
+    // the top-ranked entry. plans/06092026-practice-hub-simplification.
     top_actions: z.array(TopActionSchema).min(1).max(5),
     domain_summaries: z.array(DomainSummarySchema).max(6).optional(),
     data_quality_flags: z.array(z.string()).optional(),

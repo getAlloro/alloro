@@ -16,7 +16,6 @@ import { CogitatingLoader } from "../components/ui/CogitatingLoader";
 import { GBPIntegrationModal } from "../components/GBPIntegrationModal";
 import { ClarityIntegrationModal } from "../components/ClarityIntegrationModal";
 import { PatientJourneyDashboard } from "../components/dashboard/patient-journey/PatientJourneyDashboard";
-import { TasksView } from "../components/tasks/TasksView";
 import { AnimatePresence, motion } from "framer-motion";
 import { useLocation, useNavigate } from "react-router-dom";
 
@@ -58,7 +57,6 @@ export default function Dashboard() {
     | "Patient Journey Insights"
     | "PMS Statistics"
     | "Rankings"
-    | "Tasks"
     | "Referral Engine"
   >("Dashboard");
 
@@ -72,7 +70,6 @@ export default function Dashboard() {
       return "Patient Journey Insights";
     if (path.startsWith("/pmsStatistics")) return "PMS Statistics";
     if (path.startsWith("/rankings")) return "Rankings";
-    if (path.startsWith("/tasks")) return "Tasks";
     if (path.startsWith("/referralEngine")) return "Referral Engine";
     return "Dashboard";
   };
@@ -377,13 +374,6 @@ export default function Dashboard() {
 
                   {activeTab === "Rankings" && (
                     <RankingsDashboard
-                      organizationId={userProfile?.organizationId ?? null}
-                      locationId={locationId}
-                    />
-                  )}
-
-                  {activeTab === "Tasks" && (
-                    <TasksView
                       organizationId={userProfile?.organizationId ?? null}
                       locationId={locationId}
                     />

@@ -19,6 +19,7 @@ import { Response } from "express";
 import { AuthRequest } from "../../middleware/auth";
 import { PmTaskAttachmentModel } from "../../models/PmTaskAttachmentModel";
 import { PmTaskModel } from "../../models/PmTaskModel";
+import { PmTaskCommentModel } from "../../models/PmTaskCommentModel";
 import { UserModel } from "../../models/UserModel";
 import {
   uploadToS3,
@@ -30,11 +31,14 @@ import {
   ALLOWED_MIME_TYPES,
   BLOCKED_MIME_TYPES,
   MAX_FILE_SIZE_BYTES,
+  isCommentImageMime,
   isMimePreviewable,
 } from "./pm-attachments-utils/constants";
 import { buildAttachmentS3Key } from "./pm-attachments-utils/s3-key";
 import { logPmActivity } from "./pmActivityLogger";
 import logger from "../../lib/logger";
+
+type MulterRequest = AuthRequest & { file?: Express.Multer.File };
 
 function handleError(res: Response, error: unknown, operation: string): Response {
   logger.error({ err: error }, `[PM-ATTACHMENTS] ${operation} failed:`);
@@ -62,13 +66,17 @@ export async function uploadAttachment(
 ): Promise<any> {
   try {
     const taskId = req.params.id;
+    const commentId =
+      typeof req.body?.comment_id === "string" && req.body.comment_id.trim()
+        ? req.body.comment_id.trim()
+        : null;
 
     const task = await PmTaskModel.findById(taskId);
     if (!task) {
       return res.status(404).json({ success: false, error: "Task not found" });
     }
 
-    const file = (req as any).file as Express.Multer.File | undefined;
+    const file = (req as MulterRequest).file;
     if (!file) {
       return res
         .status(400)
@@ -94,6 +102,31 @@ export async function uploadAttachment(
         .json({ success: false, error: `MIME type not allowed: ${mime}` });
     }
 
+    if (commentId) {
+      if (!isCommentImageMime(mime)) {
+        return res.status(400).json({
+          success: false,
+          error: "Comment attachments must be images",
+        });
+      }
+      const comment = await PmTaskCommentModel.findOne({
+        id: commentId,
+        task_id: taskId,
+      });
+      if (!comment) {
+        return res
+          .status(404)
+          .json({ success: false, error: "Comment not found" });
+      }
+      const callerId = Number(req.user!.userId);
+      if (comment.author_id !== callerId) {
+        return res.status(403).json({
+          success: false,
+          error: "Only the comment author can attach images to this comment",
+        });
+      }
+    }
+
     const originalName = file.originalname || "upload";
     const s3Key = buildAttachmentS3Key(taskId, originalName);
 
@@ -104,6 +137,7 @@ export async function uploadAttachment(
     // (attachments are immutable once uploaded).
     const created = await PmTaskAttachmentModel.insertMetadata({
       task_id: taskId,
+      comment_id: commentId,
       uploaded_by: req.user!.userId,
       filename: originalName,
       s3_key: s3Key,
@@ -118,6 +152,7 @@ export async function uploadAttachment(
       action: "attachment_added",
       metadata: {
         attachment_id: created.id,
+        comment_id: commentId,
         filename: originalName,
         mime_type: mime,
         size_bytes: file.size,
@@ -146,7 +181,7 @@ export async function listAttachments(
       return res.status(404).json({ success: false, error: "Task not found" });
     }
 
-    const rows = await PmTaskAttachmentModel.listByTaskWithUploader(taskId);
+    const rows = await PmTaskAttachmentModel.listStandaloneByTaskWithUploader(taskId);
 
     // users.id is BIGINT → pg driver returns it as string on the JWT,
     // but uploaded_by (INTEGER) comes back as number. Coerce once so all
@@ -155,6 +190,7 @@ export async function listAttachments(
     const attachments = rows.map((row: any) => ({
       id: row.id,
       task_id: row.task_id,
+      comment_id: row.comment_id ?? null,
       uploaded_by: row.uploaded_by,
       uploaded_by_name: row.uploader_email
         ? row.uploader_email.split("@")[0]

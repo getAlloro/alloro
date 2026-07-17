@@ -1,0 +1,103 @@
+{
+  "plan": "plans/07172026-ranking-copy-honesty-guardrail",
+  "generatedAt": "2026-07-17",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "A1",
+      "title": "Generated ranking recommendations never claim posts cause a rank outcome",
+      "surface": "cli",
+      "precondition": "Synthetic ranking analysis containing the exact reviewed post-to-rank recommendation",
+      "steps": [
+        "1. Pass the generated analysis through sanitizeRankingLlmAnalysis",
+        "2. Inspect top_recommendations title, description, and expected_outcome",
+        "3. Confirm the post action remains but every causal rank promise is replaced with an honest patient-consideration outcome"
+      ],
+      "expected": "The central backend guardrail removes the false rank outcome from every recommendation narrative field without dropping the recommendation",
+      "status": "pass",
+      "evidence": "Rev 3: src/__tests__/service.ranking-output-guardrails.test.ts passed 20/20. Seven causal claims rewrite, including the exact 'Weekly Google posts drive higher rankings.' and a separate pushes/map-pack variant. Seven independent post/rank shapes remain byte-identical, including the exact review-growth sentence.",
+      "notes": "The guard requires the post source to govern the causal rank predicate in its own clause. Hard punctuation and a coordinator that introduces a new explicit subject end that source clause.",
+      "waiver": ""
+    },
+    {
+      "id": "A2",
+      "title": "Overview copy keeps rank facts while removing the post-to-rank promise",
+      "surface": "cli",
+      "precondition": "Synthetic overview text with a real #3 Local Search fact and a generated weekly-post protection claim",
+      "steps": [
+        "1. Pass the overview through sanitizeRankingLlmAnalysis at search position 3",
+        "2. Confirm the factual rank sentence remains",
+        "3. Confirm the post action no longer says it protects or improves position, standing, or rank"
+      ],
+      "expected": "The measured rank remains visible and only the unsupported causal claim changes",
+      "status": "pass",
+      "evidence": "src/__tests__/service.ranking-output-guardrails.test.ts — the overview regression preserves 'ranked #3 in Local Search' while removing the weekly-post protection claim; the two-direction corpus also preserves unrelated rank facts and post-engagement clauses byte-for-byte.",
+      "notes": "Synthetic data only; no stored ranking analysis was read or rewritten.",
+      "waiver": ""
+    },
+    {
+      "id": "A3",
+      "title": "Prompt and Local Visibility walkthrough state the honest product contract",
+      "surface": "cli",
+      "precondition": "Updated ranking prompt and wizard configuration",
+      "steps": [
+        "1. Inspect the prompt rule for post outcomes and true ranking levers",
+        "2. Run the focused owner-copy frontend sweep",
+        "3. Confirm the wizard no longer promises a fresh Google post due indicator"
+      ],
+      "expected": "Prompt prevention and frontend static copy agree with the deterministic backend guardrail",
+      "status": "pass",
+      "evidence": "Prompt source inspected; frontend ownerCopyHonesty.test.ts plus rankingsDashboard.utils.test.ts passed 15/15; repository search found no shipped wizard copy promising a fresh Google post due",
+      "notes": "The Local Visibility step keeps its existing selector and now describes only the sampled tracked-search position.",
+      "waiver": ""
+    },
+    {
+      "id": "A4",
+      "title": "Requested repository verification gates pass",
+      "surface": "cli",
+      "precondition": "Implementation complete in the isolated PR 155 remediation worktree",
+      "steps": [
+        "1. Run focused backend and frontend tests",
+        "2. Run npx tsc --noEmit and the frontend production build",
+        "3. Run npm run check:conventions -- --strict and git diff --check"
+      ],
+      "expected": "Every requested command exits zero, with exact counts and any advisory output recorded",
+      "status": "pass",
+      "evidence": "Rev 3 focused backend: 20/20. Full backend suite: 68 files / 516 tests passed. npx tsc --noEmit, npm run check:conventions -- --strict, and git diff --check all exited 0; strict conventions reported 0 clear backend structural violations. The prior frontend 15/15, frontend production build, and Alloro Docs production build remain historical evidence and were not rerun because Rev 3 changes backend guardrail code/tests and this plan's artifacts only.",
+      "notes": "Strict output retained existing advisory baselines (one frontend any, one dangerouslySetInnerHTML, test-only token reads, six integration-test raw queries, and tenant-scope heuristics); none are in this patch.",
+      "waiver": ""
+    },
+    {
+      "id": "A5",
+      "title": "Alloro Docs parity removes the same post-to-rank claims",
+      "surface": "cli",
+      "precondition": "Clean linked docs worktree based on the current local alloro-docs HEAD",
+      "steps": [
+        "1. Replace the Local Rankings replica's weekly-post rank-protection claim with a patient-consideration outcome",
+        "2. Replace Reviews & Posts guidance saying fresh posts help ranking",
+        "3. Run the docs production build and search the changed files for remaining post/rank causal claims"
+      ],
+      "expected": "Documentation and the app state the same engagement-only post contract, without absorbing the dirty primary docs checkout",
+      "status": "pass",
+      "evidence": "alloro-docs commit 3c6c80f in /Users/rustinedave/Desktop/alloro-docs-worktrees/ranking-copy-honesty updates exactly the two stale files. npm run build passed (2,125 modules); changed-file post/rank causal search returned no match.",
+      "notes": "The original dirty alloro-docs checkout remains untouched. This focused docs commit must be published through the docs repository's normal path alongside the app PR.",
+      "waiver": ""
+    },
+    {
+      "id": "A6",
+      "title": "Clause ownership separates a post cause from a later review-growth cause",
+      "surface": "cli",
+      "precondition": "The Rev 3 guardrail and exact regression strings in the isolated PR #155 worktree",
+      "steps": [
+        "1. Sanitize 'Weekly Google posts drive higher rankings.' and confirm it rewrites to the honest post action",
+        "2. Sanitize 'Google posts help patients and review growth improves rank.'",
+        "3. Confirm the second sentence and its highlight remain byte-identical"
+      ],
+      "expected": "A direct post-to-rank causal predicate is removed, while a new subject after the coordinator owns its own rank predicate and is preserved",
+      "status": "pass",
+      "evidence": "Both exact cases passed in src/__tests__/service.ranking-output-guardrails.test.ts (20/20 focused) and in the 68-file / 516-test full backend run.",
+      "notes": "This is deterministic unit-level behavioral evidence; no stored ranking analysis was read or rewritten.",
+      "waiver": ""
+    }
+  ]
+}

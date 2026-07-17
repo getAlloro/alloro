@@ -5,7 +5,7 @@
  * the active location, fetches two single-day windows + Rybbit analytics,
  * builds the Proofline payload, runs the agent via Claude directly, validates,
  * and returns the output + flattened raw data in memory (no DB writes here —
- * persistence happens in processClient under a transaction).
+ * persistence is owned by the Proofline executor).
  *
  * Split out of service.agent-orchestrator.ts in the decomposition pass —
  * behavior identical. Re-exported from service.agent-orchestrator.ts to

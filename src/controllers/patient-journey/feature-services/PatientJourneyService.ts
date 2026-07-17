@@ -26,6 +26,7 @@ import type {
 import { buildMemorableCard } from "../feature-utils/memorableCard";
 import { ReviewModel } from "../../../models/website-builder/ReviewModel";
 import { GbpReadinessService } from "../../gbp-automation/feature-services/GbpReadinessService";
+import { MetricActionService } from "../../../services/MetricActionService";
 import { buildBookableCandidate } from "../feature-utils/funnelMath";
 import {
   buildConversions,
@@ -183,6 +184,7 @@ export async function assemblePatientJourney(
     reviews,
     priorReviews,
     replyOpportunity,
+    latestMetricAction,
   ] =
     await Promise.all([
       projectId
@@ -210,6 +212,15 @@ export async function assemblePatientJourney(
         input.organizationId,
         input.locationId,
       ),
+      projectId
+        ? MetricActionService.findLatestForJourney({
+            organizationId: location.organizationId,
+            locationId: location.id,
+            projectId,
+            periodStart: monthStart,
+            periodEnd: monthEnd,
+          })
+        : Promise.resolve(null),
     ]);
 
   const memorableCard = buildMemorableCard({
@@ -232,15 +243,18 @@ export async function assemblePatientJourney(
   });
 
   const stages: PatientJourneyStage[] = [
-    toStage(
-      "impressions",
-      "Google Visibility",
-      "Google search impressions",
-      "Google Search Console",
-      impressions,
-      true,
-      isMulti,
-    ),
+    {
+      ...toStage(
+        "impressions",
+        "Google Visibility",
+        "Google search impressions",
+        "Google Search Console",
+        impressions,
+        true,
+        isMulti,
+      ),
+      actions: latestMetricAction ? [latestMetricAction] : [],
+    },
     toStage(
       "visits",
       "Website Visitors",

@@ -70,6 +70,13 @@ export const PREVIEWABLE_MIME_TYPES: string[] = [
   "video/mp4",
 ];
 
+export const COMMENT_IMAGE_MIME_TYPES: string[] = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+];
+
 /**
  * Explicitly rejected — even if somehow they squeak onto the allowed list,
  * these are hard-denied. Guards against executable/script upload abuse.
@@ -96,4 +103,8 @@ export function isMimeAllowed(mime: string): boolean {
 
 export function isMimePreviewable(mime: string): boolean {
   return PREVIEWABLE_MIME_TYPES.includes(mime);
+}
+
+export function isCommentImageMime(mime: string): boolean {
+  return COMMENT_IMAGE_MIME_TYPES.includes(mime);
 }

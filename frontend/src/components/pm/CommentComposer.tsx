@@ -1,355 +1,200 @@
-/**
- * CommentComposer — write a new comment (or edit an existing one) with
- * @-mention autocomplete sourced from /api/pm/users.
- *
- * Mentions are maintained as a controlled number[] on the side of the
- * body string. When the user selects a suggestion, we insert the
- * `@display_name` token into the body AND push the user's id into the
- * mentions array. The server persists the array verbatim — nothing is
- * re-parsed from the body text.
- *
- * The popup lives in a local absolutely-positioned div pinned under the
- * caret line. Arrow keys navigate, Enter/Tab selects, Escape closes.
- *
- * This file also exports `CommentEditor` — a slimmer variant used by
- * CommentsSection for inline edit of an existing comment.
- */
-
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-
-interface PmUser {
-  id: number;
-  display_name: string;
-  email: string;
-}
-
-interface CommentComposerProps {
-  /**
-   * Kept for caller convenience / future hooks — the composer itself is
-   * presentational and never talks to the server; the parent handles I/O.
-   */
-  taskId?: string;
-  users: PmUser[];
-  initialBody?: string;
-  initialMentions?: number[];
-  submitting?: boolean;
-  placeholder?: string;
-  submitLabel?: string;
-  onSubmit: (body: string, mentions: number[]) => Promise<void> | void;
-  onCancel?: () => void;
-  autoFocus?: boolean;
-}
-
-interface PopupState {
-  open: boolean;
-  query: string;
-  anchor: { top: number; left: number } | null;
-  /** Text position of the `@` trigger (caret index at the start of the @) */
-  triggerAt: number;
-  selectedIndex: number;
-}
-
-const EMPTY_POPUP: PopupState = {
-  open: false,
-  query: "",
-  anchor: null,
-  triggerAt: -1,
-  selectedIndex: 0,
-};
+import { Send } from "lucide-react";
+import type { PmUser } from "../../types/pm";
+import { CommentComposerInput } from "./CommentComposerInput";
+import { CommentMentionPopup } from "./CommentMentionPopup";
+import {
+  EMPTY_MENTION_POPUP,
+  filterMentionUsers,
+  findMentionQuery,
+  pruneMentionIds,
+  removeMentionFromBody,
+} from "./commentComposer.utils";
+import type { CommentComposerProps, MentionPopupState } from "./commentComposer.types";
+import { useCommentImages } from "./useCommentImages";
 
 export function CommentComposer({
   users,
   initialBody = "",
   initialMentions = [],
   submitting = false,
-  placeholder = "Write a comment… (markdown supported, use @ to mention)",
+  placeholder = "Add an update, mention a teammate, or attach a screenshot...",
   submitLabel = "Comment",
+  allowImages = false,
   onSubmit,
   onCancel,
   autoFocus = false,
 }: CommentComposerProps) {
-  const [body, setBody] = useState<string>(initialBody);
-  const [mentions, setMentions] = useState<number[]>(initialMentions);
-  const [popup, setPopup] = useState<PopupState>(EMPTY_POPUP);
+  const [body, setBody] = useState(initialBody);
+  const [mentions, setMentions] = useState(initialMentions);
+  const [popup, setPopup] = useState<MentionPopupState>(EMPTY_MENTION_POPUP);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  const filtered = useMemo(() => {
-    if (!popup.open) return [];
-    const q = popup.query.toLowerCase();
-    return users
-      .filter((u) => u.display_name.toLowerCase().includes(q))
-      .slice(0, 8);
-  }, [popup.open, popup.query, users]);
-
-  useEffect(() => {
-    if (!popup.open) return;
-    // If the selected index is out of range after filter, clamp.
-    if (popup.selectedIndex >= filtered.length) {
-      setPopup((p) => ({
-        ...p,
-        selectedIndex: Math.max(0, filtered.length - 1),
-      }));
-    }
-  }, [popup.open, filtered.length, popup.selectedIndex]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageState = useCommentImages(allowImages);
+  const filteredUsers = useMemo(
+    () => filterMentionUsers(users, popup.query, popup.isOpen),
+    [popup.isOpen, popup.query, users],
+  );
 
   useEffect(() => {
     if (autoFocus) textareaRef.current?.focus();
   }, [autoFocus]);
 
-  const closePopup = useCallback(() => setPopup(EMPTY_POPUP), []);
+  useEffect(() => {
+    if (popup.selectedIndex < filteredUsers.length) return;
+    setPopup((current) => ({
+      ...current,
+      selectedIndex: Math.max(0, filteredUsers.length - 1),
+    }));
+  }, [filteredUsers.length, popup.selectedIndex]);
 
-  const evaluatePopup = useCallback(
-    (value: string, caret: number) => {
-      // Walk backwards from the caret to find an @ not preceded by a
-      // letter/number/_. If we hit whitespace before @, no match.
-      let i = caret - 1;
-      while (i >= 0) {
-        const ch = value[i];
-        if (ch === "@") {
-          // Confirm @ is at string start or preceded by whitespace/punctuation
-          const prev = i === 0 ? " " : value[i - 1];
-          if (/\s|[,.;:!?()[\]{}]/.test(prev) || i === 0) {
-            const query = value.slice(i + 1, caret);
-            // If query has whitespace, close.
-            if (/\s/.test(query)) {
-              closePopup();
-              return;
-            }
-            // Compute anchor position relative to the textarea. We use
-            // bottom-left of the textarea as the anchor — simpler than
-            // measuring caret pixel position and plenty good for our UX.
-            const ta = textareaRef.current;
-            if (!ta) return;
-            const rect = ta.getBoundingClientRect();
-            const parent =
-              ta.parentElement?.getBoundingClientRect() ?? rect;
-            setPopup({
-              open: true,
-              query,
-              anchor: {
-                top: rect.bottom - parent.top + 4,
-                left: rect.left - parent.left + 12,
-              },
-              triggerAt: i,
-              selectedIndex: 0,
-            });
-            return;
+  const evaluateMentionPopup = useCallback((value: string, caret: number) => {
+    const query = findMentionQuery(value, caret);
+    setPopup(
+      query
+        ? {
+            isOpen: true,
+            query: query.query,
+            triggerAt: query.triggerAt,
+            selectedIndex: 0,
           }
-        }
-        if (/\s/.test(ch)) {
-          break;
-        }
-        i--;
-      }
-      closePopup();
-    },
-    [closePopup]
-  );
-
-  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const value = e.target.value;
-    setBody(value);
-    const caret = e.target.selectionStart ?? value.length;
-    evaluatePopup(value, caret);
-  };
-
-  const handleSelect = () => {
-    const ta = textareaRef.current;
-    if (!ta) return;
-    evaluatePopup(ta.value, ta.selectionStart ?? ta.value.length);
-  };
+        : EMPTY_MENTION_POPUP,
+    );
+  }, []);
 
   const insertMention = useCallback(
     (user: PmUser) => {
-      const ta = textareaRef.current;
-      if (!ta) return;
-      const caret = ta.selectionStart ?? body.length;
-      const start = popup.triggerAt;
-      if (start < 0) return;
-      const before = body.slice(0, start);
-      const after = body.slice(caret);
-      const insert = `@${user.display_name} `;
-      const next = `${before}${insert}${after}`;
-      setBody(next);
-      if (!mentions.includes(user.id)) {
-        setMentions((prev) => [...prev, user.id]);
-      }
-      closePopup();
-      // Restore caret after the inserted token.
-      const nextCaret = start + insert.length;
-      // Defer to let React flush the new value.
+      const textarea = textareaRef.current;
+      if (!textarea || popup.triggerAt < 0) return;
+      const caret = textarea.selectionStart ?? body.length;
+      const insertion = `@${user.display_name} `;
+      const nextBody = `${body.slice(0, popup.triggerAt)}${insertion}${body.slice(caret)}`;
+      const nextCaret = popup.triggerAt + insertion.length;
+      setBody(nextBody);
+      setMentions((current) =>
+        current.includes(user.id) ? current : [...current, user.id],
+      );
+      setPopup(EMPTY_MENTION_POPUP);
       requestAnimationFrame(() => {
-        const el = textareaRef.current;
-        if (!el) return;
-        el.focus();
-        el.selectionStart = el.selectionEnd = nextCaret;
+        textarea.focus();
+        textarea.selectionStart = textarea.selectionEnd = nextCaret;
       });
     },
-    [body, mentions, popup.triggerAt, closePopup]
+    [body, popup.triggerAt],
   );
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (popup.open && filtered.length > 0) {
-      if (e.key === "ArrowDown") {
-        e.preventDefault();
-        setPopup((p) => ({
-          ...p,
-          selectedIndex: (p.selectedIndex + 1) % filtered.length,
-        }));
-        return;
-      }
-      if (e.key === "ArrowUp") {
-        e.preventDefault();
-        setPopup((p) => ({
-          ...p,
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (popup.isOpen && filteredUsers.length > 0) {
+      const delta =
+        event.key === "ArrowDown" ? 1 : event.key === "ArrowUp" ? -1 : 0;
+      if (delta !== 0) {
+        event.preventDefault();
+        setPopup((current) => ({
+          ...current,
           selectedIndex:
-            (p.selectedIndex - 1 + filtered.length) % filtered.length,
+            (current.selectedIndex + delta + filteredUsers.length) %
+            filteredUsers.length,
         }));
         return;
       }
-      if (e.key === "Enter" || e.key === "Tab") {
-        e.preventDefault();
-        insertMention(filtered[popup.selectedIndex]);
+      if (event.key === "Enter" || event.key === "Tab") {
+        event.preventDefault();
+        insertMention(filteredUsers[popup.selectedIndex]);
         return;
       }
-      if (e.key === "Escape") {
-        e.preventDefault();
-        closePopup();
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setPopup(EMPTY_MENTION_POPUP);
         return;
       }
     }
-
-    // Cmd/Ctrl+Enter submit shortcut
-    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-      e.preventDefault();
-      handleSubmit();
+    if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+      event.preventDefault();
+      void handleSubmit();
     }
   };
 
   const handleSubmit = useCallback(async () => {
-    const trimmed = body.trim();
-    if (!trimmed || submitting) return;
-    // Prune mention ids that are no longer referenced in the body to
-    // reflect deletions made by the user between typing and submit.
-    const present = mentions.filter((id) => {
-      const u = users.find((x) => x.id === id);
-      if (!u) return false;
-      return body.includes(`@${u.display_name}`);
-    });
-    await onSubmit(trimmed, present);
+    const trimmedBody = body.trim();
+    const effectiveBody =
+      trimmedBody || (imageState.images.length > 0 ? "Image attached" : "");
+    if (!effectiveBody || submitting) return;
+    await onSubmit(
+      effectiveBody,
+      pruneMentionIds(body, mentions, users),
+      imageState.images.map((image) => image.file),
+    );
     setBody("");
     setMentions([]);
-  }, [body, mentions, onSubmit, submitting, users]);
+    imageState.clearImages();
+  }, [body, imageState, mentions, onSubmit, submitting, users]);
 
   return (
     <div className="relative">
-      <textarea
-        ref={textareaRef}
-        value={body}
-        onChange={handleChange}
-        onSelect={handleSelect}
-        onClick={handleSelect}
+      <CommentComposerInput
+        allowImages={allowImages}
+        body={body}
+        fileInputRef={fileInputRef}
+        imageError={imageState.error}
+        images={imageState.images}
+        mentionedUsers={mentions
+          .map((id) => users.find((user) => user.id === id))
+          .filter((user): user is PmUser => Boolean(user))}
+        onAddFiles={imageState.addFiles}
+        onBlur={() => window.setTimeout(() => setPopup(EMPTY_MENTION_POPUP), 120)}
+        onChange={(value, caret) => {
+          setBody(value);
+          evaluateMentionPopup(value, caret);
+        }}
         onKeyDown={handleKeyDown}
-        onBlur={() => {
-          // Delay close so clicks on popup items land before we close.
-          setTimeout(() => closePopup(), 120);
+        onRemoveImage={imageState.removeImage}
+        onRemoveMention={(user) => {
+          setMentions((current) => current.filter((id) => id !== user.id));
+          setBody((current) => removeMentionFromBody(current, user.display_name));
         }}
         placeholder={placeholder}
-        rows={3}
-        className="w-full resize-y rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-1"
-        style={{
-          borderColor: "var(--color-pm-border)",
-          backgroundColor: "var(--color-pm-bg-primary)",
-          color: "var(--color-pm-text-primary)",
-        }}
+        textareaRef={textareaRef}
       />
 
-      {popup.open && filtered.length > 0 && popup.anchor && (
-        <div
-          className="absolute z-40 max-h-52 min-w-[220px] overflow-y-auto rounded-lg border shadow-lg"
-          style={{
-            top: popup.anchor.top,
-            left: popup.anchor.left,
-            backgroundColor: "var(--color-pm-bg-secondary)",
-            borderColor: "var(--color-pm-border)",
-            boxShadow: "var(--pm-shadow-elevated)",
-          }}
-        >
-          <ul className="py-1 text-sm">
-            {filtered.map((u, idx) => (
-              <li key={u.id}>
-                <button
-                  type="button"
-                  onMouseDown={(e) => {
-                    // prevent textarea blur before click registers
-                    e.preventDefault();
-                    insertMention(u);
-                  }}
-                  onMouseEnter={() =>
-                    setPopup((p) => ({ ...p, selectedIndex: idx }))
-                  }
-                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left"
-                  style={{
-                    backgroundColor:
-                      idx === popup.selectedIndex
-                        ? "var(--color-pm-bg-hover)"
-                        : "transparent",
-                    color: "var(--color-pm-text-primary)",
-                  }}
-                >
-                  <span
-                    className="flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-semibold"
-                    style={{
-                      backgroundColor: "var(--color-pm-bg-primary)",
-                      color: "#D66853",
-                      border: "1px solid var(--color-pm-border)",
-                    }}
-                  >
-                    {u.display_name.charAt(0).toUpperCase()}
-                  </span>
-                  <span className="flex-1 truncate">{u.display_name}</span>
-                  <span
-                    className="text-[10px]"
-                    style={{ color: "var(--color-pm-text-muted)" }}
-                  >
-                    {u.email}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <CommentMentionPopup
+        isOpen={popup.isOpen}
+        onHover={(selectedIndex) =>
+          setPopup((current) => ({ ...current, selectedIndex }))
+        }
+        onSelect={insertMention}
+        selectedIndex={popup.selectedIndex}
+        users={filteredUsers}
+      />
 
-      <div className="mt-2 flex items-center justify-end gap-2">
-        {onCancel && (
+      <div className="mt-2 flex items-center justify-between gap-2">
+        <p className="text-[11px] text-pm-text-muted">
+          {allowImages
+            ? "Paste, drop, or pick images. Cmd/Ctrl+Enter posts."
+            : "Cmd/Ctrl+Enter saves."}
+        </p>
+        <div className="flex items-center gap-2">
+          {onCancel && (
+            <button
+              type="button"
+              className="rounded-lg px-3 py-1.5 text-xs font-medium text-pm-text-muted hover:bg-pm-bg-hover"
+              onClick={onCancel}
+            >
+              Cancel
+            </button>
+          )}
           <button
             type="button"
-            onClick={onCancel}
-            className="rounded-lg px-3 py-1.5 text-xs font-medium"
-            style={{ color: "var(--color-pm-text-muted)" }}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-pm-accent px-3 py-1.5 text-xs font-semibold text-white transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={
+              (!body.trim() && imageState.images.length === 0) || submitting
+            }
+            onClick={() => void handleSubmit()}
           >
-            Cancel
+            <Send className="h-3.5 w-3.5" />
+            {submitting ? "Saving…" : submitLabel}
           </button>
-        )}
-        <button
-          type="button"
-          onClick={handleSubmit}
-          disabled={!body.trim() || submitting}
-          className="rounded-lg px-3 py-1.5 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
-          style={{ backgroundColor: "#D66853" }}
-        >
-          {submitting ? "Saving…" : submitLabel}
-        </button>
+        </div>
       </div>
     </div>
   );
-}
-
-/**
- * CommentEditor — inline edit shell that reuses CommentComposer. Kept as a
- * named export so the CommentsSection list item can render it in place.
- */
-export function CommentEditor(props: CommentComposerProps) {
-  return <CommentComposer {...props} autoFocus submitLabel="Save" />;
 }
