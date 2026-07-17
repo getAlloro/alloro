@@ -235,19 +235,19 @@
     },
     {
       "id": "T15",
-      "title": "PR #158 exact-head remediation closes all four round-8 findings",
+      "title": "PR #158 exact-head remediation closes round-8 findings and the modifier bypass",
       "surface": "cli",
       "precondition": "GeneratedCopySafetyService, GbpContentSafetyService, answer-first lint, and the canonical acceptance receipt on the isolated PR #158 remediation head",
       "steps": [
-        "1. Run the exact unrelated-negation sentence and predicate-class variants through GeneratedCopySafetyService",
+        "1. Run unrelated-negation sentences with direct, adverb-modified, modal-modified, and multi-modifier positive predicates through GeneratedCopySafetyService",
         "2. Run raw override, raw isolate, and entity-encoded bidi controls through both generated-copy and GBP reply safety services",
         "3. Run visible-answer, collapsed-answer, and nav/chrome answer-first fixtures",
         "4. Validate the exact plan path, the ui|api|cli|none surface enum, and the extracted claim-negation file sizes"
       ],
       "expected": "Unrelated positive promises block while genuinely shared negation still passes; unsafe bidi controls block before matching; answer_behind_accordion describes only a candidate answer inside collapsed non-chrome content; the §20.5 receipt is canonical and claimNegation.ts stays below the §2.4 ceiling",
       "status": "pass",
-      "evidence": "src/__tests__/generated-copy-safety.test.ts, src/__tests__/answer-first-structure-lint.test.ts, src/__tests__/copy-normalization.test.ts, and src/__tests__/gbp-content-safety.test.ts passed in the focused 6-file / 754-test run and the full 66-file / 1210-test run. The JSON receipt validator reported the exact plan path, only canonical surface values, and a Passed rollup. wc -l reported claimNegation.ts at 664 lines and claimNegationBoundary.ts at 81 lines.",
-      "notes": "The stacked PR #159 consumer remains compatible at the shared service contract: standard blocked results still carry aligned reasonCodes and reasons, pinned by the generated-copy service test. No PR #159 files or other worktrees were edited. A synthetic merged-stack suite was not run.",
+      "evidence": "The round-9 modifier corpus passes 12 must-block and 5 must-pass cases in src/__tests__/generated-copy-safety.test.ts, including ordinary adverbs and 'will almost certainly guarantee' while preserving 'will almost certainly not guarantee'. Focused generated-copy + GBP safety run: 47/47 pass. Full suite: 66 files / 1219 tests pass. TypeScript and strict conventions exit 0; dependency-cruiser reports 0 errors and 38 existing warnings; changed-file ESLint reports 0 errors. The receipt validator reports the exact plan path, canonical surfaces, and a Passed rollup.",
+      "notes": "An independent audit disproved the prior direct-adjacency fixture as class coverage: an ordinary modifier between the coordinator/modal and positive claim verb bypassed the rule. The matcher now allows a bounded run of arbitrary non-negating modifier words and explicitly excludes negators, so the two directions stay distinct. PR #159 carries its own hard-gate regression and must merge this head before final verification.",
       "waiver": ""
     }
   ]
