@@ -38,6 +38,7 @@ import * as gscPerformance from "./feature-services/service.gsc-performance";
 import * as harvestLogInspector from "./feature-services/service.harvest-log-inspector";
 import * as rybbitHistory from "./feature-services/service.rybbit-history";
 import * as rybbitIntegration from "./feature-services/service.rybbit-integration";
+import * as rybbitProvisioning from "./feature-services/service.rybbit";
 import * as rybbitPerformance from "./feature-services/service.rybbit-performance";
 import * as crmIntegration from "./feature-services/service.crm-integration";
 import { CrmIntegrationError } from "./feature-services/service.crm-integration";
@@ -572,6 +573,16 @@ export async function createRybbitIntegration(req: Request, res: Response): Prom
     return ok(res, result, 201);
   } catch (error) {
     return failRybbitError(res, error, "Failed to save Rybbit integration");
+  }
+}
+
+export async function provisionRybbitPreview(req: Request, res: Response): Promise<Response> {
+  try {
+    const projectId = String(req.params.id);
+    const result = await rybbitProvisioning.provisionPreviewAnalytics(projectId);
+    return ok(res, result);
+  } catch (error) {
+    return failRybbitError(res, error, "Failed to provision preview analytics");
   }
 }
 
