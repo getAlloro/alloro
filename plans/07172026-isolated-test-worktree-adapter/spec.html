@@ -1,0 +1,476 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Isolated Test Worktree Adapter Spec</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); margin-top: 14px; }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .status-card { border-color: var(--ink) !important; }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 900px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; letter-spacing: 0; }
+    h2 { font-size: 1.35rem; letter-spacing: 0; }
+    h3 { font-size: 1rem; letter-spacing: 0; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; overflow-wrap: anywhere; }
+    .meta-grid, .split-grid, .decision-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div, .decision-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; overflow-wrap: anywhere; }
+    ul, ol { padding-left: 1.25rem; }
+    li + li { margin-top: 7px; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    .callout { border-left: 4px solid var(--ink); padding: 14px 16px; background: var(--soft); }
+    .task-card dl { display: grid; gap: 12px; margin-bottom: 0; }
+    .task-card dl div { border-top: 1px solid var(--line); padding-top: 10px; }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-completed">Completed</span>
+      </div>
+      <h1>Isolated Test Worktree Adapter</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/07172026-isolated-test-worktree-adapter</dd></div>
+        <div><dt>Size</dt><dd>Large</dd></div>
+        <div><dt>Risk</dt><dd>Level 4 — Major Impact</dd></div>
+        <div><dt>Planning Worktree</dt><dd>/Users/rustinedave/Desktop/alloro-worktrees/isolated-test-worktree-adapter</dd></div>
+        <div><dt>Planning Branch</dt><dd>codex/isolated-test-worktree-adapter</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>
+        Alloro cannot currently run <code>-tw</code> acceptance safely because the repository has no
+        <code>test:worktree</code> adapter. Feature worktrees therefore cannot prove that the browser,
+        API, database, queues, workers, email, and external-service boundaries belong to that worktree
+        without risking shared dev or production systems.
+      </p>
+      <p>
+        This is repository infrastructure, not a per-feature implementation. Once it lands, every
+        secondary Alloro worktree can reuse the adapter with feature-specific fixture and worker
+        selections.
+      </p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>
+        Add a fail-closed <code>npm run test:worktree</code> adapter that starts a disposable local
+        Alloro runtime tied to the verified secondary worktree and its exact <code>HEAD</code>.
+        It will emit a machine-readable manifest with a unique browser origin, authenticated bootstrap
+        URL, health URL, dependency ports, safety modes, logs, and an exact teardown command.
+      </p>
+      <p>
+        The first fixture profiles will be <code>baseline</code> and <code>gbp-posts</code>. The latter
+        provides synthetic One Endodontics-like organization, location, review, Google connection, and
+        Google property rows without real credentials or PII, plus a local Anthropic-compatible response
+        fixture so Google-post draft acceptance can run without an external AI call.
+      </p>
+      <div class="callout">
+        <strong>Completion contract:</strong> two concurrent linked worktrees can start independent
+        runtimes, authenticate locally, exercise the named browser/API/worker surfaces, capture email
+        locally, reject non-local server requests, and tear down without touching shared services.
+      </div>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+
+      <h3>Worktree Provenance</h3>
+      <ul>
+        <li><strong>Source checkout:</strong> <code>/Users/rustinedave/Desktop/alloro-worktrees/google-post-draft-reliability</code></li>
+        <li><strong>Source branch:</strong> <code>codex/google-post-draft-reliability</code></li>
+        <li><strong>Source HEAD:</strong> <code>c047377c8247b756c0e7c021299506972aad6c57</code></li>
+        <li><strong>New worktree:</strong> <code>/Users/rustinedave/Desktop/alloro-worktrees/isolated-test-worktree-adapter</code></li>
+        <li><strong>New branch:</strong> <code>codex/isolated-test-worktree-adapter</code></li>
+        <li>The source checkout was dirty. Its uncommitted Google-post changes are intentionally not present here.</li>
+      </ul>
+
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>package.json</code> — owns the repository adapter command; it currently has no <code>test:worktree</code> script.</li>
+        <li><code>src/index.ts</code> — production API bootstrap; currently performs startup side effects and does not safely support port <code>0</code>.</li>
+        <li><code>src/app.ts</code> — importable Express app and the correct analog for a dedicated test-runtime API launcher.</li>
+        <li><code>frontend/vite.config.ts</code> — currently fixes Vite to port <code>5174</code> and proxies API calls to port <code>3000</code>.</li>
+        <li><code>src/database/config.ts</code> — central Knex configuration and migration/seed paths.</li>
+        <li><code>src/database/migrations/</code> — current migration history starts by altering pre-existing core tables, so it cannot bootstrap an empty database alone.</li>
+        <li><code>src/database/seeds/20260427000001_pms_column_mappings_global.ts</code> — reference for deterministic, idempotent seed behavior.</li>
+        <li><code>src/controllers/auth-otp/feature-services/service.jwt-management.ts</code> — canonical JWT minting path.</li>
+        <li><code>src/controllers/admin/auth/feature-services/service.pilot-session.ts</code> — existing Pilot-session behavior to preserve and exercise.</li>
+        <li><code>src/emails/emailInterceptor.ts</code> — currently performs public IP/DNS checks and rewrites recipients outside production.</li>
+        <li><code>src/emails/transport/n8nTransport.ts</code> — existing HTTP email transport contract that can target a local capture server.</li>
+        <li><code>src/workers/worker.ts</code> — currently starts every worker and recurring schedule at module load.</li>
+        <li><code>src/workers/queues.ts</code> and <code>src/workers/wb-queues.ts</code> — queue factories that must point only to the runtime Redis instance.</li>
+        <li><code>src/__tests__/helpers/app.ts</code>, <code>src/__tests__/helpers/auth.ts</code>, and <code>src/__tests__/setup.ts</code> — references for hermetic app loading, real JWT signing, and fail-safe test environment defaults.</li>
+        <li><code>scripts/billing-reset-test-org.ts</code> — closest CLI analog for explicit safety interlocks and hard refusal.</li>
+        <li><code>AGENTS.md</code> — already defines the required <code>-tw</code> isolation and manifest contract.</li>
+      </ul>
+
+      <h3>Patterns And Constitution Articles</h3>
+      <ul>
+        <li><strong>§4.4:</strong> use Node, Docker Compose, existing Knex/BullMQ/Vite libraries, and current transports before adding dependencies.</li>
+        <li><strong>§5.1, §5.3, §5.6:</strong> keep secrets out of code/manifests/logs and fail at startup when any safety configuration is missing or invalid.</li>
+        <li><strong>§6.1, §6.2:</strong> mirror the importable app and existing CLI/test helpers; keep adapter-only infrastructure under <code>scripts/test-worktree/</code>.</li>
+        <li><strong>§9.1–§9.3:</strong> runtime application and worker logs use Pino with useful runtime/job context and no sensitive values.</li>
+        <li><strong>§10.1, §10.3, §10.5:</strong> use Knex for fixture writes, keep test reference data out of production migrations, and seed related rows transactionally.</li>
+        <li><strong>§11.5:</strong> mint short-lived local JWTs through the existing signer and set them through an httpOnly, host-only cookie bootstrap; never put tokens in URLs or the manifest.</li>
+        <li><strong>§20.1–§20.5:</strong> test the adapter’s success and refusal paths with synthetic data, then ship and run behavioral acceptance artifacts during execution.</li>
+        <li><strong>§21.1–§21.4:</strong> preserve worker idempotency/retry behavior, keep business logic in existing services/processors, and log named-worker failures with context.</li>
+      </ul>
+
+      <p>
+        <strong>Reference analog:</strong> <code>src/app.ts</code> for side-effect-free app loading,
+        <code>scripts/billing-reset-test-org.ts</code> for fail-closed CLI behavior, and
+        <code>src/workers/processors/</code> plus the current worker declarations for registry parity.
+        No React component, API-client triad, or dashboard UX change is planned, so frontend §12.1 is not
+        invoked; the only frontend change is test-runtime Vite configuration.
+      </p>
+    </section>
+
+    <section class="spec-card" id="decisions">
+      <h2>Design Decisions</h2>
+      <div class="decision-grid">
+        <div>
+          <h3>Database</h3>
+          <p>
+            Use a disposable <code>pgvector</code> Postgres container. Restore a committed schema-only
+            baseline derived from the dev database with <code>--no-owner</code>,
+            <code>--no-privileges</code>, and no table data. Record the baseline’s applied migration
+            names separately, then run branch-pending Knex migrations.
+          </p>
+        </div>
+        <div>
+          <h3>Fixtures</h3>
+          <p>
+            Seed only synthetic rows in one transaction. Fixture profiles are additive and explicit.
+            The default profile is small and feature-neutral; <code>gbp-posts</code> adds only the rows
+            required for Google-post acceptance.
+          </p>
+        </div>
+        <div>
+          <h3>Authentication</h3>
+          <p>
+            Generate a fresh runtime JWT after seeding. Store it in a mode-0600 runtime file. A
+            test-only same-origin Vite middleware endpoint consumes the file and returns a one-time
+            bootstrap page that writes the JWT to localStorage on the runtime's unique origin, deletes
+            the bootstrap material, and redirects to <code>/admin</code>. This matches the existing
+            frontend contract that reads the JWT to build the Authorization header.
+          </p>
+        </div>
+        <div>
+          <h3>Email</h3>
+          <p>
+            Start a local HTTP capture server and route the existing n8n transport to it. Worktree mode
+            bypasses the public-IP discovery in <code>emailInterceptor.ts</code> but never bypasses the
+            local-only transport restriction.
+          </p>
+        </div>
+        <div>
+          <h3>AI And External Calls</h3>
+          <p>
+            Start a local Anthropic-compatible fixture server and point the existing SDK to it through
+            environment configuration. Apply a Node preload outbound guard that permits loopback and the
+            runtime’s local hosts only; unknown external server requests fail visibly.
+          </p>
+        </div>
+        <div>
+          <h3>Workers</h3>
+          <p>
+            Refactor declarations into a registry. Production keeps the complete current worker and
+            schedule set. Worktree mode starts no workers by default and accepts an explicit named
+            allowlist; recurring schedules remain disabled.
+          </p>
+        </div>
+        <div>
+          <h3>Ports And Origin</h3>
+          <p>
+            Node services and Vite bind port <code>0</code>. Docker publishes random host ports.
+            The browser origin uses a unique <code>*.localhost</code> hostname based on worktree path
+            plus <code>HEAD</code>, avoiding cookie collisions across runtimes.
+          </p>
+        </div>
+        <div>
+          <h3>Lifecycle</h3>
+          <p>
+            A supervisor process owns child PIDs and the Compose project. The start command exits only
+            after writing the manifest. The manifest’s stop command terminates recorded PIDs and that
+            Compose project only; it never kills by port.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Prove the current checkout is a secondary linked Git worktree before starting anything.</li>
+            <li>Derive runtime identity from the absolute worktree path and exact <code>HEAD</code>, not branch name alone.</li>
+            <li>Use an allowlisted generated environment; validate that no checkout <code>.env</code> value is copied implicitly.</li>
+            <li>Require Docker and Compose explicitly; fail closed with clear guidance if unavailable.</li>
+            <li>Use a disposable writable Postgres database and isolated Redis instance for every runtime.</li>
+            <li>Use the <code>pgvector</code> image because current migrations and schema require the <code>vector</code> extension.</li>
+            <li>Scan the committed schema baseline and fixture artifacts for data rows, credentials, owner/grant statements, and likely PII.</li>
+            <li>Keep all tokens out of URLs, cookies, command output, manifests, and logs.</li>
+            <li>Start no worker unless explicitly named, and never start recurring schedules in worktree mode.</li>
+            <li>Keep normal production worker behavior unchanged when worktree mode is absent.</li>
+            <li>Emit a versioned JSON manifest and bounded health-check results before declaring the runtime ready.</li>
+            <li>Tear down after success or failure unless the caller explicitly requests <code>--keep</code>.</li>
+            <li>Support the documented admin bootstrap and seeded Pilot flow into the synthetic One Endodontics fixture.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>Do not connect to or write to dev, production, or any shared local database/Redis service.</li>
+            <li>Do not fall back to fixed ports, random-number port guesses, manual increments, or killing unrelated processes by port.</li>
+            <li>Do not copy, source, print, or activate the repository’s <code>.env</code>.</li>
+            <li>Do not clone production data or include real user/client PII in the baseline or fixtures.</li>
+            <li>Do not send email, publish Google posts, call real AI providers, start Stripe writes, or enable any third-party write path.</li>
+            <li>Do not add a second application auth implementation, a long-lived shared test token, or a cross-origin bootstrap token.</li>
+            <li>Do not put test-only routes into the Express production router.</li>
+            <li>Do not refactor worker processor business logic while extracting the registry.</li>
+            <li>Do not change dashboard UI or Alloro Docs as part of this infrastructure plan.</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Mocking every Alloro external integration in the first release.</li>
+        <li>Automated Google Business Profile deployment or any sandbox/provider write.</li>
+        <li>Production deployment of the current Google-post feature branch.</li>
+        <li>Replacing Vitest unit tests or the normal dev environment.</li>
+        <li>Building a cross-repository universal adapter; each repository owns its application-specific adapter.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 4 — Major Impact</p>
+
+      <h3>Risks Identified</h3>
+      <ul>
+        <li>
+          <strong>Production worker startup can regress during registry extraction.</strong>
+          <strong>Mitigation:</strong> preserve a complete default registry, add a parity test that names every current
+          worker and recurring schedule, and make selective mode reachable only through an explicit test-runtime flag.
+        </li>
+        <li>
+          <strong>The Git migration chain cannot build the original core schema from an empty database.</strong>
+          <strong>Mitigation:</strong> commit a schema-only dev baseline and applied-migration metadata, prove it contains
+          no table data or secrets, then run only branch-pending migrations in the disposable database.
+        </li>
+        <li>
+          <strong>A broad test harness can become an unmaintainable mock of the whole platform.</strong>
+          <strong>Mitigation:</strong> keep a small core adapter and explicit fixture profiles. Unknown integrations remain
+          blocked until a feature adds a deterministic local fixture.
+        </li>
+        <li>
+          <strong>Bootstrap tokens can leak through URLs or logs.</strong>
+          <strong>Mitigation:</strong> use a same-origin tokenless, one-time bootstrap URL backed by a mode-0600 file;
+          write the token only into unique-origin localStorage required by the existing frontend auth client, then
+          delete the file and keep all token material out of logs/manifests.
+        </li>
+        <li>
+          <strong>Docker availability can make acceptance unavailable on some machines.</strong>
+          <strong>Mitigation:</strong> treat Docker/Compose as an explicit prerequisite and fail closed. There is no shared
+          database or Redis fallback.
+        </li>
+        <li>
+          <strong>The outbound guard can block legitimate local SDK behavior or miss a transport path.</strong>
+          <strong>Mitigation:</strong> centralize the local allowlist, test HTTP/HTTPS/fetch/DNS refusal paths, and record
+          blocked destinations without request bodies, credentials, or tokens.
+        </li>
+        <li>
+          <strong>A schema snapshot can drift behind migrations.</strong>
+          <strong>Mitigation:</strong> store provenance and applied migration names, run branch-pending migrations every
+          startup, and add a controlled refresh command plus schema-baseline verification tests.
+        </li>
+      </ul>
+
+      <h3>Pushback</h3>
+      <ul>
+        <li>
+          A sanitized production-data clone is not the right first implementation. It adds PII handling, stale data,
+          larger artifacts, and unclear consent. The recommended path is schema-only plus synthetic fixtures.
+        </li>
+        <li>
+          Reusing normal <code>npm run dev</code> is unsafe. It assumes fixed ports, starts the full worker fleet, uses the
+          checkout environment, and cannot prove dependency isolation. A dedicated runtime launcher is required.
+        </li>
+        <li>
+          Editing queue prefixes alone is not enough. Separate disposable Redis instances provide the actual isolation;
+          named worker startup controls behavior and blast radius.
+        </li>
+      </ul>
+
+      <p>
+        <strong>Blast radius:</strong> local developer tooling, API startup configuration, Vite dev-server configuration,
+        email interception in non-production test mode, all BullMQ worker startup declarations, queue shutdown behavior,
+        database bootstrap fixtures, and the <code>-tw</code> acceptance workflow. Existing request controllers,
+        processor business logic, production database schema, and user-facing dashboard behavior should remain unchanged.
+      </p>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+
+      <article class="task-card">
+        <h3>T1: Runtime CLI, linked-worktree gate, supervision, and manifest</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add the package command and a typed CLI under <code>scripts/test-worktree/</code>. Implement <code>start</code>, <code>stop</code>, and status/cleanup behavior; prove the checkout is secondary; derive a collision-resistant runtime ID; create a private runtime directory; validate Docker/Compose; supervise only recorded PIDs and the runtime Compose project; write the versioned manifest atomically.</dd></div>
+          <div><dt>Files</dt><dd><code>package.json</code>; new <code>scripts/test-worktree/index.ts</code>, <code>feature-services/service.runtime-supervisor.ts</code>, <code>feature-services/service.worktree-verifier.ts</code>, <code>feature-utils/util.runtime-id.ts</code>, <code>feature-utils/util.manifest.ts</code>, and shared types/config.</dd></div>
+          <div><dt>Depends on</dt><dd>None</dd></div>
+          <div><dt>Verify</dt><dd>Unit tests cover primary-checkout refusal, detached secondary support, dirty-worktree reporting, runtime-ID stability, manifest validation, atomic writes, recorded-PID teardown, and refusal to kill by port.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: Disposable Postgres/Redis and deterministic schema/fixture bootstrap</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add a runtime-scoped Compose definition using Postgres with pgvector and Redis with random host ports. Add a controlled dev-only schema refresh tool, committed schema-only baseline, applied-migration metadata, baseline scanners, branch-pending migration execution, and transactional synthetic fixture profiles <code>baseline</code> and <code>gbp-posts</code>.</dd></div>
+          <div><dt>Files</dt><dd>New <code>scripts/test-worktree/docker-compose.yml</code>; <code>schema/refresh.ts</code>, <code>schema/baseline.sql</code>, <code>schema/metadata.json</code>, <code>schema/verify.ts</code>; <code>fixtures/seed.ts</code>, <code>fixtures/baseline.ts</code>, and <code>fixtures/gbp-posts.ts</code>.</dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>Restore into an empty disposable database, insert migration metadata, run <code>knex migrate:latest</code>, seed fixtures twice safely, prove no real data/owners/grants/secrets exist in committed artifacts, and prove separate runtimes receive separate databases and Redis instances.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: Dynamic API/Vite startup and secure local authentication bootstrap</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add a dedicated API launcher that imports <code>src/app.ts</code>, performs only required local startup, binds <code>127.0.0.1:0</code>, and reports readiness. Make Vite accept a dynamic API proxy target and bind a unique <code>*.localhost</code> runtime origin on port <code>0</code>. Add test-only Vite middleware that consumes a short-lived JWT from a mode-0600 file, writes it to unique-origin localStorage through a one-time bootstrap page, and redirects to <code>/admin</code>, without adding a production Express route.</dd></div>
+          <div><dt>Files</dt><dd>New <code>scripts/test-worktree/start-api.ts</code> and auth-bootstrap helpers; update <code>frontend/vite.config.ts</code>; use <code>src/controllers/auth-otp/feature-services/service.jwt-management.ts</code> without duplicating signing logic.</dd></div>
+          <div><dt>Depends on</dt><dd>T1, T2</dd></div>
+          <div><dt>Verify</dt><dd>The bootstrap URL contains no token, the token file is mode 0600 and consumed once, the JWT lands only in localStorage for the unique runtime origin, the bootstrap cannot be reused, <code>/admin</code> opens without manual login, and the seeded Pilot flow enters the synthetic One Endodontics organization.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: Local email/AI captures and external-write network guard</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add local HTTP capture services for the existing n8n email transport and Anthropic-compatible message responses. Add a Node preload network guard that allows loopback/runtime hosts only. Add an explicit worktree-test path in the email interceptor that avoids public-IP/DNS calls while preserving capture evidence and preventing live delivery.</dd></div>
+          <div><dt>Files</dt><dd>New <code>scripts/test-worktree/services/email-capture.ts</code>, <code>services/anthropic-fixture.ts</code>, <code>outbound-guard.cjs</code>, and fixture-response modules; update <code>src/emails/emailInterceptor.ts</code> and its tests.</dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>Email payloads land in local JSONL evidence, no public IP lookup occurs in test mode, Google-post generation receives a deterministic local AI response, and attempted non-local HTTP/HTTPS/fetch/DNS access fails with redacted logs.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T5: Worker registry, named-worker allowlist, and schedule suppression</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Extract current worker declarations and recurring-schedule setup into a typed registry/factory. Preserve the current full production default. In worktree mode, start no workers unless named, validate names at startup, use only the runtime Redis, and leave recurring schedules disabled. Support <code>gbp-automation</code> for the first feature fixture.</dd></div>
+          <div><dt>Files</dt><dd>Update <code>src/workers/worker.ts</code>; add <code>src/workers/feature-services/service.worker-runtime.ts</code>, <code>src/workers/feature-utils/util.worker-registry.ts</code>, and tests; update queue shutdown helpers only where required.</dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>A registry parity test accounts for every current worker and recurring schedule; production defaults remain all-on; worktree defaults are all-off; an invalid worker name hard-fails; selecting <code>gbp-automation</code> starts only that worker and creates no repeat jobs.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T6: Adapter verification, operator contract, and real contained acceptance</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add automated adapter tests, update <code>AGENTS.md</code> with exact commands/manifest fields/fixture and worker options, run Constitution checks, and perform real acceptance from the secondary worktree. Start two runtimes concurrently, validate admin/Pilot/GBP fixture behavior, inspect local email/AI evidence, prove external requests are blocked, run named-worker processing, and tear both runtimes down.</dd></div>
+          <div><dt>Files</dt><dd>New tests under <code>src/__tests__/</code> and/or <code>scripts/test-worktree/**/*.test.ts</code>; update <code>AGENTS.md</code>; generate <code>test.html</code> and <code>test-results.json</code> in this plan folder during execution.</dd></div>
+          <div><dt>Depends on</dt><dd>T2, T3, T4, T5</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code>, targeted Vitest suites, <code>npm run check:all</code>, backend and frontend builds, manifest schema validation, browser evidence from the authenticated runtime origin, concurrent-isolation evidence, and clean teardown evidence.</dd></div>
+        </dl>
+      </article>
+
+      <p>
+        <strong>Execution strategy:</strong> T2, T4, and T5 may proceed in parallel after T1 because
+        their file boundaries are independent. T3 follows the database/auth fixture contract. T6 is the
+        integration gate and remains sequential.
+      </p>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" checked disabled> <code>npm run test:worktree</code> exists and defaults to safe runtime startup from a verified secondary linked worktree.</li>
+        <li><input type="checkbox" checked disabled> Running the command from the primary checkout or outside Git refuses before any service starts.</li>
+        <li><input type="checkbox" checked disabled> The manifest records runtime/worktree/HEAD identity, origin, tokenless bootstrap URL, health URL, assigned ports, dependency names, fixture, workers, safety modes, logs, and exact stop command.</li>
+        <li><input type="checkbox" checked disabled> Runtime logs and manifest contain no passwords, JWTs, cookies, provider keys, PII, or full environment dumps.</li>
+        <li><input type="checkbox" checked disabled> The runtime environment is generated from an allowlist and does not source or copy the checkout <code>.env</code>.</li>
+        <li><input type="checkbox" checked disabled> A disposable pgvector Postgres and isolated Redis are created per runtime with OS-assigned ports.</li>
+        <li><input type="checkbox" checked disabled> The schema-only baseline contains no table data, owners, grants, secrets, or likely PII; branch-pending migrations run successfully.</li>
+        <li><input type="checkbox" checked disabled> Synthetic <code>baseline</code> and <code>gbp-posts</code> fixtures seed transactionally and deterministically.</li>
+        <li><input type="checkbox" checked disabled> The authenticated bootstrap opens <code>/admin</code> without manual login and Pilot can enter the seeded One Endodontics fixture.</li>
+        <li><input type="checkbox" checked disabled> No token appears in the bootstrap URL, cookies, manifest, or logs; the one-time bootstrap consumes its mode-0600 file and stores the JWT only on the unique runtime origin.</li>
+        <li><input type="checkbox" checked disabled> Email is captured locally and the worktree runtime performs no public IP/DNS sender-discovery call.</li>
+        <li><input type="checkbox" checked disabled> Google-post draft generation uses the local Anthropic fixture and does not call or publish to Google.</li>
+        <li><input type="checkbox" checked disabled> Unknown non-local server network calls fail closed with redacted evidence.</li>
+        <li><input type="checkbox" checked disabled> Worktree mode starts no workers by default, starts only explicitly named workers, and never installs recurring schedules.</li>
+        <li><input type="checkbox" checked disabled> Production/default worker registry parity is proven against every current worker and schedule.</li>
+        <li><input type="checkbox" checked disabled> Two concurrent feature worktrees run with distinct browser origins, ports, databases, Redis instances, cookies, logs, and runtime IDs.</li>
+        <li><input type="checkbox" checked disabled> Normal and failure-path teardown remove only recorded processes and the named Compose project, leaving no runtime containers behind.</li>
+        <li><input type="checkbox" checked disabled> <code>npx tsc --noEmit</code>, targeted tests, <code>npm run check:all</code>, backend build, and frontend build pass with no new errors.</li>
+        <li><input type="checkbox" checked disabled> Execution produces passing <code>test.html</code> and <code>test-results.json</code> acceptance artifacts with real browser/API/CLI evidence.</li>
+        <li><input type="checkbox" checked disabled> No Alloro Docs update is required because this plan changes developer test infrastructure only, not dashboard behavior or visible product copy.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-07-17</h3>
+        <p><strong>Change:</strong> Replaced the non-functional httpOnly-cookie-only bootstrap with a one-time same-origin bootstrap page that stores the JWT in the unique runtime origin's localStorage and deletes the private token file.</p>
+        <p><strong>Reason:</strong> Execution deviation: the existing frontend must read the JWT to create the Authorization header and pass protected-route session checks; an httpOnly-only token would cause a login loop unless production auth architecture was expanded beyond this plan.</p>
+        <p><strong>Updated Done criteria:</strong> Token remains absent from URLs, cookies, manifests, and logs; the token file is mode 0600, single-use, deleted after consumption, and the resulting session is isolated by the unique runtime origin.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 2 - 2026-07-17</h3>
+        <p><strong>Change:</strong> Aligned disposable pgvector Postgres to the schema baseline's PostgreSQL 17 version, replaced Vite's unsupported port-0 behavior with an OS reservation-release-bind retry using strictPort, and changed fallback teardown to remove only resources carrying the exact Compose project label.</p>
+        <p><strong>Reason:</strong> Execution deviation: real contained startup showed PostgreSQL 16 rejected a PostgreSQL 17 dump setting, Vite mapped port 0 back to 5173 and collided under concurrency, and a redundant Compose down could not re-parse startup-only environment requirements after the supervisor had already cleaned its resources.</p>
+        <p><strong>Updated Done criteria:</strong> None; these changes make the existing PostgreSQL compatibility, OS-assigned port, concurrent-isolation, and teardown criteria executable.</p>
+      </article>
+    </section>
+
+    <section class="spec-card" id="handoff">
+      <h2>Integration Handoff</h2>
+      <p>
+        This adapter branch starts from committed <code>c047377c</code> and does not include the
+        uncommitted Google-post work. After the adapter is implemented, tested, reviewed, and integrated
+        into <code>dev/dave</code>, the Google-post feature worktree must merge or rebase that adapter
+        commit before rerunning <code>-tw</code>. The current Google-post acceptance remains legitimately
+        <strong>Not Run</strong> until then.
+      </p>
+    </section>
+  </main>
+</body>
+</html>
