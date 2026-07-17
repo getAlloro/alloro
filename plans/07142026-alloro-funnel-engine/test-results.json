@@ -247,7 +247,25 @@
       "expected": "Unrelated positive promises block while genuinely shared negation still passes; unsafe bidi controls block before matching; answer_behind_accordion describes only a candidate answer inside collapsed non-chrome content; the §20.5 receipt is canonical and claimNegation.ts stays below the §2.4 ceiling",
       "status": "pass",
       "evidence": "The round-9 modifier corpus passes 12 must-block and 5 must-pass cases in src/__tests__/generated-copy-safety.test.ts, including ordinary adverbs and 'will almost certainly guarantee' while preserving 'will almost certainly not guarantee'. Focused generated-copy + GBP safety run: 47/47 pass. Full suite: 66 files / 1219 tests pass. TypeScript and strict conventions exit 0; dependency-cruiser reports 0 errors and 38 existing warnings; changed-file ESLint reports 0 errors. The receipt validator reports the exact plan path, canonical surfaces, and a Passed rollup.",
-      "notes": "An independent audit disproved the prior direct-adjacency fixture as class coverage: an ordinary modifier between the coordinator/modal and positive claim verb bypassed the rule. The matcher now allows a bounded run of arbitrary non-negating modifier words and explicitly excludes negators, so the two directions stay distinct. PR #159 carries its own hard-gate regression and must merge this head before final verification.",
+      "notes": "An independent audit disproved the prior direct-adjacency fixture as class coverage: an ordinary modifier between the coordinator/modal and positive claim verb bypassed the rule. The matcher now allows a bounded run of arbitrary non-negating modifier words and explicitly excludes negators, so the two directions stay distinct. PR #159 merged this head and its own hard-gate integration regression passes; see T16.",
+      "waiver": ""
+    },
+    {
+      "id": "T16",
+      "title": "PR #159 exact-head remediation is atomic, fails closed, and pins the shared hard gate",
+      "surface": "cli",
+      "precondition": "PR #158 commits 9ab895c92c8c022b475ca532d04316069bbe2189 and 74c1f4edadc0b82a7dd4ebd4eecd38f8f030d743 are merged; transaction behavior is exercised at the mocked model seam",
+      "steps": [
+        "1. Force the recommendation-status write to reject after the page-draft SEO update inside the shared transaction",
+        "2. Assert the transaction rolls the retained draft state back and both writes receive the same transaction",
+        "3. Verify malformed approved metadata and a missing original page both downgrade verification to failed",
+        "4. Pass a modifier-bearing ranking promise through executeUpdatePageSeoSchema and assert that no schema write occurs",
+        "5. Run focused and full tests, TypeScript, strict conventions, lint, dependency-cruiser, and diff validation"
+      ],
+      "expected": "A failed status transition cannot retain a publishable page draft; unverifiable recommendations fail closed; typed recommendation rows replace the new any usage; the shared safety-service bypass cannot reach the #159 write path",
+      "status": "pass",
+      "evidence": "The modifier-bearing hard-gate regression failed against the prior #158 service and passes after merging 74c1f4eda. Focused write/publish/generated-copy/GBP safety run: exit 0, 4 files / 119 tests. Full suite: exit 0, 68 files / 1291 tests. npx tsc --noEmit: exit 0. npm run check:conventions -- --strict: exit 0, 0 clear structural violations. npm run lint: exit 0, 0 errors / 2385 advisory warnings. npm run depcruise: exit 0, 0 errors / 38 existing warnings. Changed-file ESLint and git diff --check: exit 0.",
+      "notes": "The rollback receipt is at the mocked model transaction seam, not a live PostgreSQL server. This PR changes no migration. The GBP identity snapshot remains an activation precondition for the dormant slice; it was not invented or marked complete here.",
       "waiver": ""
     },
     {
