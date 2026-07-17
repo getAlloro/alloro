@@ -466,6 +466,24 @@ export class GbpWorkItemModel extends BaseModel {
       });
   }
 
+  static async markBusinessInfoProviderStateUnknown(
+    id: string,
+    attemptId: string,
+    trx?: QueryContext
+  ): Promise<number> {
+    const providerState = JSON.stringify({
+      providerStateUnknown: true,
+      providerStateUnknownAt: new Date().toISOString(),
+      providerStateUnknownAttemptId: attemptId,
+    });
+    return this.table(trx)
+      .where({ id, status: "deploying", content_type: "business_info" })
+      .update({
+        metadata: (trx || db).raw("metadata || ?::jsonb", [providerState]),
+        updated_at: new Date(),
+      });
+  }
+
   static async markPublished(
     id: string,
     data: {
@@ -477,17 +495,22 @@ export class GbpWorkItemModel extends BaseModel {
   ): Promise<number> {
     return this.table(trx)
       .where({ id, status: "deploying" })
-      .update(this.serializeJsonFields({
-      status: "published",
-      published_content: data.publishedContent,
-      google_resource_name: data.googleResourceName,
-      google_response: data.googleResponse,
-      published_at: new Date(),
-      last_error_code: null,
-      last_error_message: null,
-      next_retry_at: null,
-      updated_at: new Date(),
-    }));
+      .update({
+        ...this.serializeJsonFields({
+          status: "published",
+          published_content: data.publishedContent,
+          google_resource_name: data.googleResourceName,
+          google_response: data.googleResponse,
+          published_at: new Date(),
+          last_error_code: null,
+          last_error_message: null,
+          next_retry_at: null,
+          updated_at: new Date(),
+        }),
+        metadata: (trx || db).raw(
+          "metadata - ARRAY['providerStateUnknown','providerStateUnknownAt','providerStateUnknownAttemptId']::text[]"
+        ),
+      });
   }
 
   static async syncPublishedLocalPost(

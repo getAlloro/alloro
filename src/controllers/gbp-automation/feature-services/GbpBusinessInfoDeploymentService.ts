@@ -7,7 +7,6 @@ import { GbpDeploymentAttemptModel } from "../../../models/GbpDeploymentAttemptM
 import type { GbpAttemptClaim, IGbpDeploymentAttempt } from "../../../models/GbpDeploymentAttemptModel";
 import { GbpWorkEventModel } from "../../../models/GbpWorkEventModel";
 import { GbpWorkItemModel, IGbpWorkItem } from "../../../models/GbpWorkItemModel";
-import { getGbpAutomationQueue } from "../../../workers/queues";
 import { getLocationProfileForRanking } from "../../gbp/gbp-services/location-handler.service";
 import { patchGbpBusinessInformation } from "../../gbp/gbp-services/gbp-write.service";
 import { GbpAutomationError } from "../feature-utils/GbpAutomationError";
@@ -20,6 +19,7 @@ import {
   mergePatchOverSnapshot,
 } from "../feature-utils/gbpBusinessInfo";
 import { GbpBusinessInfoReconcileService } from "./GbpBusinessInfoReconcileService";
+import { GbpBusinessInfoQueueService } from "./GbpBusinessInfoQueueService";
 import { GbpNotificationService } from "./GbpNotificationService";
 import { GbpReadinessService } from "./GbpReadinessService";
 import {
@@ -182,7 +182,7 @@ export class GbpBusinessInfoDeploymentService {
       );
     });
     try {
-      await this.addDeploymentJob(item, params);
+      await GbpBusinessInfoQueueService.ensureDeploymentScheduled(item, params);
     } catch (enqueueError) {
       await this.handleDeploymentEnqueueFailure(item, params, enqueueError);
     }
@@ -194,11 +194,13 @@ export class GbpBusinessInfoDeploymentService {
     const item = await this.getScopedItem(params);
     if (
       item.status === "deploying" &&
-      item.metadata?.deployQueueState === "pending"
+      (item.metadata?.deployQueueState === "pending" ||
+        item.metadata?.deployQueueState === "queued" ||
+        item.metadata?.providerStateUnknown === true)
     ) {
       await assertWritebackEnabled(item.organization_id, item.location_id);
       try {
-        await this.addDeploymentJob(item, params);
+        await GbpBusinessInfoQueueService.ensureDeploymentScheduled(item, params);
       } catch (enqueueError) {
         logger.error(
           { err: enqueueError, workItemId: item.id },
@@ -241,9 +243,13 @@ export class GbpBusinessInfoDeploymentService {
     // already happened" are different facts and the owner is told which one is true.
     const claim = await GbpWorkItemModel.claimBusinessInfoRevert(item.id);
     if (claim === "revert_in_progress") {
-      if (item.metadata?.revertQueueState === "pending") {
+      const current = (await GbpWorkItemModel.findById(item.id)) || item;
+      if (
+        current.metadata?.revertQueueState === "pending" ||
+        current.metadata?.revertQueueState === "queued"
+      ) {
         try {
-          await this.addRevertJob(item, params);
+          await GbpBusinessInfoQueueService.ensureRevertScheduled(current, params);
         } catch (enqueueError) {
           logger.error(
             { err: enqueueError, workItemId: item.id },
@@ -275,7 +281,7 @@ export class GbpBusinessInfoDeploymentService {
       );
     }
     try {
-      await this.addRevertJob(item, params);
+      await GbpBusinessInfoQueueService.ensureRevertScheduled(item, params);
     } catch (enqueueError) {
       await this.handleRevertEnqueueFailure(item, params, enqueueError);
     }
@@ -397,8 +403,12 @@ export class GbpBusinessInfoDeploymentService {
       previousValues,
       payload.updateMask
     );
+    const mustReconcileProvider =
+      hadSnapshot &&
+      (claim.state === "stale_attempt_running" ||
+        item.metadata?.providerStateUnknown === true);
     const reconciled =
-      claim.state === "stale_attempt_running" && hadSnapshot
+      mustReconcileProvider
         ? await GbpBusinessInfoReconcileService.reconcileAbandonedAttempt({
             item,
             attempt: claim.attempt,
@@ -487,6 +497,34 @@ export class GbpBusinessInfoDeploymentService {
     isFinalAttempt?: boolean;
   }): Promise<IGbpWorkItem> {
     const err = params.error as { code?: string; message?: string; details?: unknown };
+    if (err.code === "RECONCILE_READ_FAILED") {
+      await GbpWorkItemModel.transaction(async (trx) => {
+        await GbpDeploymentAttemptModel.markFailed(
+          params.attempt.id,
+          err.code || "RECONCILE_READ_FAILED",
+          err.message || "Provider state could not be established.",
+          err.details ? { details: err.details as Record<string, unknown> } : null,
+          trx
+        );
+        const markedUnknown = await GbpWorkItemModel.markBusinessInfoProviderStateUnknown(
+          params.item.id,
+          params.attempt.id,
+          trx
+        );
+        if (markedUnknown === 0) {
+          throw new GbpAutomationError(
+            "PROVIDER_STATE_UNKNOWN_PERSIST_FAILED",
+            "The live provider state is unknown and Alloro could not preserve the recovery gate."
+          );
+        }
+      });
+      logger.error(
+        { err: params.error, workItemId: params.item.id, attemptId: params.attempt.id },
+        "[GBP] reconciliation read failed; provider state remains unknown and future writes stay gated"
+      );
+      throw params.error;
+    }
+
     await GbpDeploymentAttemptModel.markFailed(
       params.attempt.id,
       err.code || "DEPLOY_FAILED",
@@ -597,48 +635,6 @@ export class GbpBusinessInfoDeploymentService {
       );
     });
     return (await GbpWorkItemModel.findById(item.id))!;
-  }
-
-  private static async addDeploymentJob(
-    item: IGbpWorkItem,
-    params: ScopedParams
-  ): Promise<void> {
-    await getGbpAutomationQueue("deployment").add(
-      "deploy-business-info",
-      {
-        workItemId: item.id,
-        userId: params.userId,
-        actorEmail: params.actorEmail || null,
-      },
-      {
-        jobId: `gbp-business-info-${item.id}-${item.retry_count || 0}`,
-        attempts: 3,
-        backoff: { type: "exponential", delay: 30000 },
-        removeOnComplete: { age: 86400, count: 1000 },
-        removeOnFail: { age: 604800, count: 5000 },
-      }
-    );
-  }
-
-  private static async addRevertJob(
-    item: IGbpWorkItem,
-    params: ScopedParams
-  ): Promise<void> {
-    await getGbpAutomationQueue("deployment").add(
-      "revert-business-info",
-      {
-        workItemId: item.id,
-        userId: params.userId,
-        actorEmail: params.actorEmail || null,
-      },
-      {
-        jobId: `gbp-business-info-revert-${item.id}`,
-        attempts: 3,
-        backoff: { type: "exponential", delay: 30000 },
-        removeOnComplete: { age: 86400, count: 1000 },
-        removeOnFail: { age: 604800, count: 5000 },
-      }
-    );
   }
 
   private static async recordDeployQueued(workItemId: string): Promise<void> {

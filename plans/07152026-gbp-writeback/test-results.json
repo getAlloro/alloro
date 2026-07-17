@@ -46,12 +46,13 @@
         "Fail revert queue insertion with successful claim release, then retry.",
         "Make deploy compensation return zero rows and reject.",
         "Make revert compensation return zero rows and reject.",
-        "Retry pending deploy/revert states and inspect deterministic BullMQ job IDs."
+        "Retry pending and already-queued deploy/revert states with retained failed BullMQ jobs.",
+        "Inspect active, waiting, delayed, completed, absent, and unknown deterministic-job states."
       ],
-      "expected": "Successful compensation returns draft/releases the claim. Rejected or zero-row compensation returns a recovery-required error and preserves a pending marker. Existing retry/revert actions safely re-enqueue or deduplicate the deterministic job.",
+      "expected": "Successful compensation returns draft/releases the claim. Rejected or zero-row compensation returns a recovery-required error. Recovery creates absent jobs, explicitly retries failed/completed jobs, accepts active/waiting/delayed jobs as scheduled, and fails closed on unknown state for both deploy and revert.",
       "status": "pass",
-      "evidence": "src/__tests__/gbp-business-info-writeback.test.ts: enqueue-compensation block, 8/8 passed.",
-      "notes": "The service never claims draft/released state unless the compensating update affected one row.",
+      "evidence": "Focused business-info/router run: 106/106 passed across 4 files. gbp-business-info-queue-recovery.test.ts directly drives BullMQ getJob/getState/retry at the queue seam; writeback integration tests cover failed deploy and revert jobs whose persisted marker already says queued.",
+      "notes": "A deterministic ID prevents duplicates but does not revive a finished job. Recovery now inspects and transitions the retained job instead of treating queue.add deduplication as scheduling.",
       "waiver": ""
     },
     {
@@ -68,7 +69,7 @@
       ],
       "expected": "Zero type errors, zero clear structural violations, zero dependency/lint errors, and the full backend suite green.",
       "status": "pass",
-      "evidence": "tsc exit 0; strict conventions exit 0 with CLEAR structural violations 0 and runtime files over 800 = 0; depcruise exit 0 with 38 warnings and 0 errors; eslint exit 0 with 2,385 repository-baseline warnings and 0 errors; full suite 551/551 across 63 files. Focused business-info + route suite: 95/95.",
+      "evidence": "tsc exit 0; strict conventions exit 0 with CLEAR structural violations 0 and runtime files over 800 = 0; depcruise exit 0 with 38 warnings and 0 errors; eslint exit 0 with 2,385 repository-baseline warnings and 0 errors; full suite 562/562 across 64 files. Focused business-info + route suite: 106/106 across 4 files.",
       "notes": "Commands ran separately; npm run check:all was not used as proof because its semicolon chaining can mask earlier failures.",
       "waiver": ""
     },
@@ -104,7 +105,7 @@
       ],
       "expected": "All atomic write sets share one transaction handle; failed finalization never commits contradictory local state; the provider receipt drives safe retry; every best-effort failure is logged.",
       "status": "pass",
-      "evidence": "src/__tests__/gbp-business-info-writeback.test.ts and src/__tests__/gbp-business-info-reconciliation.test.ts: combined business-info service total 49/49.",
+      "evidence": "Focused business-info/router run: 106/106 across 4 files, including the transaction-threading, receipt-only, durable-provider-state, and queue-state recovery regressions.",
       "notes": "These prove transaction threading at mocked model seams. Real PostgreSQL rollback is not proven and is covered only by the T5 waiver.",
       "waiver": ""
     },
@@ -117,12 +118,31 @@
         "Drive concurrent_attempt_running, already_succeeded, stale_attempt_running, and claimed.",
         "Run the two-call provider-success/local-failure regression.",
         "Reconcile stale attempts against matching, mismatching, and unreadable live profiles.",
+        "After an unreadable reconciliation, run a fresh claimed attempt while providerStateUnknown remains set.",
         "Distinguish revert_in_progress from already_reverted."
       ],
-      "expected": "Each state has distinct behavior; Google is patched exactly once across provider-success retry; unreadable provider state never causes a blind write; revert refusal reports the real state.",
+      "expected": "Each state has distinct behavior; Google is patched exactly once across provider-success retry; unreadable provider state is persisted and forces every later attempt to reconcile before PATCH; revert refusal reports the real state.",
       "status": "pass",
-      "evidence": "src/__tests__/gbp-business-info-reconciliation.test.ts passed all claim/reconcile/revert-state cases, including immediate lease takeover on a BullMQ retry; full suite 551/551.",
+      "evidence": "src/__tests__/gbp-business-info-reconciliation.test.ts includes a two-call unreadable-provider regression: stale attempt then fresh claimed attempt, two live reads, zero PATCH calls, and the durable marker persisted for both attempts.",
       "notes": "No request reaches live Google. SELECT FOR UPDATE behavior is PostgreSQL behavior and is not claimed as proven here.",
+      "waiver": ""
+    },
+    {
+      "id": "T8",
+      "title": "Unknown provider state cannot be downgraded to a retryable draft",
+      "surface": "cli",
+      "precondition": "Run the reconciliation tests with the work-item transaction seam, attempt model, live-read, and PATCH mocked.",
+      "steps": [
+        "Start with a stale attempt and a persisted rollback snapshot.",
+        "Make the reconciliation read fail.",
+        "Assert attempt failure and providerStateUnknown are written in one model-owned transaction.",
+        "Invoke deployment again with a fresh claimed attempt and the durable marker present.",
+        "Make the second live read fail and inspect PATCH calls and work-item transitions."
+      ],
+      "expected": "Both invocations fail closed, PATCH remains at zero calls, markFailedToDraft is never called, and providerStateUnknown remains the gate for the fresh attempt.",
+      "status": "pass",
+      "evidence": "Focused business-info/router run: 106/106 passed. The exact two-call regression is in src/__tests__/gbp-business-info-reconciliation.test.ts.",
+      "notes": "The marker is cleared only inside GbpWorkItemModel.markPublished, alongside the successful publish transition.",
       "waiver": ""
     }
   ]

@@ -24,6 +24,7 @@ const h = vi.hoisted(() => ({
   markFailedToDraft: vi.fn(),
   markBusinessInfoDeploying: vi.fn(),
   markBusinessInfoDeployQueued: vi.fn(),
+  markBusinessInfoProviderStateUnknown: vi.fn(),
   markBusinessInfoRevertQueued: vi.fn(),
   approveModel: vi.fn(),
   rejectIfPending: vi.fn(),
@@ -36,6 +37,7 @@ const h = vi.hoisted(() => ({
   createWorkItem: vi.fn(),
   findProperty: vi.fn(),
   queueAdd: vi.fn(),
+  queueGetJob: vi.fn(),
   loggerError: vi.fn(),
   loggerWarn: vi.fn(),
   /**
@@ -70,7 +72,7 @@ vi.mock("../database/connection", () => ({
   },
 }));
 vi.mock("../workers/queues", () => ({
-  getGbpAutomationQueue: () => ({ add: h.queueAdd }),
+  getGbpAutomationQueue: () => ({ add: h.queueAdd, getJob: h.queueGetJob }),
 }));
 vi.mock("../services/OrganizationLifecycleService", () => ({
   OrganizationLifecycleService: { assertActive: h.assertActive },
@@ -94,6 +96,7 @@ vi.mock("../models/GbpWorkItemModel", () => ({
     markFailedToDraft: h.markFailedToDraft,
     markBusinessInfoDeploying: h.markBusinessInfoDeploying,
     markBusinessInfoDeployQueued: h.markBusinessInfoDeployQueued,
+    markBusinessInfoProviderStateUnknown: h.markBusinessInfoProviderStateUnknown,
     markBusinessInfoRevertQueued: h.markBusinessInfoRevertQueued,
     approve: h.approveModel,
     rejectBusinessInfoIfPending: h.rejectIfPending,
@@ -191,6 +194,7 @@ beforeEach(() => {
   h.markFailedToDraft.mockResolvedValue(1);
   h.markBusinessInfoDeploying.mockResolvedValue(1);
   h.markBusinessInfoDeployQueued.mockResolvedValue(1);
+  h.markBusinessInfoProviderStateUnknown.mockResolvedValue(1);
   h.markBusinessInfoRevertQueued.mockResolvedValue(1);
   h.approveModel.mockResolvedValue(1);
   h.updateWorkItem.mockResolvedValue(1);
@@ -198,6 +202,7 @@ beforeEach(() => {
   h.claimRevert.mockResolvedValue("claimed");
   h.releaseRevertClaim.mockResolvedValue(1);
   h.queueAdd.mockResolvedValue({ id: "job-1" });
+  h.queueGetJob.mockResolvedValue(undefined);
   h.createWorkItem.mockResolvedValue({ id: "wi-1", status: "draft" });
 });
 
@@ -611,6 +616,30 @@ describe("enqueue compensation — a queue failure never strands the item (revie
     expect(h.markBusinessInfoDeployQueued).toHaveBeenCalledWith("wi-1");
   });
 
+  it("retryDeployment revives an exhausted deploy job even when its marker says queued", async () => {
+    const retry = vi.fn().mockResolvedValue(undefined);
+    h.findScopedWorkItem.mockResolvedValue(
+      deployingItem({
+        status: "deploying",
+        retry_count: 0,
+        metadata: { deployQueueState: "queued" },
+      })
+    );
+    h.findWorkItem.mockResolvedValue(
+      deployingItem({ metadata: { deployQueueState: "queued" } })
+    );
+    h.queueGetJob.mockResolvedValue({
+      getState: vi.fn().mockResolvedValue("failed"),
+      retry,
+    });
+
+    await GbpBusinessInfoDeploymentService.retryDeployment(params);
+
+    expect(retry).toHaveBeenCalledWith("failed");
+    expect(h.queueAdd).not.toHaveBeenCalled();
+    expect(h.markBusinessInfoDeployQueued).toHaveBeenCalledWith("wi-1");
+  });
+
   it("a rejected deploy compensation reports recovery-required, never a false draft claim", async () => {
     h.findScopedWorkItem.mockResolvedValue(
       deployingItem({ status: "approved", retry_count: 0 })
@@ -656,6 +685,26 @@ describe("enqueue compensation — a queue failure never strands the item (revie
       expect.objectContaining({ workItemId: "wi-1" }),
       expect.objectContaining({ jobId: "gbp-business-info-revert-wi-1" })
     );
+    expect(h.markBusinessInfoRevertQueued).toHaveBeenCalledWith("wi-1");
+  });
+
+  it("enqueueRevert revives an exhausted revert job when its marker already says queued", async () => {
+    const retry = vi.fn().mockResolvedValue(undefined);
+    const queued = revertableItem({
+      metadata: { revertPending: true, revertQueueState: "queued" },
+    });
+    h.findScopedWorkItem.mockResolvedValue(queued);
+    h.findWorkItem.mockResolvedValue(queued);
+    h.claimRevert.mockResolvedValue("revert_in_progress");
+    h.queueGetJob.mockResolvedValue({
+      getState: vi.fn().mockResolvedValue("failed"),
+      retry,
+    });
+
+    await GbpBusinessInfoDeploymentService.enqueueRevert(params);
+
+    expect(retry).toHaveBeenCalledWith("failed");
+    expect(h.queueAdd).not.toHaveBeenCalled();
     expect(h.markBusinessInfoRevertQueued).toHaveBeenCalledWith("wi-1");
   });
 

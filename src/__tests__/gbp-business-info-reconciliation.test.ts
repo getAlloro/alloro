@@ -15,6 +15,7 @@ const h = vi.hoisted(() => ({
   markFailedToDraft: vi.fn(),
   markBusinessInfoDeploying: vi.fn(),
   markBusinessInfoDeployQueued: vi.fn(),
+  markBusinessInfoProviderStateUnknown: vi.fn(),
   markBusinessInfoRevertQueued: vi.fn(),
   approveModel: vi.fn(),
   rejectIfPending: vi.fn(),
@@ -26,6 +27,7 @@ const h = vi.hoisted(() => ({
   eventCreate: vi.fn(),
   findProperty: vi.fn(),
   queueAdd: vi.fn(),
+  queueGetJob: vi.fn(),
   loggerError: vi.fn(),
   loggerWarn: vi.fn(),
   trx: { __sentinelTrx: true } as unknown,
@@ -48,7 +50,7 @@ vi.mock("../database/connection", () => ({
   },
 }));
 vi.mock("../workers/queues", () => ({
-  getGbpAutomationQueue: () => ({ add: h.queueAdd }),
+  getGbpAutomationQueue: () => ({ add: h.queueAdd, getJob: h.queueGetJob }),
 }));
 vi.mock("../services/OrganizationLifecycleService", () => ({
   OrganizationLifecycleService: { assertActive: h.assertActive },
@@ -72,6 +74,7 @@ vi.mock("../models/GbpWorkItemModel", () => ({
     markFailedToDraft: h.markFailedToDraft,
     markBusinessInfoDeploying: h.markBusinessInfoDeploying,
     markBusinessInfoDeployQueued: h.markBusinessInfoDeployQueued,
+    markBusinessInfoProviderStateUnknown: h.markBusinessInfoProviderStateUnknown,
     markBusinessInfoRevertQueued: h.markBusinessInfoRevertQueued,
     approve: h.approveModel,
     rejectBusinessInfoIfPending: h.rejectIfPending,
@@ -168,6 +171,7 @@ beforeEach(() => {
   h.markFailedToDraft.mockResolvedValue(1);
   h.markBusinessInfoDeploying.mockResolvedValue(1);
   h.markBusinessInfoDeployQueued.mockResolvedValue(1);
+  h.markBusinessInfoProviderStateUnknown.mockResolvedValue(1);
   h.markBusinessInfoRevertQueued.mockResolvedValue(1);
   h.approveModel.mockResolvedValue(1);
   h.updateWorkItem.mockResolvedValue(1);
@@ -175,6 +179,7 @@ beforeEach(() => {
   h.claimRevert.mockResolvedValue("claimed");
   h.releaseRevertClaim.mockResolvedValue(1);
   h.queueAdd.mockResolvedValue({ id: "job-1" });
+  h.queueGetJob.mockResolvedValue(undefined);
 });
 
 describe("queue compensation audit failures", () => {
@@ -436,16 +441,63 @@ describe("deployNow claim states and reconciliation", () => {
     });
     h.getProfile.mockResolvedValue(null);
 
-    await GbpBusinessInfoDeploymentService.deployNow("wi-1", 5, {
-      isFinalAttempt: true,
-    });
+    await expect(
+      GbpBusinessInfoDeploymentService.deployNow("wi-1", 5, {
+        isFinalAttempt: true,
+      })
+    ).rejects.toMatchObject({ code: "RECONCILE_READ_FAILED" });
 
     expect(h.patchBusinessInfo).not.toHaveBeenCalled();
     expect(h.markFailed).toHaveBeenCalledWith(
       "att-2",
       "RECONCILE_READ_FAILED",
       expect.any(String),
-      null
+      null,
+      h.trx
+    );
+    expect(h.markBusinessInfoProviderStateUnknown).toHaveBeenCalledWith(
+      "wi-1",
+      "att-2",
+      h.trx
+    );
+    expect(h.markFailedToDraft).not.toHaveBeenCalled();
+  });
+
+  it("keeps reconciling on later invocations while provider state remains unknown", async () => {
+    h.findWorkItem
+      .mockResolvedValueOnce(deployingWithSnapshot())
+      .mockResolvedValueOnce(
+        deployingWithSnapshot({ metadata: { providerStateUnknown: true } })
+      );
+    h.claimAttempt
+      .mockResolvedValueOnce({
+        state: "stale_attempt_running",
+        attempt: { id: "att-2", status: "running" },
+      })
+      .mockResolvedValueOnce({
+        state: "claimed",
+        attempt: { id: "att-3", status: "running" },
+      });
+    h.getProfile.mockResolvedValue(null);
+
+    await expect(
+      GbpBusinessInfoDeploymentService.deployNow("wi-1", 5, {
+        isFinalAttempt: true,
+      })
+    ).rejects.toMatchObject({ code: "RECONCILE_READ_FAILED" });
+    await expect(
+      GbpBusinessInfoDeploymentService.deployNow("wi-1", 5, {
+        isFinalAttempt: true,
+      })
+    ).rejects.toMatchObject({ code: "RECONCILE_READ_FAILED" });
+
+    expect(h.getProfile).toHaveBeenCalledTimes(2);
+    expect(h.patchBusinessInfo).not.toHaveBeenCalled();
+    expect(h.markBusinessInfoProviderStateUnknown).toHaveBeenNthCalledWith(
+      2,
+      "wi-1",
+      "att-3",
+      h.trx
     );
   });
 
