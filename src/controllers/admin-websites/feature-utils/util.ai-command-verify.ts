@@ -29,6 +29,11 @@ import { PageModel } from "../../../models/website-builder/PageModel";
 import { ProjectModel } from "../../../models/website-builder/ProjectModel";
 import { PostModel } from "../../../models/website-builder/PostModel";
 import { normalizeSections } from "./util.section-normalizer";
+import {
+  type PageSeoSchemaRecommendationRow,
+  parseRecommendationMeta,
+  readApprovedSchema,
+} from "./util.ai-command-seo-schema-contract";
 import logger from "../../../lib/logger";
 
 const MIN_TOKEN_LENGTH = 5;
@@ -171,61 +176,52 @@ export function publishedSchemaContains(
  * unreadable/!array `seo_data`, or a missing entry — fails the recommendation
  * (see the strictness note in the module doc).
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function verifySchemaRecommendation(rec: any): Promise<"verified" | "downgraded" | "skipped"> {
-  let approved: unknown;
-  try {
-    const meta =
-      typeof rec.target_meta === "string" ? JSON.parse(rec.target_meta) : rec.target_meta;
-    approved = meta?.schema_json;
-  } catch {
-    approved = undefined;
+async function findSchemaVerificationFailure(
+  rec: PageSeoSchemaRecommendationRow,
+  approved: Record<string, unknown>[]
+): Promise<string | null> {
+  const origPage = await PageModel.findRawById(rec.target_id);
+  if (!origPage) {
+    return `Original page ${rec.target_id} is missing; the approved schema cannot be confirmed live.`;
   }
 
-  // Not assertable: the handler refuses to write a non-array, so a row without
-  // one never wrote anything and is not this pass's to judge.
-  if (!Array.isArray(approved) || approved.length === 0) return "skipped";
+  const published = await PageModel.findRawByProjectPathStatus(
+    origPage.project_id,
+    origPage.path,
+    "published"
+  );
+  if (!published) {
+    return `No published row for ${origPage.path} after publish — the approved schema is not live.`;
+  }
 
-  let reason: string | null = null;
-  try {
-    const origPage = await PageModel.findRawById(rec.target_id);
-    if (!origPage) return "skipped";
+  const seoData = parseRecommendationMeta(published.seo_data) ?? {};
+  if (!publishedSchemaContains(approved, seoData.schema_json)) {
+    return `Published seo_data.schema_json for ${origPage.path} does not contain the approved schema (publish failure or concurrent overwrite).`;
+  }
 
-    const published = await PageModel.findRawByProjectPathStatus(
-      origPage.project_id,
-      origPage.path,
-      "published"
-    );
+  return null;
+}
 
-    if (!published) {
-      reason = `No published row for ${origPage.path} after publish — the approved schema is not live.`;
-    } else {
-      const seoData =
-        published.seo_data == null
-          ? {}
-          : typeof published.seo_data === "string"
-            ? JSON.parse(published.seo_data)
-            : published.seo_data;
+async function verifySchemaRecommendation(
+  rec: PageSeoSchemaRecommendationRow
+): Promise<"verified" | "downgraded"> {
+  const approved = readApprovedSchema(rec.target_meta);
+  let reason =
+    approved
+      ? null
+      : "Approved page_seo_schema metadata is invalid; a non-empty JSON-LD object array is required.";
 
-      if (!publishedSchemaContains(approved as Record<string, unknown>[], seoData?.schema_json)) {
-        reason = `Published seo_data.schema_json for ${origPage.path} does not contain the approved schema (publish failure or concurrent overwrite).`;
-      }
+  if (approved) {
+    try {
+      reason = await findSchemaVerificationFailure(rec, approved);
+    } catch (err) {
+      reason = `Could not read published seo_data.schema_json to verify the write: ${(err as Error).message}`;
     }
-  } catch (err) {
-    reason = `Could not read published seo_data.schema_json to verify the write: ${(err as Error).message}`;
   }
 
   if (!reason) return "verified";
 
-  let prior: Record<string, unknown> = {};
-  try {
-    prior =
-      typeof rec.execution_result === "string"
-        ? JSON.parse(rec.execution_result)
-        : rec.execution_result || {};
-  } catch {
-    prior = {};
-  }
+  const prior = parseRecommendationMeta(rec.execution_result) ?? {};
 
   await AiCommandRecommendationModel.updateById(rec.id, {
     status: "failed",
@@ -306,9 +302,11 @@ export async function verifyBatchEdits(
     // carries no `edited_html`, so it needs its own comparison, not the token
     // heuristic below.
     if (rec.target_type === SCHEMA_TARGET_TYPE) {
-      const outcome = await verifySchemaRecommendation(rec);
+      const outcome = await verifySchemaRecommendation(
+        rec as PageSeoSchemaRecommendationRow
+      );
       if (outcome === "verified") verified++;
-      else if (outcome === "downgraded") downgraded++;
+      else downgraded++;
       continue;
     }
 

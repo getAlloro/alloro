@@ -53,7 +53,7 @@
 <div class="wrap">
 
   <header class="hero">
-    <span class="pill"><span class="dot"></span>In Progress &middot; Slice 1a in review (PR #158) &middot; Rev 8</span>
+    <span class="pill"><span class="dot"></span>In Progress &middot; PR #159 review fixes complete &middot; Rev 10</span>
     <h1>Alloro Funnel Engine</h1>
     <p class="sub">Slice 1 — the get-found foundation: score a hosted practice page against a complete, honest, machine-readable standard by extending the schema/entity engine that already ships, and publish the fix through the edit rail that already exists. Split into two reviewable PRs.</p>
     <div class="meta">
@@ -169,6 +169,7 @@
       <li><strong>New schema write handler</strong> — a new aiCommand recommendation <code>target_type</code> + execute handler writing <code>seo_data.schema_json</code> via <code>PageModel.updateSeoDataById</code>; section restructure rides the existing <code>page_section</code> handler.</li>
       <li><strong>Wire 1a's recommendations into the human-approved rail</strong> — human approves each; publish auto-follows on approval; no new autonomy.</li>
       <li><strong>Dogfood on one real hosted practice page</strong> — run it through the approved rail; produce the honest, schema-complete version; human-approved before publish.</li>
+      <li><strong>(Rev 10) PR #159 exact-head remediation</strong> — commit the draft SEO write and recommendation <code>executed</code> transition in one model-owned transaction; fail verification closed for malformed approved metadata or a missing original page; replace the Slice 1b <code>rec: any</code> parameters with a narrow shared row contract; and pin #159's hard gate against Rev 9's modifier-bearing unrelated-negation bypass. Practice identity remains an activation precondition and is not invented by this change.</li>
     </ol>
   </section>
 
@@ -180,6 +181,7 @@
       <li><span class="slice">1a</span> Assert "AEO-incomplete" gates nothing and never appears in owner-facing copy.</li>
       <li><span class="slice">1b</span> Assert the new schema <code>target_type</code> handler writes <code>seo_data.schema_json</code> and the change is version-reversible.</li>
       <li><span class="slice">1b</span> Drive the approval flow end-to-end &rarr; a page publishes only after its recommendation is approved.</li>
+      <li><span class="slice">1b</span> Force the recommendation-status write to fail after the draft write &rarr; assert the transaction rolls the draft change back; feed malformed approved metadata and a missing original page to verification &rarr; assert both recommendations are downgraded to <code>failed</code>.</li>
       <li><code>npm run db:migrate</code> (if a migration is added) and <code>npm run check:all</code> clean.</li>
     </ul>
   </section>
@@ -197,6 +199,7 @@
     <ul class="done">
       <li>A new schema <code>target_type</code> + execute handler writes <code>seo_data.schema_json</code> on an approved rec; version-reversible.</li>
       <li>1a's recommendations route through the existing human-approved flow; publish only after approval; no new autonomy.</li>
+      <li>(Rev 10) The schema draft write cannot commit without the matching recommendation-status transition; verifier inputs that cannot prove the approved schema live fail closed; the new schema recommendation path has no <code>rec: any</code>; and a modifier-bearing positive promise after unrelated negation fails the #159 hard gate.</li>
       <li>One real hosted practice page has been run through the approved rail; output carries only true claims, makes no rank/visibility claim, and has complete <code>LocalBusiness</code> schema — human-approved before publish.</li>
       <li>Test section passes; <code>npm run check:all</code> clean; <code>&sect;N.M</code> violations cited/resolved at the <code>alloro-engineer</code> pass; docs-parity handled or explained.</li>
     </ul>
@@ -258,6 +261,12 @@
       <p><strong>Change:</strong> Closed the modifier form of Rev 8's unrelated-negation bypass. The previous rule recognized only a coordinator, an optional modal, and an immediately adjacent positive claim verb. Ordinary generated-copy emphasis such as <code>absolutely</code>, <code>reliably</code>, or <code>will almost certainly</code> therefore hid the positive predicate and let an unrelated earlier negator suppress the claim. The grammar now permits a bounded run of arbitrary modifier words before and after a modal while explicitly excluding negators, so a positive promise still blocks and a coordinated disclaimer containing <code>does not</code> or <code>will ... not</code> still passes.</p>
       <p><strong>Reason:</strong> Independent adversarial review of the exact Rev 8 commit produced five modifier-bearing promises that passed the gate despite the direct-adjacency fixtures being green.</p>
       <p><strong>Updated Done criteria:</strong> unrelated-negation coverage includes direct, single-adverb, modal-plus-adverb, and multi-modifier positive predicates in the must-block corpus, paired with modifier-bearing genuine negation in the must-pass corpus; PR #159 must carry a stacked hard-gate regression against this shared service head.</p>
+    </article>
+    <article class="revision-entry">
+      <h3>Rev 10 &mdash; 2026-07-17</h3>
+      <p><strong>Change:</strong> Slice 1b PR #159 exact-head remediation, starting from <code>ec0c72cf</code> and merging the pinned PR #158 fixes <code>9ab895c9</code> and <code>74c1f4ed</code>. The draft <code>seo_data.schema_json</code> write and the recommendation <code>executed</code> status now share one model-owned transaction, with affected-row checks forcing rollback when either side does not commit exactly once. The strict verifier now downgrades malformed approved metadata and a missing original page instead of returning <code>skipped</code>. A shared <code>PageSeoSchemaRecommendationRow</code> contract plus unknown-value narrowing replaces the Slice 1b <code>rec: any</code> parameters without widening the legacy AI-command typing migration. The #159 hard-gate suite independently sends a modifier-bearing positive promise through <code>executeUpdatePageSeoSchema</code> and proves the shared Rev 9 fix blocks the write.</p>
+      <p><strong>Reason:</strong> User QA: exact-head review on PR #159 found a two-write partial-failure window that could retain a publishable draft after the recommendation transition failed, two verifier paths that treated absence of proof as a skip despite the strict fail-closed contract, and an explicit <code>any</code> introduced by this slice. The practice identity snapshot is kept as an activation precondition; this revision does not fabricate or bypass it.</p>
+      <p><strong>Updated Done criteria:</strong> (a) a forced second-write failure rolls the draft SEO mutation back; (b) malformed approved metadata and a missing original page both produce <code>status: failed</code>, <code>verified: false</code>, and an explicit reason; (c) the Slice 1b schema executor and verifier accept the narrow shared row contract, not <code>any</code>; (d) the #159 hard gate blocks the modifier/adverb bypass on the merged #158 service instead of adding a local workaround; (e) focused and full tests, TypeScript, strict conventions, lint, dependency-cruiser, and <code>git diff --check</code> are recorded in the canonical receipt; (f) activation still requires a real practice identity snapshot.</p>
     </article>
   </section>
 

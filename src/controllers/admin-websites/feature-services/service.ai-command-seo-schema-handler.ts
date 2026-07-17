@@ -38,6 +38,10 @@ import {
   type ExecutionContext,
   resolvePageDraftId,
 } from "../feature-utils/util.ai-command-shared";
+import {
+  type PageSeoSchemaRecommendationRow,
+  readApprovedSchema,
+} from "../feature-utils/util.ai-command-seo-schema-contract";
 
 /**
  * The exclusion axis is the VALUE, never the key.
@@ -175,16 +179,6 @@ export function collectSchemaCopy(
   return acc;
 }
 
-/**
- * A JSON-LD entry must be a real JSON object. `[null]`, `["text"]`, `[1]` and
- * nested arrays are not: every consumer dereferences entries as objects, so a
- * scalar or null member crashes the reader downstream. Validated here, before any
- * write — client input is never trusted (§5.2).
- */
-function isJsonLdEntry(entry: unknown): entry is Record<string, unknown> {
-  return typeof entry === "object" && entry !== null && !Array.isArray(entry);
-}
-
 /** Honesty-gate reasons for every claim-bearing string in the proposed schema. */
 export function findSchemaCopyViolations(schemaJson: unknown): string[] {
   const reasons: string[] = [];
@@ -212,20 +206,17 @@ async function failRecommendation(recId: string, error: string): Promise<void> {
   });
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function executeUpdatePageSeoSchema(
-  rec: any,
+  rec: PageSeoSchemaRecommendationRow,
   ctx: ExecutionContext
 ): Promise<void> {
-  const meta = typeof rec.target_meta === "string" ? JSON.parse(rec.target_meta) : rec.target_meta;
-
   const origPage = await PageModel.findRawById(rec.target_id);
   if (!origPage) {
     await failRecommendation(rec.id, `Page ${rec.target_id} not found`);
     return;
   }
 
-  const schemaJson = meta?.schema_json;
+  const schemaJson = readApprovedSchema(rec.target_meta);
   // The whole codebase reads `seo_data.schema_json` as an ARRAY of JSON-LD
   // OBJECTS (consumers call `.some(...)`, guard with `Array.isArray`, and then
   // dereference each entry's properties). Require a non-empty array in which
@@ -233,9 +224,7 @@ export async function executeUpdatePageSeoSchema(
   // or a member that is null/scalar/nested-array fails the recommendation and
   // writes nothing. Anything looser crashes the panel scorer on dereference and
   // silently disables the enrichment reader (§5.2 — never trust client input).
-  const schemaIsValidArray =
-    Array.isArray(schemaJson) && schemaJson.length > 0 && schemaJson.every(isJsonLdEntry);
-  if (!schemaIsValidArray) {
+  if (!schemaJson) {
     await failRecommendation(
       rec.id,
       "A non-empty schema_json array is required in target_meta, and every entry must be a JSON-LD object.",
@@ -264,11 +253,31 @@ export async function executeUpdatePageSeoSchema(
         : draft.seo_data;
   const nextSeo = { ...existingSeo, schema_json: schemaJson };
 
-  await PageModel.updateSeoDataById(draftId, JSON.stringify(nextSeo));
+  await AiCommandRecommendationModel.transaction(async (trx) => {
+    const pageWrites = await PageModel.updateSeoDataById(
+      draftId,
+      JSON.stringify(nextSeo),
+      trx
+    );
+    if (pageWrites !== 1) {
+      throw new Error(`Draft ${draftId} could not be updated for ${origPage.path}`);
+    }
 
-  await AiCommandRecommendationModel.updateById(rec.id, {
-    status: "executed",
-    execution_result: JSON.stringify({ success: true, page_id: draftId, schema_written: true }),
+    const recommendationWrites = await AiCommandRecommendationModel.updateById(
+      rec.id,
+      {
+        status: "executed",
+        execution_result: JSON.stringify({
+          success: true,
+          page_id: draftId,
+          schema_written: true,
+        }),
+      },
+      trx
+    );
+    if (recommendationWrites !== 1) {
+      throw new Error(`Recommendation ${rec.id} could not be marked executed`);
+    }
   });
 
   logger.info(`[AiCommand] ✓ Wrote seo_data.schema_json for ${origPage.path} (draft ${draftId})`);

@@ -1,5 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+const { TRANSACTION, transaction } = vi.hoisted(() => {
+  const transactionContext = { kind: "test-transaction" };
+  return {
+    TRANSACTION: transactionContext,
+    transaction: vi.fn(
+      async (callback: (trx: unknown) => Promise<unknown>) =>
+        callback(transactionContext)
+    ),
+  };
+});
+
 /**
  * Alloro Funnel Engine — Slice 1b (get-found WRITE path) proofs. Locks the
  * behaviors the spec's Test section requires for 1b:
@@ -25,6 +36,7 @@ vi.mock("../models/website-builder/PageModel", () => ({
 
 vi.mock("../models/website-builder/AiCommandRecommendationModel", () => ({
   AiCommandRecommendationModel: {
+    transaction,
     updateById: vi.fn(async () => 1),
     insertRow: vi.fn(async () => undefined),
     findByBatchId: vi.fn(async () => []),
@@ -101,6 +113,48 @@ describe("executeUpdatePageSeoSchema — schema write handler", () => {
     expect((AiCommandRecommendationModel.updateById as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith(
       "r1",
       expect.objectContaining({ status: "executed" }),
+      TRANSACTION,
+    );
+  });
+
+  it("rolls back the draft write when marking the recommendation executed fails", async () => {
+    const store = seedStore();
+    const originalSeo = store.get("draft-1")!.seo_data;
+    transaction.mockImplementationOnce(
+      async (callback: (trx: unknown) => Promise<unknown>) => {
+        try {
+          return await callback(TRANSACTION);
+        } catch (error) {
+          store.get("draft-1")!.seo_data = originalSeo;
+          throw error;
+        }
+      }
+    );
+    vi.mocked(AiCommandRecommendationModel.updateById).mockRejectedValueOnce(
+      new Error("recommendation update failed") as never
+    );
+
+    await expect(
+      executeUpdatePageSeoSchema(
+        {
+          id: "r1-rollback",
+          target_id: "page-1",
+          target_meta: JSON.stringify({ schema_json: NEW_SCHEMA }),
+        },
+        ctx()
+      )
+    ).rejects.toThrow("recommendation update failed");
+
+    expect(parseSeo(store.get("draft-1")!.seo_data).schema_json).toBeUndefined();
+    expect(PageModel.updateSeoDataById).toHaveBeenCalledWith(
+      "draft-1",
+      expect.any(String),
+      TRANSACTION
+    );
+    expect(AiCommandRecommendationModel.updateById).toHaveBeenCalledWith(
+      "r1-rollback",
+      expect.objectContaining({ status: "executed" }),
+      TRANSACTION
     );
   });
 
@@ -144,6 +198,7 @@ describe("executeUpdatePageSeoSchema — schema write handler", () => {
     expect((AiCommandRecommendationModel.updateById as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith(
       "r1c",
       expect.objectContaining({ status: "executed" }),
+      TRANSACTION,
     );
   });
 
@@ -233,6 +288,7 @@ describe("executeUpdatePageSeoSchema — schema_json member validation", () => {
     expect((AiCommandRecommendationModel.updateById as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith(
       "ok-multi",
       expect.objectContaining({ status: "executed" }),
+      TRANSACTION,
     );
   });
 });
@@ -289,6 +345,7 @@ describe("executeUpdatePageSeoSchema — honesty gate scans non-enumerated keys"
     expect((AiCommandRecommendationModel.updateById as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith(
       "ok-st",
       expect.objectContaining({ status: "executed" }),
+      TRANSACTION,
     );
   });
 
@@ -308,7 +365,35 @@ describe("executeUpdatePageSeoSchema — honesty gate scans non-enumerated keys"
     expect((AiCommandRecommendationModel.updateById as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith(
       "ok-url",
       expect.objectContaining({ status: "executed" }),
+      TRANSACTION,
     );
+  });
+
+  it("BLOCKS a modified promise after unrelated negation at the #159 hard gate", async () => {
+    const store = seedStore();
+    await executeUpdatePageSeoSchema(
+      {
+        id: "modified-promise",
+        target_id: "page-1",
+        target_meta: JSON.stringify({
+          schema_json: [
+            {
+              "@type": "Dentist",
+              description:
+                "This is not complicated and absolutely guarantees top placement.",
+            },
+          ],
+        }),
+      },
+      ctx(),
+    );
+
+    expect(parseSeo(store.get("draft-1")!.seo_data).schema_json).toBeUndefined();
+    expect(AiCommandRecommendationModel.updateById).toHaveBeenCalledWith(
+      "modified-promise",
+      expect.objectContaining({ status: "failed" }),
+    );
+    expect(PageModel.updateSeoDataById).not.toHaveBeenCalled();
   });
 });
 
@@ -405,6 +490,7 @@ describe("honesty gate — a claim under a structural KEY is still blocked", () 
     expect(AiCommandRecommendationModel.updateById as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(
       "honest-full",
       expect.objectContaining({ status: "executed" }),
+      TRANSACTION,
     );
   });
 });
@@ -445,10 +531,20 @@ describe("honesty gate — identity carve-out is bounded by NAME shape", () => {
         { id: `id-${label}`, target_id: "page-1", target_meta: JSON.stringify({ schema_json: [entry] }) },
         ctx(),
       );
-      expect(AiCommandRecommendationModel.updateById as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(
-        `id-${label}`,
-        expect.objectContaining({ status: expected }),
-      );
+      if (expected === "executed") {
+        expect(AiCommandRecommendationModel.updateById as ReturnType<typeof vi.fn>)
+          .toHaveBeenCalledWith(
+            `id-${label}`,
+            expect.objectContaining({ status: expected }),
+            TRANSACTION,
+          );
+      } else {
+        expect(AiCommandRecommendationModel.updateById as ReturnType<typeof vi.fn>)
+          .toHaveBeenCalledWith(
+            `id-${label}`,
+            expect.objectContaining({ status: expected }),
+          );
+      }
       const written = parseSeo(store.get("draft-1")!.seo_data).schema_json;
       if (expected === "failed") expect(written).toBeUndefined();
       else expect(written).toHaveLength(1);
@@ -691,6 +787,36 @@ describe("verifyBatchEdits — page_seo_schema is verified against the live page
     const [, patch] = vi.mocked(AiCommandRecommendationModel.updateById).mock.calls[0];
     expect(patch.status).toBe("failed");
     expect(JSON.parse(patch.execution_result as string).verify_reason).toMatch(/connection lost/);
+  });
+
+  it("FAILS closed when approved metadata is malformed", async () => {
+    vi.mocked(AiCommandRecommendationModel.findByBatchId).mockResolvedValue([
+      { ...schemaRec, target_meta: "{not-json" },
+    ] as never);
+
+    const result = await verifyBatchEdits("b1");
+
+    expect(result).toEqual({ verified: 0, downgraded: 1 });
+    expect(PageModel.findRawById).not.toHaveBeenCalled();
+    const [, patch] = vi.mocked(AiCommandRecommendationModel.updateById).mock.calls[0];
+    expect(patch.status).toBe("failed");
+    expect(JSON.parse(patch.execution_result as string).verify_reason).toMatch(
+      /metadata is invalid/
+    );
+  });
+
+  it("FAILS closed when the original page row is missing", async () => {
+    vi.mocked(PageModel.findRawById).mockResolvedValue(undefined as never);
+
+    const result = await verifyBatchEdits("b1");
+
+    expect(result).toEqual({ verified: 0, downgraded: 1 });
+    expect(PageModel.findRawByProjectPathStatus).not.toHaveBeenCalled();
+    const [, patch] = vi.mocked(AiCommandRecommendationModel.updateById).mock.calls[0];
+    expect(patch.status).toBe("failed");
+    expect(JSON.parse(patch.execution_result as string).verify_reason).toMatch(
+      /Original page page-1 is missing/
+    );
   });
 
   // NON-VACUOUS. The owner-facing shape of the one-to-one defect: the publish
