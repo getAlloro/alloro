@@ -1,0 +1,473 @@
+/**
+ * Client Taste Profile — composition + Tier-2 honesty gate (Slice 2).
+ *
+ * Composes the outputs of extractors Alloro ALREADY has into one source-linked
+ * profile per business. This is a compose + gate, NOT a new extraction engine
+ * (§6.1 analog: `gbp-automation`'s feature-services orchestrate; the extractors
+ * stay where they are):
+ *
+ *   - `reviewThemeExtractor` (ThemeExtractionResult)  → hero quote, praise
+ *     themes, unique strength, suggested headline.
+ *   - `service.identity-distillation` (DistilledContent) → voice archetype,
+ *     doctor credentials (already source_url-disciplined).
+ *   - `extractPracticeFacts` (verbatim source_excerpt facts) → practice facts.
+ *
+ * ALLORO'S ADDITION (Owner.com does not do this): the Customer-Journey /
+ * hesitation layer — WHY customers choose (derived from the same sourced praise
+ * themes) and WHAT makes them hesitate (only from real hesitation signals; empty
+ * when absent, never fabricated).
+ *
+ * HONESTY (Tier 2, Value #6): every claim is run through the gate in
+ * `../feature-utils/util.taste-profile-honesty`:
+ *   - no real source  → DROPPED (Tier 1: empty field, never invented).
+ *   - banned language → REJECTED (rank/visibility/guarantee/invented metric).
+ * The kept result + a full audit of what was dropped/rejected is returned. This
+ * module does NO DB access and makes NO network calls — it operates on
+ * already-computed extractor outputs, which is what makes it deterministically
+ * testable with mocked inputs. Persistence is `TasteProfileModel`'s job.
+ *
+ * ── WIRING STATUS — read before claiming this is live ──────────────────────
+ * NOT WIRED. This slice ships the compose half and the persist half as separate,
+ * unit-tested CAPABILITIES; no production code path calls them together.
+ * `composeTasteProfile()` / `composeFromExtractors()` are invoked only by
+ * `__tests__/taste-profile-composition.test.ts`, and `TasteProfileModel` has no
+ * importers at all. There is deliberately NO `composeAndPersist()` helper here:
+ * one that nothing calls would move the unwired seam up a layer without creating
+ * a production entry point, and this module's no-DB-access purity is what keeps
+ * the honesty gate deterministically testable.
+ *
+ * Wiring needs a product decision this slice does not make: WHAT triggers a
+ * compose (review/GBP sync? website build? an owner action?), which
+ * org/location context it runs under, and which surface consumes the result.
+ * PR #171 Path A removed the previously promised writer and does not own this
+ * path. PR #160 is therefore scoped as a DORMANT INTERNAL FOUNDATION. A
+ * separately scoped future owner must add both a production writer and reader
+ * before this can be described as live. See
+ * `plans/07162026-taste-profile-spine/spec.html` ("Narrowed contract").
+ */
+
+import type { ThemeExtractionResult } from "../../../services/reviewThemeExtractor";
+import type { DistilledContent } from "./service.identity-distillation";
+import {
+  enforceHonesty,
+  isRealSource,
+} from "../feature-utils/util.taste-profile-honesty";
+import type {
+  DroppedClaim,
+  RejectedClaim,
+  SourcedClaim,
+  TasteProfile,
+  TasteProfileAudit,
+} from "../../../types/tasteProfile";
+
+// ---------------------------------------------------------------------------
+// PUBLIC SHAPES
+// ---------------------------------------------------------------------------
+
+/**
+ * The PERSISTED shapes (`TasteProfile`, `TasteProfileAudit`, and the claim types
+ * they contain) live in the neutral `types/tasteProfile` module, NOT here: the
+ * model has to type its own JSONB columns, and a model may never import from a
+ * controller (§7.1 — layers only talk downward). Re-exported so composition
+ * callers keep one coherent public surface for this feature.
+ */
+export type {
+  DroppedClaim,
+  RejectedClaim,
+  SourcedClaim,
+  TasteProfile,
+  TasteProfileAudit,
+};
+
+/** A claim candidate before gating — source may be missing (then it's dropped). */
+export interface SourcedCandidate {
+  value: string;
+  source: string | null | undefined;
+}
+
+/** The full set of candidate claims feeding one profile (what the gate consumes). */
+export interface TasteProfileCandidates {
+  business_name: string;
+  business_category: string;
+  voice: { archetype: string; tone_descriptor: string };
+  suggested_headline?: string;
+  hero_quote?: SourcedCandidate | null;
+  unique_strength?: SourcedCandidate | null;
+  praise_themes?: SourcedCandidate[];
+  credentials?: SourcedCandidate[];
+  practice_facts?: SourcedCandidate[];
+  why_they_choose?: SourcedCandidate[];
+  what_makes_them_hesitate?: SourcedCandidate[];
+}
+
+export interface TasteProfileCompositionResult {
+  profile: TasteProfile;
+  audit: TasteProfileAudit;
+}
+
+// ---------------------------------------------------------------------------
+// THE GATE (per-claim)
+// ---------------------------------------------------------------------------
+
+type GateOutcome =
+  | { kind: "empty" }
+  | { kind: "kept"; claim: SourcedClaim }
+  | { kind: "dropped"; dropped: DroppedClaim }
+  | { kind: "rejected"; rejected: RejectedClaim };
+
+/**
+ * Gate one candidate:
+ *  - empty value    → absent (Tier 1: empty field, not an error).
+ *  - no real source → DROPPED (cannot trace the line to a receipt).
+ *  - banned language→ REJECTED (rank/visibility/guarantee/invented metric).
+ *  - otherwise      → KEPT with a normalized {value, source}.
+ */
+function gateClaim(field: string, candidate: SourcedCandidate): GateOutcome {
+  const value = (candidate.value ?? "").trim();
+  if (value.length === 0) return { kind: "empty" };
+
+  if (!isRealSource(candidate.source)) {
+    return { kind: "dropped", dropped: { field, value, reason: "no_source" } };
+  }
+
+  const honesty = enforceHonesty(value);
+  if (!honesty.ok) {
+    return {
+      kind: "rejected",
+      rejected: { field, value, reasonCodes: honesty.reasonCodes },
+    };
+  }
+
+  return {
+    kind: "kept",
+    claim: { value, source: (candidate.source as string).trim() },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// COMPOSITION
+// ---------------------------------------------------------------------------
+
+/**
+ * Compose + honesty-gate a set of candidates into one Taste Profile plus a full
+ * audit of what was kept / dropped / rejected. Pure and deterministic — no DB,
+ * no network. Absent inputs yield empty fields (never fabricated ones).
+ */
+export function composeTasteProfile(
+  candidates: TasteProfileCandidates
+): TasteProfileCompositionResult {
+  const audit: TasteProfileAudit = { kept: 0, dropped: [], rejected: [] };
+
+  const single = (field: string, c?: SourcedCandidate | null): SourcedClaim | null => {
+    if (!c) return null;
+    const outcome = gateClaim(field, c);
+    return applyOutcome(outcome, audit);
+  };
+
+  const many = (field: string, list?: SourcedCandidate[]): SourcedClaim[] => {
+    if (!Array.isArray(list)) return [];
+    const kept: SourcedClaim[] = [];
+    for (const c of list) {
+      const claim = applyOutcome(gateClaim(field, c), audit);
+      if (claim) kept.push(claim);
+    }
+    return kept;
+  };
+
+  // Generated copy (no source) — honesty-gated only; a tripped headline is
+  // dropped to empty and recorded, never shown.
+  const suggested_headline = gateGeneratedCopy(
+    "suggested_headline",
+    candidates.suggested_headline,
+    audit
+  );
+
+  const profile: TasteProfile = {
+    business_name: candidates.business_name,
+    business_category: candidates.business_category,
+    voice: {
+      archetype: candidates.voice.archetype,
+      tone_descriptor: candidates.voice.tone_descriptor,
+    },
+    hero_quote: single("hero_quote", candidates.hero_quote),
+    suggested_headline,
+    unique_strength: single("unique_strength", candidates.unique_strength),
+    praise_themes: many("praise_themes", candidates.praise_themes),
+    credentials: many("credentials", candidates.credentials),
+    practice_facts: many("practice_facts", candidates.practice_facts),
+    customer_journey: {
+      why_they_choose: many("why_they_choose", candidates.why_they_choose),
+      what_makes_them_hesitate: many(
+        "what_makes_them_hesitate",
+        candidates.what_makes_them_hesitate
+      ),
+    },
+  };
+
+  return { profile, audit };
+}
+
+function applyOutcome(
+  outcome: GateOutcome,
+  audit: TasteProfileAudit
+): SourcedClaim | null {
+  switch (outcome.kind) {
+    case "kept":
+      audit.kept += 1;
+      return outcome.claim;
+    case "dropped":
+      audit.dropped.push(outcome.dropped);
+      return null;
+    case "rejected":
+      audit.rejected.push(outcome.rejected);
+      return null;
+    case "empty":
+    default:
+      return null;
+  }
+}
+
+/**
+ * Generated copy carries no source, so it is honesty-gated only. Banned
+ * language empties the field (recorded as rejected); clean copy passes through.
+ */
+function gateGeneratedCopy(
+  field: string,
+  text: string | undefined,
+  audit: TasteProfileAudit
+): string {
+  const value = (text ?? "").trim();
+  if (value.length === 0) return "";
+  const honesty = enforceHonesty(value);
+  if (!honesty.ok) {
+    audit.rejected.push({ field, value, reasonCodes: honesty.reasonCodes });
+    return "";
+  }
+  return value;
+}
+
+// ---------------------------------------------------------------------------
+// ADAPTER — real extractor outputs → candidates
+// ---------------------------------------------------------------------------
+
+/** A review as Alloro stores it, carrying the id/url the source link points at. */
+export interface ReviewRef {
+  id?: string | number;
+  url?: string;
+  authorName?: string;
+  text?: string;
+}
+
+/** A practice fact as produced by extractPracticeFacts (verbatim-sourced). */
+export interface PracticeFactRef {
+  fact_text: string;
+  source_field: string;
+  source_excerpt: string;
+}
+
+/** The already-computed extractor outputs to compose into one profile. */
+export interface ExtractorBundle {
+  businessName: string;
+  businessCategory: string;
+  themeResult: ThemeExtractionResult;
+  distilled: DistilledContent;
+  archetype: { archetype: string; tone_descriptor: string; voice_samples?: string[] };
+  practiceFacts?: PracticeFactRef[];
+  reviews?: ReviewRef[];
+  /**
+   * Real hesitation signals (e.g. from reviewSentiment negative reviews). The
+   * "what makes them hesitate" layer is populated ONLY from these — absent →
+   * empty, never invented.
+   */
+  hesitationSignals?: SourcedCandidate[];
+}
+
+function normalize(text: string): string {
+  return text.replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+/**
+ * Resolve a review-derived quote back to the real review it CAME FROM, so the
+ * claim is source-linked. Returns null unless exactly one review is provably the
+ * origin of the quote — the claim is then dropped by the gate (we never
+ * fabricate a source).
+ *
+ * The bar is containment in ONE direction: the quote must be a verbatim
+ * (whitespace-normalized) substring OF the review's text. That is what "this
+ * quote came from this review" means, and it mirrors the structural
+ * no-fabrication check `extractPracticeFacts.processor.verifyFacts` already
+ * applies to fact excerpts (§4.3 — same discipline, not a new invention).
+ *
+ * Three rules make the receipt real rather than plausible:
+ *
+ *  1. A NAME NEVER RESOLVES A SOURCE BY ITSELF. Attribution is about where the
+ *     words came from, not who else has a review on file. Matching on the name
+ *     alone would let any text attributed to a real reviewer inherit that
+ *     reviewer's real review url, which is precisely the fabricated attribution
+ *     this function exists to prevent. The name is only ever a DISAMBIGUATOR
+ *     (rule 3) or a veto — never evidence.
+ *  2. CONTAINMENT IS NOT SYMMETRIC. Only `reviewText.includes(quote)` is
+ *     evidence. The reverse — a quote that merely CONTAINS a review's text —
+ *     proves nothing: a long line wrapping a short review ("Great!") would
+ *     inherit that review's source while asserting far more than the review
+ *     ever said. Short reviews are common, so the reverse test is a source
+ *     generator, not a source check.
+ *  3. AMBIGUITY DROPS THE CLAIM. When several reviews contain the quote (a
+ *     generic line appearing in many), the words are real but WHICH review said
+ *     them is unknown. The reviewer name may disambiguate to exactly one; if it
+ *     cannot, we return null rather than pick the first and present a guess as a
+ *     receipt. A dropped claim is honest; a confidently wrong one is not.
+ *
+ * A quote whose review has neither a url nor an id yields null for the same
+ * reason: there is nothing real to link to.
+ */
+function resolveReviewSource(
+  reviewerName: string | undefined,
+  quote: string | undefined,
+  reviews: ReviewRef[]
+): string | null {
+  const quoteKey = quote ? normalize(quote) : "";
+  // No quote → nothing to trace. A name alone is not a source (rule 1).
+  if (quoteKey.length === 0) return null;
+
+  const nameKey = reviewerName ? normalize(reviewerName) : "";
+
+  // Rule 2: the quote must be verbatim WITHIN the review's text.
+  const origins = reviews.filter((r) => {
+    const rText = r.text ? normalize(r.text) : "";
+    return rText.length > 0 && rText.includes(quoteKey);
+  });
+
+  if (origins.length === 0) return null;
+
+  let match: ReviewRef | undefined;
+  if (origins.length === 1) {
+    match = origins[0];
+  } else {
+    // Rule 3: ambiguous — only an unambiguous name narrows it to one origin.
+    const byName = nameKey
+      ? origins.filter((r) => r.authorName && normalize(r.authorName) === nameKey)
+      : [];
+    if (byName.length !== 1) return null;
+    match = byName[0];
+  }
+
+  // The quote is in this review, but it is attributed to someone else — the
+  // attribution and the receipt disagree, so we make no claim.
+  if (nameKey && match.authorName && normalize(match.authorName) !== nameKey) {
+    return null;
+  }
+
+  if (match.url) return match.url;
+  if (match.id !== undefined && match.id !== null) return `review:${match.id}`;
+  return null;
+}
+
+/**
+ * Map real extractor outputs onto candidate claims, attaching sources where the
+ * extractors provide them. This is the wire-together; the honesty gate in
+ * `composeTasteProfile` then drops/rejects per Value #6.
+ *
+ * Note on provenance coverage (honest V1): reviewThemeExtractor's hero quote /
+ * themes are resolved to review ids; identity-distillation's doctor entries
+ * carry `source_url`; practice facts carry a verbatim `source_excerpt`. The
+ * distilled UVP / core_values are NOT emitted with per-item provenance by the
+ * current extractor, so they are intentionally omitted here rather than shipped
+ * without a source — adding them is a fast-follow once the extractor attaches
+ * per-claim sources.
+ */
+export function buildCandidatesFromExtractors(
+  bundle: ExtractorBundle
+): TasteProfileCandidates {
+  const reviews = bundle.reviews ?? [];
+  const theme = bundle.themeResult;
+
+  const hero_quote: SourcedCandidate | null = theme.heroQuote
+    ? {
+        value: theme.heroQuote,
+        source: resolveReviewSource(theme.heroReviewerName, theme.heroQuote, reviews),
+      }
+    : null;
+
+  const praise_themes: SourcedCandidate[] = (theme.topThemes ?? []).map((t) => ({
+    value: t.exampleQuote ? `${t.theme}: ${t.exampleQuote}` : t.theme,
+    source: resolveReviewSource(t.reviewerName, t.exampleQuote, reviews),
+  }));
+
+  // "Why they choose" = the same sourced praise themes, framed as the journey
+  // driver. Kept honest by carrying the identical review source.
+  const why_they_choose: SourcedCandidate[] = (theme.topThemes ?? []).map((t) => ({
+    value: `Customers choose ${bundle.businessName} for ${t.theme.toLowerCase()}.`,
+    source: resolveReviewSource(t.reviewerName, t.exampleQuote, reviews),
+  }));
+
+  // unique_strength is a synthesized line with no per-item review source in the
+  // extractor output; without a real source it will be dropped by the gate.
+  const unique_strength: SourcedCandidate | null = theme.uniqueStrength
+    ? { value: theme.uniqueStrength, source: null }
+    : null;
+
+  // Doctor credentials from identity-distillation — already source_url-disciplined.
+  const credentials: SourcedCandidate[] = (bundle.distilled.doctors ?? []).flatMap((d) =>
+    (d.credentials ?? []).map((cred) => ({
+      value: `${d.name}: ${cred}`,
+      source: d.source_url,
+    }))
+  );
+
+  // Practice facts — the verbatim source_excerpt IS the receipt; the field label
+  // plus the excerpt form the source reference. A fact whose excerpt is
+  // empty/whitespace has no receipt, so it is dropped here rather than built
+  // into a hollow `page_content: ""` source. An unrecognized `source_field` is
+  // dropped too — not here, but by the gate: isRealSource() only accepts a
+  // labeled source from a known field, so an invented label yields no source and
+  // the claim falls out with reason `no_source`.
+  //
+  // WHAT THIS LAYER DOES NOT PROVE — read before trusting `fact_text`. The
+  // excerpt is verified VERBATIM against the real scraped/GBP input by
+  // `extractPracticeFacts.processor.verifyFacts`, which is the only place that
+  // holds those inputs. This module only receives the extractor's output, so it
+  // can check that a receipt is PRESENT and well-formed, but it cannot re-derive
+  // whether `fact_text` — a distilled restatement, not a verbatim span — is
+  // actually supported by its excerpt. That gap is real: a fact could overstate
+  // its own excerpt and still pass, caught only if the overstatement trips
+  // enforceHonesty's banned language.
+  //
+  // No overlap/similarity heuristic is applied here on purpose. A token-overlap
+  // test would pass almost any restatement that reuses a couple of the excerpt's
+  // words, so it would not catch the overstatement it appears to guard against —
+  // it would only make an unverified claim LOOK verified, which is the exact
+  // failure this gate exists to prevent. Closing it for real means verifying
+  // support where the source text lives (the extractor), not guessing here.
+  // Callers must therefore only pass facts from the verified extractor path.
+  const practice_facts: SourcedCandidate[] = (bundle.practiceFacts ?? [])
+    .filter((f) => (f.source_excerpt ?? "").trim().length > 0)
+    .map((f) => ({
+      value: f.fact_text,
+      source: `${f.source_field}: "${f.source_excerpt.slice(0, 80)}"`,
+    }));
+
+  return {
+    business_name: bundle.businessName,
+    business_category: bundle.businessCategory,
+    voice: {
+      archetype: bundle.archetype.archetype,
+      tone_descriptor: bundle.archetype.tone_descriptor,
+    },
+    suggested_headline: theme.suggestedHeadline,
+    hero_quote,
+    unique_strength,
+    praise_themes,
+    credentials,
+    practice_facts,
+    why_they_choose,
+    what_makes_them_hesitate: bundle.hesitationSignals ?? [],
+  };
+}
+
+/** Convenience: adapter + compose in one call (used by the persist orchestration). */
+export function composeFromExtractors(
+  bundle: ExtractorBundle
+): TasteProfileCompositionResult {
+  return composeTasteProfile(buildCandidatesFromExtractors(bundle));
+}
