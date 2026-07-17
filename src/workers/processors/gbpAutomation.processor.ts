@@ -41,6 +41,7 @@ export async function processGbpAutomationJob(
     if (!job.data.workItemId) throw new Error("Missing workItemId for GBP business-info deploy.");
     await GbpBusinessInfoDeploymentService.deployNow(job.data.workItemId, job.data.userId || null, {
       isFinalAttempt: job.attemptsMade + 1 >= maxAttempts,
+      isRetryAttempt: job.attemptsMade > 0,
     });
     return;
   }

@@ -1,11 +1,10 @@
 import { getValidOAuth2ClientByConnection } from "../../../auth/oauth2Helper";
+import type { GoogleOAuthClient } from "../../../auth/oauth2Helper";
 import logger from "../../../lib/logger";
 import { GooglePropertyModel, IGoogleProperty } from "../../../models/GooglePropertyModel";
 import { GbpAutomationSettingsModel } from "../../../models/GbpAutomationSettingsModel";
-import {
-  GbpDeploymentAttemptModel,
-  IGbpDeploymentAttempt,
-} from "../../../models/GbpDeploymentAttemptModel";
+import { GbpDeploymentAttemptModel } from "../../../models/GbpDeploymentAttemptModel";
+import type { GbpAttemptClaim, IGbpDeploymentAttempt } from "../../../models/GbpDeploymentAttemptModel";
 import { GbpWorkEventModel } from "../../../models/GbpWorkEventModel";
 import { GbpWorkItemModel, IGbpWorkItem } from "../../../models/GbpWorkItemModel";
 import { getGbpAutomationQueue } from "../../../workers/queues";
@@ -36,6 +35,12 @@ type ScopedParams = {
   accessibleLocationIds?: number[];
 };
 
+type PreparedBusinessInfoWrite = {
+  auth: GoogleOAuthClient;
+  property: IGoogleProperty;
+  effectivePatch: BusinessInfoPatch;
+  reconciled: IGbpWorkItem | null;
+};
 function readPayload(item: IGbpWorkItem): BusinessInfoPayload {
   const payload = item.business_info_payload as BusinessInfoPayload | null;
   if (!payload || !payload.patch || !Array.isArray(payload.updateMask)) {
@@ -158,7 +163,11 @@ export class GbpBusinessInfoDeploymentService {
 
     // §7.4 — transaction opened through the model layer, which owns the DB handle.
     await GbpWorkItemModel.transaction(async (trx) => {
-      const marked = await GbpWorkItemModel.markDeploying(item.id, params.userId, trx);
+      const marked = await GbpWorkItemModel.markBusinessInfoDeploying(
+        item.id,
+        params.userId,
+        trx
+      );
       if (marked === 0) {
         throw new GbpAutomationError("INVALID_STATUS", "This profile update is already deploying.");
       }
@@ -173,62 +182,36 @@ export class GbpBusinessInfoDeploymentService {
       );
     });
     try {
-      await getGbpAutomationQueue("deployment").add(
-        "deploy-business-info",
-        { workItemId: item.id, userId: params.userId, actorEmail: params.actorEmail || null },
-        {
-          jobId: `gbp-business-info-${item.id}-${Date.now()}`,
-          attempts: 3,
-          backoff: { type: "exponential", delay: 30000 },
-          removeOnComplete: { age: 86400, count: 1000 },
-          removeOnFail: { age: 604800, count: 5000 },
-        }
-      );
+      await this.addDeploymentJob(item, params);
     } catch (enqueueError) {
-      // Compensate: the item was marked `deploying` but no job exists, so nothing
-      // would ever pick it up. Restore the retryable failed-draft state (status
-      // `draft` + last_error_code, the exact gate retryDeployment checks) so the
-      // item is never stranded. Compensation is best-effort — the caller always
-      // sees the failure either way.
-      logger.error(
-        { err: enqueueError, workItemId: item.id },
-        "[GBP] business-info deployment enqueue failed; returning item to draft"
-      );
-      await GbpWorkItemModel.markFailedToDraft(
-        item.id,
-        "DEPLOY_ENQUEUE_FAILED",
-        "The deployment could not be queued."
-      ).catch((compensationError) => {
-        logger.error(
-          { err: compensationError, workItemId: item.id },
-          "[GBP] business-info enqueue compensation failed"
-        );
-      });
-      // §3.2 — the audit event is best-effort (the typed queue error below is
-      // what the caller must see), but a failure here is never silent: losing the
-      // compensation trail is exactly what an operator needs to know about.
-      const deployEnqueueFailedEvent = "business_info_deploy_enqueue_failed";
-      await GbpWorkEventModel.create({
-        work_item_id: item.id,
-        actor_user_id: params.userId,
-        event_type: deployEnqueueFailedEvent,
-        metadata: { actorEmail: params.actorEmail || null },
-      }).catch((eventError) => {
-        logger.error(
-          { err: eventError, workItemId: item.id, eventType: deployEnqueueFailedEvent },
-          "[GBP] business-info compensation event write failed"
-        );
-      });
-      throw new GbpAutomationError(
-        "DEPLOY_QUEUE_TRANSIENT_FAILURE",
-        "The deployment could not be queued; the update was returned to draft. Retry in a moment."
-      );
+      await this.handleDeploymentEnqueueFailure(item, params, enqueueError);
     }
+    await this.recordDeployQueued(item.id);
     return (await GbpWorkItemModel.findById(item.id))!;
   }
 
   static async retryDeployment(params: ScopedParams): Promise<IGbpWorkItem> {
     const item = await this.getScopedItem(params);
+    if (
+      item.status === "deploying" &&
+      item.metadata?.deployQueueState === "pending"
+    ) {
+      await assertWritebackEnabled(item.organization_id, item.location_id);
+      try {
+        await this.addDeploymentJob(item, params);
+      } catch (enqueueError) {
+        logger.error(
+          { err: enqueueError, workItemId: item.id },
+          "[GBP] pending business-info deployment could not be re-enqueued"
+        );
+        throw new GbpAutomationError(
+          "DEPLOY_QUEUE_RECOVERY_REQUIRED",
+          "The deployment is waiting for its queue job. Retry again; the stable job ID makes this safe."
+        );
+      }
+      await this.recordDeployQueued(item.id);
+      return (await GbpWorkItemModel.findById(item.id))!;
+    }
     if (item.status !== "draft" || !item.last_error_code) {
       throw new GbpAutomationError("RETRY_NOT_AVAILABLE", "This profile update is not ready for retry.");
     }
@@ -258,6 +241,22 @@ export class GbpBusinessInfoDeploymentService {
     // already happened" are different facts and the owner is told which one is true.
     const claim = await GbpWorkItemModel.claimBusinessInfoRevert(item.id);
     if (claim === "revert_in_progress") {
+      if (item.metadata?.revertQueueState === "pending") {
+        try {
+          await this.addRevertJob(item, params);
+        } catch (enqueueError) {
+          logger.error(
+            { err: enqueueError, workItemId: item.id },
+            "[GBP] pending business-info revert could not be re-enqueued"
+          );
+          throw new GbpAutomationError(
+            "REVERT_QUEUE_RECOVERY_REQUIRED",
+            "The revert is waiting for its queue job. Retry again; the stable job ID makes this safe."
+          );
+        }
+        await this.recordRevertQueued(item.id);
+        return (await GbpWorkItemModel.findById(item.id))!;
+      }
       throw new GbpAutomationError(
         "REVERT_IN_PROGRESS",
         "A revert for this profile update is already in progress. It will finish shortly."
@@ -276,59 +275,64 @@ export class GbpBusinessInfoDeploymentService {
       );
     }
     try {
-      await getGbpAutomationQueue("deployment").add(
-        "revert-business-info",
-        { workItemId: item.id, userId: params.userId, actorEmail: params.actorEmail || null },
-        {
-          jobId: `gbp-business-info-revert-${item.id}-${Date.now()}`,
-          attempts: 3,
-          backoff: { type: "exponential", delay: 30000 },
-          removeOnComplete: { age: 86400, count: 1000 },
-          removeOnFail: { age: 604800, count: 5000 },
-        }
-      );
+      await this.addRevertJob(item, params);
     } catch (enqueueError) {
-      // Compensate: the single-flight claim was taken but no job exists, so no
-      // future revert attempt could ever win the claim. Release it so the owner
-      // can retry. Best-effort — the caller always sees the failure either way.
-      logger.error(
-        { err: enqueueError, workItemId: item.id },
-        "[GBP] business-info revert enqueue failed; releasing revert claim"
-      );
-      await GbpWorkItemModel.releaseBusinessInfoRevertClaim(item.id).catch(
-        (compensationError) => {
-          logger.error(
-            { err: compensationError, workItemId: item.id },
-            "[GBP] business-info revert-claim release failed"
-          );
-        }
-      );
-      // §3.2 — best-effort, but never silent (see the deploy path above).
-      const revertEnqueueFailedEvent = "business_info_revert_enqueue_failed";
-      await GbpWorkEventModel.create({
-        work_item_id: item.id,
-        actor_user_id: params.userId,
-        event_type: revertEnqueueFailedEvent,
-        metadata: { actorEmail: params.actorEmail || null },
-      }).catch((eventError) => {
-        logger.error(
-          { err: eventError, workItemId: item.id, eventType: revertEnqueueFailedEvent },
-          "[GBP] business-info compensation event write failed"
-        );
-      });
-      throw new GbpAutomationError(
-        "REVERT_QUEUE_TRANSIENT_FAILURE",
-        "The revert could not be queued. Try again in a moment."
-      );
+      await this.handleRevertEnqueueFailure(item, params, enqueueError);
     }
+    await this.recordRevertQueued(item.id);
     return (await GbpWorkItemModel.findById(item.id))!;
   }
 
   static async deployNow(
     workItemId: string,
     userId: number | null,
-    options?: { isFinalAttempt?: boolean }
+    options?: { isFinalAttempt?: boolean; isRetryAttempt?: boolean }
   ): Promise<IGbpWorkItem> {
+    const item = await this.getDeployableItem(workItemId);
+    const payload = readPayload(item);
+    const claim = await GbpDeploymentAttemptModel.claimRunningAttempt(
+      {
+        work_item_id: item.id,
+        requested_by_user_id: userId,
+        request_payload: { updateMask: payload.updateMask },
+      },
+      options?.isRetryAttempt ? { leaseMs: 0 } : undefined
+    );
+    const earlyResult = await this.resolveClaimState(item, payload, userId, claim);
+    if (earlyResult) return earlyResult;
+
+    let googleResult: Record<string, unknown> | null = null;
+    try {
+      const prepared = await this.prepareProviderWrite(item, payload, userId, claim);
+      if (prepared.reconciled) return prepared.reconciled;
+      googleResult = await patchGbpBusinessInformation(
+        prepared.auth,
+        businessInfoLocationName(prepared.property),
+        prepared.effectivePatch,
+        payload.updateMask
+      );
+      return await GbpBusinessInfoReconcileService.finalizeProviderSuccess({
+        item,
+        attempt: claim.attempt,
+        userId,
+        payload,
+        googleResult,
+        googleResourceName: businessInfoLocationName(prepared.property),
+        reason: "provider_response",
+      });
+    } catch (error) {
+      return this.handleProviderWriteError({
+        error,
+        googleResult,
+        item,
+        attempt: claim.attempt,
+        payload,
+        isFinalAttempt: options?.isFinalAttempt,
+      });
+    }
+  }
+
+  private static async getDeployableItem(workItemId: string): Promise<IGbpWorkItem> {
     const item = await GbpWorkItemModel.findById(workItemId);
     if (!item) throw new GbpAutomationError("WORK_ITEM_NOT_FOUND", "Work item not found.");
     if (item.content_type !== "business_info") {
@@ -338,215 +342,191 @@ export class GbpBusinessInfoDeploymentService {
       throw new GbpAutomationError("INVALID_STATUS", "This profile update is not queued for deployment.");
     }
     await this.assertOrganizationActive(item.organization_id);
+    return item;
+  }
 
-    const payload = readPayload(item);
-
-    // Claim the write with an EXPLICIT state (§21.1/§21.2). A signal that cannot
-    // distinguish concurrent work from completed work forces the caller to guess, and
-    // guessing here means either re-sending a write Google already applied or
-    // reporting a conflict that does not exist.
-    const claim = await GbpDeploymentAttemptModel.claimRunningAttempt({
-      work_item_id: item.id,
-      requested_by_user_id: userId,
-      request_payload: { updateMask: payload.updateMask },
-    });
-
+  private static async resolveClaimState(
+    item: IGbpWorkItem,
+    payload: BusinessInfoPayload,
+    userId: number | null,
+    claim: GbpAttemptClaim
+  ): Promise<IGbpWorkItem | null> {
     if (claim.state === "concurrent_attempt_running") {
-      // Another worker holds a live lease and will finalize this item. Backing off is
-      // correct (single-flight), but it is NOT a completed write — log it so a real
-      // double-delivery is visible rather than looking like a clean no-op.
       logger.warn(
         { workItemId: item.id, attemptId: claim.attempt.id, claimState: claim.state },
         "[GBP] business-info deploy skipped; another worker holds a live attempt lease"
       );
       return item;
     }
+    if (claim.state !== "already_succeeded") return null;
 
-    if (claim.state === "already_succeeded") {
-      // Google accepted this write on an earlier attempt and local finalization never
-      // finished. The provider write is DONE — re-sending it is forbidden. Finish the
-      // local half from the response recorded at the time.
-      logger.warn(
-        { workItemId: item.id, attemptId: claim.attempt.id, claimState: claim.state },
-        "[GBP] business-info retry found a succeeded attempt with an unfinalized work item; reconciling local state without re-sending to Google"
+    logger.warn(
+      { workItemId: item.id, attemptId: claim.attempt.id, claimState: claim.state },
+      "[GBP] business-info retry found a succeeded attempt with an unfinalized work item; reconciling local state without re-sending to Google"
+    );
+    return GbpBusinessInfoReconcileService.finalizeProviderSuccess({
+      item,
+      attempt: claim.attempt,
+      userId,
+      payload,
+      googleResult: (claim.attempt.response_payload || {}) as Record<string, unknown>,
+      reason: "already_succeeded",
+    });
+  }
+
+  private static async prepareProviderWrite(
+    item: IGbpWorkItem,
+    payload: BusinessInfoPayload,
+    userId: number | null,
+    claim: GbpAttemptClaim
+  ): Promise<PreparedBusinessInfoWrite> {
+    const readiness = await GbpReadinessService.getLocationReadiness(
+      item.organization_id,
+      item.location_id
+    );
+    assertGoogleReady(readiness);
+    await assertWritebackEnabled(item.organization_id, item.location_id);
+
+    const property = await GooglePropertyModel.findById(item.google_property_id);
+    if (!property) throw new GbpAutomationError("GBP_PROPERTY_MISSING", "GBP property missing.");
+    const auth = await getValidOAuth2ClientByConnection(property.google_connection_id);
+    const hadSnapshot = Boolean(payload.previousValues);
+    const previousValues = await this.ensureRollbackSnapshot(item, payload, auth, property);
+    const effectivePatch = mergePatchOverSnapshot(
+      payload.patch,
+      previousValues,
+      payload.updateMask
+    );
+    const reconciled =
+      claim.state === "stale_attempt_running" && hadSnapshot
+        ? await GbpBusinessInfoReconcileService.reconcileAbandonedAttempt({
+            item,
+            attempt: claim.attempt,
+            userId,
+            payload,
+            auth,
+            property,
+            effectivePatch,
+          })
+        : null;
+    return { auth, property, effectivePatch, reconciled };
+  }
+
+  private static async ensureRollbackSnapshot(
+    item: IGbpWorkItem,
+    payload: BusinessInfoPayload,
+    auth: GoogleOAuthClient,
+    property: IGoogleProperty
+  ): Promise<BusinessInfoPatch> {
+    if (payload.previousValues) return payload.previousValues;
+    const profile = await getLocationProfileForRanking(
+      auth,
+      property.account_id || "",
+      property.external_id || ""
+    );
+    if (!profile) {
+      throw new GbpAutomationError(
+        "SNAPSHOT_FAILED",
+        "Could not read the current profile to make a rollback point; the update was not sent."
       );
-      return GbpBusinessInfoReconcileService.finalizeProviderSuccess({
-        item,
-        attempt: claim.attempt,
-        userId,
-        payload,
-        googleResult: (claim.attempt.response_payload || {}) as Record<string, unknown>,
-        reason: "already_succeeded",
-      });
     }
+    const previousValues = extractMaskedFields(
+      profile as Record<string, unknown>,
+      payload.updateMask
+    );
+    await GbpWorkItemModel.updateById(item.id, {
+      business_info_payload: { ...payload, previousValues },
+    });
+    return previousValues;
+  }
 
-    const attempt = claim.attempt;
-    // Capture-before-write ordering makes this a load-bearing fact: the snapshot is
-    // always persisted BEFORE the PATCH is sent, so an item with no snapshot cannot
-    // have had a write sent for it by anyone. Read it before the capture block below
-    // overwrites the answer.
-    const hadSnapshotBeforeThisAttempt = Boolean(payload.previousValues);
-    let googleResult: Record<string, unknown> | null = null;
+  private static async handleProviderWriteError(params: {
+    error: unknown;
+    googleResult: Record<string, unknown> | null;
+    item: IGbpWorkItem;
+    attempt: IGbpDeploymentAttempt;
+    payload: BusinessInfoPayload;
+    isFinalAttempt?: boolean;
+  }): Promise<IGbpWorkItem> {
+    const { googleResult } = params;
+    if (googleResult) {
+      return this.recordProviderReceiptAndThrow({ ...params, googleResult });
+    }
+    return this.handlePreProviderFailure(params);
+  }
 
-    try {
-      // Re-enforce the gates server-side at write time.
-      const readiness = await GbpReadinessService.getLocationReadiness(
-        item.organization_id,
-        item.location_id
-      );
-      assertGoogleReady(readiness);
-      await assertWritebackEnabled(item.organization_id, item.location_id);
+  private static async recordProviderReceiptAndThrow(params: {
+    error: unknown;
+    googleResult: Record<string, unknown>;
+    item: IGbpWorkItem;
+    attempt: IGbpDeploymentAttempt;
+    payload: BusinessInfoPayload;
+  }): Promise<never> {
+    const err = params.error as { code?: string };
+    logger.error(
+      {
+        err: params.error,
+        workItemId: params.item.id,
+        attemptId: params.attempt.id,
+        updateMask: params.payload.updateMask,
+      },
+      "[GBP] business-info patch applied on Google but atomic local finalization failed"
+    );
+    await GbpDeploymentAttemptModel.markSucceeded(params.attempt.id, params.googleResult);
+    throw new GbpAutomationError(
+      "BUSINESS_INFO_FINALIZATION_RETRY_REQUIRED",
+      "Google accepted this profile update, but Alloro could not finish its local transaction. Retry will reconcile without writing Google again.",
+      { causeCode: err.code || null }
+    );
+  }
 
-      const property = await GooglePropertyModel.findById(item.google_property_id);
-      if (!property) throw new GbpAutomationError("GBP_PROPERTY_MISSING", "GBP property missing.");
+  private static async handlePreProviderFailure(params: {
+    error: unknown;
+    item: IGbpWorkItem;
+    attempt: IGbpDeploymentAttempt;
+    isFinalAttempt?: boolean;
+  }): Promise<IGbpWorkItem> {
+    const err = params.error as { code?: string; message?: string; details?: unknown };
+    await GbpDeploymentAttemptModel.markFailed(
+      params.attempt.id,
+      err.code || "DEPLOY_FAILED",
+      err.message || "Deployment failed.",
+      err.details ? { details: err.details as Record<string, unknown> } : null
+    );
+    if (isTransientGoogleError(params.error) && params.isFinalAttempt === false) {
+      throw params.error;
+    }
+    logger.error(
+      { err: params.error, workItemId: params.item.id, attemptId: params.attempt.id },
+      "[GBP] business-info deployment failed; returning item to draft"
+    );
+    await GbpWorkItemModel.markFailedToDraft(
+      params.item.id,
+      err.code || "DEPLOY_FAILED",
+      err.message || "Deployment failed."
+    );
+    await this.notifyDeployFailure(params.item, err.message);
+    return (await GbpWorkItemModel.findById(params.item.id))!;
+  }
 
-      const auth = await getValidOAuth2ClientByConnection(property.google_connection_id);
-
-      // Capture-before-write (capture-ONCE): read the live values as the rollback
-      // snapshot only if a prior attempt has not already captured them. On a retry
-      // after an ambiguous write (patch applied on Google but the response was lost),
-      // re-reading would capture Google's ALREADY-changed state and clobber the true
-      // original — so we never recapture. If the read fails there is no rollback point,
-      // so the write does NOT proceed.
-      let previousValues = (payload.previousValues ?? null) as BusinessInfoPatch | null;
-      if (!previousValues) {
-        const profile = await getLocationProfileForRanking(
-          auth,
-          property.account_id || "",
-          property.external_id || ""
-        );
-        if (!profile) {
-          throw new GbpAutomationError(
-            "SNAPSHOT_FAILED",
-            "Could not read the current profile to make a rollback point; the update was not sent."
-          );
-        }
-        previousValues = extractMaskedFields(profile as Record<string, unknown>, payload.updateMask);
-        await GbpWorkItemModel.updateById(item.id, {
-          business_info_payload: { ...payload, previousValues },
-        });
-      }
-
-      // Merge the owner's change over the snapshot so a partial structured edit never
-      // clears sibling subfields that Google's top-level updateMask would replace.
-      const effectivePatch = mergePatchOverSnapshot(
-        payload.patch,
-        previousValues,
-        payload.updateMask
-      );
-
-      // We took over an attempt whose worker died, and that worker had already
-      // persisted a snapshot — so it may have reached Google before it died. Find out
-      // what Google actually did BEFORE writing, rather than assuming either way.
-      if (claim.state === "stale_attempt_running" && hadSnapshotBeforeThisAttempt) {
-        const reconciled = await GbpBusinessInfoReconcileService.reconcileAbandonedAttempt({
-          item,
-          attempt,
-          userId,
-          payload,
-          auth,
-          property,
-          effectivePatch,
-        });
-        if (reconciled) return reconciled;
-      }
-
-      googleResult = await patchGbpBusinessInformation(
-        auth,
-        businessInfoLocationName(property),
-        effectivePatch,
-        payload.updateMask
-      );
-
-      const markedPublished = await GbpWorkItemModel.markPublished(item.id, {
-        publishedContent: item.approved_content || item.draft_content,
-        googleResourceName: businessInfoLocationName(property),
-        googleResponse: googleResult,
-      });
-      if (markedPublished === 0) {
-        throw new GbpAutomationError("INVALID_STATUS", "This profile update was already finalized.");
-      }
-      await GbpDeploymentAttemptModel.markSucceeded(attempt.id, googleResult);
-      await GbpWorkEventModel.create({
-        work_item_id: item.id,
-        actor_user_id: userId,
-        event_type: "business_info_published",
-        metadata: { updateMask: payload.updateMask },
-      });
-      await GbpNotificationService.create({
-        organizationId: item.organization_id,
-        locationId: item.location_id,
-        workItemId: item.id,
-        kind: "gbp_business_info_published",
-        title: "Alloro updated your Google profile",
-        message:
-          "You approved it and Alloro updated your Business Profile information on Google. You can revert it any time.",
-      });
-      return (await GbpWorkItemModel.findById(item.id))!;
-    } catch (error) {
-      const err = error as { code?: string; message?: string; details?: unknown };
-      if (googleResult) {
-        // §3.2 — this branch returns a work item rather than re-throwing, so the
-        // error MUST be logged: Google accepted the live write but Alloro could not
-        // finish local sync, which is the one state where our record and the
-        // customer's real profile have diverged. An operator has to see it.
-        logger.error(
-          { err: error, workItemId: item.id, attemptId: attempt.id, updateMask: payload.updateMask },
-          "[GBP] business-info patch applied on Google but local sync failed; profile and Alloro state diverged"
-        );
-        await GbpDeploymentAttemptModel.markSucceeded(attempt.id, googleResult);
-        await GbpWorkItemModel.updateById(item.id, {
-          status: "published",
-          published_content: item.approved_content || item.draft_content,
-          google_response: googleResult,
-          published_at: new Date(),
-          last_error_code: err.code || "BUSINESS_INFO_PUBLISH_SYNC_FAILED",
-          last_error_message:
-            "Google accepted this profile update, but Alloro could not finish local sync.",
-        });
-        return (await GbpWorkItemModel.findById(item.id))!;
-      }
-
-      await GbpDeploymentAttemptModel.markFailed(
-        attempt.id,
-        err.code || "DEPLOY_FAILED",
-        err.message || "Deployment failed.",
-        err.details ? { details: err.details as Record<string, unknown> } : null
-      );
-      if (isTransientGoogleError(error) && options?.isFinalAttempt === false) {
-        // Re-thrown for the queue to retry — §3.2 is satisfied by the re-throw.
-        throw error;
-      }
-
-      // §3.2 — terminal failure: this path returns the item instead of throwing, so
-      // the underlying error is logged here, not just persisted onto the attempt row.
+  private static async notifyDeployFailure(
+    item: IGbpWorkItem,
+    errorMessage?: string
+  ): Promise<void> {
+    const kind = "gbp_business_info_deploy_failed";
+    await GbpNotificationService.create({
+      organizationId: item.organization_id,
+      locationId: item.location_id,
+      workItemId: item.id,
+      kind,
+      title: "Google profile update failed",
+      message: errorMessage || "A Google profile update failed to publish and returned to draft.",
+    }).catch((notifyError) => {
       logger.error(
-        { err: error, workItemId: item.id, attemptId: attempt.id },
-        "[GBP] business-info deployment failed; returning item to draft"
+        { err: notifyError, workItemId: item.id, kind },
+        "[GBP] business-info deploy-failed notification write failed"
       );
-      await GbpWorkItemModel.markFailedToDraft(
-        item.id,
-        err.code || "DEPLOY_FAILED",
-        err.message || "Deployment failed."
-      );
-      const deployFailedNotification = "gbp_business_info_deploy_failed";
-      await GbpNotificationService.create({
-        organizationId: item.organization_id,
-        locationId: item.location_id,
-        workItemId: item.id,
-        kind: deployFailedNotification,
-        title: "Google profile update failed",
-        message: err.message || "A Google profile update failed to publish and returned to draft.",
-      }).catch((notifyError) => {
-        // §3.2 — best-effort (the item is already back in draft either way), but never
-        // silent: a dropped failure notice means the owner is never told it failed.
-        logger.error(
-          { err: notifyError, workItemId: item.id, kind: deployFailedNotification },
-          "[GBP] business-info deploy-failed notification write failed"
-        );
-      });
-      return (await GbpWorkItemModel.findById(item.id))!;
-    }
+    });
   }
 
   static async revertNow(workItemId: string, userId: number | null): Promise<IGbpWorkItem> {
@@ -560,7 +540,6 @@ export class GbpBusinessInfoDeploymentService {
     }
     await this.assertOrganizationActive(item.organization_id);
 
-    // Idempotency: if a prior run already reverted this item, do NOT patch again.
     if (item.metadata?.reverted === true) {
       return item;
     }
@@ -582,8 +561,6 @@ export class GbpBusinessInfoDeploymentService {
       payload.updateMask
     );
 
-    // Mark reverted + release the single-flight claim first, so a bookkeeping failure
-    // below cannot cause the job to retry and re-PATCH Google.
     await GbpWorkItemModel.updateById(item.id, {
       metadata: {
         ...item.metadata,
@@ -600,9 +577,6 @@ export class GbpBusinessInfoDeploymentService {
       event_type: revertedEvent,
       metadata: { updateMask: payload.updateMask },
     }).catch((eventError) => {
-      // §3.2 — best-effort by design (the revert already landed on Google and the
-      // claim is released, so throwing here would only trigger a re-PATCH), but never
-      // silent: this event is the audit trail that the rollback happened.
       logger.error(
         { err: eventError, workItemId: item.id, eventType: revertedEvent },
         "[GBP] business-info revert event write failed"
@@ -617,14 +591,184 @@ export class GbpBusinessInfoDeploymentService {
       title: "Alloro reverted your Google profile update",
       message: "Your Business Profile information was restored to its previous values on Google.",
     }).catch((notifyError) => {
-      // §3.2 — best-effort for the same reason, never silent: a dropped notice means
-      // the owner is never told their live profile was changed back.
       logger.error(
         { err: notifyError, workItemId: item.id, kind: revertedNotification },
         "[GBP] business-info revert notification write failed"
       );
     });
     return (await GbpWorkItemModel.findById(item.id))!;
+  }
+
+  private static async addDeploymentJob(
+    item: IGbpWorkItem,
+    params: ScopedParams
+  ): Promise<void> {
+    await getGbpAutomationQueue("deployment").add(
+      "deploy-business-info",
+      {
+        workItemId: item.id,
+        userId: params.userId,
+        actorEmail: params.actorEmail || null,
+      },
+      {
+        jobId: `gbp-business-info-${item.id}-${item.retry_count || 0}`,
+        attempts: 3,
+        backoff: { type: "exponential", delay: 30000 },
+        removeOnComplete: { age: 86400, count: 1000 },
+        removeOnFail: { age: 604800, count: 5000 },
+      }
+    );
+  }
+
+  private static async addRevertJob(
+    item: IGbpWorkItem,
+    params: ScopedParams
+  ): Promise<void> {
+    await getGbpAutomationQueue("deployment").add(
+      "revert-business-info",
+      {
+        workItemId: item.id,
+        userId: params.userId,
+        actorEmail: params.actorEmail || null,
+      },
+      {
+        jobId: `gbp-business-info-revert-${item.id}`,
+        attempts: 3,
+        backoff: { type: "exponential", delay: 30000 },
+        removeOnComplete: { age: 86400, count: 1000 },
+        removeOnFail: { age: 604800, count: 5000 },
+      }
+    );
+  }
+
+  private static async recordDeployQueued(workItemId: string): Promise<void> {
+    await GbpWorkItemModel.markBusinessInfoDeployQueued(workItemId).catch((error) => {
+      logger.error(
+        { err: error, workItemId },
+        "[GBP] deployment job exists but its queue-state marker could not be updated"
+      );
+    });
+  }
+
+  private static async recordRevertQueued(workItemId: string): Promise<void> {
+    await GbpWorkItemModel.markBusinessInfoRevertQueued(workItemId).catch((error) => {
+      logger.error(
+        { err: error, workItemId },
+        "[GBP] revert job exists but its queue-state marker could not be updated"
+      );
+    });
+  }
+
+  private static async handleDeploymentEnqueueFailure(
+    item: IGbpWorkItem,
+    params: ScopedParams,
+    enqueueError: unknown
+  ): Promise<never> {
+    logger.error(
+      { err: enqueueError, workItemId: item.id },
+      "[GBP] business-info deployment enqueue failed; compensating to draft"
+    );
+
+    let compensated = false;
+    try {
+      compensated =
+        (await GbpWorkItemModel.markFailedToDraft(
+          item.id,
+          "DEPLOY_ENQUEUE_FAILED",
+          "The deployment could not be queued."
+        )) === 1;
+      if (!compensated) {
+        logger.error(
+          { workItemId: item.id, affectedRows: 0 },
+          "[GBP] business-info enqueue compensation affected no rows"
+        );
+      }
+    } catch (compensationError) {
+      logger.error(
+        { err: compensationError, workItemId: item.id },
+        "[GBP] business-info enqueue compensation failed"
+      );
+    }
+
+    await this.recordQueueFailureEvent(
+      item.id,
+      params,
+      "business_info_deploy_enqueue_failed"
+    );
+
+    if (compensated) {
+      throw new GbpAutomationError(
+        "DEPLOY_QUEUE_TRANSIENT_FAILURE",
+        "The deployment could not be queued; the update was returned to draft. Retry in a moment."
+      );
+    }
+    throw new GbpAutomationError(
+      "DEPLOY_QUEUE_RECOVERY_REQUIRED",
+      "The deployment queue failed and the item could not be returned to draft. Retry the deployment; Alloro will safely re-enqueue the pending item."
+    );
+  }
+
+  private static async handleRevertEnqueueFailure(
+    item: IGbpWorkItem,
+    params: ScopedParams,
+    enqueueError: unknown
+  ): Promise<never> {
+    logger.error(
+      { err: enqueueError, workItemId: item.id },
+      "[GBP] business-info revert enqueue failed; releasing revert claim"
+    );
+
+    let compensated = false;
+    try {
+      compensated =
+        (await GbpWorkItemModel.releaseBusinessInfoRevertClaim(item.id)) === 1;
+      if (!compensated) {
+        logger.error(
+          { workItemId: item.id, affectedRows: 0 },
+          "[GBP] business-info revert-claim release affected no rows"
+        );
+      }
+    } catch (compensationError) {
+      logger.error(
+        { err: compensationError, workItemId: item.id },
+        "[GBP] business-info revert-claim release failed"
+      );
+    }
+
+    await this.recordQueueFailureEvent(
+      item.id,
+      params,
+      "business_info_revert_enqueue_failed"
+    );
+
+    if (compensated) {
+      throw new GbpAutomationError(
+        "REVERT_QUEUE_TRANSIENT_FAILURE",
+        "The revert could not be queued. Try again in a moment."
+      );
+    }
+    throw new GbpAutomationError(
+      "REVERT_QUEUE_RECOVERY_REQUIRED",
+      "The revert queue failed and its claim could not be released. Retry the revert; Alloro will safely re-enqueue the pending job."
+    );
+  }
+
+  private static async recordQueueFailureEvent(
+    workItemId: string,
+    params: ScopedParams,
+    eventType: string
+  ): Promise<void> {
+    await GbpWorkEventModel.create({
+      work_item_id: workItemId,
+      actor_user_id: params.userId,
+      event_type: eventType,
+      metadata: { actorEmail: params.actorEmail || null },
+    }).catch((eventError) => {
+      logger.error(
+        { err: eventError, workItemId, eventType },
+        "[GBP] business-info compensation event write failed"
+      );
+    });
   }
 
   private static async assertOrganizationActive(organizationId: number): Promise<void> {

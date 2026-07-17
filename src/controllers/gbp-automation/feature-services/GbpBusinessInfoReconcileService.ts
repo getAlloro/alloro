@@ -1,4 +1,5 @@
 import logger from "../../../lib/logger";
+import type { GoogleOAuthClient } from "../../../auth/oauth2Helper";
 import {
   GbpDeploymentAttemptModel,
   IGbpDeploymentAttempt,
@@ -40,8 +41,7 @@ export class GbpBusinessInfoReconcileService {
     attempt: IGbpDeploymentAttempt;
     userId: number | null;
     payload: BusinessInfoPayload;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    auth: any;
+    auth: GoogleOAuthClient;
     property: IGoogleProperty;
     effectivePatch: BusinessInfoPatch;
   }): Promise<IGbpWorkItem | null> {
@@ -117,39 +117,61 @@ export class GbpBusinessInfoReconcileService {
       googleResourceName = property?.external_id ? `locations/${property.external_id}` : null;
     }
 
-    if (attempt.status !== "succeeded") {
-      await GbpDeploymentAttemptModel.markSucceeded(attempt.id, googleResult);
-    }
+    let alreadyFinalized = false;
+    await GbpWorkItemModel.transaction(async (trx) => {
+      if (attempt.status !== "succeeded") {
+        const markedAttempt = await GbpDeploymentAttemptModel.markSucceeded(
+          attempt.id,
+          googleResult,
+          trx
+        );
+        if (markedAttempt === 0) {
+          throw new GbpAutomationError(
+            "ATTEMPT_FINALIZATION_FAILED",
+            "The provider accepted this update, but its deployment receipt could not be finalized."
+          );
+        }
+      }
 
-    const markedPublished = await GbpWorkItemModel.markPublished(item.id, {
-      publishedContent: item.approved_content || item.draft_content,
-      googleResourceName,
-      googleResponse: googleResult,
+      const markedPublished = await GbpWorkItemModel.markPublished(
+        item.id,
+        {
+          publishedContent: item.approved_content || item.draft_content,
+          googleResourceName,
+          googleResponse: googleResult,
+        },
+        trx
+      );
+      if (markedPublished === 0) {
+        const current = await GbpWorkItemModel.findById(item.id, trx);
+        if (current?.status === "published") {
+          alreadyFinalized = true;
+          return;
+        }
+        throw new GbpAutomationError(
+          "WORK_ITEM_FINALIZATION_FAILED",
+          "The provider accepted this update, but the work item could not be finalized."
+        );
+      }
+
+      await GbpWorkEventModel.create(
+        {
+          work_item_id: item.id,
+          actor_user_id: userId,
+          event_type: "business_info_published",
+          metadata: { updateMask: payload.updateMask, reconciled: params.reason },
+        },
+        trx
+      );
     });
-    if (markedPublished === 0) {
-      // Another worker finalized it first. The desired state is live on Google and
-      // recorded here — nothing is diverged and there is nothing left to do.
+
+    if (alreadyFinalized) {
       logger.warn(
         { workItemId: item.id, attemptId: attempt.id, reason: params.reason },
         "[GBP] business-info reconcile: work item was already finalized by another worker"
       );
       return (await GbpWorkItemModel.findById(item.id))!;
     }
-
-    const publishedEvent = "business_info_published";
-    await GbpWorkEventModel.create({
-      work_item_id: item.id,
-      actor_user_id: userId,
-      event_type: publishedEvent,
-      metadata: { updateMask: payload.updateMask, reconciled: params.reason },
-    }).catch((eventError) => {
-      // §3.2 — best-effort (the item is published and Google is correct either way),
-      // but never silent: this event is the audit trail of the reconciliation.
-      logger.error(
-        { err: eventError, workItemId: item.id, eventType: publishedEvent },
-        "[GBP] business-info reconcile event write failed"
-      );
-    });
 
     const publishedNotification = "gbp_business_info_published";
     await GbpNotificationService.create({

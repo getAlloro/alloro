@@ -178,6 +178,10 @@ export const getValidOAuth2ClientByConnection = async (
   return oauth2Client;
 };
 
+export type GoogleOAuthClient = Awaited<
+  ReturnType<typeof getValidOAuth2ClientByConnection>
+>;
+
 /**
  * Get a valid OAuth2 client by organization ID.
  * Looks up the google_connections record for the organization.

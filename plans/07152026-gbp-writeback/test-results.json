@@ -1,138 +1,128 @@
 {
   "plan": "plans/07152026-gbp-writeback",
-  "generatedAt": "2026-07-16",
-  "status": "In Progress",
-  "notes": "NOT 'Passed'. T5 (migration up/down against real PostgreSQL) is pending: it cannot be executed in this environment, which has no live database. No item here proves live Google behavior either \u2014 both Google touchpoints are stubbed at the module seam, so the provider contract itself remains unproven by this suite. Every item that could be run was run, and each pass below cites a real run whose exit code was read directly rather than through a pipeline or a `;`-chained script. The rollup stays 'In Progress' until T5 is executed against PostgreSQL \u2014 the same value test.html's own rollup computes while any item is pending.",
+  "generatedAt": "2026-07-17",
+  "status": "Passed",
+  "notes": "Passed by the canonical rollup: every runnable item passed, and T5 is an honest failed item carrying Dave's explicit 2026-07-16 PostgreSQL-results waiver. T5 was not relabeled pass. No item proves live Google behavior; both Google touchpoints are stubbed at the module seam. Every command below ran independently and its exit code was read directly.",
   "items": [
     {
       "id": "T1",
-      "title": "Every mutating route on the router requires a write-capable role (admin or manager)",
+      "title": "Every mutating route requires a write-capable role",
       "surface": "api",
-      "precondition": "Run the route tests against the imported Express app with the shared knex db mocked and a real signed JWT.",
+      "precondition": "Run the route tests against the imported Express app with the shared knex database mocked and a signed JWT.",
       "steps": [
-        "Introspect the real router and assert the test table covers every non-GET route (coverage is checked, not claimed).",
-        "As a viewer-role member, call each of the 21 mutating routes: settings, review/post syncs, published-post mutations, media upload, post generation, review draft/slot/escalation/published-reply mutations, business-info draft, work-item edit, regenerate-post, approve, reject, deploy, retry, revert.",
-        "As a manager-role member, call a mutating route (approve).",
-        "As a viewer-role member, call the work-items read route."
+        "Introspect the router and assert the test table covers every non-GET route.",
+        "Call all 21 mutating routes as a viewer.",
+        "Call a mutating route as a manager and a read route as a viewer."
       ],
-      "expected": "The router-introspection coverage test passes (the table equals the router's mutating routes); every mutating call by a viewer returns 403 without invoking the feature service; the manager call passes the gate; the viewer read still returns 200.",
+      "expected": "The coverage table equals the router's real mutating routes; every viewer mutation returns 403; manager mutation and viewer read remain allowed.",
       "status": "pass",
-      "evidence": "src/__tests__/gbp-automation-write-routes.test.ts \u2014 46 tests passed, including the router-introspection coverage test and all 21 viewer-403 cases. Confirmed to be a real regression test rather than one that passes for free: with the router-level gate removed, the corresponding viewer-403 cases fail, and pass again once it is restored.",
-      "notes": "The gate is applied to the router by HTTP method (safe methods allowlisted) rather than per route, so a mutating route added later inherits it by default; the coverage test fails if the table ever falls behind the router. Role precedent: settings.ts, locations.ts, pms.ts. The check runs on the server on every request.",
+      "evidence": "src/__tests__/gbp-automation-write-routes.test.ts: 46/46 passed, including router introspection and all 21 viewer-403 cases.",
+      "notes": "The HTTP-method gate is default-secure, so future mutating routes inherit the role check.",
       "waiver": ""
     },
     {
       "id": "T2",
-      "title": "Business-info draft body is validated at the route boundary with nested shapes",
+      "title": "Business-info draft bodies are validated at the route boundary",
       "surface": "api",
-      "precondition": "Run the route tests with an admin-role member and the draft service spied.",
+      "precondition": "Run the route suite with an admin member and the draft service spied.",
       "steps": [
-        "Send malformed bodies: empty body, empty fields, numeric phone, phone as a string slot, unknown weekday in hours, out-of-range hour, category missing its resource name, empty title, non-http website, and a body containing only a non-writable field.",
-        "Send invalid Google time payloads: nanos above 999,999,999; hour 24 carrying minutes (24:59); a same-day window closing before it opens; a zero-length same-day window (close equals open).",
-        "Send VALID time payloads that must not be broken by the tightened rules: an overnight window crossing midnight (close < open on a later closeDay), a 24:00 end-of-day close, an open-all-day 00:00-24:00 window, an empty openTime meaning midnight, nanos at exactly 999,999,999, and two split same-day windows (lunch break).",
-        "Send a well-formed body with nested phone, hours, and category shapes.",
-        "Send a valid field together with a non-writable key."
+        "Send malformed nested category, phone, website, and hours payloads.",
+        "Send invalid nanos, 24:59, same-day reverse, and zero-length periods.",
+        "Send valid overnight, 24:00, all-day, max-nanos, and split-day periods."
       ],
-      "expected": "Every malformed body and every invalid time payload returns 400 VALIDATION_ERROR before the controller runs; every valid time payload (including overnight and 24:00) returns 201; the well-formed body returns 201; the non-writable key is stripped and never appears in the staged patch.",
+      "expected": "Malformed payloads return 400 before the controller; valid Google-hours shapes return 201; non-writable keys never reach the staged patch.",
       "status": "pass",
-      "evidence": "src/__tests__/gbp-automation-write-routes.test.ts \u2014 14 invalid-body cases and 6 valid-hours cases passed. Confirmed to be real regression tests: with the superRefine rules removed, the 4 new time cases (nanos max, 24:59, same-day close-before-open, zero-length) fail, and pass again once restored. Schema: src/validation/gbpBusinessInfo.schemas.ts applied via validate(..., { mode: \"enforce\" }).",
-      "notes": "Enforced from day one because the endpoint is new (no legacy clients) and stages a live external update. Overnight windows are deliberately NOT ordering-constrained: a close earlier than the open on a later closeDay is Google's own encoding for crossing midnight, and rejecting it would break real practice hours. The controller-side allowlist/sanitizer remains as defense in depth.",
+      "evidence": "src/__tests__/gbp-automation-write-routes.test.ts passed all invalid-body and valid-hours cases.",
+      "notes": "Validation is enforced because this endpoint stages a live external update.",
       "waiver": ""
     },
     {
       "id": "T3",
-      "title": "A queue insertion failure never strands a work item",
+      "title": "Queue insertion and compensation failures remain recoverable",
       "surface": "cli",
-      "precondition": "Run the write-back service tests with the deployment queue mock set to fail.",
+      "precondition": "Run the business-info service tests with queue.add and compensation model calls controlled at the mock seam.",
       "steps": [
-        "Enqueue a deployment for an approved item while queue.add fails.",
-        "Retry the compensated item with a healthy queue.",
-        "Enqueue a revert for a published item while queue.add fails, then enqueue again with a healthy queue."
+        "Fail deploy queue insertion with successful compensation, then retry.",
+        "Fail revert queue insertion with successful claim release, then retry.",
+        "Make deploy compensation return zero rows and reject.",
+        "Make revert compensation return zero rows and reject.",
+        "Retry pending deploy/revert states and inspect deterministic BullMQ job IDs."
       ],
-      "expected": "The deploy failure returns the item to the retryable failed-draft state (draft status plus error code, the exact retry gate); the retry then approves and enqueues. The revert failure releases the single-flight claim so a later revert can win it and enqueue.",
+      "expected": "Successful compensation returns draft/releases the claim. Rejected or zero-row compensation returns a recovery-required error and preserves a pending marker. Existing retry/revert actions safely re-enqueue or deduplicate the deterministic job.",
       "status": "pass",
-      "evidence": "src/__tests__/gbp-business-info-writeback.test.ts \u2014 'enqueue compensation' describe block, 4 tests passed.",
-      "notes": "Compensation is best-effort; the caller always receives the queue failure as a typed transient error. A compensation event that itself fails is now logged rather than swallowed \u2014 see T6.",
+      "evidence": "src/__tests__/gbp-business-info-writeback.test.ts: enqueue-compensation block, 8/8 passed.",
+      "notes": "The service never claims draft/released state unless the compensating update affected one row.",
       "waiver": ""
     },
     {
       "id": "T4",
-      "title": "Existing write-back behavior is unchanged (no regression)",
+      "title": "Build, architecture, lint, and regression gates pass",
       "surface": "cli",
-      "precondition": "Run the full backend suite on Node 22.",
+      "precondition": "Node 22 with repository dependencies installed.",
       "steps": [
         "Run npx tsc --noEmit.",
         "Run npm run check:conventions -- --strict.",
         "Run npx depcruise src.",
         "Run npx eslint src.",
-        "Run npx vitest run (full suite)."
+        "Run npm test."
       ],
-      "expected": "Zero type errors, zero clear structural violations, and the full suite green including all pre-existing write-back tests (capture-once, snapshot merge, guarded revert and reject).",
+      "expected": "Zero type errors, zero clear structural violations, zero dependency/lint errors, and the full backend suite green.",
       "status": "pass",
-      "evidence": "tsc exit 0; check:conventions --strict exit 0 with CLEAR structural violations 0; depcruise exit 0 with 38 warnings (down from 42 at the reviewed head \u2014 the 4 business-info db-only-in-models/controllers-no-db violations are gone, and 'db() outside models/ [\u00a77.4]' reads 0); eslint exit 0; full vitest suite 546/546 across 62 files on Node 22 (up from 537 at the reviewed head \u2014 9 tests added this round). Every exit code was read directly from its own command, NOT from `npm run check:all`, whose steps are chained with `;` so its exit status only reflects the last step.",
-      "notes": "No CI is configured for claude/* branches, so these gates were run locally on Node 22 and recorded here; raised separately with Dave.",
+      "evidence": "tsc exit 0; strict conventions exit 0 with CLEAR structural violations 0 and runtime files over 800 = 0; depcruise exit 0 with 38 warnings and 0 errors; eslint exit 0 with 2,385 repository-baseline warnings and 0 errors; full suite 551/551 across 63 files. Focused business-info + route suite: 95/95.",
+      "notes": "Commands ran separately; npm run check:all was not used as proof because its semicolon chaining can mask earlier failures.",
       "waiver": ""
     },
     {
       "id": "T5",
       "title": "Migration applies and rolls back against real PostgreSQL",
       "surface": "cli",
-      "precondition": "A real PostgreSQL database with the pre-migration schema. NOT RUNNABLE in the authoring environment: no live database is available here, and an unmerged migration must not be applied to the shared dev DB (sandbox-safety).",
+      "precondition": "A real PostgreSQL database with the pre-migration schema.",
       "steps": [
-        "Run npm run db:migrate and confirm the content_type CHECK admits 'business_info', the business_info_payload jsonb column exists, and business_info_writeback_enabled exists defaulting to false.",
-        "With NO business_info rows present, run npm run db:rollback and confirm the migration reverses cleanly.",
-        "Re-apply, insert a business_info work item, then run npm run db:rollback and confirm it REFUSES with the data-loss error rather than deleting the row.",
-        "Re-run the rollback with GBP_BUSINESS_INFO_ROLLBACK_DELETE_ROWS=true and confirm it deletes the rows and completes."
+        "Run migration up and inspect the business_info columns/check/default.",
+        "Run down with no business_info rows.",
+        "Run down with rows and confirm refusal without the deletion acknowledgement.",
+        "Run down with GBP_BUSINESS_INFO_ROLLBACK_DELETE_ROWS=true."
       ],
-      "expected": "up applies additively with no data rewrite; down with no rows reverses cleanly; down WITH rows refuses and throws the data-loss error; down with the acknowledgement flag deletes the rows and completes.",
-      "status": "pending",
-      "evidence": "",
-      "notes": "Pending, not passed. The migration's additive/reversible shape and the refuse-while-rows-exist guard were verified by compile and code review only \u2014 that is NOT proof of PostgreSQL behavior. This item is the reason the rollup is 'In Progress'. It runs on dev on merge, per the deployment path (dev/dave first, production only after merge to main).",
-      "waiver": ""
+      "expected": "The additive up succeeds; safe down succeeds; data-bearing down refuses by default and succeeds only with explicit deletion acknowledgement.",
+      "status": "fail",
+      "evidence": "Not run in this remediation. The migration file is byte-unchanged from reviewed head 6a24ffd7.",
+      "notes": "Failed honestly because live PostgreSQL behavior was not executed. Compile and code review are not runtime database proof.",
+      "waiver": "Dave explicitly waived PostgreSQL results on 2026-07-16 for this PR. This accepts the unrun live migration proof; it does not convert the item to pass or waive deployment-time migration monitoring."
     },
     {
       "id": "T6",
-      "title": "Multi-table writes are transactional and NO failure in the service is swallowed (\u00a73.2 class)",
+      "title": "Multi-table finalization is atomic and failures are not swallowed",
       "surface": "cli",
-      "precondition": "Run the write-back service tests with the MODEL's transaction boundary handing the callback a sentinel handle and the logger mocked. The database/connection mock is rigged to THROW, so a service that opens a transaction directly fails the suite (\u00a77.4).",
+      "precondition": "Run the business-info tests with the model transaction handing callbacks a sentinel transaction and logger/model calls mocked.",
       "steps": [
-        "Create a business-info draft and assert the work-item write and the audit-event write both receive the same transaction handle.",
-        "Fail the draft's event write and assert the error surfaces rather than leaving a half-write.",
-        "Reject a pending item and assert the status flip and the event both receive the same transaction handle.",
-        "Lose the reject race (0 rows updated) and assert no event is written.",
-        "Fail both queue.add and the compensation event write on the deploy and revert paths; assert the failure is logged with workItemId and event type, and the typed queue error still reaches the caller.",
-        "Fail the post-revert event write and the post-revert notification; assert each is logged with workItemId and event type/kind, the revert still completes, and Google is NOT re-patched.",
-        "Fail the deploy-failure notification; assert it is logged with workItemId and kind.",
-        "Fail a deployment terminally; assert the underlying error is logged with workItemId and attemptId rather than only persisted to the attempt row.",
-        "Make Google accept the patch and then fail the local sync write; assert the divergence is logged with workItemId and attemptId."
+        "Assert draft and reject status/event pairs share one transaction.",
+        "Assert normal provider-success attempt/item/event writes share one transaction.",
+        "Assert reconcile provider-success uses the same transaction path.",
+        "Fail the publish event after Google success and assert the work item is not marked published outside the transaction.",
+        "Assert only the provider receipt remains and the error rethrows for no-second-PATCH reconciliation.",
+        "Fail best-effort compensation/revert/notification writes and assert each is logged with identifiers."
       ],
-      "expected": "Both writes in each pair carry the same transaction handle; a failed event write propagates; a lost race writes no event; every remaining catch that returns instead of re-throwing (compensation, post-revert bookkeeping, deploy-failure notification, both deployNow catch branches) logs with the identifiers an operator needs, while the typed error still surfaces to the caller.",
+      "expected": "All atomic write sets share one transaction handle; failed finalization never commits contradictory local state; the provider receipt drives safe retry; every best-effort failure is logged.",
       "status": "pass",
-      "evidence": "src/__tests__/gbp-business-info-writeback.test.ts \u2014 '\u00a710.5 \u2014 multi-table writes run inside one transaction' (4 tests), '\u00a73.2 \u2014 a failed compensation event is logged, never swallowed' (2 tests), and '\u00a73.2 \u2014 revert + deploy-failure bookkeeping is logged, never swallowed' (5 tests) passed. Confirmed to be real regression tests: with the service changes stashed, all 5 of the new \u00a73.2 tests fail, and pass again once restored. A repo-wide grep for the swallow shapes ('.catch(() => undefined)', empty catch blocks) returns zero hits in every file this PR touches.",
-      "notes": "Transaction ownership moved into models/ this round: the services call GbpWorkItemModel.transaction(...) (BaseModel.transaction) and no longer import database/connection at all. SCOPE LIMIT \u2014 these prove the transaction is THREADED (both writes receive the same handle) and that errors surface. Real ROLLBACK-on-failure is PostgreSQL's behavior and is NOT proven here: the models are mocked and this suite has no live database. Rollback semantics ride on T5. The post-revert bookkeeping writes remain best-effort BY DESIGN (the revert already landed on Google; throwing would trigger a re-PATCH) \u2014 best-effort, but never silent.",
+      "evidence": "src/__tests__/gbp-business-info-writeback.test.ts and src/__tests__/gbp-business-info-reconciliation.test.ts: combined business-info service total 49/49.",
+      "notes": "These prove transaction threading at mocked model seams. Real PostgreSQL rollback is not proven and is covered only by the T5 waiver.",
       "waiver": ""
     },
     {
       "id": "T7",
-      "title": "The attempt claim returns EXPLICIT states, and a provider success with a failed local write is reconciled on retry (not silently completed)",
+      "title": "Explicit attempt and revert states reconcile retries without duplicate Google writes",
       "surface": "cli",
-      "precondition": "Run the write-back service tests with GbpDeploymentAttemptModel.claimRunningAttempt driven to each claim state and both Google touchpoints stubbed. NO live Google and NO live database.",
+      "precondition": "Run the reconciliation tests with all attempt claim states and both Google touchpoints stubbed.",
       "steps": [
-        "Drive the claim to concurrent_attempt_running: assert no PATCH and no finalization, and that the skip is logged with the claim state.",
-        "TWO-CALL REGRESSION \u2014 call 1: the claim is `claimed`, Google accepts the PATCH, then BOTH the publish and the divergence recovery fail, leaving the work item `deploying` with a `succeeded` attempt. Call 2 (the BullMQ retry): the claim returns already_succeeded.",
-        "Assert across both calls that Google was patched EXACTLY once and that the retry finalized the local record from the recorded response rather than returning the stale item.",
-        "Drive already_succeeded with the write-back master switch turned OFF: assert the change is still recorded locally and no PATCH is sent.",
-        "Drive stale_attempt_running with the live profile MATCHING the desired values: assert no second PATCH and that the item is finalized.",
-        "Drive stale_attempt_running with the live profile still showing the OLD values: assert the PATCH is sent.",
-        "Drive stale_attempt_running with the live read failing: assert no PATCH is sent and the attempt fails RECONCILE_READ_FAILED.",
-        "Drive stale_attempt_running with NO persisted snapshot: assert the live profile is read once (for the snapshot capture) and never for a reconcile.",
-        "Drive already_succeeded with a concurrent finalization (markPublished affects 0 rows): assert it resolves rather than reporting a false failure.",
-        "Refuse a revert claim as revert_in_progress and then as already_reverted: assert the two produce DIFFERENT error codes and neither enqueues a job."
+        "Drive concurrent_attempt_running, already_succeeded, stale_attempt_running, and claimed.",
+        "Run the two-call provider-success/local-failure regression.",
+        "Reconcile stale attempts against matching, mismatching, and unreadable live profiles.",
+        "Distinguish revert_in_progress from already_reverted."
       ],
-      "expected": "Each claim state produces its own caller-visible behavior; the customer's live Google profile is written exactly once across a provider-success/local-failure retry; an unknown provider state never becomes a blind write; and a refused revert tells the owner which state it is in.",
+      "expected": "Each state has distinct behavior; Google is patched exactly once across provider-success retry; unreadable provider state never causes a blind write; revert refusal reports the real state.",
       "status": "pass",
-      "evidence": "src/__tests__/gbp-business-info-writeback.test.ts \u2014 'deployNow \u2014 explicit claim states + retry reconciliation' (8 tests) and 'enqueueRevert \u2014 a refused claim says WHICH state it is in' (1 test) passed; 44/44 in the file, 546/546 in the full suite. Confirmed non-vacuous by reverting each fix at the SHIPPING head and observing the specific failures: (a) collapsing already_succeeded back to a bare 'cannot claim -> return item' fails 2 tests, and the two-call regression fails with 'expected vi.fn() to be called 2 times, but got 1 times' \u2014 i.e. the retry silently completing without reconciliation, exactly the reviewed defect; (b) making the reconcile assume the write never landed fails the 'abandoned write DID land' test (a second PATCH to a live profile); (c) restoring db.transaction in a service fails 3 transaction tests via the rigged connection mock. All pass again once restored.",
-      "notes": "SCOPE LIMIT \u2014 these prove the SERVICE's decision logic at the model seam. They do NOT prove the model's SQL: claimRunningAttempt's SELECT ... FOR UPDATE serialization under real concurrency is PostgreSQL behavior and is not exercised here (no live database), and no request reaches Google (both touchpoints are stubbed). The reconcile's live-read comparison is deliberately strict: a false 'did not land' costs one redundant idempotent PATCH, whereas a false 'landed' would mark an item published that was never applied \u2014 so ties resolve toward re-sending. The 5-minute attempt lease is a takeover threshold, not a distributed lock; taking over is safe here only because the value re-sent is derived from the persisted snapshot and is therefore identical.",
+      "evidence": "src/__tests__/gbp-business-info-reconciliation.test.ts passed all claim/reconcile/revert-state cases, including immediate lease takeover on a BullMQ retry; full suite 551/551.",
+      "notes": "No request reaches live Google. SELECT FOR UPDATE behavior is PostgreSQL behavior and is not claimed as proven here.",
       "waiver": ""
     }
   ]

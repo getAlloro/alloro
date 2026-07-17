@@ -433,6 +433,39 @@ export class GbpWorkItemModel extends BaseModel {
     });
   }
 
+  static async markBusinessInfoDeploying(
+    id: string,
+    userId: number | null,
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.table(trx)
+      .where({ id, status: "approved", content_type: "business_info" })
+      .update({
+        status: "deploying",
+        published_by_user_id: userId,
+        metadata: (trx || db).raw(
+          `metadata || '{"deployQueueState":"pending"}'::jsonb`
+        ),
+        last_error_code: null,
+        last_error_message: null,
+        updated_at: new Date(),
+      });
+  }
+
+  static async markBusinessInfoDeployQueued(
+    id: string,
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.table(trx)
+      .where({ id, status: "deploying", content_type: "business_info" })
+      .update({
+        metadata: (trx || db).raw(
+          `metadata || '{"deployQueueState":"queued"}'::jsonb`
+        ),
+        updated_at: new Date(),
+      });
+  }
+
   static async markPublished(
     id: string,
     data: {
@@ -578,7 +611,9 @@ export class GbpWorkItemModel extends BaseModel {
       await this.table(query)
         .where({ id })
         .update({
-          metadata: (query as Knex).raw("metadata || '{\"revertPending\":true}'::jsonb"),
+          metadata: (query as Knex).raw(
+            `metadata || '{"revertPending":true,"revertQueueState":"pending"}'::jsonb`
+          ),
           updated_at: new Date(),
         });
       return "claimed";
@@ -601,7 +636,24 @@ export class GbpWorkItemModel extends BaseModel {
       .where({ id, content_type: "business_info" })
       .whereRaw("COALESCE(metadata->>'reverted','false') <> 'true'")
       .update({
-        metadata: (trx || db).raw("metadata || '{\"revertPending\":false}'::jsonb"),
+        metadata: (trx || db).raw(
+          `metadata || '{"revertPending":false,"revertQueueState":"failed"}'::jsonb`
+        ),
+        updated_at: new Date(),
+      });
+  }
+
+  static async markBusinessInfoRevertQueued(
+    id: string,
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.table(trx)
+      .where({ id, status: "published", content_type: "business_info" })
+      .whereRaw("COALESCE(metadata->>'revertPending','false') = 'true'")
+      .update({
+        metadata: (trx || db).raw(
+          `metadata || '{"revertQueueState":"queued"}'::jsonb`
+        ),
         updated_at: new Date(),
       });
   }
