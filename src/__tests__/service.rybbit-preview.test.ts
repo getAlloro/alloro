@@ -19,10 +19,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // In-memory model state so the real provisionRybbitSite path can read-back what
 // it wrote (mirrors DB round-trips without a database).
 const rybbitSiteIdByProject = new Map<string, string | null>();
+type MockIntegration = {
+  id: string;
+  project_id: string;
+  metadata?: { siteId?: string };
+  status?: "active" | "revoked";
+  connected_by?: "system" | null;
+};
 const integrationByProject = new Map<
   string,
-  { id: string; project_id: string; metadata?: { siteId?: string } }
+  MockIntegration
 >();
+const transactionContext = { name: "test-transaction" };
 
 const findPreviewProvisioningContextById = vi.fn<
   (projectId: string) => Promise<
@@ -39,30 +47,78 @@ const findPreviewProvisioningContextById = vi.fn<
   >
 >();
 
-const findRybbitSiteIdById = vi.fn(async (projectId: string) => ({
-  rybbit_site_id: rybbitSiteIdByProject.get(projectId) ?? null,
-}));
+const findRybbitSiteIdById = vi.fn(
+  async (projectId: string, _trx?: unknown) => ({
+    rybbit_site_id: rybbitSiteIdByProject.get(projectId) ?? null,
+  }),
+);
 
 const updateRybbitSiteId = vi.fn(
-  async (projectId: string, siteId: string | null) => {
+  async (projectId: string, siteId: string | null, _trx?: unknown) => {
     rybbitSiteIdByProject.set(projectId, siteId);
     return 1;
   },
 );
 
-const findByProjectAndPlatform = vi.fn(async (projectId: string) =>
-  integrationByProject.get(projectId),
+const findByProjectAndPlatform = vi.fn(
+  async (projectId: string, _platform: string, _trx?: unknown) =>
+    integrationByProject.get(projectId),
 );
 
 const createIntegration = vi.fn(
-  async (row: { project_id: string; metadata?: { siteId?: string } }) => {
-    const created = { id: `int-${row.project_id}`, ...row };
+  async (
+    row: {
+      project_id: string;
+      metadata?: { siteId?: string };
+      status?: "active";
+      connected_by?: "system";
+    },
+    _trx?: unknown,
+  ) => {
+    const created: MockIntegration = {
+      id: `int-${row.project_id}`,
+      ...row,
+    };
     integrationByProject.set(row.project_id, created);
     return created;
   },
 );
 
-const updateIntegration = vi.fn(async () => ({}));
+const updateIntegration = vi.fn(
+  async (
+    id: string,
+    data: Partial<MockIntegration>,
+    _trx?: unknown,
+  ): Promise<MockIntegration | undefined> => {
+    const entry = Array.from(integrationByProject.entries()).find(
+      ([, integration]) => integration.id === id,
+    );
+    if (!entry) return undefined;
+    const [projectId, existing] = entry;
+    const updated = { ...existing, ...data };
+    integrationByProject.set(projectId, updated);
+    return updated;
+  },
+);
+
+function restoreMap<K, V>(target: Map<K, V>, snapshot: Map<K, V>): void {
+  target.clear();
+  snapshot.forEach((value, key) => target.set(key, value));
+}
+
+const transaction = vi.fn(
+  async <T>(callback: (trx: typeof transactionContext) => Promise<T>) => {
+    const projectSnapshot = new Map(rybbitSiteIdByProject);
+    const integrationSnapshot = new Map(integrationByProject);
+    try {
+      return await callback(transactionContext);
+    } catch (error) {
+      restoreMap(rybbitSiteIdByProject, projectSnapshot);
+      restoreMap(integrationByProject, integrationSnapshot);
+      throw error;
+    }
+  },
+);
 
 vi.mock("../models/website-builder/ProjectModel", () => ({
   ProjectModel: {
@@ -77,6 +133,7 @@ vi.mock("../models/website-builder/WebsiteIntegrationModel", () => ({
     findByProjectAndPlatform,
     create: createIntegration,
     update: updateIntegration,
+    transaction,
   },
 }));
 
@@ -275,16 +332,13 @@ describe("provisionPreviewAnalytics — per-tenant isolation", () => {
 });
 
 describe("provisionPreviewAnalytics — guards (no provisioning, no beacon)", () => {
-  it("skips a project that does not exist", async () => {
+  it("throws a typed 404 when the project does not exist", async () => {
     findPreviewProvisioningContextById.mockResolvedValue(undefined);
     const { provisionPreviewAnalytics } = await loadService();
 
-    const result = await provisionPreviewAnalytics("missing");
-
-    expect(result).toEqual({
-      enabled: true,
-      provisioned: false,
-      reason: "not_found",
+    await expect(provisionPreviewAnalytics("missing")).rejects.toMatchObject({
+      status: 404,
+      code: "PROJECT_NOT_FOUND",
     });
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -395,9 +449,8 @@ describe("provisionPreviewAnalytics — active-row invariant (no false success)"
     expect(rybbitSiteIdByProject.has("proj-a")).toBe(false);
   });
 
-  it("reports provisioned:false when no active integration row results", async () => {
+  it("throws a typed provider error when Rybbit returns no site ID", async () => {
     findPreviewProvisioningContextById.mockResolvedValue(LIVE_PREVIEW);
-    // Rybbit answers OK but returns no siteId — provisionRybbitSite creates no row.
     fetchMock.mockImplementationOnce(async () => ({
       ok: true,
       status: 200,
@@ -406,10 +459,48 @@ describe("provisionPreviewAnalytics — active-row invariant (no false success)"
     }));
     const { provisionPreviewAnalytics } = await loadService();
 
-    const result = await provisionPreviewAnalytics("proj-a");
+    await expect(provisionPreviewAnalytics("proj-a")).rejects.toMatchObject({
+      status: 502,
+      code: "RYBBIT_PROVIDER_INVALID_RESPONSE",
+    });
+    expect(rybbitSiteIdByProject.has("proj-a")).toBe(false);
+    expect(integrationByProject.has("proj-a")).toBe(false);
+  });
 
-    // The read-back finds no active row, so we do NOT claim a false success.
-    expect(result.provisioned).toBe(false);
-    expect(result.reason).toBe("provision_failed");
+  it("throws a typed provider error when Rybbit returns non-2xx", async () => {
+    findPreviewProvisioningContextById.mockResolvedValue(LIVE_PREVIEW);
+    fetchMock.mockImplementationOnce(async () => ({
+      ok: false,
+      status: 503,
+      json: async () => ({}),
+      text: async () => "provider unavailable",
+    }));
+    const { provisionPreviewAnalytics } = await loadService();
+
+    await expect(provisionPreviewAnalytics("proj-a")).rejects.toMatchObject({
+      status: 502,
+      code: "RYBBIT_PROVIDER_ERROR",
+    });
+    expect(rybbitSiteIdByProject.has("proj-a")).toBe(false);
+    expect(integrationByProject.has("proj-a")).toBe(false);
+  });
+
+  it("rolls back the project write when the integration write fails", async () => {
+    findPreviewProvisioningContextById.mockResolvedValue(LIVE_PREVIEW);
+    createIntegration.mockRejectedValueOnce(new Error("insert failed"));
+    const { provisionPreviewAnalytics } = await loadService();
+
+    await expect(provisionPreviewAnalytics("proj-a")).rejects.toMatchObject({
+      status: 500,
+      code: "RYBBIT_PERSISTENCE_FAILED",
+    });
+    expect(transaction).toHaveBeenCalledTimes(1);
+    expect(updateRybbitSiteId).toHaveBeenCalledWith(
+      "proj-a",
+      "site-smiles-of-austin-123.sites.getalloro.com",
+      transactionContext,
+    );
+    expect(rybbitSiteIdByProject.has("proj-a")).toBe(false);
+    expect(integrationByProject.has("proj-a")).toBe(false);
   });
 });
