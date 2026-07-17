@@ -123,12 +123,23 @@ function hasStableLogicalContext(
   );
 }
 
-async function updateJobData(
+async function cacheJobData(
   job: Job<ScheduleExecJobData>,
-  patch: Partial<ScheduleExecJobData>
+  patch: Partial<ScheduleExecJobData>,
+  context: Record<string, unknown>,
 ): Promise<ScheduleExecJobData> {
   const data = { ...job.data, ...patch };
-  await job.updateData(data);
+  try {
+    await job.updateData(data);
+  } catch (error) {
+    // PostgreSQL owns run state and the logical key. Redis job data is only a
+    // retry cache; losing a cache write must never strand or abort a SQL-owned
+    // run.
+    logger.warn(
+      { ...context, err: messageFrom(error) },
+      "[SCHEDULE-EXEC] could not cache job metadata in Redis — continuing from authoritative in-memory/SQL state",
+    );
+  }
   return data;
 }
 
@@ -141,7 +152,11 @@ async function ensureLogicalContext(
     ? new Date(schedule.next_run_at)
     : new Date();
   const context = createAgentRunContext(dueWindow);
-  const data = await updateJobData(job, context);
+  const data = await cacheJobData(job, context, {
+    jobId: job.id,
+    scheduleId: schedule.id,
+    cacheField: "logical-context",
+  });
   return data as ScheduleExecJobData & AgentRunContext;
 }
 
@@ -207,19 +222,28 @@ async function resolveOwnedRun(
     return resumeOwnedRun(existing, schedule.id, data);
   }
 
-  // A different logical job's active row still protects against two distinct
-  // due windows executing the same schedule concurrently.
-  const isRunning = await ScheduleRunModel.hasActiveRun(schedule.id);
-  if (isRunning) {
+  // The model locks the parent schedule row, then checks and inserts in one
+  // transaction. Two different logical jobs therefore cannot both pass an
+  // active-run check and start paid work.
+  const run = await ScheduleRunModel.acquireRunForLogicalJob(
+    schedule.id,
+    runKey,
+  );
+  if (!run) {
     logger.info(`[SCHEDULE-EXEC] Schedule ${schedule.id} already running — skipping`);
     return null;
   }
 
-  const run = await ScheduleRunModel.createOrFindRunForLogicalJob(
-    schedule.id,
-    runKey
+  const persistedData = await cacheJobData(
+    job,
+    { runId: run.id },
+    {
+      jobId: job.id,
+      scheduleId: schedule.id,
+      runId: run.id,
+      cacheField: "runId",
+    },
   );
-  const persistedData = await updateJobData(job, { runId: run.id });
   return resumeOwnedRun(
     run,
     schedule.id,
@@ -369,7 +393,16 @@ export async function processScheduleExec(job: Job<ScheduleExecJobData>): Promis
           logicalRunDate: data.logicalRunDate,
         });
         summary = result.summary;
-        data = await updateJobData(job, { resultSummary: summary }) as
+        data = await cacheJobData(
+          job,
+          { resultSummary: summary },
+          {
+            jobId: job.id,
+            scheduleId: schedule.id,
+            runId: run.id,
+            cacheField: "resultSummary",
+          },
+        ) as
           ScheduleExecJobData & AgentRunContext;
       }
 

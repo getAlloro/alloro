@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   IScheduleRun,
+  ScheduleModel,
   ScheduleRunModel,
 } from "../models/ScheduleModel";
 
@@ -22,6 +23,74 @@ afterEach(() => {
 });
 
 describe("ScheduleRunModel logical job ownership", () => {
+  it("locks the parent schedule row with FOR UPDATE", async () => {
+    const first = vi.fn().mockResolvedValue({ id: 7 });
+    const forUpdate = vi.fn(() => ({ first }));
+    const where = vi.fn(() => ({ forUpdate }));
+    const testSurface = ScheduleModel as unknown as {
+      table: (trx?: unknown) => unknown;
+    };
+    vi.spyOn(testSurface, "table").mockReturnValue({ where });
+
+    await expect(
+      ScheduleModel.findByIdForUpdate(7, {} as never)
+    ).resolves.toEqual({ id: 7 });
+
+    expect(where).toHaveBeenCalledWith({ id: 7 });
+    expect(forUpdate).toHaveBeenCalledOnce();
+  });
+
+  it("serializes two different logical jobs so only one acquires the schedule", async () => {
+    let transactionTail = Promise.resolve();
+    vi.spyOn(ScheduleModel, "transaction").mockImplementation(
+      async (callback) => {
+        const previous = transactionTail;
+        let release = () => {};
+        transactionTail = new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        await previous;
+        try {
+          return await callback({} as never);
+        } finally {
+          release();
+        }
+      },
+    );
+    vi.spyOn(ScheduleModel, "findByIdForUpdate").mockResolvedValue({
+      id: 7,
+    } as never);
+
+    let activeRun: IScheduleRun | undefined;
+    vi.spyOn(ScheduleRunModel, "findRunByLogicalKey").mockImplementation(
+      async (_scheduleId, logicalRunKey) =>
+        activeRun?.logical_run_key === logicalRunKey ? activeRun : undefined,
+    );
+    vi.spyOn(ScheduleRunModel, "hasActiveRun").mockImplementation(
+      async () => activeRun?.status === "running",
+    );
+    vi.spyOn(
+      ScheduleRunModel,
+      "createOrFindRunForLogicalJob",
+    ).mockImplementation(async (scheduleId, logicalRunKey) => {
+      activeRun = {
+        ...RUN,
+        schedule_id: scheduleId,
+        logical_run_key: logicalRunKey,
+      };
+      return activeRun;
+    });
+
+    const [firstRun, secondRun] = await Promise.all([
+      ScheduleRunModel.acquireRunForLogicalJob(7, "window-a"),
+      ScheduleRunModel.acquireRunForLogicalJob(7, "window-b"),
+    ]);
+
+    expect([firstRun, secondRun].filter(Boolean)).toHaveLength(1);
+    expect(firstRun?.logical_run_key).toBe("window-a");
+    expect(secondRun).toBeUndefined();
+  });
+
   it("inserts against the composite logical-run conflict target", async () => {
     const returning = vi.fn().mockResolvedValue([RUN]);
     const ignore = vi.fn(() => ({ returning }));

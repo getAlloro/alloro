@@ -46,6 +46,13 @@ export class ScheduleModel extends BaseModel {
     return super.findById(id, trx);
   }
 
+  static async findByIdForUpdate(
+    id: number,
+    trx: QueryContext,
+  ): Promise<ISchedule | undefined> {
+    return this.table(trx).where({ id }).forUpdate().first();
+  }
+
   static async findByAgentKey(agentKey: string, trx?: QueryContext): Promise<ISchedule | undefined> {
     return this.table(trx).where({ agent_key: agentKey }).first();
   }
@@ -156,6 +163,41 @@ export class ScheduleRunModel {
       );
     }
     return existing;
+  }
+
+  /**
+   * Serialize active-run acquisition on the parent schedule row.
+   *
+   * The row lock closes the check-then-insert race between two workers carrying
+   * different logical keys for the same schedule. The logical-key uniqueness
+   * constraint still owns same-job recovery; this lock owns cross-job
+   * exclusion.
+   */
+  static async acquireRunForLogicalJob(
+    scheduleId: number,
+    logicalRunKey: string,
+  ): Promise<IScheduleRun | undefined> {
+    return ScheduleModel.transaction(async (trx) => {
+      const schedule = await ScheduleModel.findByIdForUpdate(scheduleId, trx);
+      if (!schedule) {
+        throw new Error(`Schedule ${scheduleId} not found while acquiring a run.`);
+      }
+
+      const existing = await this.findRunByLogicalKey(
+        scheduleId,
+        logicalRunKey,
+        trx,
+      );
+      if (existing) return existing;
+
+      if (await this.hasActiveRun(scheduleId, trx)) return undefined;
+
+      return this.createOrFindRunForLogicalJob(
+        scheduleId,
+        logicalRunKey,
+        trx,
+      );
+    });
   }
 
   static async claimLogicalRunKey(

@@ -405,21 +405,38 @@
     },
     {
       "id": "T26",
-      "title": "A Redis runId-cache failure recovers the same run from PostgreSQL (§10.5 / §21.1 / §21.2)",
+      "title": "Redis metadata-cache failures cannot abort or strand a SQL-owned run (§10.5 / §21.1 / §21.2)",
       "surface": "none",
-      "precondition": "Drive the real processScheduleExec twice with one BullMQ job double. The deterministic job id is sched-7-1752537600000. The SQL create seam succeeds, but the first job.updateData call rejects before runId reaches Redis.",
+      "precondition": "Drive the real processScheduleExec with one-attempt BullMQ job doubles. PostgreSQL run acquisition succeeds while Redis rejects logical-context, runId, and resultSummary updateData writes.",
       "steps": [
-        "Attempt one creates logical run 99 under (schedule_id=7, logical_run_key=sched-7-1752537600000).",
-        "Force job.updateData({runId:99}) to reject and assert attempt one rejects while job.data still has no runId.",
-        "On attempt two, return run 99 from findRunByLogicalKey and make the broad hasActiveRun seam report true.",
-        "Assert attempt two executes and completes run 99, creates no second row, and does not rely on Redis to establish ownership.",
-        "Assert model tests pin ON CONFLICT (schedule_id, logical_run_key), the fallback find, and the two-column lookup.",
-        "Assert migration tests pin the nullable column, resumable unique index, and index-before-column rollback."
+        "Force runId and resultSummary cache writes to reject for a one-attempt job after SQL acquisition.",
+        "Assert the handler still runs, SQL run 99 completes, and next_run_at advances.",
+        "Remove logicalRunAt/logicalRunDate to represent a pre-deploy legacy job and reject all three Redis metadata writes.",
+        "Assert the legacy job derives one in-memory logical context, runs once, completes SQL run 99, and advances.",
+        "Assert every cache failure logs job/schedule/run context and the specific cache field."
       ],
-      "expected": "PostgreSQL is the durable owner of one BullMQ logical run. A Redis cache write can fail without stranding the SQL row or requiring cross-store atomicity.",
+      "expected": "PostgreSQL and the current processor stack own execution. Redis job metadata is best-effort retry cache and cannot turn a successful SQL acquisition into a stranded running row.",
       "status": "pass",
-      "evidence": "src/__tests__/schedule-exec-failure-contract.test.ts + schedule-run-logical-ownership-model.test.ts + schedule-run-logical-key-migration.test.ts — 3 files / 21 tests passed; focused PR run 8 files / 72 tests and full normal Vitest 68 files / 528 tests passed on Node 22 (2026-07-17).",
-      "notes": "Layer 1 only. The processor and model code are real, while Redis/PostgreSQL are represented by injected seams. This proves recovery logic and query/migration shape, not live cross-store behaviour. T14 carries the explicit PostgreSQL waiver; T15 remains pending.",
+      "evidence": "src/__tests__/schedule-exec-failure-contract.test.ts — 16/16 passed, including one-attempt runId/resultSummary cache failures and a legacy logical-context cache failure; focused scheduler run 3 files / 23 tests and full normal Vitest 68 files / 531 tests passed on Node 22 (2026-07-17).",
+      "notes": "Layer 1 only. The processor is real; Redis failures are injected through the BullMQ job double. This proves the processor does not abort on cache failure, not live Redis availability. T14 carries the explicit PostgreSQL waiver; T15 remains pending.",
+      "waiver": "",
+      "layer": 1
+    },
+    {
+      "id": "T27",
+      "title": "Two different logical jobs cannot concurrently acquire one schedule (§21.1)",
+      "surface": "none",
+      "precondition": "Drive ScheduleRunModel.acquireRunForLogicalJob twice for the same schedule with different logical keys through a serialized transaction fake.",
+      "steps": [
+        "Assert ScheduleModel.findByIdForUpdate emits SELECT ... FOR UPDATE on the parent schedule row.",
+        "Start concurrent acquisitions for window-a and window-b.",
+        "Let the first transaction create a running row, then let the second transaction re-check active state after the lock.",
+        "Assert exactly one call receives a run and the other receives undefined."
+      ],
+      "expected": "The active-run check and insert are one transaction under a parent-row lock, so worker concurrency cannot turn check-then-insert into duplicate paid execution.",
+      "status": "pass",
+      "evidence": "src/__tests__/schedule-run-logical-ownership-model.test.ts — 5/5 passed, including the FOR UPDATE query-shape test and two concurrent different-key acquisitions; focused scheduler run 3 files / 23 tests and full normal Vitest 68 files / 531 tests passed on Node 22 (2026-07-17).",
+      "notes": "Layer 1 only. The transaction ordering is simulated while the real model method emits the PostgreSQL FOR UPDATE query. Live lock behavior is covered by Dave's T14 PostgreSQL waiver, not claimed as a pass.",
       "waiver": "",
       "layer": 1
     },

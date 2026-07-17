@@ -247,8 +247,8 @@ export async function triggerRun(req: Request, res: Response): Promise<any> {
           { scheduleId: schedule.id, runId: run.id, agentKey: schedule.agent_key },
           `[ADMIN-SCHEDULES] manual run of "${schedule.agent_key}" completed`
         );
-      } catch (error: any) {
-        const message = error?.message || String(error);
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
         // §21.4 — identifiers + the error. No retry: a manual trigger is
         // operator-initiated, so the operator is the retry, and this log plus
         // the failed run row is what tells them.
@@ -258,13 +258,15 @@ export async function triggerRun(req: Request, res: Response): Promise<any> {
         );
         try {
           await ScheduleRunModel.failRun(run.id, message);
-        } catch (markError: any) {
+        } catch (markError: unknown) {
           // The run row is now stuck 'running' and hasActiveRun() will block
           // re-triggering this schedule. Say so loudly — this is the one that
           // needs a human.
           logger.error(
             {
-              err: markError?.message || String(markError),
+              err: markError instanceof Error
+                ? markError.message
+                : String(markError),
               originalErr: message,
               scheduleId: schedule.id,
               runId: run.id,

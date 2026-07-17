@@ -22,8 +22,7 @@ import type { Job } from "bullmq";
 const {
   findById,
   updateById,
-  hasActiveRun,
-  createOrFindRunForLogicalJob,
+  acquireRunForLogicalJob,
   findRunByLogicalKey,
   findRunByIdForSchedule,
   claimLogicalRunKey,
@@ -37,8 +36,7 @@ const {
 } = vi.hoisted(() => ({
   findById: vi.fn(),
   updateById: vi.fn(),
-  hasActiveRun: vi.fn(),
-  createOrFindRunForLogicalJob: vi.fn(),
+  acquireRunForLogicalJob: vi.fn(),
   findRunByLogicalKey: vi.fn(),
   findRunByIdForSchedule: vi.fn(),
   claimLogicalRunKey: vi.fn(),
@@ -57,9 +55,8 @@ vi.mock("../models/ScheduleModel", () => ({
     updateById: (...a: unknown[]) => updateById(...a),
   },
   ScheduleRunModel: {
-    hasActiveRun: (...a: unknown[]) => hasActiveRun(...a),
-    createOrFindRunForLogicalJob: (...a: unknown[]) =>
-      createOrFindRunForLogicalJob(...a),
+    acquireRunForLogicalJob: (...a: unknown[]) =>
+      acquireRunForLogicalJob(...a),
     findRunByLogicalKey: (...a: unknown[]) => findRunByLogicalKey(...a),
     findRunByIdForSchedule: (...a: unknown[]) => findRunByIdForSchedule(...a),
     claimLogicalRunKey: (...a: unknown[]) => claimLogicalRunKey(...a),
@@ -71,6 +68,10 @@ vi.mock("../models/ScheduleModel", () => ({
 
 vi.mock("../services/agentRegistry", () => ({
   getAgentHandler: (...a: unknown[]) => getAgentHandler(...a),
+  createAgentRunContext: (logicalRunAt: Date) => ({
+    logicalRunAt: logicalRunAt.toISOString(),
+    logicalRunDate: logicalRunAt.toISOString().slice(0, 10),
+  }),
 }));
 
 vi.mock("../lib/logger", () => ({
@@ -121,8 +122,7 @@ function makeJob(
 beforeEach(() => {
   vi.clearAllMocks();
   findById.mockResolvedValue({ ...SCHEDULE });
-  hasActiveRun.mockResolvedValue(false);
-  createOrFindRunForLogicalJob.mockResolvedValue({
+  acquireRunForLogicalJob.mockResolvedValue({
     id: 99,
     schedule_id: 7,
     logical_run_key: "sched-7-1752537600000",
@@ -192,43 +192,53 @@ describe("processScheduleExec — a failing agent must not resolve (§21.2/§3.2
 });
 
 describe("processScheduleExec — retry ownership and logical time (§21.1/§21.2)", () => {
-  it("recovers by PostgreSQL logical key when Redis loses the runId update", async () => {
+  it("keeps a one-attempt run alive when Redis loses runId and result-summary cache writes", async () => {
     const handler = vi.fn().mockResolvedValue({
       summary: { recoveredFromPostgres: true },
     });
     getAgentHandler.mockReturnValue({ displayName: "x", handler });
-    const job = makeJob(0, 2, 1);
+    const job = makeJob(0, 1, 2);
 
-    await expect(processScheduleExec(job)).rejects.toThrow(
-      "Redis updateData unavailable"
-    );
+    await expect(processScheduleExec(job)).resolves.toBeUndefined();
+
     expect(job.data).not.toHaveProperty("runId");
-    expect(createOrFindRunForLogicalJob).toHaveBeenCalledWith(
+    expect(acquireRunForLogicalJob).toHaveBeenCalledWith(
       7,
       "sched-7-1752537600000"
     );
-    expect(handler).not.toHaveBeenCalled();
-
-    findRunByLogicalKey.mockResolvedValue({
-      id: 99,
-      schedule_id: 7,
-      logical_run_key: "sched-7-1752537600000",
-      status: "running",
+    expect(handler).toHaveBeenCalledOnce();
+    expect(completeRun).toHaveBeenCalledWith(99, {
+      recoveredFromPostgres: true,
     });
-    hasActiveRun.mockResolvedValue(true);
-    job.attemptsMade = 1;
+    expect(updateById).toHaveBeenCalledOnce();
+    expect(warnLog).toHaveBeenCalledTimes(2);
+    expect(warnLog.mock.calls.map((call) => call[0]?.cacheField)).toEqual([
+      "runId",
+      "resultSummary",
+    ]);
+  });
+
+  it("continues a legacy one-attempt job when Redis cannot cache its logical context", async () => {
+    const handler = vi.fn().mockResolvedValue({
+      summary: { legacyRecovered: true },
+    });
+    getAgentHandler.mockReturnValue({ displayName: "x", handler });
+    const job = makeJob(0, 1, 3);
+    delete (job.data as Record<string, unknown>).logicalRunAt;
+    delete (job.data as Record<string, unknown>).logicalRunDate;
 
     await expect(processScheduleExec(job)).resolves.toBeUndefined();
 
     expect(handler).toHaveBeenCalledOnce();
-    expect(createOrFindRunForLogicalJob).toHaveBeenCalledOnce();
-    expect(findRunByLogicalKey).toHaveBeenLastCalledWith(
-      7,
-      "sched-7-1752537600000"
-    );
     expect(completeRun).toHaveBeenCalledWith(99, {
-      recoveredFromPostgres: true,
+      legacyRecovered: true,
     });
+    expect(warnLog).toHaveBeenCalledTimes(3);
+    expect(warnLog.mock.calls.map((call) => call[0]?.cacheField)).toEqual([
+      "logical-context",
+      "runId",
+      "resultSummary",
+    ]);
   });
 
   it("attempt two resumes its own running row when attempt-one failRun bookkeeping also fails", async () => {
@@ -243,9 +253,8 @@ describe("processScheduleExec — retry ownership and logical time (§21.1/§21.
     await expect(processScheduleExec(job)).rejects.toThrow("provider write failed");
     expect(job.data).toMatchObject({ runId: 99 });
 
-    // The exact defect: failRun left row 99 running, so the old broad
-    // hasActiveRun guard made attempt two resolve without executing.
-    hasActiveRun.mockResolvedValue(true);
+    // The exact defect: failRun left row 99 running, so the old broad active
+    // guard made attempt two resolve without executing.
     findRunByIdForSchedule.mockResolvedValue({
       id: 99,
       schedule_id: 7,
@@ -257,7 +266,7 @@ describe("processScheduleExec — retry ownership and logical time (§21.1/§21.
     await expect(processScheduleExec(job)).resolves.toBeUndefined();
 
     expect(handler).toHaveBeenCalledTimes(2);
-    expect(createOrFindRunForLogicalJob).toHaveBeenCalledOnce();
+    expect(acquireRunForLogicalJob).toHaveBeenCalledOnce();
     expect(findRunByIdForSchedule).toHaveBeenCalledWith(99, 7);
     expect(claimLogicalRunKey).toHaveBeenCalledWith(
       99,
@@ -445,12 +454,12 @@ describe("processScheduleExec — the success path is untouched", () => {
   it("still no-ops (resolves) when the schedule is missing or already running", async () => {
     findById.mockResolvedValue(undefined);
     await expect(processScheduleExec(makeJob(0, 3))).resolves.toBeUndefined();
-    expect(createOrFindRunForLogicalJob).not.toHaveBeenCalled();
+    expect(acquireRunForLogicalJob).not.toHaveBeenCalled();
 
     vi.clearAllMocks();
     findById.mockResolvedValue({ ...SCHEDULE });
-    hasActiveRun.mockResolvedValue(true);
+    acquireRunForLogicalJob.mockResolvedValue(undefined);
     await expect(processScheduleExec(makeJob(0, 3))).resolves.toBeUndefined();
-    expect(createOrFindRunForLogicalJob).not.toHaveBeenCalled();
+    expect(acquireRunForLogicalJob).toHaveBeenCalledOnce();
   });
 });
