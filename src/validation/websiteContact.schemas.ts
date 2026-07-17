@@ -24,13 +24,12 @@ const EMAIL_MAX = 320;
 const NAME_MAX = 200;
 const PHONE_MAX = 50;
 const SERVICE_MAX = 200;
-const MESSAGE_MAX = 3000; // mirrors GBP_INPUT_LIMITS.reviewText / customization intent
 const FORM_NAME_MAX = 200; // mirrors MAX_FORM_NAME_LENGTH in the controller
 const HOSTNAME_MAX = 255;
 /**
  * First-touch attribution caps (§11.2 — the boundary defines every field the
  * controller reads). Mirrors MAX_SOURCE_LEN in
- * controllers/websiteContact/websiteContact-utils/sourceAttribution.ts — the
+ * controllers/websiteContact/feature-utils/sourceAttribution.ts — the
  * capture contract's own limit for a channel label. Held as a local constant
  * rather than an import so `validation/` does not depend on a controller's
  * feature-utils (§6.2); the same mirroring pattern the caps above already use.
@@ -50,9 +49,10 @@ const referrerUrlField = z.string().max(REFERRER_URL_MAX);
 
 /**
  * POST /api/websites/contact
- * Controller hard-requires name, phone, email, captchaToken; service/message
- * optional. Kept loose (presence + caps); reCAPTCHA + sanitize stay in the
- * controller.
+ * Controller hard-requires name, phone, email, captchaToken; service/message are
+ * optional. This schema is enforced at the route so only strings reach the
+ * controller's string sanitizer. `message` deliberately has no length cap:
+ * long, legitimate patient histories must not be rejected at intake.
  */
 export const contactSubmissionSchema = z
   .object({
@@ -60,7 +60,7 @@ export const contactSubmissionSchema = z
     phone: z.string().trim().min(1, "phone is required").max(PHONE_MAX),
     email: z.string().trim().min(1, "email is required").max(EMAIL_MAX),
     service: z.string().max(SERVICE_MAX).optional(),
-    message: z.string().max(MESSAGE_MAX).optional(),
+    message: z.string().optional(),
     captchaToken: z
       .string({ message: "captchaToken is required" })
       .min(1, "captchaToken is required"),

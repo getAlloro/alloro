@@ -22,7 +22,7 @@
 
 import { Request, Response } from "express";
 import { sanitize } from "./websiteContact-utils/sanitization";
-import { deriveSubmissionSource } from "./websiteContact-utils/sourceAttribution";
+import { deriveSubmissionSource } from "./feature-utils/sourceAttribution";
 import { sendEmailWebhook, WebhookError } from "./websiteContact-services/emailWebhookService";
 import { isIpFlooding, isDuplicateContent, hashContents } from "./websiteContact-services/floodDetectionService";
 import { analyzePatterns, SPAM_THRESHOLD } from "./websiteContact-services/contentPatternService";

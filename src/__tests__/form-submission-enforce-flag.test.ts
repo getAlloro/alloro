@@ -6,12 +6,13 @@
  * cannot reach, and that no test in this repo covered before: what these public
  * routes do when VALIDATION_ENFORCE is set.
  *
- * WHY IT NEEDS ITS OWN FILE. `validate`'s process-wide default is computed ONCE at
- * module load (`const ENV_ENFORCE = ...` in middleware/validate.ts), and the route
- * module calls `validate(...)` at import time when the router is constructed. So
- * the flag can only be exercised by setting the env and then loading the app
- * FRESH — hence `vi.resetModules()` + dynamic `import()` per case, which needs a
- * file with no static app import to be reliable.
+ * WHY IT NEEDS ITS OWN FILE. `validate`'s process-wide default is computed ONCE
+ * at module load (`const ENV_ENFORCE = ...` in middleware/validate.ts), and the
+ * route module calls `validate(...)` at import time when the router is
+ * constructed. This file therefore sets the env and loads the app ONCE in
+ * `beforeAll`. Per-case full app reloads are both unnecessary and too slow for
+ * Vitest's normal 5-second timeout; when one timed out, its unfinished request
+ * contaminated the next case's model-call count.
  *
  * THE INVARIANT UNDER TEST: a bad, oversized, or hostile ATTRIBUTION value must
  * never cost the practice the LEAD. Attribution is our telemetry; the lead is the
@@ -23,9 +24,18 @@
  * middleware stack, and real controller run.
  */
 
-import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import request from "supertest";
-import express from "express";
+import express, { type Express } from "express";
 
 vi.mock("../models/website-builder/ProjectModel", () => ({
   ProjectModel: {
@@ -85,15 +95,21 @@ const BASE_BODY = {
 };
 
 /**
- * Load the app with VALIDATION_ENFORCE set, as a deploy would. The env must be
- * stubbed BEFORE the module graph loads — see the file header.
+ * One enforce-mode module graph for this file. Tests clear mock call state
+ * between requests, but never reload the full app.
  */
-async function loadAppWithEnforceFlag() {
+let enforceApp: Express;
+let enforceValidate: typeof import("../middleware/validate").validate;
+
+beforeAll(async () => {
   vi.stubEnv("VALIDATION_ENFORCE", "1");
-  vi.resetModules();
-  const mod = await import("../app");
-  return mod.app;
-}
+  ({ app: enforceApp } = await import("../app"));
+  ({ validate: enforceValidate } = await import("../middleware/validate"));
+});
+
+afterAll(() => {
+  vi.unstubAllEnvs();
+});
 
 /** The payload the controller handed to the DB for the one created submission. */
 function persisted(): Record<string, unknown> {
@@ -103,6 +119,7 @@ function persisted(): Record<string, unknown> {
 }
 
 beforeEach(() => {
+  vi.clearAllMocks();
   vi.mocked(ProjectModel.findPublicActiveById).mockResolvedValue(
     PROJECT as never,
   );
@@ -123,9 +140,6 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
-  vi.clearAllMocks();
-  vi.unstubAllEnvs();
-  vi.resetModules();
 });
 
 describe("public lead capture with VALIDATION_ENFORCE=1 (§5.2, §11.2)", () => {
@@ -134,9 +148,7 @@ describe("public lead capture with VALIDATION_ENFORCE=1 (§5.2, §11.2)", () => 
     // { fields: ["utm_source"], issues: ["too_big"] } and NEVER called create() —
     // the practice lost a real patient because a marketing tool appended a long
     // tracking parameter the visitor never typed.
-    const app = await loadAppWithEnforceFlag();
-
-    const res = await request(app)
+    const res = await request(enforceApp)
       .post(FORM_ROUTE)
       .set("Referer", "https://drpavanendo.com/contact")
       .send({ ...BASE_BODY, utm_source: "u".repeat(300) });
@@ -157,11 +169,10 @@ describe("public lead capture with VALIDATION_ENFORCE=1 (§5.2, §11.2)", () => 
     // Round 3's ask, re-proved in the world round 3 could not see: over-limit
     // source, utm_source, AND first_touch_referrer cannot reach persistence, and
     // still do not cost the submission.
-    const app = await loadAppWithEnforceFlag();
     const oversizedReferrer =
       "https://www.google.com/search?q=" + "a".repeat(3000);
 
-    const res = await request(app)
+    const res = await request(enforceApp)
       .post(FORM_ROUTE)
       .set("Referer", "https://drpavanendo.com/contact")
       .send({
@@ -186,9 +197,7 @@ describe("public lead capture with VALIDATION_ENFORCE=1 (§5.2, §11.2)", () => 
     // contract — this is not "turn the guard off", it is "drop the note, keep the
     // asset". Without this, D1/D2 could pass on a route that simply ignored
     // attribution entirely.
-    const app = await loadAppWithEnforceFlag();
-
-    const res = await request(app)
+    const res = await request(enforceApp)
       .post(FORM_ROUTE)
       .set("Referer", "https://drpavanendo.com/contact")
       .send({ ...BASE_BODY, utm_source: "facebook" });
@@ -201,13 +210,11 @@ describe("public lead capture with VALIDATION_ENFORCE=1 (§5.2, §11.2)", () => 
 
   it("D4: /contact — a patient who writes at length is not turned away by the flag", async () => {
     // The same defect one route up, found by auditing the flag's blast radius
-    // rather than the one line the review named. The contact controller imposes
-    // no length cap of its own, so `message`'s 3,000-char schema bound became a
-    // live rejection under the flag: 400 { fields: ["message"] }. A person
-    // describing their dental pain in detail is the LAST submission to drop.
-    const app = await loadAppWithEnforceFlag();
-
-    const res = await request(app).post(CONTACT_ROUTE).send({
+    // rather than the one line the review named. Before this QA round,
+    // `message`'s 3,000-char schema bound became a live rejection under the
+    // flag: 400 { fields: ["message"] }. The route now enforces types while
+    // intentionally leaving legitimate patient-message length unrestricted.
+    const res = await request(enforceApp).post(CONTACT_ROUTE).send({
       name: "Sam Rivera",
       phone: "555-0100",
       email: "sam@example.com",
@@ -223,10 +230,8 @@ describe("public lead capture with VALIDATION_ENFORCE=1 (§5.2, §11.2)", () => 
     // The guard against the cheap fix. "Make the lead un-rejectable" must not be
     // achieved by neutering the flag for the whole process — the auth/billing
     // soak still needs to graduate to enforce one day. This proves the flag's
-    // default-mode wiring is intact and only the two lead-capture mounts opt out.
-    vi.stubEnv("VALIDATION_ENFORCE", "1");
-    vi.resetModules();
-    const { validate: freshValidate } = await import("../middleware/validate");
+    // default-mode wiring is intact. Only the broad generic-form soak opts out;
+    // /contact now enforces an intentionally lead-safe string schema.
     const { z } = await import("zod");
 
     const app = express();
@@ -234,7 +239,7 @@ describe("public lead capture with VALIDATION_ENFORCE=1 (§5.2, §11.2)", () => 
     // Unpinned, exactly like the auth/billing mounts: inherits the env default.
     app.post(
       "/t",
-      freshValidate(z.object({ field: z.string().max(5) })),
+      enforceValidate(z.object({ field: z.string().max(5) })),
       (_req, res) => {
         res.status(200).json({ ok: true });
       },

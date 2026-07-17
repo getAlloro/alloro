@@ -1,6 +1,6 @@
 {
   "plan": "plans/07152026-m0-submission-source-capture",
-  "generatedAt": "2026-07-16",
+  "generatedAt": "2026-07-17",
   "status": "Passed",
   "items": [
     {
@@ -291,15 +291,15 @@
       "id": "D1",
       "title": "THE REVIEW FINDING (round 4) - a real patient's inquiry survives a hostile attribution value under the enforce flag",
       "surface": "api",
-      "precondition": "Real Express app driven over HTTP via Supertest with VALIDATION_ENFORCE=1 set BEFORE the module graph loads (vi.stubEnv + vi.resetModules + dynamic import of src/app.ts) - `validate` computes its process-wide default mode once at module load, so the flag can only be exercised on a freshly loaded app. Real router, real middleware stack, real controller; the DB model, reCAPTCHA, and the email webhook are mocked, so the persisted payload is captured and asserted rather than written. Added in Rev 9. No local Postgres exists and the shared dev DB must not take an unmerged migration (AGENTS.md), so the row write is asserted at the model boundary.",
+      "precondition": "Real Express app driven over HTTP via Supertest with VALIDATION_ENFORCE=1 set before one beforeAll dynamic import of src/app.ts. One app/module graph serves all five cases; only mock call state is cleared per case, so no per-case resetModules/app reload can consume the normal 5-second test timeout or leave an unfinished request behind. Real router, middleware, and controller; DB/external seams are mocked.",
       "steps": [
-        "Set VALIDATION_ENFORCE=1 and load the app fresh.",
+        "Use the single app loaded after VALIDATION_ENFORCE=1 was set.",
         "POST /api/websites/form-submission with a legitimate body (contents Name/Email) and an over-cap utm_source (300 chars), with an INTERNAL Referer.",
         "Capture the object handed to FormSubmissionModel.create."
       ],
       "expected": "200; the row carries the visitor's real contents (Name='Sam Rivera', Email='sam@example.com'), and source/source_method are both null - the tracking parameter degraded to honest unknown while the LEAD landed.",
       "status": "pass",
-      "evidence": "src/__tests__/form-submission-enforce-flag.test.ts D1 passed in the 5-test file run, the 104-test targeted run (5 files), and the 549-test full suite (64 files) on Node 22.23.1, exit codes read directly. NEGATIVE CONTROL (mutation-proved, not reasoned): with src/routes/websiteContact.ts reverted to head 482052da (`git checkout HEAD -- src/routes/websiteContact.ts`, removing both `mode: \"warn\"` pins) the file ran exit 1 with 3 failed | 2 passed. D1 failed with `AssertionError: expected 400 to be 200` - i.e. pre-fix the route answered 400 { code: VALIDATION_ERROR, fields: [\"utm_source\"], issues: [\"too_big\"] } and FormSubmissionModel.create was called 0 times. The patient's name and email never reached the database, killed by a tracking parameter they never typed.",
+      "evidence": "src/__tests__/form-submission-enforce-flag.test.ts D1 passed in the normal 5-test file run with no timeout override, the 118-test focused remediation run (6 files), and the default 563-test full suite (65 files) on Node 22.23.1. Before Rev 10, the same normal file command timed D1 out at 5000ms and its unfinished request contaminated D2; that failure was reproduced before editing.",
       "notes": "This is the round-4 finding stated behaviorally. The Rev 8 design (sanitize, not enforce) was correct but incomplete: the three attribution fields were ALSO still declared in formSubmissionSchema, which the route mounted WITHOUT pinning a mode - so it inherited the process-wide VALIDATION_ENFORCE default and became a rejection path the moment that flag was set. Rev 8's Done criterion (b) claimed 'A12 fails if anyone flips these fields to a 400', but A12 runs under the DEFAULT mode only, so it could not see this. Fixed by pinning `mode: \"warn\"` at the mount.",
       "waiver": ""
     },
@@ -307,15 +307,15 @@
       "id": "D2",
       "title": "All three attribution fields out of contract under the enforce flag - the lead still persists, none reach the row",
       "surface": "api",
-      "precondition": "Real Express app driven over HTTP via Supertest with VALIDATION_ENFORCE=1 set BEFORE the module graph loads (vi.stubEnv + vi.resetModules + dynamic import of src/app.ts) - `validate` computes its process-wide default mode once at module load, so the flag can only be exercised on a freshly loaded app. Real router, real middleware stack, real controller; the DB model, reCAPTCHA, and the email webhook are mocked, so the persisted payload is captured and asserted rather than written. Added in Rev 9. No local Postgres exists and the shared dev DB must not take an unmerged migration (AGENTS.md), so the row write is asserted at the model boundary.",
+      "precondition": "Same single enforce-mode app/module graph and mocked seams as D1.",
       "steps": [
-        "Set VALIDATION_ENFORCE=1 and load the app fresh.",
+        "Use the single app loaded after VALIDATION_ENFORCE=1 was set.",
         "POST with an over-cap source (300 chars), an over-cap utm_source (300 chars), AND a 3,032-char first_touch_referrer, with an INTERNAL Referer.",
         "Capture the FormSubmissionModel.create payload."
       ],
       "expected": "200; the row carries the visitor's contents; source and source_method are both null; no fragment of the oversized referrer appears anywhere in the row.",
       "status": "pass",
-      "evidence": "src/__tests__/form-submission-enforce-flag.test.ts D2 passed in the same runs as D1. NEGATIVE CONTROL (mutation-proved, not reasoned): with src/routes/websiteContact.ts reverted to head 482052da (`git checkout HEAD -- src/routes/websiteContact.ts`, removing both `mode: \"warn\"` pins) the file ran exit 1 with 3 failed | 2 passed. D2 failed with `AssertionError: expected 400 to be 200`.",
+      "evidence": "src/__tests__/form-submission-enforce-flag.test.ts D2 passed in the same normal-timeout file, focused, and full runs as D1. Before Rev 10, D2 failed with two FormSubmissionModel.create calls because D1's timed-out request was still running; the single-load structure removes that contamination.",
       "notes": "This is Dave's round-3 ask ('add a route regression proving over-limit source, utm_source, and first_touch_referrer cannot reach persistence') re-proved in the world round 3 could not see - with the flag ON. A9/A10/A12 cover the same ground under the default mode and still pass; this is the flag-enabled twin, not a replacement.",
       "waiver": ""
     },
@@ -323,15 +323,15 @@
       "id": "D3",
       "title": "A healthy attribution value still classifies normally under the enforce flag (the pin did not cost the feature)",
       "surface": "api",
-      "precondition": "Real Express app driven over HTTP via Supertest with VALIDATION_ENFORCE=1 set BEFORE the module graph loads (vi.stubEnv + vi.resetModules + dynamic import of src/app.ts) - `validate` computes its process-wide default mode once at module load, so the flag can only be exercised on a freshly loaded app. Real router, real middleware stack, real controller; the DB model, reCAPTCHA, and the email webhook are mocked, so the persisted payload is captured and asserted rather than written. Added in Rev 9. No local Postgres exists and the shared dev DB must not take an unmerged migration (AGENTS.md), so the row write is asserted at the model boundary.",
+      "precondition": "Same single enforce-mode app/module graph and mocked seams as D1.",
       "steps": [
-        "Set VALIDATION_ENFORCE=1 and load the app fresh.",
+        "Use the single app loaded after VALIDATION_ENFORCE=1 was set.",
         "POST with an in-contract utm_source=facebook and an INTERNAL Referer.",
         "Capture the FormSubmissionModel.create payload."
       ],
       "expected": "200; source='facebook' AND source_method='client_label' - attribution still works when the value is in contract.",
       "status": "pass",
-      "evidence": "src/__tests__/form-submission-enforce-flag.test.ts D3 passed in the same runs as D1.",
+      "evidence": "src/__tests__/form-submission-enforce-flag.test.ts D3 passed in the same normal-timeout file, focused, and full runs as D1.",
       "notes": "HONESTY - THIS TEST PASSES WITHOUT THE FIX and is therefore NOT proof of it. It passed in the negative-control run (2 of 5 passed pre-fix; this was one). It cannot fail pre-fix because an in-contract value satisfies formSubmissionSchema, so enforce mode never rejects it. It is a LOCK, not evidence: without it, D1/D2 could be satisfied by a route that ignored attribution entirely. D1, D2, and D4 are the tests that actually fail without the fix.",
       "waiver": ""
     },
@@ -339,32 +339,80 @@
       "id": "D4",
       "title": "/contact - a patient who writes at length is not turned away by the enforce flag (the WIDER instance of the same defect)",
       "surface": "api",
-      "precondition": "Real Express app driven over HTTP via Supertest with VALIDATION_ENFORCE=1 set BEFORE the module graph loads (vi.stubEnv + vi.resetModules + dynamic import of src/app.ts) - `validate` computes its process-wide default mode once at module load, so the flag can only be exercised on a freshly loaded app. Real router, real middleware stack, real controller; the DB model, reCAPTCHA, and the email webhook are mocked, so the persisted payload is captured and asserted rather than written. Added in Rev 9. No local Postgres exists and the shared dev DB must not take an unmerged migration (AGENTS.md), so the row write is asserted at the model boundary. reCAPTCHA verification and the email webhook are mocked for this route.",
+      "precondition": "Same single enforce-mode app/module graph as D1; reCAPTCHA and the email webhook are mocked for /contact.",
       "steps": [
-        "Set VALIDATION_ENFORCE=1 and load the app fresh.",
-        "POST /api/websites/contact with a valid name/phone/email/captchaToken and a message over the schema's 3,000-char cap - a patient describing their dental history in detail.",
+        "Use the single app loaded after VALIDATION_ENFORCE=1 was set.",
+        "POST /api/websites/contact with valid name/phone/email/captchaToken and a message longer than 3,000 characters - the historical regression shape, now intentionally valid patient text.",
         "Assert the response and that the email webhook fired."
       ],
-      "expected": "Not a 400; sendEmailWebhook called exactly once - the practice receives the inquiry.",
+      "expected": "200; sendEmailWebhook called exactly once - the enforced type boundary preserves and delivers the long patient inquiry.",
       "status": "pass",
-      "evidence": "src/__tests__/form-submission-enforce-flag.test.ts D4 passed in the same runs as D1. NEGATIVE CONTROL (mutation-proved, not reasoned): with src/routes/websiteContact.ts reverted to head 482052da (`git checkout HEAD -- src/routes/websiteContact.ts`, removing both `mode: \"warn\"` pins) the file ran exit 1 with 3 failed | 2 passed. D4 failed with `AssertionError: expected 400 not to be 400` - pre-fix the route answered 400 { fields: [\"message\"], issues: [\"too_big\"] } and the practice never received the inquiry.",
-      "notes": "FOUND BY AUDITING THE FLAG'S BLAST RADIUS, not by the line the review named. /contact is the OTHER public lead-capture route in the same router and had the identical defect: an unpinned `validate` inheriting the process-wide flag. It is arguably worse than the /form-submission case, because websiteContactController imposes NO length cap of its own - so message's 3,000-char schema bound was a NEW rejection that only existed under the flag, and it fires on text the patient actually typed rather than on a tracking parameter. Fixed in the same edit. SCOPE NOTE for the reviewer: this is one line beyond the round-4 sentence. Called out explicitly so it can be rejected if unwanted - it is strictly lead-preserving and changes nothing at today's default (warn).",
+      "evidence": "src/__tests__/form-submission-enforce-flag.test.ts D4 passed in the same normal-timeout file, focused, and full runs as D1. src/__tests__/website-contact-boundary-route.test.ts separately proved the long-message tail reaches the webhook under the route's explicit enforce posture.",
+      "notes": "Rev 10 corrects Rev 9's over-broad fix: /contact no longer pins the entire schema to warn. It enforces authoritative string types but places no arbitrary cap on patient-written message text.",
       "waiver": ""
     },
     {
       "id": "D5",
       "title": "The pin is SURGICAL - VALIDATION_ENFORCE still enforces on an unpinned route",
       "surface": "cli",
-      "precondition": "Throwaway one-route Express app built against a freshly imported middleware/validate with VALIDATION_ENFORCE=1, mounting validate() UNPINNED exactly as the auth/billing routes do.",
+      "precondition": "Throwaway one-route Express app built against the same once-loaded enforce-mode middleware as D1, mounting validate() UNPINNED exactly as the auth/billing routes do.",
       "steps": [
-        "Set VALIDATION_ENFORCE=1 and re-import middleware/validate fresh.",
+        "Use the middleware loaded once after VALIDATION_ENFORCE=1 was set.",
         "Mount validate(z.object({ field: z.string().max(5) })) with no mode option.",
         "POST an over-cap field."
       ],
       "expected": "400 with code VALIDATION_ERROR - the flag's default-mode wiring is intact for every route that has not deliberately opted out.",
       "status": "pass",
-      "evidence": "src/__tests__/form-submission-enforce-flag.test.ts D5 passed in the same runs as D1.",
+      "evidence": "src/__tests__/form-submission-enforce-flag.test.ts D5 passed in the same normal-timeout file, focused, and full runs as D1.",
       "notes": "HONESTY - THIS TEST PASSES WITHOUT THE FIX and is NOT proof of it (it was the other of the 2 that passed in the negative-control run). It tests middleware wiring this revision does not touch. Its job is to block the CHEAP fix: 'make the lead un-rejectable' must not be achieved by neutering VALIDATION_ENFORCE process-wide, because the auth/billing soak still needs to graduate to enforce one day. Kept as a guard against a future regression, not counted as evidence for this one.",
+      "waiver": ""
+    },
+    {
+      "id": "E1",
+      "title": "/contact enforces string boundary types without rejecting legitimate long patient messages",
+      "surface": "api",
+      "precondition": "Real Express app driven by Supertest under the normal test environment. reCAPTCHA and email webhook seams are mocked; the real route validator and controller execute.",
+      "steps": [
+        "POST a valid contact request with a message longer than 9,000 characters and a unique tail marker.",
+        "Assert 200 and that the webhook body contains the tail marker.",
+        "POST separate requests with arrays/objects in name, phone, email, captchaToken, service, and message.",
+        "Assert canonical 400 responses and that reCAPTCHA/webhook were never called for malformed types."
+      ],
+      "expected": "Long string text is preserved and delivered; every non-string value is stopped at the route boundary before controller string sanitization.",
+      "status": "pass",
+      "evidence": "src/__tests__/website-contact-boundary-route.test.ts passed 7/7 route cases; src/__tests__/websiteContact.schemas.test.ts passed the matching 7 contact-schema cases. Together with the existing attribution-schema cases, the two-file focused command passed 28/28. Both are included in the 118/118 focused remediation run and 563/563 default full run.",
+      "notes": "The route explicitly uses mode=enforce for contactSubmissionSchema. Only patient message length is intentionally unbounded; field types remain authoritative.",
+      "waiver": ""
+    },
+    {
+      "id": "E2",
+      "title": "Enforce-flag regression suite passes under Vitest's normal 5-second test timeout",
+      "surface": "cli",
+      "precondition": "No --testTimeout override. VALIDATION_ENFORCE=1 is set before one beforeAll app import; five cases share that module graph and clear mock call state between requests.",
+      "steps": [
+        "Run npx vitest run src/__tests__/form-submission-enforce-flag.test.ts.",
+        "Run the six-file focused remediation command.",
+        "Run default npx vitest run."
+      ],
+      "expected": "All commands exit 0; no timeout and no cross-case FormSubmissionModel.create contamination.",
+      "status": "pass",
+      "evidence": "Observed on Node 22.23.1: enforce-flag file 5/5 pass with no timeout override; focused remediation 6 files / 118 tests pass; default full suite 65 files / 563 tests pass.",
+      "notes": "Pre-fix evidence was reproduced: D1 timed out at 5000ms and D2 then saw two create calls. The fix removes per-case app reloads instead of raising the timeout.",
+      "waiver": ""
+    },
+    {
+      "id": "E3",
+      "title": "sourceAttribution helper follows the websiteContact feature-utils structure",
+      "surface": "cli",
+      "precondition": "Repository checkout at the remediated PR head.",
+      "steps": [
+        "Verify sourceAttribution.ts exists under src/controllers/websiteContact/feature-utils and no live import references the old websiteContact-utils path.",
+        "Run its unit tests, TypeScript, strict conventions, and git diff --check."
+      ],
+      "expected": "All imports resolve, unit behavior is unchanged, and Constitution section 6.3 structure is satisfied.",
+      "status": "pass",
+      "evidence": "Helper moved to src/controllers/websiteContact/feature-utils/sourceAttribution.ts; focused tests passed 118/118; npx tsc --noEmit exited 0; npm run check:conventions -- --strict exited 0 with zero backend structural violations; git diff --check exited 0.",
+      "notes": "The older websiteContact-utils folder remains for pre-existing helpers only; this PR's new helper now uses the required feature-utils name.",
       "waiver": ""
     }
   ]

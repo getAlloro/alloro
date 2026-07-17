@@ -10,7 +10,7 @@ import {
   isVerifiedAttribution,
   SOURCE_METHOD_CONFIDENCE,
   type SourceSignals,
-} from "../controllers/websiteContact/websiteContact-utils/sourceAttribution";
+} from "../controllers/websiteContact/feature-utils/sourceAttribution";
 
 /** The channel label only — for the many cases that assert the label alone. */
 const sourceOf = (signals: SourceSignals) => deriveSubmissionSource(signals).source;

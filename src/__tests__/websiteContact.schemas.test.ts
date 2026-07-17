@@ -21,6 +21,7 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  contactSubmissionSchema,
   formSubmissionSchema,
   attributionInputSchema,
   ATTRIBUTION_FIELDS,
@@ -36,6 +37,13 @@ const BASE = {
   contents: { Name: "Sam Rivera" },
 };
 
+const CONTACT_BASE = {
+  name: "Sam Rivera",
+  phone: "555-0100",
+  email: "sam@example.com",
+  captchaToken: "tok",
+};
+
 /** The issue codes zod raises for a given body, keyed by dotted field path. */
 function issuesFor(body: Record<string, unknown>): Array<{
   field: string;
@@ -48,6 +56,43 @@ function issuesFor(body: Record<string, unknown>): Array<{
     code: issue.code,
   }));
 }
+
+describe("contactSubmissionSchema — enforced string boundary (§11.2)", () => {
+  it("accepts a legitimate long patient message without truncating it", () => {
+    const message =
+      "My symptoms and treatment history need more detail. ".repeat(200);
+    const result = contactSubmissionSchema.safeParse({
+      ...CONTACT_BASE,
+      message,
+    });
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data.message).toBe(message);
+  });
+
+  it.each([
+    ["name", ["Sam Rivera"]],
+    ["phone", { raw: "555-0100" }],
+    ["email", ["sam@example.com"]],
+    ["captchaToken", { token: "tok" }],
+    ["service", ["Root canal"]],
+    ["message", { history: "long" }],
+  ])("rejects a non-string %s before controller sanitization", (field, value) => {
+    const result = contactSubmissionSchema.safeParse({
+      ...CONTACT_BASE,
+      [field]: value,
+    });
+
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: "invalid_type", path: [field] }),
+      ]),
+    );
+  });
+});
 
 describe("formSubmissionSchema — first-touch attribution boundary (§11.2)", () => {
   it("B1: defines all three attribution fields (they are no longer bare passthrough)", () => {

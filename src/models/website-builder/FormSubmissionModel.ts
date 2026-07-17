@@ -34,7 +34,7 @@ export interface IFormSubmission {
    * have been CLAIMED by the visitor's browser rather than classified by us —
    * always read it together with `source_method`, and get the honest wording
    * tier from `sourceConfidence(source_method)` in
-   * controllers/websiteContact/websiteContact-utils/sourceAttribution (§5.2).
+   * controllers/websiteContact/feature-utils/sourceAttribution (§5.2).
    */
   source?: string | null;
   /**
