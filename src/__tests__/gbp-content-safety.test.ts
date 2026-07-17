@@ -51,6 +51,7 @@ describe("GBP review reply — honesty claims route through the shared negation 
     "Your smile is guaranteed for life.",
     "Guaranteed. Not a promise, a fact.",
     "This is a cure for gum disease.",
+    "This is not difficult and produces permanent results.",
   ];
 
   it.each(realClaims)("BLOCKS a real outcome claim: %s", (content) => {

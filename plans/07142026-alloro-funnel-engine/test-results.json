@@ -249,6 +249,22 @@
       "evidence": "The round-9 modifier corpus passes 12 must-block and 5 must-pass cases in src/__tests__/generated-copy-safety.test.ts, including ordinary adverbs and 'will almost certainly guarantee' while preserving 'will almost certainly not guarantee'. Focused generated-copy + GBP safety run: 47/47 pass. Full suite: 66 files / 1219 tests pass. TypeScript and strict conventions exit 0; dependency-cruiser reports 0 errors and 38 existing warnings; changed-file ESLint reports 0 errors. The receipt validator reports the exact plan path, canonical surfaces, and a Passed rollup.",
       "notes": "An independent audit disproved the prior direct-adjacency fixture as class coverage: an ordinary modifier between the coordinator/modal and positive claim verb bypassed the rule. The matcher now allows a bounded run of arbitrary non-negating modifier words and explicitly excludes negators, so the two directions stay distinct. PR #159 carries its own hard-gate regression and must merge this head before final verification.",
       "waiver": ""
+    },
+    {
+      "id": "T16",
+      "title": "Coordinated finite predicates end unrelated copular negation scope",
+      "surface": "cli",
+      "precondition": "Rev 10 claimNegation grammar exercised through the real GeneratedCopySafetyService and GbpContentSafetyService entry points",
+      "steps": [
+        "1. Validate 'This is not complicated and results in a higher ranking.' through GeneratedCopySafetyService.",
+        "2. Validate 'This is not difficult and produces permanent results.' through GbpContentSafetyService.",
+        "3. Re-run the existing modifier-bearing positive-predicate block corpus and coordinated does-not/will-not pass corpus."
+      ],
+      "expected": "Both exact strings block; finite/modal predicate detection is structural rather than a closed claim-verb inventory; a coordinated predicate carrying its own negator remains publishable",
+      "status": "pass",
+      "evidence": "Focused generated-copy + GBP service run passed 2 files / 49 tests. Full backend suite passed 66 files / 1,221 tests. npx tsc --noEmit, npm run check:conventions -- --strict, and git diff --check exited 0 with 0 clear backend structural violations. claimNegation.ts is 681 lines.",
+      "notes": "The plan remains In Progress because Slice 1a is still in PR review and its existing live-worker item T7 is waived, not observed. Rev 10 itself is fully verified locally.",
+      "waiver": ""
     }
   ]
 }
