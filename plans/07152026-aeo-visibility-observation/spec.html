@@ -20,6 +20,7 @@
   .hero{min-height:56vh;display:flex;flex-direction:column;justify-content:center;padding:64px 0 40px;border-bottom:1px solid var(--line)}
   .pill{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--chip);width:max-content}
   .pill .dot{width:8px;height:8px;border-radius:50%;background:var(--warn)}
+  .pill.complete .dot{background:var(--good)}
   h1{font-size:38px;line-height:1.12;letter-spacing:-.02em;margin:20px 0 10px;text-wrap:balance}
   .sub{font-size:18px;color:var(--muted);max-width:62ch}
   .meta{margin-top:26px;font-size:13px;color:var(--muted);font-family:var(--mono)}
@@ -43,6 +44,7 @@
   ol.tasks>li:before{content:counter(t);position:absolute;left:0;top:12px;width:28px;height:28px;border:1px solid var(--line);border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:13px;font-weight:700}
   .done li{list-style:none}
   .done li:before{content:"\2610\00a0\00a0";font-family:var(--mono);color:var(--muted)}
+  .done.complete li:before{content:"\2611\00a0\00a0";color:var(--good)}
   .rev h3{font-family:var(--mono);font-size:14px;margin:18px 0 6px}
   a{color:var(--ink)}
   @media(max-width:560px){h1{font-size:30px}.hero{min-height:auto;padding:44px 0 28px}}
@@ -52,9 +54,9 @@
 <div class="wrap">
 
   <header class="hero">
-    <span class="pill"><span class="dot"></span>In Progress &middot; Rev 8</span>
+    <span class="pill complete"><span class="dot"></span>Completed &middot; Rev 9</span>
     <h1>A3 — AI-Answer Visibility (AEO) Observation</h1>
-    <p class="sub">Get-found, in-lane. A multi-engine <em>observation log</em>: run a practice's category+geo prompt set against AI answer engines on a cadence and record whether the practice is <strong>mentioned/cited</strong> — per engine, over time. Observe-only. Never a rank, never a guarantee. Built as a system (engine-adapter interface), Gemini live first.</p>
+    <p class="sub">Completed as a dormant pure internal foundation. The branch defines a multi-engine observation system, but it has zero production callers: no route, worker, schedule, agent-registry entry, UI, or API surface invokes it. Observe-only. Never a rank, never a guarantee. Live database/provider execution belongs to the future wiring slice.</p>
     <div class="meta">
       <div><b>Plan:</b> 07152026-aeo-visibility-observation &nbsp;&middot;&nbsp; <b>Funnel:</b> Stage A (get found), item A3 &nbsp;&middot;&nbsp; <b>Science (do not re-derive):</b> alloro-artifacts/research/aeo-measurement-spec.md + specs/aeo-build-spec.md</div>
       <div><b>Lane:</b> Corey+Claude spec &rarr; sandbox build + adversary &rarr; PR to <code>dev/dave</code> for Dave</div>
@@ -64,12 +66,17 @@
 
   <section>
     <h2>Why</h2>
-    <p>A growing share of "who's a good [x] near me" now happens inside AI answers. Alloro is <strong>totally blind</strong> to that surface today (verified: <code>connect-lever-audit.md</code> — grep AEO/answer-engine/perplexity/chatgpt = 0 code). A3 ends that blindness the only honest way: <strong>observe</strong> whether the practice is in the set of businesses the AI names, per engine, over time. It never claims a rank or a placement.</p>
+    <p>A growing share of "who's a good [x] near me" now happens inside AI answers. Alloro has no live observation path for that surface today. This A3 slice prepares the internal foundation for an honest future path: <strong>observe</strong> whether the practice is in the set of businesses the AI names, per engine, over time. It does not end the runtime gap until a later slice wires and accepts a caller, and it never claims a rank or placement.</p>
     <p><strong>Feasibility de-risked live (2026-07-15):</strong> a grounded Gemini query ("good endodontists in Austin") named real, specific practices (McGuire Endodontics, Edge Endodontics), returned <code>groundingMetadata</code> with the live search queries + citation sources. So grounded Gemini is a real, representative-enough observation surface — labeled a proxy, not "what your customers see."</p>
   </section>
 
   <section>
     <h2>What — in scope (the SYSTEM, not one engine)</h2>
+    <div class="card">
+      <h3>Current execution boundary — dormant by design</h3>
+      <p><strong>This PR ships an internal foundation, not a running feature.</strong> The per-location runner, adapters, detector, model, and additive migration exist and are covered by Layer 1 tests. Nothing in production can call them on this branch. Therefore this slice makes no live database, migration-deployment, provider, operator, or customer behavior claim, and its canonical Layer 2 acceptance is the single passing N/A item: <code>No behavioral surface — verified by Layer 1 tests</code>.</p>
+      <p>A future executor/caller slice must own the route/worker/schedule/registry wiring and must run the real migration, PostgreSQL idempotency, and provider smoke tests before enabling that caller. Those checks are not passes or waivers for this slice; they are outside its contract.</p>
+    </div>
     <div class="reuse">
       <p><b>Reuse first (verified against code + the existing science spec).</b></p>
       <ul>
@@ -87,13 +94,13 @@
         <li><strong>Prompt-set builder</strong> — from category+geo, a small fixed set: generic ("best [category] in [city]") + one contextualized variant (per the Clovion finding). Curated + stored, not "everything".</li>
         <li><strong>Appearance detector (deterministic)</strong> — does the practice name/domain/GBP appear in the answer text OR the grounding-source titles? Record <code>mentioned</code>, <code>cited</code>, <code>cited_source</code>, <code>position</code> (stored raw, <b>never surfaced as "rank"</b>), <code>raw_excerpt</code>. Keep the raw answer (anti-fabrication).</li>
         <li><strong>Observation log</strong> — net-new table <code>ai_visibility_observation</code> (org/location, prompt, engine, capture_method, mentioned, cited, cited_source, position, raw_excerpt, observed_at). Idempotent insert per (location, prompt, engine, run-date). A log, never a score.</li>
-        <li><strong>Runner</strong> — for a location, run the prompt set against every <em>configured</em> adapter, detect, persist. Callable now; the weekly scheduled cadence rides the existing scheduled-job pattern (thin follow-on).</li>
+        <li><strong>Runner</strong> — an internal per-location entry point that can run the prompt set against configured adapters, detect, and persist once a future slice wires it. This branch intentionally provides no production caller.</li>
       </ul>
     </div>
     <div class="card">
       <h3>The engines</h3>
       <ul>
-        <li><strong>Gemini (grounded) — LIVE + tested.</strong> Uses the <code>googleSearch</code> tool (confirmed in <code>@google/genai</code> 1.43; de-risk run named real practices + returned citations). <code>capture_method: api_grounded</code>. Citations come back as Google redirect URLs → the detector reads <code>groundingChunks[].web.title</code> for the source; citation-source capture is therefore <em>partial</em> (flagged honestly).</li>
+        <li><strong>Gemini (grounded) — implemented and Layer-1 tested, not live-verified through this branch.</strong> Uses the <code>googleSearch</code> tool behind an injected client seam. The 2026-07-15 feasibility query was manual and outside this adapter; it proves the external surface exists, not that this code has called it. <code>capture_method: api_grounded</code>. Citation-source capture remains partial and must be smoke-tested by the future wiring slice.</li>
         <li><strong>Perplexity Sonar + Google AI Overview (SerpApi) — WRITTEN, KEY-GATED, NOT live-verified.</strong> Real adapters conforming to the interface, but each <b>activates only when its API key env var is present</b> and is flagged "needs a live smoke-test on first key." The runner skips an adapter with no key, so nothing unverified fires. This is the "wire both, one key away" option (Corey, 2026-07-15) — the system supports them now; procurement + a smoke-test turn them on, on their own cadence.</li>
       </ul>
     </div>
@@ -101,7 +108,8 @@
     <ul>
       <li><strong>No rank number, ever.</strong> Rank inside AI answers is &lt;1/100 repeatable. No "your AI rank #3".</li>
       <li><strong>No derived score yet.</strong> Ship the raw observation log first; a score is derived only once real per-engine time-series exists (measurement spec §3).</li>
-      <li><strong>No customer-facing surface</strong> in this slice — operator/admin-first.</li>
+      <li><strong>No customer, operator, admin, API, worker, or scheduled surface</strong> in this slice — it is intentionally dormant.</li>
+      <li><strong>No production caller</strong> — executor and scheduling are a follow-on with their own live acceptance contract.</li>
       <li><strong>No guarantee / placement promise</strong> (Value #6). No premium AEO tier. Perplexity/SerpApi are not claimed as working until smoke-tested with a key.</li>
     </ul>
   </section>
@@ -121,7 +129,7 @@
       <p><b>Anti-fabrication.</b> Record only what the engine actually returned (keep <code>raw_excerpt</code>). Never infer a mention that isn't in the text/citations. <code>position</code> is stored raw for analysis but NEVER rendered as a rank.</p>
     </div>
     <div class="guard">
-      <p><b>Sandbox-safety (this build writes).</b> The migration is <b>additive</b> (new table) + <b>reversible</b> (tested <code>down</code>). The Gemini call is a read-only external query (no human/wallet side effect beyond trivial API cost); no Stripe/email/webhook. Perplexity/SerpApi adapters are dormant without keys. Prove DB paths with a rolled-back transaction in the sandbox.</p>
+      <p><b>Dormant-foundation safety.</b> The code can write observations only after a future caller is added. This branch adds no caller and makes no live write. The migration is additive and has a reversible <code>down</code> implementation, but it has not been executed as Layer 2 evidence for this slice. No provider call, Stripe action, email, webhook, worker, or schedule is enabled here.</p>
     </div>
     <ul>
       <li><strong>Untested external adapters are key-gated + flagged</strong> — Perplexity/SerpApi ship only as code, run only with a key, and carry a "needs live smoke-test" marker; the runner skips them when unconfigured.</li>
@@ -136,7 +144,7 @@
     <ul>
       <li><strong>API ≠ UI.</strong> A grounded-Gemini reading is not the exact Google AI Overview a user sees. Mitigation: label every reading <code>capture_method</code> + proxy caption; never claim "what your customers see."</li>
       <li><strong>Low surface / emerging.</strong> Local AI is ~1–7% of queries. Mitigation: frame as watch-the-wave observation, not a headline lever; no over-claim in any copy.</li>
-      <li><strong>Untested Perplexity/SerpApi adapters.</strong> Mitigation: key-gated + skip-when-unconfigured + "needs smoke-test" flag; only Gemini is verified end-to-end in this PR.</li>
+      <li><strong>Provider and database behavior is not live-verified through this branch.</strong> Mitigation: the slice remains unwired; the future executor/caller slice must run migration, PostgreSQL idempotency, and provider smoke tests before enabling production execution.</li>
       <li><strong>Directional hardening into a promise.</strong> Mitigation: the honesty caps are enforced in the output shape (no rank field surfaced; churn caveat attached); tests assert no rank/guarantee language.</li>
     </ul>
   </section>
@@ -146,7 +154,7 @@
     <ol class="tasks">
       <li><strong>Migration</strong> — additive <code>ai_visibility_observation</code> table + tested reversible <code>down</code>.</li>
       <li><strong>Engine-adapter interface + registry</strong> — the one interface + <code>capture_method</code> flag; a registry that lists only configured adapters (key present).</li>
-      <li><strong>Gemini adapter (live)</strong> — grounded <code>googleSearch</code> query via the <code>os-llm</code> seam pattern + an injected fake for tests; <code>capture_method: api_grounded</code>.</li>
+      <li><strong>Gemini adapter (internal foundation)</strong> — grounded <code>googleSearch</code> query via the <code>os-llm</code> seam pattern + an injected fake for Layer 1 tests; <code>capture_method: api_grounded</code>; no production caller or live adapter claim in this slice.</li>
       <li><strong>Perplexity + SerpApi adapters (key-gated, flagged)</strong> — interface-conforming; skip when no key; marked "needs live smoke-test."</li>
       <li><strong>Prompt-set builder + appearance detector</strong> — category+geo prompts; deterministic name/domain/GBP match over answer text + grounding-source titles.</li>
       <li><strong>Persistence + runner</strong> — idempotent per (location, prompt, engine, run-date); runner executes configured adapters, detects, persists. (Scheduled cadence = thin follow-on.)</li>
@@ -160,21 +168,22 @@
       <li>Runner skips an adapter with no key (Perplexity/SerpApi dormant) — assert only Gemini runs by default.</li>
       <li>Persistence is idempotent — same (location, prompt, engine, run-date) inserted twice → one row.</li>
       <li>Output carries <code>capture_method</code> on every observation; assert no field is ever labeled/rendered as "rank"; assert no rank/guarantee string in any operator copy.</li>
-      <li>Migration up+down runs clean on the sandbox (rolled-back transaction proof).</li>
-      <li><code>npm run check:all</code> clean; <code>npm test</code> green (Node 22).</li>
-      <li><strong>Post-merge smoke-test (Dave/dev):</strong> one live grounded-Gemini run against a real onboarded location; confirm an honest observation row lands.</li>
+      <li><strong>Fresh Layer 1 evidence at code head <code>c7eb4212</code>, Node 22.23.1:</strong> focused A3 Vitest 1/1 file and 138/138 tests; normal full <code>npm test</code> 61/61 files and 594/594 tests; <code>npx tsc --noEmit</code> exit 0; strict conventions exit 0 with 0 structural backend violations.</li>
+      <li><strong>Layer 2:</strong> canonical single passing N/A item because this dormant internal foundation has no behavioral surface.</li>
+      <li><strong>Future wiring acceptance:</strong> migration execution, real PostgreSQL idempotency, and live Gemini/SerpApi/Perplexity smoke tests move with the executor/caller slice and must pass before a caller is enabled.</li>
     </ul>
   </section>
 
   <section>
     <h2>Done</h2>
-    <ul class="done">
-      <li>Additive <code>ai_visibility_observation</code> table + reversible down migration.</li>
-      <li>Engine-adapter interface + registry; Gemini grounded adapter LIVE + tested (fake provider); Perplexity/SerpApi adapters written, key-gated, flagged unverified.</li>
+    <ul class="done complete">
+      <li>Additive <code>ai_visibility_observation</code> migration + reversible <code>down</code> implementation, covered by Layer 1 evidence and not claimed as live-executed.</li>
+      <li>Engine-adapter interface + registry; Gemini, Perplexity, and SerpApi adapters implemented as dormant internal code and tested only to the extent recorded by Layer 1.</li>
       <li>Prompt-set builder + deterministic appearance detector; runner persists idempotent observations with mandatory <code>capture_method</code>.</li>
       <li>No rank field surfaced; no guarantee/placement language (test-proven); every reading proxy-labeled + churn-caveated.</li>
-      <li>Test section passes; <code>npm run check:all</code> clean; <code>npm test</code> green; a fresh adversary (<code>alloro-proof</code>) ran and its findings are fixed; <code>&sect;N.M</code> confirmed at the <code>alloro-engineer</code> pass.</li>
-      <li>Opened as a PR to <code>dev/dave</code> with this spec linked. (Perplexity/SerpApi live-verification + scheduled cadence are noted follow-ons.)</li>
+      <li>Zero production callers are added; executor, registry/schedule wiring, migration execution, and live provider smoke tests remain a separate follow-on contract.</li>
+      <li>Layer 1 passes at the exact counts in Rev 9; Layer 2 is the canonical single passing N/A item under &sect;20.5.</li>
+      <li>Opened as PR #165 to <code>dev/dave</code> with this completed dormant-foundation scope recorded honestly.</li>
     </ul>
   </section>
 
@@ -227,6 +236,12 @@
       <p><strong>Change:</strong> An independent adversary attacked the Rev 7 fix. <b>Its verdict on this round's work: all three changes HELD</b> &mdash; it could not break the scheme allowlist (19 probes), the registrable-domain/PSL comparison (16 probes, including wildcard <code>*.ck</code> / <code>*.kawasaki.jp</code> and the <code>!city.kawasaki.jp</code> exception), or the title path (10 probes). <b>But it found 4 fabrications one layer down</b>, in <code>isWholeEntity</code>'s CHARACTER CLASSES &mdash; untouched by Rev 7 and present since earlier rounds. Every one was <b>re-verified independently with an ASCII minimal-pair control</b> before being fixed: (1) <b>the guards were ASCII-blind</b> &mdash; "Muñoz Family Dental" recorded a mention for identity <code>Family Dental</code> while "Munoz Family Dental" correctly did not; the <i>only</i> difference is the "ñ". Same for "Hernández" and "Family Dental Ángeles". This is <b>ordinary engine output about a competitor</b>, not an adversarial input: Muñoz, Hernández, Peña, Nguyễn and Ángel are the surname stock of US dental practice names. (2) <b>Unicode spaces walked past every guard</b> &mdash; <code>H</code> knew three space characters, so "Bright&lt;U+202F&gt;Smile Dental" recorded a mention while the visually identical ASCII-space text did not; same for U+2009, U+2003, U+3000, U+205F. (3) <b>LEFT/RIGHT separator asymmetry</b> &mdash; the left guard knew markdown, slashes and zero-widths; the right guard knew only spaces and dashes. So "**Bright** Smile Dental" correctly dropped while its mirror image "**Smile Dental** Group" recorded a mention, as did "`Smile Dental` Group", "Smile Dental/Orthodontics" and "Smile Dental&lt;ZWSP&gt;group". (4) <b>Rev 7's "CLOSED class that cannot grow" claim was simply FALSE</b> &mdash; "to" was missing ("Smile Dental to Go" recorded), and the business-name space is not English ("Smile Dental de Austin", "Clínica Dental y Más" are ordinary US practice names). That claim is corrected in the code rather than defended.</p>
       <p><strong>Reason:</strong> Execution deviation: the standing rule that a high-stakes claim is attacked by an independent check before it is stood behind. The adversary refuted the Rev 7 claim that the fabrication class was closed. Recorded as its own revision rather than quietly folded into Rev 7. <b>Honest note on sequence:</b> the Rev 7 head was pushed and reported BEFORE the adversary returned, so that report stood on self-attack alone for a window. The lesson is the adversary gates the report, not the other way round.</p>
       <p><strong>Updated Done criteria:</strong> the matcher and the guards read <b>ONE alphabet</b>. <b>Root cause &mdash; one cause, not four:</b> the matcher's boundary test said "any non-alphanumeric ends a token" (<code>(?&lt;![A-Za-z0-9])</code>) while the guards read hand-listed ASCII sets. The two DISAGREED about what a character is, and every fabrication lived in that gap. Enumerating more characters cannot close it &mdash; the gap is infinite while a list is finite. The remedy is Unicode-property classes both sides share, every regex carrying the <code>u</code> flag: <code>ALNUM=[\p{L}\p{N}\p{M}]</code> (marks included, for decomposed "Nguyễn"), <code>UPPER=[\p{Lu}\p{Lt}\p{N}\p{Lo}]</code> (<code>\p{Lo}</code> because caseless scripts have no capitals and a case test is blind to them), <code>H=[^\S\r\n]</code> (all Unicode horizontal whitespace, never a newline), and a <b>symmetric</b> <code>SEP</code> used on both sides. This is the round-3 lesson recurring one layer down: <i>the name path enumerated surface forms while the citation path parsed structure</i> &mdash; there it was word lists, here it was character classes. <b>A deliberate asymmetry is load-bearing:</b> <code>RIGHT_HEAD</code> excludes digits while <code>UPPER</code> includes them &mdash; a digit BEFORE the name is a business name ("1st Family Dental"), a digit AFTER it across a separator is a rating ("**Smile Dental** &mdash; 4.8 stars"), the most common shape in a ranked engine list. Getting this wrong is how the first attempt broke the existing "bolded whole, with a trailing dash blurb" test; <b>the suite caught it</b>. That test had only ever passed BECAUSE of the separator asymmetry (the asterisks blocked the guard), and the fix <b>recovered recall the old code silently lost</b>: "- Smile Dental - 4.9 rating" and "Smile Dental - 2.1 miles away" were being dropped by the old dash+digit rule. <b>Proven in BOTH directions</b> (&sect;20.2): 21 new cases &mdash; non-ASCII prefixes/continuations each asserted WITH their ASCII control so a future ASCII regression is caught, 5 Unicode spaces, 5 separator-asymmetry forms, 4 connector forms &mdash; and a new "a trailing rating is not a name continuation" block pinning the recall (em-dash rating, hyphen rating, distance blurb, star line). <b>Non-vacuity proven by REVERT:</b> with the new tests and the detector restored to the pushed Rev 7 head, vitest exits 1 with <b>20 failed / 118 passed</b> (17 fabrications + 3 recall gains); restoring returns <b>138/138</b> exit 0. Gates at this head, Node 22 (v22.23.1), each read from the tool's OWN exit code, never through a pipe: <code>npx tsc --noEmit</code> exit 0; <code>npx vitest run</code> exit 0, <b>594/594</b> (61 files; 138 A3); <code>npm run check:conventions -- --strict</code> exit 0; <code>eslint src/services/ai-visibility</code> exit 0. No migration, no schema change. <b>Known residuals, named:</b> the connector list is now described honestly as a BOUNDED HEURISTIC rather than a closed class &mdash; a connector from a language not listed (French "aux", German "und", Vietnamese) still records; a <b>Cyrillic homoglyph left-prefix</b> ("Вright Smile Dental") still fabricates &mdash; confirmed by the adversary, adversary-only rather than ordinary engine output, and deliberately NOT closed here; "Smile Dental by the bay" (lowercase head) still records, consistent with the documented case-sensitivity rule; all Rev 7 residuals stand. <b>The adversary's own corrections are recorded rather than smoothed:</b> it discarded its first two batteries as contaminated (its frame text triggered unrelated drops) and re-ran every finding against ASCII minimal pairs, and it withdrew "Smile Dental, Inc. → true" as correct-not-a-bug.</p>
+    </article>
+    <article class="rev">
+      <h3>Rev 9 &mdash; 2026-07-17</h3>
+      <p><strong>Change:</strong> Evidence-only remediation for PR #165 after the exact-head re-review found no remaining code issue. The old <code>test-results.json</code> mixed Layer 1 proof into Layer 2 and had <b>27 items: 22 pass, 5 pending</b>, while its own rationale still said <b>21 of 26</b> and its notes repeated both <b>573</b> and <b>594</b> as full-suite totals. Replaced it with the canonical single passing N/A item, <code>No behavioral surface — verified by Layer 1 tests</code>, and restored <code>test.html</code> to the canonical viewer. The current spec contract now states the real boundary: this branch is a <b>dormant pure internal foundation with zero production callers</b>. No source or production code changed.</p>
+      <p><strong>Reason:</strong> User QA: no code finding remained, but stale and contradictory acceptance evidence made the PR look unfinished. The five live database/provider checks were also in the wrong layer. Because this branch has no route, worker, schedule, agent-registry entry, UI, API, or other production caller, those checks are not current Layer 2 behavior and do not need fabricated passes or waivers. They move with the future executor/caller slice, which must run them before enabling production execution.</p>
+      <p><strong>Updated Done criteria:</strong> hero status is <b>Completed</b> for the dormant-foundation scope; Layer 2 rolls up <b>Passed</b> from exactly one N/A item; no live database, migration-deployment, or provider behavior is claimed. Fresh Layer 1 evidence on code head <code>c7eb4212d3daa76201e0c5ea1d8eb4defa536441</code> under Node <code>22.23.1</code>: focused A3 Vitest <b>1/1 file, 138/138 tests</b>; normal full <code>npm test</code> <b>61/61 files, 594/594 tests</b>; <code>npx tsc --noEmit</code> exit 0; <code>npm run check:conventions -- --strict</code> exit 0 with <b>0 structural backend violations</b>; <code>git diff --check</code> exit 0. Strict-check advisories are preserved exactly and are pre-existing/out of scope: 1 historical migration over the size ceiling, 20 route files without an inline auth reference, 1 <code>dangerouslySetInnerHTML</code> file, 2 token-read files, 6 backend <code>.raw()</code> integration-test files, and 102 tenant-scope heuristic model entries. <b>Residuals remain explicit:</b> live migration/PostgreSQL/provider behavior is unproven until the future wiring slice; Rev 8's accepted detector limits remain (bounded connector-language coverage, the adversary-only Cyrillic homoglyph prefix, lowercase-head ambiguity, and no location signal for same-name practices).</p>
     </article>
   </section>
 
