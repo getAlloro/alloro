@@ -1,11 +1,18 @@
-export interface GbpContentSafetyResult {
-  isSafe: boolean;
-  status: "safe" | "needs_review" | "blocked";
-  reasonCodes: string[];
-  reasons: string[];
-  byteLength: number;
-  confidence: number;
-}
+import {
+  OUTCOME_CLAIM_PATTERNS,
+  type ContentSafetyResult,
+} from "../../../services/content-safety/GeneratedCopySafetyService";
+import {
+  hasUnsafeBidiControl,
+  normalizeForMatching,
+} from "../../../services/content-safety/copyNormalization";
+import { matchesUnnegatedInNormalizedCopy } from "../../../services/content-safety/claimNegation";
+
+/**
+ * GBP review-reply safety result. Alias of the neutral ContentSafetyResult so
+ * every caller in this domain keeps handling one result type.
+ */
+export type GbpContentSafetyResult = ContentSafetyResult;
 
 const MAX_GOOGLE_REPLY_BYTES = 4096;
 const MAX_REVIEW_REPLY_CHARS = 900;
@@ -23,15 +30,6 @@ const BLOCKED_PATIENT_CONFIRMATION = [
   /\byour case\b/i,
   /\btreated you\b/i,
   /\bseeing you\b/i,
-];
-
-const BLOCKED_CLAIMS = [
-  /\bguarantee\b/i,
-  /\bguaranteed\b/i,
-  /\bcure\b/i,
-  /\bpain[- ]?free\b/i,
-  /\bpermanent results?\b/i,
-  /\bmedical advice\b/i,
 ];
 
 const NEEDS_REVIEW_PATTERNS = [
@@ -65,19 +63,52 @@ export class GbpContentSafetyService {
       reasons.push("Reply exceeds Alloro's 900-character review reply limit.");
     }
 
-    for (const pattern of BLOCKED_PATIENT_CONFIRMATION) {
-      if (pattern.test(trimmed)) {
-        reasonCodes.push("private_detail_confirmation");
-        reasons.push("Reply appears to confirm patient relationship or private details.");
-        break;
+    // Reject before normalization or matching. Bidi controls can reorder visible
+    // text, so stripping them would inspect a different string than the reader.
+    const hasUnsafeBidi = hasUnsafeBidiControl(trimmed);
+    if (hasUnsafeBidi) {
+      reasonCodes.push("bidirectional_control");
+      reasons.push("Reply contains bidirectional formatting controls and cannot be matched safely.");
+    }
+
+    // This gate's patterns are ASCII, so the same encoding fold the generated-copy
+    // gate needs applies here. The limits above remain measured on the original.
+    // Unsafe bidi copy is already rejected and deliberately never reaches matching.
+    const normalized = hasUnsafeBidi ? "" : normalizeForMatching(trimmed);
+
+    // PRIVACY patterns stay a RAW match, deliberately. Negation does not make a
+    // reference to a reviewer's care safe to publish: "we cannot discuss your
+    // treatment" still confirms there was treatment, so a negated match is as
+    // disclosing as a bare one. This gate's asymmetry runs the other way from the
+    // honesty gate's — the harm is the publish, not the block — so it stays
+    // conservative and the reply goes back for a human edit.
+    if (!hasUnsafeBidi) {
+      for (const pattern of BLOCKED_PATIENT_CONFIRMATION) {
+        if (pattern.test(normalized)) {
+          reasonCodes.push("private_detail_confirmation");
+          reasons.push("Reply appears to confirm patient relationship or private details.");
+          break;
+        }
       }
     }
 
-    for (const pattern of BLOCKED_CLAIMS) {
-      if (pattern.test(trimmed)) {
-        reasonCodes.push("medical_or_outcome_claim");
-        reasons.push("Reply appears to make a medical or outcome claim.");
-        break;
+    // HONESTY patterns route through the SHARED negation-aware matcher, the same
+    // one validateGeneratedCopy uses. Testing these patterns raw was a silent
+    // over-block: `OUTCOME_CLAIM_PATTERNS` contains a bare `\bguarantee\b`, so
+    // every honest disclaimer a practice could write — "we don't guarantee a
+    // higher ranking" — was blocked by the word it needs to say in order to
+    // disclaim. The gate refused to print the disclaimer that IS the product.
+    //
+    // Sharing the inventory without sharing the matcher is what made this
+    // possible: the fix to the negation model landed in the shared service and
+    // this path never called it. The two now cannot drift apart again.
+    if (!hasUnsafeBidi) {
+      for (const pattern of OUTCOME_CLAIM_PATTERNS) {
+        if (matchesUnnegatedInNormalizedCopy(normalized, pattern)) {
+          reasonCodes.push("medical_or_outcome_claim");
+          reasons.push("Reply appears to make a medical or outcome claim.");
+          break;
+        }
       }
     }
 
@@ -92,7 +123,7 @@ export class GbpContentSafetyService {
       };
     }
 
-    const needsReview = NEEDS_REVIEW_PATTERNS.some((pattern) => pattern.test(trimmed));
+    const needsReview = NEEDS_REVIEW_PATTERNS.some((pattern) => pattern.test(normalized));
     if (needsReview) {
       return {
         isSafe: true,
