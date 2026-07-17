@@ -29,6 +29,16 @@ const CONTACT_RATE_LIMIT_RESPONSE = {
   },
 };
 
+const CONTACT_INVALID_JSON_RESPONSE = {
+  success: false,
+  data: null,
+  error: {
+    code: "CONTACT_INVALID_JSON",
+    message: "Contact form request must contain valid JSON.",
+    details: null,
+  },
+};
+
 interface BodyParserError extends Error {
   status?: number;
   type?: string;
@@ -75,6 +85,11 @@ export function handleContactRequestBodyError(
         details: { maxBytes: CONTACT_REQUEST_BODY_MAX_BYTES },
       },
     });
+    return;
+  }
+
+  if (isBodyParserError(error) && error.type === "entity.parse.failed") {
+    res.status(400).json(CONTACT_INVALID_JSON_RESPONSE);
     return;
   }
 

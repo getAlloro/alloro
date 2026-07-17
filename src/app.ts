@@ -91,7 +91,13 @@ import {
   handleContactRequestBodyError,
 } from "./middleware/websiteContactProtection";
 
+// Production Apache proxies to PM2 over the same host. Trust only that loopback
+// hop: Express then uses Apache's right-most X-Forwarded-For value as req.ip and
+// ignores caller-supplied addresses farther left in the chain.
+const TRUSTED_REVERSE_PROXY_SUBNET = "loopback";
+
 const app = express();
+app.set("trust proxy", TRUSTED_REVERSE_PROXY_SUBNET);
 const isProd = process.env.NODE_ENV === "production";
 const router = Router();
 

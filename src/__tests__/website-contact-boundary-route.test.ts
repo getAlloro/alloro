@@ -108,6 +108,26 @@ describe("POST /api/websites/contact — authoritative string boundary", () => {
     expect(sendEmailWebhook).not.toHaveBeenCalled();
   });
 
+  it("returns the canonical API envelope for malformed JSON", async () => {
+    const res = await request(app)
+      .post(ROUTE)
+      .set("Content-Type", "application/json")
+      .send('{"name":"Sam Rivera",');
+
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({
+      success: false,
+      data: null,
+      error: {
+        code: "CONTACT_INVALID_JSON",
+        message: "Contact form request must contain valid JSON.",
+        details: null,
+      },
+    });
+    expect(verifyRecaptcha).not.toHaveBeenCalled();
+    expect(sendEmailWebhook).not.toHaveBeenCalled();
+  });
+
   it.each([
     ["name", ["Sam Rivera"]],
     ["phone", { raw: "555-0100" }],
@@ -137,8 +157,9 @@ describe("POST /api/websites/contact — authoritative string boundary", () => {
     expect(sendEmailWebhook).not.toHaveBeenCalled();
   });
 
-  it("rate-limits repeated public contact requests with a canonical error", async () => {
+  it("isolates forwarded clients and rate-limits one with a canonical error", async () => {
     const limiterApp = express();
+    limiterApp.set("trust proxy", app.get("trust proxy"));
     limiterApp.use(express.json());
     limiterApp.post(
       "/contact",
@@ -146,14 +167,20 @@ describe("POST /api/websites/contact — authoritative string boundary", () => {
       (_req, res) => res.status(200).json({ ok: true }),
     );
 
-    expect((await request(limiterApp).post("/contact").send({})).status).toBe(
-      200,
-    );
-    expect((await request(limiterApp).post("/contact").send({})).status).toBe(
-      200,
-    );
+    expect(app.get("trust proxy")).toBe("loopback");
+    const clientA = "203.0.113.250, 198.51.100.10";
+    const clientB = "203.0.113.250, 198.51.100.11";
+    const sendFrom = (forwardedFor: string) =>
+      request(limiterApp)
+        .post("/contact")
+        .set("X-Forwarded-For", forwardedFor)
+        .send({});
 
-    const limited = await request(limiterApp).post("/contact").send({});
+    expect((await sendFrom(clientA)).status).toBe(200);
+    expect((await sendFrom(clientA)).status).toBe(200);
+    expect((await sendFrom(clientB)).status).toBe(200);
+
+    const limited = await sendFrom(clientA);
     expect(limited.status).toBe(429);
     expect(limited.body).toEqual({
       success: false,
@@ -164,5 +191,6 @@ describe("POST /api/websites/contact — authoritative string boundary", () => {
         details: null,
       },
     });
+    expect((await sendFrom(clientB)).status).toBe(200);
   });
 });

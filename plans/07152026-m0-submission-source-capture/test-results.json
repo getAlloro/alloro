@@ -422,15 +422,31 @@
       "surface": "api",
       "precondition": "Real Express app for the parser-order assertion, plus an isolated Express route using the same limiter factory with a two-request threshold. No database or external provider is used; reCAPTCHA and webhook seams are mocked.",
       "steps": [
-        "POST a valid request at the 32,000-character message ceiling and assert the real route emits RateLimit-Limit: 20.",
-        "POST JSON whose serialized body exceeds CONTACT_REQUEST_BODY_MAX_BYTES (256 KiB).",
-        "Assert canonical 413 and that reCAPTCHA and webhook dispatch were never called.",
-        "Drive the same limiter factory with a threshold of two and issue three requests."
+        "Confirm the real app trust proxy setting is loopback, matching same-host Apache to PM2.",
+        "Send two requests for forwarded client A and one for client B; both chains carry the same spoofed left-most address but different right-most Apache-observed client addresses.",
+        "Send client A again and assert canonical 429, then send client B again and assert 200.",
+        "POST JSON whose serialized body exceeds CONTACT_REQUEST_BODY_MAX_BYTES (256 KiB) and assert canonical 413 before downstream work."
       ],
-      "expected": "The exact contact path is protected before the app-wide 50 MB parser; oversized JSON returns CONTACT_REQUEST_TOO_LARGE at 413; the third request in the isolated rate test returns CONTACT_RATE_LIMITED at 429 with the canonical response envelope.",
+      "expected": "Only the loopback proxy is trusted; the right-most forwarded clients have separate buckets despite a shared spoofed left-most value; client A is limited without consuming client B's allowance; oversized JSON still returns the canonical 413 envelope.",
       "status": "pass",
-      "evidence": "src/__tests__/website-contact-boundary-route.test.ts passed as part of the 32/32 boundary pair and the 567/567 full suite. The real-route header assertion proves the production limiter is mounted; the 413 test proves the smaller parser runs before controller work; the isolated threshold test proves the limiter's rejection contract.",
-      "notes": "The protection is deliberately limited to POST /api/websites/contact. The generic multipart /form-submission limiter remains disabled and untouched, so this revision does not risk dropping unrelated hosted-site leads.",
+      "evidence": "Rev 12: src/__tests__/website-contact-boundary-route.test.ts passed 11/11. The full backend suite passed 65 files / 568 tests. npx tsc --noEmit, npm run check:conventions -- --strict, and git diff --check exited 0; strict conventions reported 0 clear backend structural violations. Read-only checks of /etc/apache2/sites-enabled on both alloro-dev and alloro-app confirmed the deployed Alloro ProxyPass target is http://127.0.0.1:3000/.",
+      "notes": "Express trusts only loopback because deployed Apache and PM2 share a host. proxy-addr therefore stops at Apache's right-most forwarded address instead of accepting a caller-controlled left-most value. The generic multipart /form-submission limiter remains disabled and untouched.",
+      "waiver": ""
+    },
+    {
+      "id": "E5",
+      "title": "/contact returns canonical JSON for malformed JSON",
+      "surface": "api",
+      "precondition": "Real Express app with the route-specific JSON parser; reCAPTCHA and webhook seams mocked",
+      "steps": [
+        "POST a truncated application/json body to /api/websites/contact.",
+        "Assert HTTP 400 with success=false, data=null, and error.code=CONTACT_INVALID_JSON.",
+        "Assert reCAPTCHA and webhook dispatch were not called."
+      ],
+      "expected": "The body-parser entity.parse.failed error is handled at the request boundary using the canonical API envelope before controller/provider work",
+      "status": "pass",
+      "evidence": "The malformed-JSON regression passed in the 11/11 focused route file and the 65-file / 568-test full backend suite.",
+      "notes": "No malformed payload content is echoed in the response or logs. The oversized-body 413 remains a separate canonical contract.",
       "waiver": ""
     }
   ]
