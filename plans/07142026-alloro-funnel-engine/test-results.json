@@ -1,0 +1,254 @@
+{
+  "plan": "plans/07142026-alloro-funnel-engine",
+  "generatedAt": "2026-07-17",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "T1",
+      "title": "Schema completeness returns exactly the missing-field set",
+      "surface": "cli",
+      "precondition": "Fixture page carrying a LocalBusiness/Dentist entity with only @type/name/address/telephone",
+      "steps": [
+        "1. Score the fixture with scoreSchemaCompleteness",
+        "2. Compare the returned missingFields with the expected set",
+        "3. Confirm every graded field is a real schema.org field"
+      ],
+      "expected": "missingFields equals areaServed, geo, image, openingHours, priceRange, sameAs, url; no invented field ever appears; a non-business @type reports no gradable entity",
+      "status": "pass",
+      "evidence": "src/__tests__/get-found-checker.test.ts > 'scoreSchemaCompleteness — missing-field set' — 3/3 passed in the 31-test focused run and the 487-test full suite.",
+      "notes": "Grading is new logic layered over the reused extractIdentityFromHtml parse (reconcile-first rule).",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Honesty gate blocks rank/placement/visibility copy without false positives",
+      "surface": "cli",
+      "precondition": "GeneratedCopySafetyService.validateGeneratedCopy run over the rejected and honest copy sets",
+      "steps": [
+        "1. Submit 14 ranking/placement/visibility promises",
+        "2. Submit 6 honest copy lines, including negated disclaimers"
+      ],
+      "expected": "Every promise returns isSafe false / status blocked with reason codes; every honest line returns isSafe true / status safe",
+      "status": "pass",
+      "evidence": "src/__tests__/get-found-checker.test.ts > 'honesty lint — GeneratedCopySafetyService.validateGeneratedCopy' — 20/20 passed (14 rejected, 6 honest) inside the 751-test full suite on the round-6 head.",
+      "notes": "Extends the existing bounded-regex scanner; the negation guard keeps 'does not guarantee a higher ranking' passing. Value #6 — no ranking promises. The service is the neutral shared one under src/services/content-safety/ (moved out of the GBP domain in round 4 per §7.1).",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "AEO-incomplete gates nothing and never reaches owner-facing copy",
+      "surface": "cli",
+      "precondition": "Checker run on an AEO-incomplete fixture page with honest candidate copy",
+      "steps": [
+        "1. Assert the internal signal is present",
+        "2. Assert recommendations are still emitted and the honesty gate still passes",
+        "3. Scan every recommendation title/detail for the signal"
+      ],
+      "expected": "internalSignals contains AEO-incomplete, recommendations are non-empty, honesty passes, and no owner-facing string matches /AEO/i",
+      "status": "pass",
+      "evidence": "src/__tests__/get-found-checker.test.ts > 'AEO-incomplete gates nothing and is never owner-facing' — 3/3 passed in the 31-test focused run.",
+      "notes": "The signal is admin-only and blocks nothing.",
+      "waiver": ""
+    },
+    {
+      "id": "T4",
+      "title": "GBP<->page consistency flag is read-only and skips cleanly without a GBP",
+      "surface": "cli",
+      "precondition": "Checker run with, and without, a supplied GBP identity",
+      "steps": [
+        "1. Run with gbpIdentity omitted",
+        "2. Run with a GBP identity that disagrees with the page"
+      ],
+      "expected": "Omitted -> gbpPageConsistency is null (flag skipped); disagreeing -> a non-null flag is returned; nothing is written either way",
+      "status": "pass",
+      "evidence": "src/__tests__/get-found-checker.test.ts — the skip and divergence cases passed in the 31-test focused run.",
+      "notes": "Reuses compareExternalIdentity. Read-only: no DB insert/update, no GBP write.",
+      "waiver": ""
+    },
+    {
+      "id": "T5",
+      "title": "Answer-first lint enforces the boundary in document order (review fix)",
+      "surface": "cli",
+      "precondition": "Fixture pages placing a 32-word substantive answer at different document positions",
+      "steps": [
+        "1. Answer before the first form",
+        "2. Answer only AFTER the first form",
+        "3. Answer buried past the element cap",
+        "4. Answer only in a later top-level section",
+        "5. Answer only after a CTA",
+        "6. A nav CTA ahead of an early answer"
+      ],
+      "expected": "Only the answer-before-form and nav-chrome pages omit answer_not_first; the other four flag it, each reporting the boundary that stopped the scan (form, element_cap, next_section, cta)",
+      "status": "pass",
+      "evidence": "src/__tests__/get-found-checker.test.ts > 'answer-first lint — document-order boundary' — 6/6 passed. Proven a real regression: all 4 flagging cases returned [] against the pre-fix code (expected [] to include 'answer_not_first').",
+      "notes": "Root cause: the old code computed firstFormIndex, stored it in details, and never applied it — it scanned the first 6 <p> elements wherever they sat. Replaced with a document-order walk halting at the first form/CTA/section boundary.",
+      "waiver": ""
+    },
+    {
+      "id": "T6",
+      "title": "The checker has a production call site in the real per-page audit path",
+      "surface": "cli",
+      "precondition": "executeTargets invoked with the audit pipeline's collaborators (models, collector, scoring, persistence) mocked",
+      "steps": [
+        "1. Execute one page target and assert the checker was invoked",
+        "2. Execute a target whose fetch failed",
+        "3. Make the checker throw and assert the audit still scores and persists"
+      ],
+      "expected": "The checker runs once per successfully fetched page, reusing the audit's own snapshot html/finalUrl (no second request); it is skipped for unfetched pages; a checker throw never fails the audit run",
+      "status": "pass",
+      "evidence": "src/__tests__/get-found-production-wiring.test.ts — 3/3 passed. Proven a real lock: removing the runGetFoundAdvisory(entry.snapshot) call makes it fail with 'expected vi.fn() to be called 1 times, but got 0 times'.",
+      "notes": "LIMITATION — unit-level with the audit pipeline mocked, NOT behavioral validation against a running app; the running-app check is T7. Before this fix runGetFoundChecker had no caller outside the test suite.",
+      "waiver": ""
+    },
+    {
+      "id": "T7",
+      "title": "Observability hook emits on a real queued audit run against a live hosted page",
+      "surface": "cli",
+      "precondition": "A running app: Postgres, Redis/BullMQ, the ai-seo-audit worker, and a real hosted practice page",
+      "steps": [
+        "1. Queue an organization or url_only audit run against a live hosted page",
+        "2. Let the ai-seo-audit worker execute the run",
+        "3. Grep the worker log for the '[get-found] checker run complete' line",
+        "4. Confirm the run's score and persisted results are unchanged by the advisory checker"
+      ],
+      "expected": "One structured log line per fetched page carrying checker/url/schemaMissingFields/answerFirstFlags/honestyChecked/internalSignals, and no change to the audit's score or persisted rows",
+      "status": "fail",
+      "evidence": "Not auto-run by the agent. No verification was performed against a running app.",
+      "notes": "The one item genuinely requiring Layer-2 behavioral validation. The wiring is verified structurally (T6) and by tsc, but the log has not been observed firing from the real worker.",
+      "waiver": "Not executable in the review environment: no Postgres/Redis/BullMQ and no live hosted practice page, and a claude/* branch does not deploy to dev. Dave closes this by running one audit on dev after merge and confirming '[get-found] checker run complete' appears once per fetched page. Risk is bounded: the call is guarded by try/catch, persists nothing, and cannot alter the audit score (T6)."
+    },
+    {
+      "id": "T8",
+      "title": "Repository gates are green with no regression",
+      "surface": "cli",
+      "precondition": "Node 20.19.0 in the isolated PR #158 remediation worktree",
+      "steps": [
+        "1. npx tsc --noEmit",
+        "2. npm run check:conventions -- --strict",
+        "3. npx vitest run (full suite)",
+        "4. npm run lint",
+        "5. npm run depcruise",
+        "6. git diff --check"
+      ],
+      "expected": "tsc exit 0; 0 clear structural violations; the full suite shows no new failures against the pre-change baseline",
+      "status": "pass",
+      "evidence": "Round 8, exit codes read directly from each command. Focused remediation suite: exit 0, 6 files / 754 tests. npx vitest run (full suite): exit 0, 66 files / 1210 tests. npx tsc --noEmit: exit 0. npm run check:conventions -- --strict: exit 0, 'CLEAR structural violations — backend (size + console + db): 0'. npm run lint: exit 0, 2,384 warnings / 0 errors (repository advisory baseline). npm run depcruise: exit 0, 38 warnings / 0 errors (repository advisory baseline). git diff --check: exit 0.",
+      "notes": "check:all is not used as the receipt because its shell chaining does not preserve every intermediate exit code. Each gate was run separately. The §2.4 size watch was resolved by extracting the clause-boundary grammar: claimNegation.ts is 664 lines and claimNegationBoundary.ts is 81 lines.",
+      "waiver": ""
+    },
+    {
+      "id": "T9",
+      "title": "Current GitHub checks attached to the PR",
+      "surface": "cli",
+      "precondition": "A CI workflow triggering on the claude/slice-1a-get-found branch",
+      "steps": [
+        "1. Read the PR's check runs",
+        "2. Attach the results to the acceptance artifacts"
+      ],
+      "expected": "Green CI check runs are attached to PR #158",
+      "status": "fail",
+      "evidence": "Not possible. No CI is configured for claude/* branches — the workflows trigger on dev/dave (dev.yml) and main (main.yml) only, so PR #158 has no check runs to attach.",
+      "notes": "Raised with Dave separately; not a defect in this PR.",
+      "waiver": "No CI exists for this branch pattern, so there are no checks to attach. The equivalent evidence is T8: the same gates run locally on Node 22 with their exact output recorded."
+    },
+    {
+      "id": "T10",
+      "title": "The two round-5 bypass classes are closed, and the fix is proven non-vacuous",
+      "surface": "cli",
+      "precondition": "GeneratedCopySafetyService.validateGeneratedCopy on the round-6 head, Node 22.23.1",
+      "steps": [
+        "1. Measure every named bypass against the REVIEWED head (c56797e9) before changing anything",
+        "2. Apply the encoding fold + the governing-negator rules",
+        "3. Re-measure; then revert the fix with the fixtures kept and confirm they fail"
+      ],
+      "expected": "Every measured bypass blocks after the fix; no honest-copy fixture regresses; the new fixtures fail against the pre-fix service",
+      "status": "pass",
+      "evidence": "MEASURED ON THE REVIEWED HEAD FIRST: all 5 of Dave's cases passed (isSafe=true) plus 10/13 encoding probes — 'no boundary' (。 ； <br>) and 'negator that negates nothing' (no-hassle, without delay) confirmed live. AFTER: 0/14 and 0/13 defects. NON-VACUOUS: with the two source files reverted to c56797e9 and the fixtures kept, vitest exits 1 with 42 failures; restoring gives exit 0 / 751 passed.",
+      "notes": "Both classes are fixed as CLASSES, not as the named strings: the boundary fix is a normalization pass (Unicode Sentence_Terminal property — not an enumerated list of terminators — plus NFKC, Cf-stripping, entity decoding, confusable folding, HTML break/inline tag handling) applied BEFORE matching; the negator fix demotes a negator that governs nothing (hyphen-compound / fixed idiom / juxtaposed NP fragment) instead of treating any token as a clause flag. Residuals are NAMED in claimNegation.ts and copyNormalization.ts, not papered over. This remains a conservative FILTER — no exhaustiveness is claimed anywhere.",
+      "waiver": ""
+    },
+    {
+      "id": "T11",
+      "title": "Round 6 found and fixed 11 defects in its OWN fix before shipping",
+      "surface": "cli",
+      "precondition": "The round-6 fix, attacked in both directions by the author and then by an independent adversary against the already-fixed version",
+      "steps": [
+        "1. Attack the fix for over-blocks (honest copy wrongly blocked) and under-blocks",
+        "2. Have an independent adversary attack the FIXED version",
+        "3. Fix every confirmed defect and pin it as a regression fixture"
+      ],
+      "expected": "No self-found or adversary-found defect ships unfixed or unrecorded",
+      "status": "pass",
+      "evidence": "11 defects, all fixed and pinned; 5 were OVER-BLOCKS — the silent failure direction. SELF-ATTACK (7): demoting 'no other'/'no less'/'no fewer' as idioms wrongly BLOCKED honest disclaimers ('We make no other guarantees about your google ranking') — those entries were wrong, removed or narrowed to the comparative-THAN forms; four under-blocks in the forward negation path and idiom inventory ('Top placement is no problem', 'has never been easier'). Also self-found: an O(n^2) this round introduced in its own negator walk — 375ms on an 18KB many-negator input, now 2.1ms. INDEPENDENT ADVERSARY against the fixed version (4 more): (a) OVER-BLOCK — '<br>' folded to a PARAGRAPH break (a hard clause end) blocked 'We do not <br> guarantee a higher ranking'; '<br>' renders as ONE line break and is the HTML soft wrap, so it now folds to a single '\\n', which still ends scope before a new subject so Dave's boast form still blocks. One change satisfies both. (b) OVER-BLOCK — 'not only' negates exclusivity and genuinely scopes over what follows, so demoting it blocked 'Good dentistry is not only about your google rankings'; entry removed. (c) UNDER-BLOCK — the 'no problem' demotion fired only clause-finally, so 'is no problem for us' (the MORE natural boast) laundered; it now accepts a trailing PP or the clause end but never a finite clause, so 'is not a problem we can solve' still passes. (d) UNDER-BLOCK — confusable folding covered only Cyrillic/Greek; Latin Extended-IPA, Armenian and Cherokee look-alikes now fold too.",
+      "notes": "Recorded because the idiom inventory is the part of this gate most likely to be widened again, and widening it carelessly fails SILENTLY in the direction nothing downstream catches — 5 of 11 defects this round were exactly that. Every over-block is pinned as a must-pass fixture in get-found-checker.test.ts. The 'not only' reversal is a deliberate accepted MISS ('We not only guarantee top placement' now passes) taken to avoid the over-block, and is named as a residual rather than hidden.",
+      "waiver": ""
+    },
+    {
+      "id": "T12",
+      "title": "The GBP reply gate routes honesty claims through the shared negation-aware matcher",
+      "surface": "cli",
+      "precondition": "GbpContentSafetyService.validateReviewReply on the round-7 head, Node 22.23.1",
+      "steps": [
+        "1. Measure honest disclaimers against the REVIEWED head (42d4b6ec) before changing anything",
+        "2. Route OUTCOME_CLAIM_PATTERNS through matchesUnnegatedInNormalizedCopy",
+        "3. Re-measure; confirm real claims still block and the shipping limits still read the ORIGINAL text",
+        "4. Revert the routing with the fixtures kept and confirm they fail"
+      ],
+      "expected": "Every honest disclaimer passes; every real outcome claim still blocks; byte/char limits measure the original reply, not the normalized fold",
+      "status": "pass",
+      "evidence": "MEASURED ON THE REVIEWED HEAD FIRST: all 4 probe disclaimers BLOCKED (isSafe=false, medical_or_outcome_claim), including \"We don't guarantee a higher ranking.\" — the gate refused to print the disclaimer that is the product. AFTER: 8/8 honest disclaimers pass, 6/6 real claims still block, 4/4 privacy cases still block. NON-VACUOUS: reverting the one routing line with the fixtures kept gives exit 1 with 8 failures; restoring gives exit 0 / 1189 passed. LIMITS: byteLength stays on the ORIGINAL — a curly-apostrophe reply reads 38 bytes (the ASCII fold would read 36), fullwidth text reads 27 (the fold would read 9); the 4096-byte and 900-char ceilings are pinned as fixtures.",
+      "notes": "ROOT CAUSE — the GBP gate SHARED the honesty inventory with the neutral service but tested it with a raw pattern.test(), so every negation fix that landed in the shared matcher never reached this path. OUTCOME_CLAIM_PATTERNS carries a bare \\bguarantee\\b, so the gate blocked every honest disclaimer a practice can write. This one line feeds 13 call sites across the GBP reply rail (draft generation, deploy preview, published reply, review reply). The gap survived because the GBP gate had NO direct unit test — the reply-loop rehearsal mocks GbpContentSafetyService wholesale — so src/__tests__/gbp-content-safety.test.ts was added to close the hole that hid it. DELIBERATE ASYMMETRY: the PRIVACY patterns stay a raw match and are pinned as such. Negation does not make a reference to a reviewer's care safe to publish — 'we cannot discuss your treatment' still confirms there was treatment — so that gate's harm is the publish, not the block, and it stays conservative.",
+      "waiver": ""
+    },
+    {
+      "id": "T13",
+      "title": "Post-claim disclaimers are fixed as a CLASS, and a second over-block class was found by attacking the fix",
+      "surface": "cli",
+      "precondition": "GeneratedCopySafetyService.validateGeneratedCopy on the round-7 head, Node 22.23.1",
+      "steps": [
+        "1. Enumerate the disclaimer space (claim x boundary x denial head) rather than the three strings named in review",
+        "2. Measure the whole corpus against the REVIEWED head",
+        "3. Fix the class; then attack the fix and fix what the attack finds",
+        "4. Revert each fix with the fixtures kept and confirm they fail"
+      ],
+      "expected": "The honest-disclaimer corpus passes with no laundering introduced; every residual is named",
+      "status": "pass",
+      "evidence": "MEASURED ON THE REVIEWED HEAD FIRST: 482 of 497 honest disclaimer shapes BLOCKED — the whole class, not the 3 strings named. Root cause: the forward model only recognized a negated FINITE predicate adjacent to the claim, so every ELLIPTICAL denial (copula elided, denial set off by punctuation) blocked. AFTER: 0/497 false-blocked, 0/19 laundered. SECOND CLASS, found by attacking the fix and NOT named in review: 'no <subject> <verb> <claim>' ('No dentist can guarantee results.') — 10/10 natural shapes blocked at the reviewed head, because the word-distance test saw two words where it allows one and read a real clausal negation as a verbless fragment. Rule D closes it. NON-VACUOUS, each reverted separately with fixtures kept: denial fragment -> 386 failures; Rule D -> 10 failures; GBP routing -> 8 failures. Restored: exit 0 / 1189 passed.",
+      "notes": "SELF-ATTACK FOUND 2 DEFECTS IN THIS ROUND'S OWN FIX, both fixed and pinned as guard fixtures. (a) The denial-noun branch with a bare comma clause-end LAUNDERED: '<claim>. Not a promise, a fact.' passed — the denial satisfied the fragment and the phrase after the comma quietly reversed it. A comma now ends the fragment only when what follows CONTINUES the denial; NEGATION_CARRYING is deliberately not reused because it contains 'but'/'yet', which reverse. (b) Rule D's skip window hopped OVER a real finite verb to reach the claim's verb, so 'No one doubts we guarantee top placement.' passed; a NEW_SUBJECT lookahead now stops the skip, because a new subject pronoun means the claim sits in a complement clause the negation never reaches. NAMED RESIDUALS (misses, taken deliberately over the over-block), stated as CATEGORIES because the repo is public: a denial fragment followed by a SEPARATE sentence that re-asserts the claim still passes — judging whether the next sentence reverses the denial is semantic, and every lexical proxy tried over-blocked honest copy. The denial head is also a lexical inventory, so a denial written on a head nobody listed still over-blocks. Per the priority order a miss is caught downstream by owner approval; a silent block is caught by nobody. This remains a conservative FILTER; no exhaustiveness is claimed.",
+      "waiver": ""
+    },
+    {
+      "id": "T14",
+      "title": "Performance measured, not assumed",
+      "surface": "cli",
+      "precondition": "Node 22.23.1, median of 5 runs after a warm-up, measured on the reviewed head and this head with the same corpus",
+      "steps": [
+        "1. Time realistic page prose at 5/20/40KB",
+        "2. Time the real workload (one copy block, one <=900-char GBP reply)",
+        "3. Time an adversarial disclaimer-dense corpus and check the scaling curve"
+      ],
+      "expected": "No pathological regression on the real workload; any regression named with its number",
+      "status": "pass",
+      "evidence": "REALISTIC 20KB page prose: 0.54ms (reviewed head 0.38ms) — linear, negligible. REAL WORKLOAD: a 900-char GBP reply is 0.02-0.1ms; the checker passes individual copy blocks, not whole pages. ADVERSARIAL disclaimer-dense 20KB (a claim match roughly every 20 chars, far denser than real copy): 106ms vs 23ms on the reviewed head — a ~4.5x constant-factor regression on the worst case, named rather than hidden.",
+      "notes": "SCALING IS QUADRATIC ON BOTH HEADS AND IS PRE-EXISTING, NOT INTRODUCED HERE: 5/10/20/40KB costs 1.7/6.2/23/92.6ms on the reviewed head and 7/22/106/419ms on this one — the same ~4x-per-doubling curve. Cause: matchesUnnegatedInNormalizedCopy does text.slice(0, match.index) and re-scans for the last boundary ONCE PER MATCH, so cost is O(n*matches). Restructuring it (precompute boundary offsets, binary-search per match) was deliberately NOT attempted this round: the boundary walk is adversary-verified code and a full-text scan is not semantically identical to the per-match truncated scan (a boundary alternative can match differently when the text is cut at the claim), so it needs its own round and its own adversary pass. Two optimizations were applied: the claim slice is hoisted out of the negator loop, and the denial fragment runs a cheap bounded necessary-condition precheck before the backtracking pattern — the precheck is what keeps realistic prose flat, though it cannot help a corpus where a denial genuinely follows every claim.",
+      "waiver": ""
+    },
+    {
+      "id": "T15",
+      "title": "PR #158 exact-head remediation closes all four round-8 findings",
+      "surface": "cli",
+      "precondition": "GeneratedCopySafetyService, GbpContentSafetyService, answer-first lint, and the canonical acceptance receipt on the isolated PR #158 remediation head",
+      "steps": [
+        "1. Run the exact unrelated-negation sentence and predicate-class variants through GeneratedCopySafetyService",
+        "2. Run raw override, raw isolate, and entity-encoded bidi controls through both generated-copy and GBP reply safety services",
+        "3. Run visible-answer, collapsed-answer, and nav/chrome answer-first fixtures",
+        "4. Validate the exact plan path, the ui|api|cli|none surface enum, and the extracted claim-negation file sizes"
+      ],
+      "expected": "Unrelated positive promises block while genuinely shared negation still passes; unsafe bidi controls block before matching; answer_behind_accordion describes only a candidate answer inside collapsed non-chrome content; the §20.5 receipt is canonical and claimNegation.ts stays below the §2.4 ceiling",
+      "status": "pass",
+      "evidence": "src/__tests__/generated-copy-safety.test.ts, src/__tests__/answer-first-structure-lint.test.ts, src/__tests__/copy-normalization.test.ts, and src/__tests__/gbp-content-safety.test.ts passed in the focused 6-file / 754-test run and the full 66-file / 1210-test run. The JSON receipt validator reported the exact plan path, only canonical surface values, and a Passed rollup. wc -l reported claimNegation.ts at 664 lines and claimNegationBoundary.ts at 81 lines.",
+      "notes": "The stacked PR #159 consumer remains compatible at the shared service contract: standard blocked results still carry aligned reasonCodes and reasons, pinned by the generated-copy service test. No PR #159 files or other worktrees were edited. A synthetic merged-stack suite was not run.",
+      "waiver": ""
+    }
+  ]
+}
