@@ -41,6 +41,10 @@ const MAX_ELEMENTS_SCANNED = 60;
 /** Site chrome and non-rendered content — never part of the answer-first region. */
 const SKIPPED_TAGS = new Set([
   "nav",
+  "header",
+  "footer",
+  "aside",
+  "menu",
   "script",
   "style",
   "template",
@@ -48,6 +52,26 @@ const SKIPPED_TAGS = new Set([
   "svg",
   "head",
 ]);
+
+/** Chrome never supplies the page's candidate answer or question heading. */
+const CHROME_SELECTOR = "nav, header, footer, aside, menu";
+
+/**
+ * A candidate answer is collapsed only when it sits inside the collapsed
+ * subtree. An accordion elsewhere, or an aria-expanded=false navigation trigger,
+ * says nothing about the answer itself.
+ */
+const COLLAPSED_CONTENT_SELECTOR = [
+  "details:not([open])",
+  "[hidden]",
+  "[aria-hidden='true']",
+  "[aria-expanded='false']",
+  ".collapse:not(.show)",
+  ".collapsed",
+  ".is-collapsed",
+  ".is-hidden",
+  ".is-closed",
+].join(", ");
 
 /** Bounded CTA class tokens: matches `btn`, `btn-primary`, `cta`, `cta_link`. */
 const CTA_CLASS_TOKEN = /^(cta|btn|button)([-_].*)?$/;
@@ -70,6 +94,11 @@ interface AnswerScan {
   boundary: AnswerFirstBoundary | null;
   elementsScanned: number;
   paragraphsScanned: number;
+}
+
+interface CandidateAnswer {
+  words: number;
+  collapsedAncestorCount: number;
 }
 
 function wordCount(text: string): number {
@@ -187,6 +216,31 @@ function scanForEarlyAnswer($: cheerio.CheerioAPI): AnswerScan {
   return scan;
 }
 
+/**
+ * Find the first substantive paragraph that could be the direct answer,
+ * independent of the answer-first boundary. This separate pass is required
+ * because an accordion trigger may stop the early-answer walk before the
+ * paragraph it hides. Chrome is excluded in both directions.
+ */
+function findCandidateAnswer($: cheerio.CheerioAPI): CandidateAnswer | null {
+  const paragraphs = $("p").toArray();
+  for (const paragraph of paragraphs) {
+    const element = $(paragraph);
+    if (element.closest(CHROME_SELECTOR).length > 0) {
+      continue;
+    }
+    const words = wordCount(element.text());
+    if (words < MIN_ANSWER_WORDS) {
+      continue;
+    }
+    return {
+      words,
+      collapsedAncestorCount: element.closest(COLLAPSED_CONTENT_SELECTOR).length,
+    };
+  }
+  return null;
+}
+
 export function lintAnswerFirstStructure(html: string): AnswerFirstLintResult {
   const $ = cheerio.load(html);
   const flags: AnswerFirstFlag[] = [];
@@ -194,6 +248,7 @@ export function lintAnswerFirstStructure(html: string): AnswerFirstLintResult {
 
   // 1. Question-style headings — at least one heading phrased as a question.
   const headings = $("h1, h2, h3")
+    .filter((_, el) => $(el).closest(CHROME_SELECTOR).length === 0)
     .map((_, el) => $(el).text().replace(/\s+/g, " ").trim())
     .get()
     .filter(Boolean);
@@ -214,22 +269,15 @@ export function lintAnswerFirstStructure(html: string): AnswerFirstLintResult {
   details.paragraphsScanned = scan.paragraphsScanned;
   if (!scan.found) flags.push("answer_not_first");
 
-  // 3. Answer hidden behind a JS accordion — content that a crawler/AI reader
-  //    may not see. Bounded selectors: collapsed <details>, aria-expanded=false,
-  //    or elements class-tagged accordion/collapse/toggle.
-  const accordionSelectors = [
-    "details:not([open])",
-    "[aria-expanded='false']",
-    "[class*='accordion']",
-    "[class*='collapse']",
-    "[class*='toggle-content']",
-  ];
-  const accordionCount = accordionSelectors.reduce(
-    (sum, sel) => sum + $(sel).length,
-    0,
-  );
-  details.accordionCount = accordionCount;
-  if (accordionCount > 0) flags.push("answer_behind_accordion");
+  // 3. Answer hidden behind collapsed content. The flag belongs to the candidate
+  //    answer, not to unrelated accordions or collapsed site navigation.
+  const candidateAnswer = findCandidateAnswer($);
+  const isAnswerInsideCollapsedContent =
+    candidateAnswer !== null && candidateAnswer.collapsedAncestorCount > 0;
+  details.answerCandidateWords = candidateAnswer?.words ?? 0;
+  details.accordionCount = candidateAnswer?.collapsedAncestorCount ?? 0;
+  details.isAnswerInsideCollapsedContent = isAnswerInsideCollapsedContent;
+  if (isAnswerInsideCollapsedContent) flags.push("answer_behind_accordion");
 
   return { flags, passed: flags.length === 0, details };
 }
