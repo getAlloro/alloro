@@ -1,3 +1,24 @@
+> ## ⛔ START HERE — THE FUNNEL IS STAKED. THIS FILE IS A BUILD LIST, NOT THE MAP.
+>
+> **You probably landed here from `grep funnel`. This file will not tell you what the funnel is.** A fresh agent that stopped here spent 25 tool calls, found **six** conflicting answers, and reported it would have been *"fluent and wrong."* Read this box, then go to the map.
+>
+> **Three gates. Each gate IS a metric. Staked by Corey 2026-07-17. Never re-derive, never rename.**
+>
+> | Gate | The question | The metric |
+> |---|---|---|
+> | **GET FOUND** | do you appear at all? | **impressions** |
+> | **GET CONSIDERED** | of everyone who saw you, who opened you? | **visits (CTR)** |
+> | **GET CHOSEN** | of everyone who opened you, who raised their hand? | **form submissions (CRO)** |
+>
+> `submissions = impressions × CTR × CRO` — then they book an appointment, which is **the practice's operation, outside Alloro's lane**.
+>
+> **Where to look when a number is low:** impressions → the map · organic · AI answers. CTR → the map card · the blue-link snippet · the AI answer. CRO → the website.
+> **Sorting rule for any lever: which of the three numbers does it move?** None → it's a chore. Some move two (reviews, hours, the page title all affect appearing *and* being clicked) — **name both or you drop one.**
+>
+> **THE MAP** (levels, evidence grades, per-lever research, the kill-list of docs that contradict this): memory anchor **`project_funnel_three_gates`** · repo-side summary: **`AGENTS.md` → "THE FUNNEL"** · implementation: `src/controllers/patient-journey/feature-utils/types.ts` (a compiler-enforced union — the one place this never drifted).
+>
+> ⛔ **Retired, hook-blocked:** "get converted" · "booked" as a stage · Findable/Choosable/Bookable/Memorable.
+
 # Alloro Funnel Engine — Identified + Sequenced Feature List
 
 **Produced:** 2026-07-15 · **Re-anchored to live canon:** 2026-07-15 (Rev A) · **Discipline:** `sequential-build` (one at a time, verify each artifact before the next).
@@ -200,3 +221,76 @@ The canon pulls the **measurement/attribution rail earlier than a strict found�
 - **Onboarding-intake → Taste Profile.** Merchynt's method (record the onboarding call → transcript → AI → training/company notes) IS the Taste Profile spine (#160). Validates it and points to an onboarding-voice-intake feature feeding it. *Flag: is that intake a gap to add to the map? (see `project_welcome_intelligence`.)*
 - **Value #6 timeline honesty.** Under-promise/over-deliver; never "everything #1 by month 3." The honest 90/180/270-day Google-recalibration framing sets expectations without promising rank.
 - **Fastest-acting levers:** old-customer-list review requests (C3) + regular image upload (B6) — Merchynt calls these the kickstart.
+
+---
+
+## ⛔ AMENDMENT — 2026-07-16 · TWO FINISHED BUILDS THIS LIST DOESN'T KNOW ABOUT
+
+**Corey, 2026-07-16, naming the root cause:** *"It keeps getting built in rooms with no doors because you're not following one single build list. So shit gets abandoned and no one knows it's there."*
+
+**This file proves it.** `grep` on this document before this amendment: `WO18` → **0** · `checkup-upgrade` → **0** · `proof-receipt` → **0** · `gbp_work_events` → **0**. Two finished builds and a 24-writer production table are invisible to the one document whose job is knowing what's built. **A list cannot route you to what it does not contain — so work gets built twice, or never reaches anyone.**
+
+**And this file is the clearest case of all.** It lived only on `origin/claude/b1-instrument-site` — an unrelated feature branch. Not on `dev/dave`, not on `main`. **The master build-list had no door.** Its own gate ② would have caught it: *what feeds this, and what does its output feed?* Nothing fed it; its output reached nobody. Copied to a branch off `dev/dave` on 2026-07-16 to fix exactly that.
+
+### (a) STRANDED BUILD #1 — the review-request engine: built March, abandoned April
+
+Lever 5 is graded **ABSENT** across this library. It is **STRANDED**. Commit `4c037e01` — *"feat: WO18 — review request system for post-appointment review generation"*, **2026-03-24**, on `origin/checkup-upgrade`:
+- Wired at `src/index.ts:339` → `app.use("/api/review-requests", reviewRequestRoutes)`
+- Migrations `20260325000001_create_review_requests`, `20260325000002_add_phone_to_review_requests`
+- `ReviewRequestModel.ts` · `ReviewRequestEmail.ts` · **`src/sms/smsService.ts`**
+- Frontend: `ReviewRequestCard.tsx` · `pages/dashboard/ReviewRequests.tsx` · `OrgReviewRequestsTab.tsx` · `api/reviewRequests.ts`
+- **Ancestor of `main`: NO. Ancestor of `dev/dave`: NO. Last commit 2026-04-21.**
+
+⚠️ **Every "review-gen is unbuilt / `review_requests` is a ghost / no SMS anywhere" receipt in this library is true of the SHIPPING LINE ONLY.** Nobody checked the branches. **Triage WO18 before building fresh** — `alloro-artifacts/specs/review-generation-build-spec.md` (+ its 2026-07-16 amendment) is the design; WO18 may be most of the parts. Also the **kickstart lever**, per the Merchynt note directly above.
+
+### (b) STRANDED BUILD #2 — the proof receipt: built 2026-07-12, no PR ever opened
+
+`origin/claude/proof-receipt-v1` @ `5267183e` — **four commits, on the remote, adversary-tested, never offered to Dave:**
+```
+5267183e  fix(proof-receipt): location grain — tag each item + optional location scope
+1cc629b4  fix(proof-receipt): cap listPublishedForOrgInRange at MAX_WORK_ITEM_LIST_LIMIT (adversary finding)
+f04c4fe4  feat(proof-receipt): owner-facing endpoint — GET /api/proof-receipt (Tier 1)
+bd592bb2  feat(proof-receipt): Tier-1 backend read layer — owner-facing "what Alloro did" rollup
+```
+187 lines: `proofReceiptService.ts`, `ProofReceiptController.ts`, `routes/proofReceipt.ts`, `GbpWorkItemModel` +28, wired in `app.ts`. Reads **published `gbp_work_items`** → dated `{type: "review_reply" | "local_post", at, workItemId, locationId}` + a count summary; tenant-scoped; location-grained *"so a multi-location practice's feed stays de-blendable"*. Its header states the Tier-1 discipline verbatim: *"no causal arrow, nothing modeled, nothing to fabricate — that honesty is what makes it a rail-record and not an agency activity report."* Its type carries **`at: Date; // published_at — when Alloro did it`** — the past-tense sentence **no competitor in this category publishes** (11 vendor pages fetched 2026-07-16: every one is present-tense capability or future-tense promise; **not one shows an owner what it did**).
+
+**Backend done and honest. No frontend. No PR. Nobody can see it.** Spec: `alloro-artifacts/specs/proof-receipt-build-spec.md` (2026-07-12) — also absent from this list. **The proof receipt is a LAYER, not a lever; add it to the board as such.** Carry its adversarial correction with it: *"a receipt of activity is not an ownership lane — it is the failure pattern with better UI"* (Angi/Thumbtack already print owned, dated activity records and churn anyway). **Tier 1 is the wedge; channel-ownership is the lane** — which agrees with this list's own canon anchor. **Tier 4 — the unattributed bucket ("8 we can trace, 15 we can't") — is the line no competitor can copy**: every vendor checked publishes outcome numbers with no denominator anywhere.
+
+### (c) THE WORK LOG — 24 writers, no owner read
+
+`gbp_work_events` is written from **24 sites in production since 2026-05-24**: `GbpReviewReplyService` ×7 · `GbpLocalPostDraftService` ×6 · `GbpLocalPostDeploymentService` ×4 · `GbpPublishedLocalPostService` ×3 · `GbpLocalPostScheduleService` ×2 · `GbpReviewDraftSlotService` ×2. Vocabulary already rich: `draft_created`, `draft_updated`, `draft_regenerated`, `approved`, `deployment_queued`, `local_post_approved`, `local_post_generation_completed`, `local_post_generation_failed`…
+
+**`GbpWorkEventModel` has exactly two methods — `create` and `listByWorkItem` — and `organization_id` appears nowhere in it.** You cannot ask *"what did Alloro do for this practice."* (b) solves this at the **item** grain; the **event**-grain read (drafts, regenerations, failures — the fuller story) still has no door. The join is trivial and already exists: `gbp_work_events.work_item_id → gbp_work_items.id`, which carries `organization_id`, `location_id`, `content_type`.
+
+Separate and adjacent: `metric_action_events` (migration `20260715000000`) is a well-designed, fully general ledger — `action_type`, `stage_key`, `metric_key`, `source_type`, `affected_count`, `occurred_at`, `active_until`, tenant-scoped to org/location/project — with **one entry in each of its four dictionaries** (`config/metricActions.ts`: `SEO_META_UPDATE` / `SEO_BULK_GENERATION_JOB` / `IMPRESSIONS` / `CTR`) and `METRIC_ACTION_DISPLAY_LIMIT = 1`. One producer feeds it. **It shipped and is announced in this week's Friyay ("See the work Alloro completed").** The foundation is right; the vocabulary is one word wide. `metric_key` + `active_until` mean it was designed to say *what we did*, *what it should move*, and *for how long* — it says one of the three.
+
+### (d) THE FOUR BLOCKERS — 18 things to BUILD, nothing that BLOCKS them
+
+Every owner- or patient-facing lever is gated on a precondition that appears nowhere on this board, so each reads "buildable" and none is.
+
+| | Blocker | Gates | State (verified 2026-07-16) |
+|---|---|---|---|
+| **P1** | **The PMS pipe** | ALL of Reflect + C3's real trigger | Manual upload → dead. **Sikka $35/loc (Appointments ✓ on every tier) + $350/mo base, self-serve, HIPAA/SOC2, Podium on their logo wall.** ⛔ **"Ortho2 unproven on Sikka" is REVERSED** — `Ortho2 ViewPoint, Ortho2Edge` are named on `sikkasoft.com/V3/developers/oneapi.html`; the old claim read a 6-partner *marketing* page as a census. Open: is the $350 per-developer or per-practice? *That* decides viability, not the $35. |
+| **P2** | **Sender identity** | ANY outbound | Nonexistent — grep `sending_domain`/`dkim`/`spf`/`dmarc` in `src/` → **0**; every email leaves as `info@getalloro.com`. **Answer: OAuth her mailbox (Podium ships it; their page names no DNS because it needs none).** Floor: our domain + her display name + her Reply-To = what the entire category does; the cost is a "via" label — recognition, not deliverability. ⛔ Never build the branded-sender-domain path (Birdeye's 4 customer-installed DNS records). **Hosting buys nothing** — A record only, `dns.resolve4` is a read, zero DNS writes anywhere. |
+| **P3** | **The approval token** | ANY owner-approved anything = every lever | Nonexistent — grep magic-link/approval-token/signed-url → **0**. Approval is in-app behind a login. *"The happiest payer has never opened the product."* |
+| **P4** | **The owner read on the work log** | Making any lever's work visible | See (c). **Item-grain already built in (b) and never PR'd.** |
+
+**⭐ The pattern, and it generalises past this board:** *the 10DLC chore is a **FORM** — facts she reads off her own paperwork. The DNS chore is a **CONFIG** — a system she doesn't understand and can't access. The login is a **VISIT** — and she does not visit.* **Make her task data-entry. Never configuration. Never a visit.** Every *"she just has to…"* on this list is a lever that will not fire.
+
+### (e) ⛔ ESCALATE: Corey — this list contradicts itself and the menu about its own moat
+
+- **This file:** *"#156 Attribution capture half — OPEN — **premature / out of order; parked**"*
+- **This file, gate ③:** *"NS1 = attributed, so the proof/measurement hook is **part of done, not a later stage**."*
+- **This file's tail:** *"**Attribution = NS1.** The owner must SEE the result and know it came from Alloro. Reinforces the measurement rail being **foundational, not last**."*
+- **`MENU-2026-07-13.md` MOAT REFRAME (staked with Corey 2026-07-14):** *"the moat-brick is **Slice 4 = visitor→submission measurement**… **That measurement is the moat.** Without it, Alloro is an honest website builder, not a moated platform."*
+
+**Three say foundational. One parks it.** #156 is the only PR in the batch that could ever answer *"is this customer getting $2k/location of value."* **Parked, or the moat? It cannot be both, and the answer changes the sequence.**
+
+### (f) What this changes
+
+- **Lever 5: ABSENT → STRANDED.** Triage WO18 first.
+- **The proof receipt joins the board as a LAYER** — backend on `claude/proof-receipt-v1`; needs a frontend + a PR.
+- **P1–P4 go on the board as blockers, and they come FIRST.** Cheap — one signup, one OAuth flow, one token, one query — but first. **A lever mounted on a dead edge is instrumentation, not a lever.**
+- **Gate ② applies to documents too.** *What feeds this, and what does its output feed?* **Nothing goes on this list without a door — including this list.**
+
+*Method note: on 2026-07-16 a review-request spec was written without reading `specs/review-generation-build-spec.md`, six days old and better. Deleted, not merged; its four original findings became that spec's amendment. Its author was ~30 seconds from writing a third copy of the proof receipt before spotting `claude/proof-receipt-v1` in a `git worktree list` printed six hours earlier. **The duplication is not carelessness — it is the predicted output of building without one list.***
