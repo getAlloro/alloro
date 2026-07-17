@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>M0 — Submission Source-Capture (finish + verify #156)</title>
+<style>
+  :root {
+    --ink: #101010; --ink-soft: #3a3a3a; --line: #e2e2e2; --line-strong: #111;
+    --bg: #ffffff; --panel: #fafafa; --mut: #6b6b6b; --ok: #0a7a2f; --warn: #7a5a00; --stop: #8a1414;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+  main { max-width: 900px; margin: 0 auto; padding: 0 22px 90px; }
+  .hero { padding: 56px 0 30px; border-bottom: 2px solid var(--line-strong); }
+  .eyebrow { text-transform: uppercase; letter-spacing: .14em; font-size: 11.5px; color: var(--mut); font-weight: 700; }
+  h1 { font-size: 30px; line-height: 1.15; margin: 12px 0 8px; letter-spacing: -.01em; }
+  .sub { color: var(--ink-soft); font-size: 15.5px; max-width: 68ch; }
+  .pill { display: inline-block; margin-top: 18px; padding: 7px 14px; border: 1.5px solid var(--line-strong);
+    border-radius: 999px; font-weight: 700; font-size: 12.5px; letter-spacing: .04em; text-transform: uppercase; }
+  .meta { margin-top: 16px; display: flex; flex-wrap: wrap; gap: 8px 26px; font-size: 12.5px; color: var(--mut); }
+  .meta b { color: var(--ink); font-weight: 600; }
+  h2 { font-size: 18px; margin: 40px 0 4px; letter-spacing: -.01em; }
+  .rule { height: 1px; background: var(--line); border: 0; margin: 8px 0 16px; }
+  .spec-card { border: 1px solid var(--line); border-radius: 12px; padding: 20px 22px; margin: 14px 0; background: var(--panel); }
+  .spec-card h3 { margin: 0 0 8px; font-size: 15px; }
+  p { margin: 8px 0; }
+  ul, ol { margin: 8px 0; padding-left: 22px; }
+  li { margin: 5px 0; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px;
+    background: #f0f0f0; padding: 1.5px 5px; border-radius: 5px; }
+  .q { border-left: 3px solid var(--line-strong); padding: 4px 0 4px 16px; margin: 16px 0; }
+  .q .label { font-weight: 700; text-transform: uppercase; letter-spacing: .06em; font-size: 11.5px; color: var(--mut); }
+  .ok { color: var(--ok); } .warn { color: var(--warn); } .stop { color: var(--stop); }
+  table { border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 13.5px; display: block; overflow-x: auto; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--mut); }
+  .receipt { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--ink-soft); }
+  .check { list-style: none; padding-left: 0; }
+  .check li { padding-left: 26px; position: relative; }
+  .check li::before { content: "\2611"; position: absolute; left: 0; color: var(--ok); font-weight: 700; }
+  .check li.todo::before { content: "\2610"; color: var(--mut); }
+  .revision-entry { border-top: 1px dashed var(--line); padding-top: 12px; margin-top: 12px; }
+  .revision-entry:first-of-type { border-top: 0; padding-top: 0; margin-top: 0; }
+  small { color: var(--mut); }
+</style>
+</head>
+<body>
+<main>
+  <header class="hero">
+    <div class="eyebrow">Alloro Funnel Engine &middot; Measurement Rail</div>
+    <h1>M0 &mdash; Submission Source-Capture</h1>
+    <p class="sub">Finish-and-verify of an existing clean PR (#156): the honest "where did this raised hand come from" column on Alloro's own hosted form. The <b>capture half</b> of the connection-measurement moat &mdash; not the full attribution&rarr;A/B loop (that stays at E1, slot #17).</p>
+    <span class="pill">Status: Completed locally &mdash; Rev 13: composite-suite app-import receipt stabilized &middot; all requested gates green &middot; push intentionally withheld</span>
+    <div class="meta">
+      <span><b>Branch:</b> <code>claude/slice-4-connection-measurement</code> (PR #156, base <code>dev/dave</code>)</span>
+      <span><b>Lane:</b> Claude builds &middot; Dave reviews + merges</span>
+      <span><b>Date:</b> 2026-07-15</span>
+    </div>
+  </header>
+
+  <h2>Why</h2>
+  <hr class="rule" />
+  <div class="spec-card">
+    <p>NS1 says every lever must be <b>undeniable + attributed</b>. Today a form submission on an Alloro-hosted site stores <b>no source</b> &mdash; the owner sees a bare count ("7 people reached out") with no honest "&hellip;and here's where they came from." Without a source column, every downstream lever is invisible: you cannot tell which channel earned the raised hand. M0 lays the one foundational brick &mdash; <b>capture the channel at submit time</b> &mdash; so no later lever ships without source captured. This is the finish line's <b>track</b> (the &#9312; Proof check a lever-by-lever build hides).</p>
+    <p><b>Honesty cap (scope guard):</b> M0 is the <b>source column only</b> &mdash; the capture half. It is <b>not</b> the E1 visitor&rarr;submission attribution + fleet A/B learning loop, which stays at slot #17 because it needs real traffic to measure. M0 stores the signal; E1 later reads and learns from it.</p>
+  </div>
+
+  <h2>What (this delivery)</h2>
+  <hr class="rule" />
+  <div class="spec-card">
+    <p>Not a new build &mdash; a <b>reconcile + verify + refresh</b> of PR #156 (+387/&minus;0, was parked as premature/out-of-order). The work already existed and is clean; M0 lands it as an early foundational brick.</p>
+    <ul>
+      <li><b>Migration</b> &mdash; <code>20260715000000_add_source_to_form_submissions.ts</code>: nullable <code>source VARCHAR(100)</code> on <code>website_builder.form_submissions</code>. <code>ADD COLUMN IF NOT EXISTS</code> up / <code>DROP COLUMN IF EXISTS</code> down. Additive, idempotent, no default, no index, no backfill.</li>
+      <li><b>Pure util</b> &mdash; <code>sourceAttribution.ts</code>: <code>deriveSubmissionSource()</code> + helpers. Deterministic, fully unit-tested. Precedence: explicit first-touch label (<code>source</code>/<code>utm_source</code>) &rarr; classified first-touch landing referrer &rarr; classified submit <code>Referer</code> &rarr; <code>null</code>. Never guesses.</li>
+      <li><b>Capture</b> &mdash; <code>formSubmissionController.ts</code>: derives the source at submit and passes <code>source</code> into the persisted record (builds <code>projectHosts</code> from the project's own domains so internal navigation is not counted as a source).</li>
+      <li><b>Model</b> &mdash; <code>FormSubmissionModel.ts</code>: adds <code>source?: string | null</code> to <code>IFormSubmission</code>; <code>create()</code> spreads <code>{...data}</code> into the insert, so the column persists.</li>
+      <li><b>Tests</b> &mdash; <code>sourceAttribution.test.ts</code>: 30 cases (normalize, host parse, whole-label classification, internal-referer rejection, first-touch precedence, unknown&rarr;null).</li>
+    </ul>
+  </div>
+
+  <h2>Context &mdash; Code Constitution &amp; analogs</h2>
+  <hr class="rule" />
+  <div class="spec-card">
+    <p>Backend reference analog per the funnel plan: <code>&sect;6.1</code> <code>src/controllers/gbp-automation/</code>. M0 touches:</p>
+    <ul>
+      <li><code>&sect;6.1</code> controller layer &mdash; capture wired into the existing <code>handleFormSubmission</code> flow, mirroring the sibling <code>sender_ip</code> request-derived capture (no new table, no new route).</li>
+      <li>Model layer &mdash; additive optional field on <code>IFormSubmission</code>; existing <code>create()</code> insert path unchanged.</li>
+      <li>Migration &mdash; mirrors this table's sibling migrations (<code>sender_ip</code>, <code>is_flagged</code>): raw <code>ALTER TABLE &hellip; ADD COLUMN IF NOT EXISTS</code>.</li>
+      <li>Pure/testable util in the feature's Constitution-compliant <code>feature-utils/</code> folder (&sect;6.3) &mdash; no I/O, no DB, no throw on bad input.</li>
+    </ul>
+    <p class="receipt">check:conventions --strict &rarr; exit 0 &middot; 0 clear structural violations (size/console/db). Tier-A tenant-scope heuristic is advisory and unaffected by M0.</p>
+  </div>
+
+  <h2>Constraints (canon)</h2>
+  <hr class="rule" />
+  <div class="spec-card">
+    <ul>
+      <li><b>Value #6 &mdash; never guess.</b> Unknown source = <code>null</code>, never a fabricated or catch-all channel. A null reads honestly as "we don't know."</li>
+      <li><b>No PII.</b> Referrers/UTMs can carry patient identifiers in query-strings. Nothing raw is stored &mdash; referer URLs are reduced to hostname then to a fixed channel label; explicit labels are charset-restricted + length-capped.</li>
+      <li><b>Additive / reversible / no backfill.</b> Historical rows stay null. Production-safe: a metadata-only column add, no data rewrite.</li>
+      <li><b>Lane.</b> Done = the raised hand on Alloro's hosted surface. M0 does not touch booking write-back / speed-to-lead / the Responder.</li>
+      <li><b>Do NOT retire <code>firstPatientAttribution.ts</code>.</b> Verified live at <code>src/services/firstPatientAttribution.ts</code>, referenced by <code>BehavioralEventModel.ts:83,100</code> (<code>attributeCheckupToOrg</code>) &mdash; a different concern (checkup&rarr;org), not visitor&rarr;submission source. Untouched by this branch.</li>
+    </ul>
+  </div>
+
+  <h2>The 3-question coherence DoD</h2>
+  <hr class="rule" />
+  <div class="spec-card">
+    <div class="q">
+      <div class="label">&#9312; Pioneer check</div>
+      <p><b>Pioneer = the CRO / attribution-analytics discipline</b> (source/UTM attribution on an owned conversion surface &mdash; the practice behind GA/Plausible-style "by source" reporting).</p>
+      <p><b>Standing:</b> At-or-above the pioneer <b>on the specific mechanic M0 owns</b> &mdash; server-side, source-of-truth channel classification with an <b>honesty floor the analytics tools skip</b>: unknown is preserved as <code>null</code>/"unknown," never bucketed into "direct" or a guessed channel, and whole-label host matching prevents the classic mis-bucketing (<code>plumbing.com</code> &ne; bing). <b>Named honest gap:</b> M0 captures one coarse first-touch channel; it does <b>not</b> yet do multi-touch journeys, campaign/medium/term breakdown, or a UI report &mdash; that is E1 (slot #17). Honest v1: the column is the correct, PII-safe foundation those richer views will read.</p>
+    </div>
+    <div class="q">
+      <div class="label">&#9313; Wire check</div>
+      <p><b>What feeds it:</b> at submit, four signals &mdash; <code>req.body.source</code>, <code>req.body.utm_source</code>, <code>req.body.first_touch_referrer</code> (all frontend/site-supplied first-touch), and the <code>Referer</code> header (weak cross-site fallback). <b>Honest incoming gap (verified):</b> <b>no code in this repo currently sends <code>first_touch_referrer</code> or <code>utm_source</code>/<code>source</code></b> to the endpoint &mdash; the public form lives in the generated hosted sites (outside <code>src/</code>). So <b>until the hosted-site form is taught to forward the first-touch signal, <code>source</code> populates only from an external cross-site <code>Referer</code>, and stays null for the common "landed via Google, submitted from the practice's own page" path.</b> That is honest (null = unknown), but the strongest signal is a <b>backend contract awaiting a site-side sender</b> &mdash; a named follow-on, not a silent hole. <br /><b>What its output feeds:</b> the <code>source</code> column &rarr; (a) honest source-broken-down submission counts and (b) E1's attribution&rarr;A/B loop (slot #17). <b>Verified: nothing reads the column yet</b> &mdash; E1 is the reader. Storing-now / reading-later is intended for the capture half.</p>
+    </div>
+    <div class="q">
+      <div class="label">&#9314; Proof check</div>
+      <p><b>Is M0's effect attributable once it ships? Yes &mdash; M0 <em>is</em> the proof rail.</b> It is the mechanism that makes every other funnel lever attributable (which channel produced the raised hand). Its own "did it work" is directly observable: submissions begin carrying a non-null <code>source</code> once a sending surface forwards first-touch; the by-source breakdown is queryable from the column. This is NS1's attribution hook shipped <b>as part of done</b>, not deferred.</p>
+    </div>
+  </div>
+
+  <h2>Identifier-safety trace (verified by reading every path)</h2>
+  <hr class="rule" />
+  <div class="spec-card">
+    <p>Every value that can land in the <code>source</code> column is either a hostname reduced to a fixed channel label or a claim resolved against a closed vocabulary. Nothing about the visitor is stored beyond a coarse channel word.</p>
+    <table>
+      <thead><tr><th>Path a stored value can take</th><th>What actually gets stored</th><th>Anything beyond a channel label?</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>referer</code> header / <code>first_touch_referrer</code> URL (may carry query-string parameters)</td>
+          <td><code>hostOf()</code> takes <b>only</b> <code>new URL().hostname</code> &mdash; path, query, fragment discarded &mdash; then <code>classifyReferrerHost()</code> returns a <b>fixed channel literal</b> (<code>google</code>/<code>bing</code>/&hellip;/<code>referral</code>) or <code>null</code>.</td>
+          <td class="ok"><b>No.</b> Query-strings never touch storage; output is a closed vocabulary.</td>
+        </tr>
+        <tr>
+          <td><code>source</code> / <code>utm_source</code> body labels (client-supplied; the endpoint is public)</td>
+          <td>Normalized (charset + 100-cap), then <b>resolved against a closed canonical vocabulary</b> of recognized channels. A value that isn't a recognized channel &rarr; <code>null</code> (falls through to server-side classification).</td>
+          <td class="ok"><b>No.</b> Only a recognized channel label is stored; a value that isn't a known channel is never persisted.</td>
+        </tr>
+        <tr>
+          <td>submit <code>Referer</code> that is the practice's own page</td>
+          <td><code>classifyExternalReferer()</code> matches the host against <code>projectHosts</code> and returns <code>null</code> &mdash; internal navigation is not a source.</td>
+          <td class="ok"><b>No.</b> Returns null before any classification.</td>
+        </tr>
+      </tbody>
+    </table>
+    <p><b>Honesty posture:</b> every path returns <code>null</code> when there is no confident signal; the column is nullable with no default and no backfill. Unknown is never folded into a real channel.</p>
+  </div>
+
+  <h2>Sender contract (the unbuilt other half — capture, not build)</h2>
+  <hr class="rule" />
+  <div class="spec-card">
+    <p>M0 stores <code>source</code> server-side, but the strongest signal is the visitor's <b>first touch</b>, which only the hosted-site contact form can capture and forward. That form lives in the generated-site templates, <b>outside this repo</b> (same access blocker as B1-R) — so this is the <b>contract the sender must honor</b>, recorded so it isn't lost as a vague "someday." It is <b>not buildable here</b>; this is capture, not a build spec.</p>
+    <p><b>Endpoint:</b> <code>POST /api/websites/form-submission</code> (mounted <code>/api/websites</code>, route <code>/form-submission</code>; controller <code>handleFormSubmission</code>). The public contact form on the rendered site.</p>
+    <p><b>Fields the sender should add to the POST body</b> (all optional; all first-touch):</p>
+    <ul>
+      <li><code>source</code> — a first-touch channel label the site already resolved. Stored <b>only if</b> it matches M0's recognized channel vocabulary (else dropped to null). Use canonical channel words (<code>google</code>, <code>facebook</code>, <code>email</code>, <code>sms</code>, <code>google_business_profile</code>, …), never a raw or free-text value.</li>
+      <li><code>utm_source</code> — the entry link's <code>utm_source</code> (same vocabulary rule).</li>
+      <li><code>first_touch_referrer</code> — the <b>raw referrer URL of the visitor's first landing page</b> (captured on landing, persisted client-side, forwarded at submit) — <b>not</b> the submit page. Classified to a channel server-side (host&rarr;fixed label); internal/unparseable &rarr; skipped. This is the real entry channel for organic/referral traffic.</li>
+    </ul>
+    <p><b>What M0 already does without the sender:</b> it classifies the submit <code>Referer</code> header. For a same-site submit that is the practice's own page &rarr; internal &rarr; <code>null</code>. So without the sender, <code>source</code> is null for the common "landed via Google days ago, submitted from the own page" path — honest (unknown), but blind to organic/referral first-touch. <b>The sender is what turns that null into a real channel.</b></p>
+    <p><b>Server-side precedence (already built, deterministic):</b> explicit label (<code>source</code>/<code>utm_source</code>, vocabulary-checked) &rarr; <code>first_touch_referrer</code> (classified) &rarr; submit <code>Referer</code> (classified) &rarr; <code>null</code>. Never guessed.</p>
+    <p><b>Owner:</b> the <b>M0-SENDER</b> item in the funnel tracker (<code>funnel-feature-sequence.md</code>, PR #169 branch). Blocked on hosted-site template access, like B1-R.</p>
+  </div>
+
+  <h2>Risk (production + most-likely-wrong)</h2>
+  <hr class="rule" />
+  <div class="spec-card">
+    <ul>
+      <li><b>Migration risk: low.</b> Metadata-only <code>ADD COLUMN</code> on Postgres (no table rewrite, no long lock), idempotent, reversible. <b>Down drops the column</b> &rarr; on rollback the captured source labels are lost (the submissions themselves are not). Acceptable for a v1 additive column with no dependents.</li>
+      <li><b>Migration ordering:</b> timestamp <code>20260715000000</code> is unique vs <code>dev/dave</code> (latest <code>20260713</code>), A6 (<code>20260716</code>, PR #168), and B1 (no migration). No collision.</li>
+      <li><b>Source-label validation (Rev 2).</b> Client-supplied <code>source</code>/<code>utm_source</code> claims are resolved against a closed canonical vocabulary of recognized channels; an unrecognized value (an unknown campaign name, or any value that isn't a known channel) &rarr; <code>null</code> and falls through to server-side classification. Only a recognized channel label is ever persisted, and this holds even though the submit endpoint is public. <b>Accepted trade:</b> an unknown-but-real campaign label (e.g. <code>spring_promo_2026</code>) also drops to null &mdash; honest Value #6 (better unknown than a value we can't stand behind).</li>
+      <li><b>Registrable-domain channel matching (Rev 2).</b> Referer classification matches the registrable domain (exact or dotted-suffix), so a look-alike host is never attributed to a brand it isn't; unrecognized &rarr; <code>referral</code>, never a guessed brand.</li>
+      <li><b>Adversary pass:</b> a fresh stronger/different-model adversary (Fable 5) reviewed the code for identifier handling, honesty, and migration safety; findings were applied and re-verified (confirm pass clean). Details in the Revision Log.</li>
+    </ul>
+  </div>
+
+  <h2>Tasks</h2>
+  <hr class="rule" />
+  <div class="spec-card">
+    <ol>
+      <li>Worktree off <code>origin/dev/dave</code>; pull #156's branch; rebase onto current <code>dev/dave</code> (2 commits preserved, zero conflicts).</li>
+      <li>Verify on Node 22: <code>tsc --noEmit</code>, targeted + full <code>vitest</code>, <code>check:conventions --strict</code>.</li>
+      <li>Answer the 3-question coherence DoD (above).</li>
+      <li>Fresh stronger-model adversary on PII / honesty / additive-reversible; fix must-fix findings; re-verify.</li>
+      <li>Confirm <code>firstPatientAttribution.ts</code> untouched.</li>
+      <li>Refresh #156 in place (force-with-lease the rebased branch) so Dave reviews + merges.</li>
+    </ol>
+  </div>
+
+  <h2>Done</h2>
+  <hr class="rule" />
+  <div class="spec-card">
+    <ul class="check">
+      <li>Rebased onto current <code>dev/dave</code>, zero conflicts, 2 commits preserved <span class="receipt">(039e965e, 2d07b6c7)</span></li>
+      <li>Node 22.23.1 &middot; <code>tsc --noEmit</code> clean (exit 0)</li>
+      <li>Rev 11 focused remediation: <span class="receipt">32 boundary tests + 5 enforce-flag tests passed</span> under their normal timeouts</li>
+      <li>Full suite: <span class="receipt">65 files, 567 tests passed</span> via default <code>npx vitest run</code></li>
+      <li><code>check:conventions --strict</code>: <span class="receipt">exit 0, 0 clear structural violations</span></li>
+      <li><code>/contact</code> enforces string boundary types and a named 32,000-character message ceiling before the controller; the exact boundary is delivered intact and one character over is rejected</li>
+      <li><code>/contact</code> is rate-limited and parsed at 256 KiB before the app-wide 50 MB JSON parser; oversized JSON returns a canonical 413 before reCAPTCHA or webhook work</li>
+      <li><code>/form-submission</code> keeps the bounded attribution subset non-rejecting; malformed optional tracking data drops to honest unknown</li>
+      <li>Enforce-flag tests load one app per file, pass under the normal timeout, and no longer leak unfinished requests into later mock counts</li>
+      <li><code>sourceAttribution.ts</code> lives at <code>src/controllers/websiteContact/feature-utils/</code> per &sect;6.3</li>
+      <li>Persistence verified end-to-end (controller &rarr; <code>create({...data})</code> &rarr; insert &rarr; nullable column)</li>
+      <li>Identifier-safety trace complete: referer&rarr;host&rarr;fixed-channel; claim labels resolved through a closed canonical vocabulary</li>
+      <li><code>firstPatientAttribution.ts</code> confirmed live + untouched</li>
+      <li>Fresh Fable-5 adversary reviewed the code &rarr; source-label validation, registrable-domain matching, trailing-dot hardening applied</li>
+      <li>Adversary confirm pass (re-reviewed the changes) &rarr; clean; canonicalization + hyphen-fold + dental-stack recognition applied + re-verified</li>
+      <li>Rev 11 is committed locally on the review-fix branch; no push was made per the user's instruction</li>
+    </ul>
+    <p><small>Out of Claude's lane: the merge to <code>dev/dave</code> and post-merge migration/deploy/smoke are Dave's, on his go.</small></p>
+  </div>
+
+  <section class="spec-card" id="revision-log">
+    <h3>Revision Log</h3>
+    <article class="revision-entry">
+      <h3>Rev 1 - 2026-07-15</h3>
+      <p><strong>Change:</strong> Created this spec for M0 as a finish-and-verify of PR #156 (not a new build). Rebased <code>claude/slice-4-connection-measurement</code> onto current <code>dev/dave</code> (zero conflicts; touched files unchanged on dev/dave since merge-base). Verified on Node 22: tsc clean, 30 targeted + 486 full tests pass, conventions --strict exit 0. Answered the 3-question DoD; documented the PII trace and the honest &#9313; Wire gap (no repo code sends <code>first_touch_referrer</code>/<code>utm_source</code> yet &mdash; backend contract awaiting a hosted-site sender; nothing reads the column yet &mdash; E1 slot #17 is the reader). Confirmed <code>firstPatientAttribution.ts</code> live + untouched.</p>
+      <p><strong>Reason:</strong> Un-park M0 as the measurement rail's foundational brick (Corey-staked 2026-07-15) &mdash; "no lever ships without source captured."</p>
+      <p><strong>Updated Done criteria:</strong> the two open items &mdash; Fable-5 adversary triage and the #156 refresh &mdash; close this rev out.</p>
+    </article>
+    <article class="revision-entry">
+      <h3>Rev 2 - 2026-07-15</h3>
+      <p><strong>Change:</strong> Ran the fresh Fable-5 adversary against the code; applied hardening to <code>sourceAttribution.ts</code> + added 5 tests (targeted 30&rarr;35, full 486&rarr;491). Changes: <b>(1)</b> <code>normalizeSource</code> was a charset filter, not a classifier &mdash; a client-supplied <code>source</code>/<code>utm_source</code> could be stored without being a recognized channel &rarr; claims are now resolved against a closed canonical vocabulary; an unrecognized value &rarr; null (falls through to server classification), so only known channel labels persist. <b>(2)</b> whole-label host matching could attribute a look-alike host to a brand &rarr; now registrable-domain match (<code>HOST_CHANNELS</code>, exact or dotted-suffix); unrecognized &rarr; <code>referral</code>. <b>(3)</b> unvalidated client claims outranked server observation &rarr; reduced to the accepted floor by the vocabulary check. <b>(4)</b> a trailing-dot FQDN could dodge the owned-host filter &rarr; <code>hostOf</code> + owned-host normalization now strip trailing dots. <b>(5)</b> a typing observation the adversary raised was against the main tree (a6 branch) which lacks #156's <code>source</code> field; on this rebased branch the interface has it and <code>tsc</code> is clean &mdash; already satisfied. Confirmed unchanged + safe: referrer query-strings never stored, migration additive/idempotent/reversible, no ReDoS, homoglyph-safe.</p>
+      <p><strong>Reason:</strong> Adversary QA (DoD step 3): a stronger/different model told to break it surfaced real hardening the lever-by-lever build hid. Honesty-as-product &mdash; the finish-and-verify found real must-fixes, not a rubber-stamp.</p>
+      <p><strong>Updated Done criteria:</strong> adversary triage now done + re-verified (green); remaining open items are the adversary confirm pass on the changes and the #156 refresh.</p>
+    </article>
+    <article class="revision-entry">
+      <h3>Rev 3 - 2026-07-15</h3>
+      <p><strong>Change:</strong> Ran the Fable-5 confirm pass; it re-reviewed the changes and returned <b>clean</b> &mdash; the three hardening changes confirmed effective (unrecognized claim inputs &rarr; null; look-alike host baits &rarr; referral), no ReDoS. Applied its two in-PR recommendations + the safe half of a third; added 4 tests (targeted 35&rarr;39, full 491&rarr;495). <b>(N1, low)</b> a <em>double</em> trailing dot half-reopened F4 &rarr; trailing-dot strip is now <code>/\.+$/</code> (a run). <b>(N2, med)</b> the claim vocabulary was a <code>Set</code> that stored aliases verbatim, splintering by-source counts (<code>fb</code> vs <code>facebook</code>) &rarr; now a canonical <code>Map</code> folding unambiguous abbreviations to one bucket (fb/meta&rarr;facebook, x&rarr;twitter, yt&rarr;youtube, gmb&rarr;google_business_profile). <b>(N3, med &mdash; mechanism only)</b> hyphens now fold to underscores before lookup (<code>google-ads</code>&rarr;<code>google_ads</code>) and the dental patient-comms stack (birdeye, podium, weave, mailchimp, klaviyo, solutionreach, lighthouse360, smile_reminder&hellip;) is now recognized as real channels instead of dropped to unknown. <b>Deferred (product taxonomy, flagged for Dave):</b> collapsing a specific tool to a coarser channel (e.g. <code>podium</code>&rarr;<code>sms</code>) &mdash; kept self-canonical (honest as-is); and N4 (adding directory domains like yelp/healthgrades to the referer classifier) &mdash; a referer from those still classifies as the honest-coarse <code>referral</code>.</p>
+      <p><strong>Reason:</strong> Adversary confirm pass (DoD step 3, re-verify). N2 directly serves NS1 &mdash; fragmented labels corrupt the very by-source counts M0 exists to make honest &mdash; and the file hadn't shipped, so the fix is free now and costly later.</p>
+      <p><strong>Updated Done criteria:</strong> all execution-lane items closed &mdash; adversary SHIP, tests green (39 targeted / 495 full), conventions --strict exit 0, #156 refreshed. Only Dave's review + merge (and the deferred fidelity follow-ups) remain, both out of Claude's lane.</p>
+    </article>
+    <article class="revision-entry">
+      <h3>Rev 4 - 2026-07-15</h3>
+      <p><strong>Change:</strong> Added the "Sender contract" section &mdash; the precise backend contract the hosted-site form must honor to make <code>source</code> fill with real data (endpoint <code>POST /api/websites/form-submission</code>; body fields <code>source</code> / <code>utm_source</code> / <code>first_touch_referrer</code>; the vocabulary rule; the server-side precedence already built; what M0 classifies without it). Explicitly a <b>capture</b>, not a buildable spec &mdash; the sender lives in the generated-site templates outside this repo (blocked on the same access as B1-R).</p>
+      <p><strong>Reason:</strong> Force-multiplier follow-on (Corey-directed): M0's column stores nothing real until a sender forwards first-touch, so the contract is the highest-value next domino &mdash; captured precisely now so it isn't lost as a vague "someday," without over-speccing template work this repo can't see.</p>
+      <p><strong>Updated Done criteria:</strong> none for M0 itself (unchanged); the contract hands off to the M0-SENDER tracker item.</p>
+    </article>
+    <article class="revision-entry">
+      <h3>Rev 5 - 2026-07-16</h3>
+      <p><strong>Change:</strong> Dave's review round on PR #156 &mdash; two findings, both fixed.
+      <b>(1) &sect;5.2 attribution provenance.</b> <code>deriveSubmissionSource()</code> collapsed a client CLAIM and a server CLASSIFICATION into one indistinguishable <code>source</code> label, so a browser-supplied channel could be reported as verified attribution. It now returns <code>{ source, method }</code>, and the method is persisted in a new <code>source_method</code> column (migration <code>20260716000000</code> &mdash; additive, nullable, idempotent <code>IF NOT EXISTS</code>, reversible; a SEPARATE file because knex never re-runs the already-recorded <code>20260715000000</code>). <b>Root cause:</b> the label was treated as the whole fact, when "what we believe" and "why we believe it" are two facts. <b>Deviation from the review's literal example:</b> Dave suggested <code>claimed_source</code> + <code>source_method</code>; splitting the claim into its own column would leave <code>source</code> NULL on M0's PRIMARY path (a hosted-site form forwarding <code>utm_source</code>), gutting the by-source counts, and any <code>COALESCE</code> would re-merge the two and reintroduce the exact conflation. <code>source</code> (effective channel) + <code>source_method</code> (provenance) meets the stated requirement &mdash; method stored separately, claim never presentable as verified &mdash; without breaking the feature. <b>Refinement beyond the finding:</b> the review's two-value model (claim vs server-classified) would still conflate, because <code>first_touch_referrer</code> arrives in the request BODY &mdash; client-supplied input that we merely classify. The honest taxonomy is three tiers: <code>client_label</code> (their claim), <code>client_referrer</code> (our label, their input), <code>header_referrer</code> (browser-set, our label). None is "verified" &mdash; a public endpoint means every signal is client-influenced, so <code>isVerifiedAttribution()</code> returns false for all of them by design, and <code>sourceConfidence()</code> is the single place that judgement lives ("claimed" / "observed" / "unknown").
+      <b>(2) &sect;20.5 acceptance artifacts.</b> Added <code>test.html</code> + <code>test-results.json</code> (8 items: A1&ndash;A7 pass, A8 waived).</p>
+      <p><strong>Reason:</strong> User QA: Dave's parallel review on PR #156 requested changes (&sect;5.2, &sect;20.5). Both findings premise-checked against the live PR comments before any code was touched; both confirmed real and quoted accurately.</p>
+      <p><strong>Updated Done criteria:</strong> (a) <code>source_method</code> persisted alongside <code>source</code> for all three provenance tiers, with method null iff source null; (b) no code path can grade any source as verified attribution; (c) acceptance artifacts present, with A8 (migration-against-a-real-DB) honestly waived &mdash; no local Postgres/docker exists and the shared dev DB must not take an unmerged migration, so it verifies on the dev deploy; (d) gates green on Node 22 &mdash; <code>tsc --noEmit</code> exit 0, 58 targeted tests (51 unit + 7 route), 514 full-suite tests across 62 files (up from 495/39 at Rev 3), <code>check:conventions --strict</code> exit 0 / 0 structural. <b>Known limitation (not fixable here):</b> "attach current GitHub checks" cannot be satisfied &mdash; <code>gh pr checks 156</code> reports "no checks reported", and <code>dev.yml</code>/<code>main.yml</code> trigger only on push to <code>dev/dave</code>/<code>main</code>, so no CI runs on <code>claude/*</code> branches. Already raised with Dave.</p>
+    </article>
+    <article class="revision-entry">
+      <h3>Rev 6 - 2026-07-16</h3>
+      <p><strong>Change:</strong> Dave's SECOND-round review on PR #156 (pinned to <code>fb24a67f</code>) &mdash; provenance design ACCEPTED (<code>source</code> as effective channel + the 3-tier <code>source_method</code>); prior &sect;5.2 and &sect;20.5 findings resolved. Two new findings, both fixed.
+      <b>(1) &sect;11.2 boundary validation.</b> <code>formSubmissionSchema</code> (<code>src/validation/websiteContact.schemas.ts</code>) did not define the three first-touch inputs the controller reads (<code>formSubmissionController.ts</code> ~439&ndash;448), and the schema is <code>.passthrough()</code> &mdash; so <code>source</code>, <code>utm_source</code>, and <code>first_touch_referrer</code> reached the controller with no type or length definition at the route boundary. Added optional bounded string definitions: <code>source</code>/<code>utm_source</code> capped at <code>SOURCE_LABEL_MAX</code> = 100 (mirrors <code>MAX_SOURCE_LEN</code>, the capture contract's own label limit), <code>first_touch_referrer</code> capped at <code>REFERRER_URL_MAX</code> = 2048 (the conventional browser URL cap). Caps are held as local constants rather than imported from the controller's <code>feature-utils</code>, so <code>validation/</code> does not depend on a controller (&sect;6.2) &mdash; the same mirroring pattern the file's existing caps already use. The closed allow-list + server-side classifier in <code>sourceAttribution.ts</code> is KEPT as defense in depth, per the review: the schema bounds type/length only, and never decides whether a label is a real channel.
+      <b>Honest scope of the fix:</b> the route mounts <code>validate</code> in <b>warn-only</b> mode by default (<code>VALIDATION_ENFORCE</code> gates enforcement), so these definitions do not reject a request today &mdash; they make an out-of-contract field VISIBLE to the warn soak, which is the prerequisite for the owner's later flip to enforce. What actually keeps a bad label out of the persisted row today is still the allow-list. Both layers are now asserted so neither can be removed unnoticed.
+      <b>(2) Stale PR body.</b> The "Vitest cannot start" text was false at this head and is removed; the verification section now reports the observed runs.
+      <b>Tests added (&sect;20.2, error paths):</b> new <code>src/__tests__/websiteContact.schemas.test.ts</code> (B1&ndash;B8: definitions present, in-contract payload preserved, all three optional, over-cap labels/referrer rejected with boundary-at-cap checks, non-string types rejected, issue summary carries field names + codes but never values, passthrough still tolerates honeypot/arbitrary keys) and route-level <code>A9</code> in <code>form-submission-source-route.test.ts</code> (an oversized label is warn-logged with <code>utm_source</code>/<code>too_big</code>, the value never reaches the log, the request still proceeds under warn-only, and the allow-list keeps it out of the row; numbered A9 because <code>A8</code> is the artifact's waived real-DB migration item). Both were verified to FAIL against the pre-fix schema (6 targeted failures) before being accepted as real coverage.</p>
+      <p><strong>Reason:</strong> User QA: Dave's second-round review on PR #156 requested changes (&sect;11.2 + stale verification text). Read verbatim from <code>gh pr view</code>, not from a summary. Every path and line number in the review was premise-checked against the code before any edit &mdash; one path correction noted below.</p>
+      <p><strong>Updated Done criteria:</strong> (a) the boundary schema DEFINES <code>source</code>, <code>utm_source</code>, and <code>first_touch_referrer</code> with bounded optional string types, and a regression test fails if any is dropped back to bare passthrough; (b) the closed allow-list/classifier remains the authority on channel recognition, proven by a test asserting both layers; (c) the PR body's verification text matches an observed run at this head; (d) gates green on Node 22 &mdash; <code>tsc --noEmit</code> exit 0, <code>check:conventions --strict</code> exit 0 / 0 structural, 523 full-suite tests across 63 files (up from 514/62 at Rev 5). <b>Review premise correction:</b> the review cites the consumer as <code>src/controllers/formSubmissionController.ts</code>; the real path is <code>src/controllers/websiteContact/formSubmissionController.ts</code>. The cited line numbers (439&ndash;448) and the finding itself are exact &mdash; only the directory segment was off. <b>Unchanged limitation:</b> the PostgreSQL migration remains unrun (no local Postgres; the shared dev DB must not take an unmerged migration), so it stays honestly waived &mdash; it verifies on the dev deploy.</p>
+    </article>
+    <article class="revision-entry">
+      <h3>Rev 7 - 2026-07-16</h3>
+      <p><strong>Change:</strong> Artifact + PR-body honesty sweep. No code, test, or behavior change — the design Dave accepted in round 2 is untouched. <strong>(1) <code>surface</code> values mapped to the repo convention.</strong> <code>A8</code> used <code>db</code> and <code>B1</code> used <code>unit</code>; neither is in the de-facto vocabulary (<code>ui | api | cli | none</code>, ~331 items across ~48 plans). Both are now <code>cli</code>, matching how the repo already labels this exact work — the shipped <code>email_logs</code> plan labels "migration applies and rolls back cleanly" and "EmailLogModel round-trips against Postgres" as <code>cli</code>. The eight Supertest items stay <code>api</code>, which matches the precedent for route tests driven against the imported Express app. <code>A8</code> keeps <code>fail</code> + waived; the surface says where the check runs, the status says whether it ran. <strong>(2) PR body: three unresolvable file paths fixed.</strong> The "file by file" list cited <code>migrations/…</code> (really <code>src/database/migrations/…</code>) and <code>websiteContact-utils/sourceAttribution.ts</code> (really <code>src/controllers/websiteContact/websiteContact-utils/sourceAttribution.ts</code>). All six are now full <code>src/</code> paths — the body already corrects the reviewer on exactly this class of error, so it should meet the same bar. <strong>(3) The CI claim is now structural.</strong> It named only <code>dev.yml</code>/<code>main.yml</code>; there are three workflows (<code>deploy-sandbox.yml</code> on <code>[sandbox]</code> too) and, load-bearingly, zero <code>pull_request</code> triggers anywhere — so no check <em>can</em> attach, rather than none happening to have run. <strong>(4) The enforce flip is flagged, not decided.</strong> The body described warn-only mode accurately but presented the later flip to <code>VALIDATION_ENFORCE</code> as a clean win. It is not: today a &gt;100-char <code>utm_source</code> is truncated by <code>normalizeSource</code>, fails the allow-list, and stores <code>source = null</code> with a <strong>200 (lead saved)</strong>; under enforce the same request <strong>400s (lead lost)</strong> over a marketing tag. Recorded as an open question for Dave — this PR changes nothing about it.</p>
+      <p><strong>Reason:</strong> User QA: sweep the whole artifact set and the whole body for claims that outrun their receipts, not only the named examples. Items (2), (3) and (4) were found by the sweep rather than reported.</p>
+      <p><strong>Updated Done criteria:</strong> Every <code>surface</code> value is one of <code>ui | api | cli | none</code>; every path in the PR body resolves; the enforce-flip trade is stated rather than implied. Re-observed at head <code>478a6361</code> on Node 22.23.1: <code>tsc --noEmit</code> exit 0; <code>npx vitest run</code> 63 files / 523 tests passed; targeted 3 files / 67 passed; <code>check:conventions --strict</code> exit 0. Status unchanged (Completed, Claude's lane); <code>A8</code> stays waived pending the dev deploy.</p>
+    </article>
+    <article class="revision-entry">
+      <h3>Rev 8 - 2026-07-16</h3>
+      <p><strong>Change:</strong> Dave's third-round finding fixed (&sect;5.2 / &sect;11.2) &mdash; <b>the attribution bounds are now enforced, by sanitizing rather than rejecting.</b>
+      <b>Root cause, stated plainly:</b> Rev 6 added bounded Zod definitions for the three attribution fields and reported the &sect;11.2 finding as fixed. Those definitions <b>did nothing.</b> The route mounts <code>validate</code> in warn-only mode (<code>DEFAULT_MODE = "warn"</code> unless <code>VALIDATION_ENFORCE</code> is truthy), so an over-cap value was logged and then handed to the controller untouched. Rev 6 shipped a guard that guarded nothing, and Rev 7's honesty sweep re-stated the gap without closing it &mdash; because both rounds treated warn-vs-enforce as the only two options. It was a false binary.
+      <b>The defect this actually hid</b> (verified empirically against the pre-fix code, not reasoned about): a 3,032-char referrer returned <code>{source:"google", method:"client_referrer"}</code> and was persisted &mdash; the reviewer's exact claim. <code>hostOf()</code> classifies by hostname, which no length check touches. By contrast an over-cap <code>source</code>/<code>utm_source</code> returned <code>{source:null}</code>, because <code>normalizeSource</code> truncates to 100 chars and a 100-char string is never an allow-list key. So of the three named fields, only <code>first_touch_referrer</code> was actually reaching persistence out of contract; the other two were <em>incidentally</em> safe, not contractually safe &mdash; which is precisely how the referrer hole survived review.
+      <b>The decision &mdash; sanitize, not enforce.</b> This is a PUBLIC lead-capture endpoint. Enforcing would 400 a submission whose only fault is a long tracking parameter, and the practice loses a real patient enquiry. A dentist losing a patient over a marketing tag is a far worse outcome than a null <code>utm_source</code>. The lead is the asset; attribution is a note about the asset, so the note is bounded and the lead always lands.
+      <b>Implementation:</b> new <code>sanitize(schema, keys)</code> middleware in <code>src/middleware/validate.ts</code> &mdash; on a miss it DELETES the key and calls <code>next()</code>, so it can never set a status; new total <code>attributionInputSchema</code> in <code>src/validation/websiteContact.schemas.ts</code> (each field <code>.catch(undefined)</code>, so it cannot fail and one bad field cannot discard its siblings); mounted on <code>/form-submission</code> after the warn-only soak. Values are DROPPED, never truncated &mdash; a truncated label or URL is one the visitor never sent. The bounds are now single shared constants used by both schemas, so the contract the soak LOGS and the contract <code>sanitize</code> ENFORCES cannot drift.
+      <b>Mounted as its own middleware on purpose:</b> folding <code>.catch()</code> into <code>formSubmissionSchema</code> would have been cosmetic a second time &mdash; warn mode only assigns the parsed body back on SUCCESS, so any unrelated failure (an over-long <code>hostname</code>) would silently switch the sanitizing off. <code>A13</code> is the regression for exactly that.
+      <b>Route sweep (the class, not the instance):</b> every field the controller reads was checked against the same "declared but not enforced" test. <code>formName</code> and <code>contents</code> are re-capped and sanitized in the controller; <code>hostname</code> and <code>projectId</code> are DB lookup keys (an over-cap value simply finds no project); <code>formType</code> is only ever compared to exact literals. <code>first_touch_referrer</code> was the only field whose declared bound was neither enforced nor backstopped. Two pre-existing gaps found and NOT fixed here (out of this PR's scope, and neither is introduced by it): the sections-array <code>contents</code> path applies <code>sanitize()</code> but not the <code>MAX_FIELDS</code>/<code>MAX_VALUE_LENGTH</code> caps that the flat path applies, and the honeypot/timing/origin checks remain commented out behind existing TODOs.</p>
+      <p><strong>Reason:</strong> User QA + Dave's round-3 review pinned to <code>aac1f3fd</code>: "Attribution bounds are warn-only, so rejected oversized values still reach persistence. Enforce or sanitize the three fields." Rev 6 reported this fixed when it was not; this entry records that plainly rather than quietly correcting it.</p>
+      <p><strong>Updated Done criteria:</strong> (a) an over-cap <code>source</code>, <code>utm_source</code>, or <code>first_touch_referrer</code> cannot reach the controller, proven by route regressions <code>A9</code>/<code>A10</code>/<code>A13</code> that FAIL when the middleware is unmounted; (b) an out-of-contract attribution value never rejects the submission &mdash; <code>A12</code> fails if anyone flips these fields to a 400; (c) the sanitizing holds independently of the legacy warn-only soak (<code>A13</code>); (d) the artifact marks <code>A11</code>/<code>A14</code>/<code>A15</code> honestly as defense-in-depth locks that pass pre-fix rather than as proof of the fix. Observed on Node 22.23.1 with exit codes read directly (not through a pipe): <code>npx tsc --noEmit</code> exit 0; <code>npx vitest run</code> exit 0, 63 files / <b>544</b> tests passed (up from 523); targeted 4 files / 99 passed; <code>npm run check:conventions -- --strict</code> exit 0 / 0 structural violations. <b>No migration change in this revision</b> &mdash; the two additive nullable columns are untouched, so the production risk profile is unchanged; <code>A8</code> stays <code>fail</code> + waived pending the dev deploy (no local Postgres, and the shared dev DB must not take an unmerged migration).</p>
+    </article>
+    <article class="revision-entry">
+      <h3>Rev 9 - 2026-07-16</h3>
+      <p><strong>Change:</strong> Dave's fourth-round blocker fixed (&sect;5.2 / &sect;11.2) &mdash; <b>"the public lead is still rejectable when the process-wide validation flag is enabled."</b>
+      <b>What the sentence meant, read off the code:</b> Rev 8 held the attribution bounds with <code>sanitize</code> (correct, and untouched here) but left the three fields ALSO declared in <code>formSubmissionSchema</code> &mdash; and the route mounted <code>validate(formSubmissionSchema)</code> with <b>no <code>mode</code> pinned</b>. An unpinned <code>validate</code> inherits <code>DEFAULT_MODE</code>, which <code>middleware/validate.ts</code> computes once at module load from <code>VALIDATION_ENFORCE</code>. So the bounds Rev 8 added became a REJECTION path for the whole submission the moment that flag was set: <code>sanitize</code> is mounted AFTER <code>validate</code> and never got to run. Rev 8's Done criterion (b) claimed "<code>A12</code> fails if anyone flips these fields to a 400" &mdash; but <code>A12</code> runs under the default mode only, so no test in the repo could see this. That is why it survived three rounds.
+      <b>Verified empirically against the pre-fix code before fixing</b> (a throwaway repro at head <code>482052da</code>, deleted after): with <code>VALIDATION_ENFORCE=1</code>, a legitimate submission carrying a 300-char <code>utm_source</code> returned <b>400</b> <code>{code:"VALIDATION_ERROR", fields:["utm_source"], issues:["too_big"]}</code> and <code>FormSubmissionModel.create</code> was called <b>0 times</b>. The patient's name and email never reached the database, killed by a tracking parameter they never typed.
+      <b>The fix &mdash; pin the soak, keep the sanitizer.</b> Both public lead-capture mounts now pass <code>{ mode: "warn" }</code> explicitly, so they cannot be flipped to rejecting as a side effect of an env var set for an unrelated route group. The bound is still HELD, by <code>sanitize</code>, which drops out-of-contract values and keeps the request &mdash; which is what &sect;5.2 ("sanitize and validate all user input") and &sect;11.2 ("once data reaches the controller, it is trusted") actually require. <b>Neither Article mandates a 400.</b> Graduating a lead-capture route to enforce is now a deliberate, reviewable code change rather than an env flag's blast radius. This is Dave's round-3 option 2 ("parse/sanitize a bounded attribution subset before derivation") carried to completion; the three fields stay declared in <code>formSubmissionSchema</code> so Dave's round-2 ask (the boundary DEFINES every field the controller reads, &sect;11.2) is not regressed.
+      <b>WIDER THAN THE ONE SENTENCE &mdash; <code>/contact</code> had the identical defect.</b> Found by auditing the flag's blast radius rather than only the line named. <code>POST /api/websites/contact</code> is the other public lead-capture route in the same router, also mounted unpinned. It is arguably worse: <code>websiteContactController</code> imposes NO length cap of its own, so <code>message</code>'s 3,000-char schema bound was a NEW rejection that existed only under the flag &mdash; and it fires on text the patient actually typed. Verified pre-fix: <b>400</b> <code>{fields:["message"]}</code> for a patient describing their dental history at length. Pinned in the same edit. <b>Scope note for the reviewer:</b> this is one line beyond the round-4 sentence; it is strictly lead-preserving, changes nothing at today's default, and is called out so it can be rejected if unwanted.
+      <b>NOT a hypothetical flag.</b> <code>plans/06142026-backend-validation-layer</code> Rev 1 records T6 &mdash; "soak review + flip to enforce" &mdash; as an OPEN owner step, and wired warn-only <code>validate</code> onto all five route groups (<code>auth</code>, <code>auth-otp</code>, <code>auth-password</code>, <code>websiteContact</code>, <code>billing</code>). The flip is planned work, not a thought experiment.
+      <b>The remaining 9 unpinned mounts are NOT changed and NOT a lead risk</b> (<code>auth-otp</code> &times;1, <code>auth-password</code> &times;6, <code>billing</code> &times;1, <code>auth</code> &times;1): flip-to-enforce is the intended graduation there, and a rejected malformed login is recoverable &mdash; the user sees an error and retries. A dropped lead is not: it is silent, unrecoverable, and invisible to the owner, who never learns the person existed. Flagged for Dave, deliberately untouched.</p>
+      <p><strong>Reason:</strong> Dave's round-4 review pinned to <code>482052da</code>: "Must fix: the public lead is still rejectable when the process-wide validation flag is enabled."</p>
+      <p><strong>Updated Done criteria:</strong> (a) with <code>VALIDATION_ENFORCE=1</code>, a legitimate lead carrying a hostile/oversized attribution value still persists with the visitor's real contents and an honest null source &mdash; <code>D1</code>; (b) all three attribution fields out of contract under the flag still cannot reach persistence and still cannot cost the lead &mdash; <code>D2</code> (Dave's round-3 regression, re-proved in the world round 3 could not see); (c) <code>/contact</code> does not turn away a patient who writes at length under the flag &mdash; <code>D4</code>; (d) the pin is surgical &mdash; <code>VALIDATION_ENFORCE</code> still enforces on an unpinned route, so the fix is not a process-wide neutering of the soak &mdash; <code>D5</code>; (e) the artifact marks <code>D3</code>/<code>D5</code> honestly as locks that PASS PRE-FIX rather than as proof of the fix. <b>MUTATION-PROVED, not asserted:</b> reverting <code>src/routes/websiteContact.ts</code> to <code>482052da</code> (removing both pins) runs the new file at <b>exit 1, 3 failed | 2 passed</b> &mdash; <code>D1</code> "expected 400 to be 200", <code>D2</code> "expected 400 to be 200", <code>D4</code> "expected 400 not to be 400"; restoring returns exit 0, 5/5. Observed on Node 22.23.1 with exit codes read directly (never through a pipe): <code>npx tsc --noEmit</code> exit 0; <code>npx vitest run</code> exit 0, <b>64 files / 549 tests</b> passed (up from 63/544 at Rev 8 &mdash; the delta is exactly this revision's new file); targeted 5 files / 104 passed; <code>npm run check:conventions -- --strict</code> exit 0 / 0 structural violations. <b>No migration change in this revision</b> &mdash; the two additive nullable columns are untouched, so the production risk profile is unchanged; <code>A8</code> stays <code>fail</code> + waived pending the dev deploy.</p>
+    </article>
+    <article class="revision-entry">
+      <h3>Rev 10 - 2026-07-17</h3>
+      <p><strong>Change:</strong> Dave's exact-head re-review at <code>d75a8aa5</code> found three remaining defects, all fixed. <b>(1) <code>/contact</code> boundary authority (&sect;5.2 / &sect;11.2).</b> Rev 9 pinned the whole contact schema to warn-only to preserve long patient messages, but that also let arrays/objects reach a controller that calls a string-only sanitizer, where they could throw and return 500. The route now explicitly enforces <code>contactSubmissionSchema</code>; the schema keeps required/optional field types authoritative and deliberately removes only the artificial <code>message</code> length cap, so malformed types stop at 400 while legitimate long patient histories still reach the email webhook intact. The generic <code>/form-submission</code> soak remains warn-only, and its optional attribution subset remains independently sanitized and non-rejecting. <b>(2) Vitest isolation (&sect;20.1&ndash;&sect;20.3).</b> <code>form-submission-enforce-flag.test.ts</code> reloaded the entire app with <code>vi.resetModules()</code> in every case; on the normal 5-second timeout D1 timed out and its unfinished request contaminated D2's model-call count. The file now sets <code>VALIDATION_ENFORCE=1</code> before one <code>beforeAll</code> app load, clears only mock call state per case, and tears down the env after the file. <b>(3) Domain structure (&sect;6.3).</b> The new helper moved from the legacy <code>websiteContact-utils/</code> folder to <code>websiteContact/feature-utils/sourceAttribution.ts</code>; controller, test, model-comment, and validation-comment references were updated.</p>
+      <p><strong>Reason:</strong> User QA: Dave's fifth-round <code>CHANGES_REQUESTED</code> review, pinned to exact PR head <code>d75a8aa5</code>. The normal-timeout failure was reproduced before editing: D1 timed out at 5 seconds and D2 then observed two <code>FormSubmissionModel.create</code> calls.</p>
+      <p><strong>Updated Done criteria:</strong> (a) arrays/objects for required or optional <code>/contact</code> string fields return the canonical 400 before reCAPTCHA, controller sanitization, or webhook dispatch; (b) a long legitimate patient message returns 200 and its tail reaches the webhook body; (c) malformed optional attribution remains drop-and-continue under <code>VALIDATION_ENFORCE=1</code>; (d) the enforce-flag file and default full suite pass with Vitest's normal timeout; (e) the attribution helper and all live imports resolve under <code>feature-utils</code>. Observed on Node 22.23.1: focused remediation <code>6 files / 118 tests</code> passed; enforce-flag file <code>5/5</code> passed without a timeout override; default <code>npx vitest run</code> <code>65 files / 563 tests</code> passed; <code>npx tsc --noEmit</code> exit 0; <code>npm run check:conventions -- --strict</code> exit 0 with zero backend structural violations. <b>No migration change.</b> Dave's PostgreSQL item <code>A8</code> remains <code>fail</code> plus the existing written waiver; no mocked or static evidence is promoted to a live-database pass.</p>
+    </article>
+    <article class="revision-entry">
+      <h3>Rev 11 - 2026-07-17</h3>
+      <p><strong>Change:</strong> User QA closed the new adversarial finding on <code>/contact</code> (&sect;5.2 / &sect;11.3). Rev 10 removed the old 3,000-character limit to stop losing legitimate histories, but replaced it with no limit at all. Because <code>app.ts</code> accepts JSON up to 50 MB for unrelated PMS data and the route had no active limiter, a public request could drive large allocations, sanitizer work, email rendering, and webhook traffic. The patient-written message now has a named <code>CONTACT_MESSAGE_MAX_CHARS = 32_000</code> ceiling &mdash; more than ten times the rejected historical size. The exact boundary is preserved and delivered; one character over returns the canonical validation 400. A separate <code>CONTACT_REQUEST_BODY_MAX_BYTES = 256 KiB</code> parser is mounted on the exact contact path before the app-wide 50 MB parser, leaving room for multi-byte UTF-8 text and the other fields while returning a canonical 413 on oversized JSON before reCAPTCHA or webhook work. A per-IP 20-per-15-minute limiter runs before parsing and returns the canonical 429 contract. The generic multipart <code>/form-submission</code> limiter remains untouched and disabled; no unrelated lead-capture behavior changed.</p>
+      <p><strong>Reason:</strong> User QA: the exact-head adversary directly proved that 10 KB, 1 MB, and 49 MB messages passed the Rev 10 schema. The same pass also identified the missing public-route rate boundary required by &sect;11.3.</p>
+      <p><strong>Updated Done criteria:</strong> (a) schema and real-route tests prove exactly 32,000 characters succeeds intact and 32,001 fails before controller work; (b) a request over the dedicated 256 KiB byte ceiling returns canonical 413 before reCAPTCHA/webhook work; (c) the real route emits the configured rate-limit header, and an isolated limiter test proves the canonical 429 after the configured allowance; (d) the smaller parser and limiter run before the app-wide 50 MB parser; (e) existing attribution drop-and-continue behavior and the generic form-submission route remain unchanged. Observed locally: boundary pair <code>32/32</code> passed; enforce-flag file <code>5/5</code> passed alone under its normal timeout; default full suite <code>65 files / 567 tests</code> passed; <code>npx tsc --noEmit</code> and <code>git diff --check</code> exited 0; strict conventions reported zero clear structural violations; full lint exited 0 with 2,384 pre-existing warnings and zero errors; dependency cruise exited 0 with 38 pre-existing warnings and zero errors. One attempted three-file parallel focused invocation timed out while importing the full app in the enforce file; no timeout was raised or hidden &mdash; the file passed alone, the boundary pair passed together, and the default full suite passed. <b>No migration change.</b> Existing PostgreSQL item <code>A8</code> remains <code>fail</code> plus Dave's written waiver. This revision was committed locally and deliberately not pushed.</p>
+    </article>
+    <article class="revision-entry">
+      <h3>Rev 12 - 2026-07-17</h3>
+      <p><strong>Change:</strong> Pin Express proxy trust to the deployed topology: only a same-host loopback reverse proxy is trusted, so Apache's right-most forwarded client address keys the public contact limiter and a caller-supplied address farther left cannot collapse unrelated visitors into one bucket. Add a canonical <code>CONTACT_INVALID_JSON</code> 400 response for <code>entity.parse.failed</code> before the route/controller boundary.</p>
+      <p><strong>Reason:</strong> User QA: Rev 11 introduced an IP limiter without configuring Express's trusted proxy boundary, so deployed requests could share the proxy address or forwarded headers could be interpreted incorrectly. The same early parser returned malformed JSON through the generic error path instead of the API envelope required by &sect;8.1.</p>
+      <p><strong>Updated Done criteria:</strong> (a) the real app reports the loopback-only trust setting used by the same-host Apache-to-PM2 topology, confirmed read-only on both deployed servers where Alloro's Apache <code>ProxyPass</code> targets <code>127.0.0.1:3000</code>; (b) two right-most forwarded client addresses get separate limiter buckets even when they carry the same spoofed left-most value; (c) one client reaches canonical 429 without consuming the other client's allowance; (d) malformed contact JSON returns canonical <code>CONTACT_INVALID_JSON</code> at 400 before reCAPTCHA or webhook work; (e) the focused route suite passes <code>11/11</code>, the full backend suite passes <code>65 files / 568 tests</code>, and TypeScript, strict conventions, and <code>git diff --check</code> exit zero. The existing PostgreSQL item <code>A8</code> remains fail plus Dave's written waiver; this revision has no migration change.</p>
+    </article>
+    <article class="revision-entry">
+      <h3>Rev 13 - 2026-07-17</h3>
+      <p><strong>Change:</strong> Give the enforce-flag file&rsquo;s one-time dynamic import of the complete Express application a 30-second setup timeout. The five request assertions keep Vitest&rsquo;s normal per-test timeout; only module-graph construction gets the wider bound.</p>
+      <p><strong>Reason:</strong> Integration QA: the exact #156 suite passed independently, but the 14-PR composite tree crossed Vitest&rsquo;s 10-second hook limit while transforming the larger app graph. The hook timed out before any request test ran. This is setup cost, not a slow endpoint, and Rev 11 had already recorded the same cold-import sensitivity under a smaller parallel run.</p>
+      <p><strong>Updated Done criteria:</strong> the enforce-flag file completes all five behavioral assertions in the full composite tree without weakening their test timeout or changing application behavior.</p>
+    </article>
+  </section>
+</main>
+</body>
+</html>

@@ -1,0 +1,453 @@
+{
+  "plan": "plans/07152026-m0-submission-source-capture",
+  "generatedAt": "2026-07-17",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "A1",
+      "title": "A utm_source / source claim is stored as a CLAIM, never as a classification",
+      "surface": "api",
+      "precondition": "Real Express app driven over HTTP via Supertest (real router, real validation middleware, real controller, real own-host filtering). The DB model, AI analysis, recipient routing, and CRM lookup are mocked - the persisted payload is captured and asserted rather than written. No local Postgres exists in this environment (pg_isready and docker are both absent), and the shared dev DB must not take an unmerged migration (AGENTS.md deploy path), so the row write is asserted at the model boundary.",
+      "steps": [
+        "POST /api/websites/form-submission with body utm_source=facebook and an INTERNAL Referer (https://drpavanendo.com/contact).",
+        "Capture the object handed to FormSubmissionModel.create.",
+        "Assert the label and the provenance columns."
+      ],
+      "expected": "200; the persisted row carries source='facebook' AND source_method='client_label' - the winning claim keeps claim provenance and is not promoted to a classification.",
+      "status": "pass",
+      "evidence": "src/__tests__/form-submission-source-route.test.ts A1 passed in the focused 7-test run and the 58-test targeted run.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "A2",
+      "title": "A forwarded first-touch referrer is stored as client_referrer (our label, their input)",
+      "surface": "api",
+      "precondition": "Same Supertest harness as A1.",
+      "steps": [
+        "POST with body first_touch_referrer=https://www.google.com/ and an INTERNAL Referer.",
+        "Capture the FormSubmissionModel.create payload."
+      ],
+      "expected": "200; source='google' AND source_method='client_referrer' - Alloro classified the URL, but the URL arrived from the page, so it is not graded as an observation.",
+      "status": "pass",
+      "evidence": "src/__tests__/form-submission-source-route.test.ts A2 passed.",
+      "notes": "This tier is the refinement beyond the review's two-value model: first_touch_referrer arrives in the request BODY, so it is client-supplied input even though the classification is ours.",
+      "waiver": ""
+    },
+    {
+      "id": "A3",
+      "title": "A cross-site submit Referer header is stored as header_referrer",
+      "surface": "api",
+      "precondition": "Same Supertest harness as A1.",
+      "steps": [
+        "POST with no body source signals and Referer: https://www.bing.com/.",
+        "Capture the FormSubmissionModel.create payload."
+      ],
+      "expected": "200; source='bing' AND source_method='header_referrer' - the strongest tier available (browser-set, server-classified), and still not 'verified'.",
+      "status": "pass",
+      "evidence": "src/__tests__/form-submission-source-route.test.ts A3 passed.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "A4",
+      "title": "THE REVIEW FINDING - an identical label 'google' persists a DIFFERENT source_method per signal",
+      "surface": "api",
+      "precondition": "Same Supertest harness as A1. This is the direct behavioral proof of the 5.2 finding: before the fix, a client claim and a server classification were indistinguishable on the row.",
+      "steps": [
+        "POST body source=google with an INTERNAL Referer, then capture the row (the CLAIM path).",
+        "Reset the create spy.",
+        "POST with no body signals and Referer: https://www.google.com/, then capture the row (the CLASSIFIED path).",
+        "Compare source and source_method across the two rows."
+      ],
+      "expected": "Both rows carry source='google', but source_method='client_label' vs 'header_referrer' - the two are no longer collapsible, so no report can present the claim as verified attribution.",
+      "status": "pass",
+      "evidence": "src/__tests__/form-submission-source-route.test.ts A4 passed. NEGATIVE CONTROL: with the controller's source_method line removed, all 7 items in this file fail with 'AssertionError: expected undefined to be client_label' - the checks discriminate and are not vacuous. The controller was restored byte-identical afterward (diff clean).",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "A5",
+      "title": "An internal-only journey stores unknown - no source, and no invented provenance",
+      "surface": "api",
+      "precondition": "Same Supertest harness as A1. Own hosts resolve to drpavan.sites.getalloro.com and drpavanendo.com.",
+      "steps": [
+        "POST with no body signals and an INTERNAL Referer (https://drpavanendo.com/contact).",
+        "Capture the FormSubmissionModel.create payload."
+      ],
+      "expected": "200; source=null AND source_method=null. The invariant (method is null iff source is null) holds - an unknown source never acquires a provenance.",
+      "status": "pass",
+      "evidence": "src/__tests__/form-submission-source-route.test.ts A5 passed. The invariant is also property-checked across 8 signal shapes in src/__tests__/sourceAttribution.test.ts ('INVARIANT: method is null if and only if source is null').",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "A6",
+      "title": "A PII-shaped utm_source reaches neither column",
+      "surface": "api",
+      "precondition": "Same Supertest harness as A1.",
+      "steps": [
+        "POST with utm_source=jane.doe:1987-03-04 (a personalized utm carrying a name and DOB).",
+        "Capture the FormSubmissionModel.create payload and serialize it."
+      ],
+      "expected": "200; source=null, source_method=null, and the serialized row contains no 'jane.doe' substring - the closed-vocabulary allow-list holds at the HTTP boundary, not only in the unit.",
+      "status": "pass",
+      "evidence": "src/__tests__/form-submission-source-route.test.ts A6 passed.",
+      "notes": "Guards the pre-existing PII floor (5.2 / 5.3) against regression from the provenance refactor.",
+      "waiver": ""
+    },
+    {
+      "id": "A7",
+      "title": "The row never carries a 'verified' provenance value",
+      "surface": "api",
+      "precondition": "Same Supertest harness as A1.",
+      "steps": [
+        "POST with both a utm_source claim and a cross-site Referer.",
+        "Assert source_method is one of the three honest tiers and is never 'verified'."
+      ],
+      "expected": "source_method is one of client_label, client_referrer, header_referrer; never 'verified'. No submission source is verified attribution - the endpoint is public and every signal is client-influenced (Value #6).",
+      "status": "pass",
+      "evidence": "src/__tests__/form-submission-source-route.test.ts A7 passed. Reinforced at the unit layer: isVerifiedAttribution() returns false for every method, and sourceConfidence() returns 'unknown' for any unrecognized stored value rather than upgrading it.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "A8",
+      "title": "Migration applies, is reversible, and is idempotent against a real database",
+      "surface": "cli",
+      "precondition": "NOT RUN - no drivable database in this environment. There is no local Postgres (pg_isready and docker are both absent), and the only reachable DB is the shared dev database, which must not receive an unmerged migration ahead of a dev/dave push (AGENTS.md: 'Migrations run first on dev/dave against the dev database').",
+      "steps": [],
+      "expected": "npm run db:migrate adds source_method VARCHAR(32) NULL to website_builder.form_submissions; db:rollback drops it; re-running up is a no-op via ADD COLUMN IF NOT EXISTS.",
+      "status": "fail",
+      "evidence": "Static review only: src/database/migrations/20260716000000_add_source_method_to_form_submissions.ts uses ADD COLUMN IF NOT EXISTS (idempotent) and DROP COLUMN IF EXISTS (reversible), nullable, no default, no index, no backfill - the same pattern as its sibling 20260715000000_add_source_to_form_submissions.ts, which itself mirrors the shipped sender_ip / is_flagged migrations on this table.",
+      "notes": "Deliberately a SEPARATE migration rather than an edit to 20260715000000: that migration may already be recorded in a local or dev knex_migrations table, and knex never re-runs a recorded migration - editing it would mean source_method silently never lands. Production risk: one additive nullable column on one table; no data rewrite, no backfill, no meaningful lock; historical rows stay null, which honestly reads as 'we did not record how'.",
+      "waiver": "WAIVED - un-drivable here, and forcing it would mean migrating the shared dev DB from an unmerged branch, which the deploy path forbids. It executes on the normal path when dev/dave deploys (dev.yml runs npm run db:migrate). Verification owner: the dev deploy - confirm the column exists and that PM2 and /api/health/db stay green."
+    },
+    {
+      "id": "A9",
+      "title": "An out-of-contract oversized label is DROPPED at the boundary and never reaches the controller",
+      "surface": "api",
+      "precondition": "Same Supertest harness as A1. REWRITTEN in Rev 8 for Dave's third-round finding. The prior version of this item asserted warn-only pass-through as CORRECT behavior - it codified the gap rather than closing it. The route now mounts sanitize(attributionInputSchema, ATTRIBUTION_FIELDS) after the warn-only validate(), so the bound is enforced by dropping the field, never by rejecting the request.",
+      "steps": [
+        "POST /api/websites/form-submission with utm_source padded to 200 chars (over the 100-char label cap) and an INTERNAL Referer.",
+        "Assert logger.warn recorded the DROP with field names only (never the value).",
+        "Capture the FormSubmissionModel.create payload and assert both provenance columns."
+      ],
+      "expected": "200 (the lead is saved); logger.warn is called with fields containing 'utm_source' and the sanitize message, and never logs the value; the persisted row carries source=null, source_method=null, and no trace of the value. The field is deleted from req.body before the controller reads it, so the controller now genuinely can trust it (11.2).",
+      "status": "pass",
+      "evidence": "src/__tests__/form-submission-source-route.test.ts A9 passed in the focused 14-test route run, the 99-test targeted run (4 files), and the 544-test full suite (63 files) on Node 22.23.1. NEGATIVE CONTROL: with the sanitize() line unmounted from the route, A9 FAILS (along with A10/A12/A13) - 4 route failures. The route file was restored byte-identical afterward.",
+      "notes": "The honest scope of the Rev 8 fix: the bound now HOLDS, it does not merely log. The closed allow-list remains in place as defense in depth (5.2), but it is no longer the only thing keeping an out-of-contract value out of the row.",
+      "waiver": ""
+    },
+    {
+      "id": "A10",
+      "title": "THE REVIEW FINDING - an oversized first_touch_referrer cannot reach persistence",
+      "surface": "api",
+      "precondition": "Same Supertest harness as A1. This is the exact case the third-round review named: a 3,000-character Google referrer was rejected by Zod yet still derived {source:'google', method:'client_referrer'}, because warn-only let it reach the controller and hostOf() parses a URL of any length. Verified empirically against the pre-fix code before the fix was written.",
+      "steps": [
+        "POST with first_touch_referrer = 'https://www.google.com/search?q=' + 3000 chars, and an INTERNAL Referer (so no header fallback can mask the result).",
+        "Capture the FormSubmissionModel.create payload."
+      ],
+      "expected": "200; source is NOT 'google'; source=null and source_method=null. The over-cap signal is dropped, so the derivation honestly reads unknown instead of laundering an out-of-contract URL into a real channel.",
+      "status": "pass",
+      "evidence": "src/__tests__/form-submission-source-route.test.ts A10 passed in the focused 14-test route run, the 99-test targeted run (4 files), and the 544-test full suite (63 files) on Node 22.23.1. NEGATIVE CONTROL: with sanitize() unmounted, A10 fails with 'expected \"google\" not to be \"google\"' - reproducing the reviewer's exact finding.",
+      "notes": "This was the one field where the declared bound was neither enforced NOR backstopped: unlike source/utm_source (which the allow-list blocks) the referrer path classifies by hostname, which is unaffected by length. It was the real defect behind the review's finding.",
+      "waiver": ""
+    },
+    {
+      "id": "A11",
+      "title": "An oversized source label cannot reach persistence",
+      "surface": "api",
+      "precondition": "Same Supertest harness as A1.",
+      "steps": [
+        "POST with source = 'google' padded to 150 chars and an INTERNAL Referer.",
+        "Capture the FormSubmissionModel.create payload."
+      ],
+      "expected": "200; source=null, source_method=null, and no trace of the oversized value in the row.",
+      "status": "pass",
+      "evidence": "src/__tests__/form-submission-source-route.test.ts A11 passed in the focused 14-test route run, the 99-test targeted run (4 files), and the 544-test full suite (63 files) on Node 22.23.1.",
+      "notes": "HONESTY: this item passes with OR without the sanitize middleware - the closed allow-list already blocked it (normalizeSource truncates to 100 chars, and a 100-char string is never an allow-list key). It is a defense-in-depth lock on the end state, NOT proof of the new guard. A10 and A13 are the discriminating checks.",
+      "waiver": ""
+    },
+    {
+      "id": "A12",
+      "title": "THE LEAD IS NEVER LOST - all three attribution fields out of contract, and the submission still persists",
+      "surface": "api",
+      "precondition": "Same Supertest harness as A1. This item exists to pin the design decision itself (sanitize, not enforce) as a regression test: if anyone later flips these three fields to hard 400s, this test fails.",
+      "steps": [
+        "POST with source=300 chars, utm_source=300 chars, and a >4000-char first_touch_referrer, plus an INTERNAL Referer.",
+        "Assert the HTTP status and that the visitor's actual message is in the persisted row."
+      ],
+      "expected": "200, NOT 400. The persisted row still carries the visitor's contents (Name: 'Sam Rivera'), with source=null and source_method=null. A practice never loses a real patient enquiry because a marketing tool appended a long tracking parameter - the lead is the asset, attribution is a note about the asset.",
+      "status": "pass",
+      "evidence": "src/__tests__/form-submission-source-route.test.ts A12 passed in the focused 14-test route run, the 99-test targeted run (4 files), and the 544-test full suite (63 files) on Node 22.23.1. NEGATIVE CONTROL: with sanitize() unmounted, A12 fails (the oversized referrer derives 'google').",
+      "notes": "The answer to the open question Rev 7 raised and the third-round review posed as 'enforce OR sanitize'. Enforce would 400 this request and drop the patient. Sanitize bounds the metadata and keeps the lead, which is why it was chosen.",
+      "waiver": ""
+    },
+    {
+      "id": "A13",
+      "title": "Sanitizing holds even when the legacy form schema fails for an unrelated reason",
+      "surface": "api",
+      "precondition": "Same Supertest harness as A1. Guards the specific fragility that would have made this fix cosmetic a second time.",
+      "steps": [
+        "POST with hostname padded to 400 chars (over its 255 cap, which busts formSubmissionSchema as a whole) AND a >3000-char first_touch_referrer.",
+        "Capture the FormSubmissionModel.create payload."
+      ],
+      "expected": "200; source is NOT 'google'; source=null. Because sanitize() is mounted as its OWN middleware rather than folded into formSubmissionSchema, an unrelated warn-mode parse failure cannot silently switch the guard off.",
+      "status": "pass",
+      "evidence": "src/__tests__/form-submission-source-route.test.ts A13 passed in the focused 14-test route run, the 99-test targeted run (4 files), and the 544-test full suite (63 files) on Node 22.23.1. NEGATIVE CONTROL: with sanitize() unmounted, A13 fails - the oversized referrer derives 'google'.",
+      "notes": "Had the three bounds been enforced by folding .catch() into formSubmissionSchema, this request would have gone unsanitized: warn mode only assigns the parsed body back on SUCCESS, so any unrelated field failure would pass the untouched body through. A guard whose operation depends on the rest of the body being clean is a guard that guards nothing - the exact class of error this round was correcting.",
+      "waiver": ""
+    },
+    {
+      "id": "A14",
+      "title": "One out-of-contract field does not discard a healthy sibling",
+      "surface": "api",
+      "precondition": "Same Supertest harness as A1.",
+      "steps": [
+        "POST with source=300 chars (out of contract) AND utm_source='facebook' (in contract).",
+        "Capture the FormSubmissionModel.create payload."
+      ],
+      "expected": "200; source='facebook' and source_method='client_label' - the good claim survives its bad sibling.",
+      "status": "pass",
+      "evidence": "src/__tests__/form-submission-source-route.test.ts A14 passed in the focused 14-test route run, the 99-test targeted run (4 files), and the 544-test full suite (63 files) on Node 22.23.1.",
+      "notes": "HONESTY: also passes pre-fix, via the derivation's own fall-through. It locks that sanitize did not REGRESS this - a whole-object .catch() (instead of per-field) would fail here by discarding the good utm_source.",
+      "waiver": ""
+    },
+    {
+      "id": "A15",
+      "title": "A non-string attribution value is dropped, not coerced",
+      "surface": "api",
+      "precondition": "Same Supertest harness as A1.",
+      "steps": [
+        "POST with utm_source={evil:'object'} and source=12345.",
+        "Capture the FormSubmissionModel.create payload."
+      ],
+      "expected": "200; source=null, source_method=null.",
+      "status": "pass",
+      "evidence": "src/__tests__/form-submission-source-route.test.ts A15 passed in the focused 14-test route run, the 99-test targeted run (4 files), and the 544-test full suite (63 files) on Node 22.23.1.",
+      "notes": "HONESTY: also passes pre-fix - the controller's own typeof==='string' checks backstop it. Kept as a lock so a future refactor that trusts the boundary (as 11.2 entitles it to) cannot quietly regress it.",
+      "waiver": ""
+    },
+    {
+      "id": "B1",
+      "title": "The boundary schema DEFINES source, utm_source, and first_touch_referrer with bounded optional string types (11.2)",
+      "surface": "cli",
+      "precondition": "Pure schema unit test - formSubmissionSchema.safeParse, no app, no HTTP, no DB. Added in Rev 6. Zod 4.3.6; the asserted issue codes (too_big, invalid_type) were confirmed empirically against the installed zod build, not assumed.",
+      "steps": [
+        "B1: assert each of the three fields raises invalid_type on a non-string, proving it is KNOWN to the schema rather than swallowed by .passthrough().",
+        "B2/B3: assert an in-contract payload parses and preserves values, and that all three are optional.",
+        "B4/B5: assert a label at exactly 100 chars and a referrer at exactly 2048 chars are in contract, and one char over raises too_big.",
+        "B6: assert object/array/number/boolean/null values raise an issue.",
+        "B7: assert the issue summary the middleware reads carries field names + codes but never the value.",
+        "B8: assert passthrough still tolerates honeypot (_hp/_ts/_jsc) and arbitrary form keys."
+      ],
+      "expected": "All 8 checks pass: the three fields are defined and bounded (source/utm_source at SOURCE_LABEL_MAX=100, mirroring MAX_SOURCE_LEN in the capture contract; first_touch_referrer at REFERRER_URL_MAX=2048, the browser URL cap), all remain optional, boundary values are inclusive, and the permissive-first posture for unknown keys is unchanged.",
+      "status": "pass",
+      "evidence": "src/__tests__/websiteContact.schemas.test.ts - B1-B8 passed (14 tests in the file incl. the new C-series) in the 544-test full suite (63 files) on Node 22.23.1. NEGATIVE CONTROL (Rev 6, still valid): with the three field definitions stripped, B1/B4/B5/B6/B7 fail; B2/B3/B8 correctly still pass - they are not fix-dependent.",
+      "notes": "B7 guards the same PII floor as A6 at the schema layer: a personalized utm can carry a patient name/DOB, so the zod issue summary must stay value-free before the middleware logs it. The caps are local constants rather than an import from the controller's feature-utils, so validation/ does not depend on a controller (6.2). Rev 8: these definitions now live as single shared constants (sourceLabelField / referrerUrlField) reused by attributionInputSchema, so the contract the warn soak LOGS and the contract sanitize ENFORCES cannot drift apart. formSubmissionSchema still runs warn-only, so B1-B8 describe the contract; C1 proves what holds.",
+      "waiver": ""
+    },
+    {
+      "id": "C1",
+      "title": "attributionInputSchema is TOTAL - it can never reject, so sanitizing can never cost a lead",
+      "surface": "cli",
+      "precondition": "Pure schema unit test (no app, no HTTP, no DB). Added in Rev 8. Zod 4.3.6; .catch(undefined) semantics were confirmed empirically against the installed zod build before the design relied on them.",
+      "steps": [
+        "C1: safeParse a battery of hostile inputs (5000-char source, object utm_source, numeric referrer, null/array/boolean) and assert success===true for every one.",
+        "C2: assert an in-contract payload is preserved verbatim.",
+        "C3: assert an over-cap value resolves to undefined rather than a truncated string.",
+        "C4: assert boundary values exactly AT the caps (100 / 2048) stay in contract.",
+        "C5: assert per-field independence - a 400-char source does not discard a valid utm_source.",
+        "C6: assert ATTRIBUTION_FIELDS equals the schema's own keys."
+      ],
+      "expected": "All 6 pass. The schema never fails (C1), so mounting it via sanitize() cannot reject a submission; out-of-contract values become absent rather than truncated (C3), because a truncated label/URL would be one the visitor never sent; and the key list cannot silently drift from the schema (C6).",
+      "status": "pass",
+      "evidence": "src/__tests__/websiteContact.schemas.test.ts C1-C6 - 14 tests passed in the file; part of the 544-test full suite.",
+      "notes": "C1 is the property the whole design rests on: sanitize() can only promise 'bound the field, keep the request' if the schema it parses cannot fail.",
+      "waiver": ""
+    },
+    {
+      "id": "C2",
+      "title": "sanitize() middleware - never rejects, drops out-of-contract keys, fails closed on the field",
+      "surface": "cli",
+      "precondition": "Unit tests against a throwaway one-route Express app (no app.ts dependency), mirroring the existing validate() middleware suite. Added in Rev 8. This middleware is new in this PR.",
+      "steps": [
+        "Assert an in-contract value passes through untouched, and an over-cap value is DROPPED with a 200 (never a rejection).",
+        "Assert a wrong-type value is dropped rather than coerced.",
+        "Assert only the offending field is dropped - a healthy sibling survives.",
+        "Assert UNLISTED keys (honeypot _hp/_ts, arbitrary form fields) are left alone.",
+        "Assert the warn log carries the field NAME but never the value (5.3), and that nothing is logged when all fields are in contract.",
+        "Assert FAIL-CLOSED: a schema whose safeParse throws causes every listed key to be dropped, while the request is still served 200 and unlisted keys survive.",
+        "Assert a request with no parsed body is tolerated."
+      ],
+      "expected": "All 9 pass. No status is ever set by the middleware; out-of-contract keys are deleted from req.body so downstream code cannot read them; on an internal error the metadata is lost but the submission is not.",
+      "status": "pass",
+      "evidence": "src/__tests__/validate.middleware.test.ts - 'sanitize() - bounded subset, never rejects' block; part of the 99-test targeted run and the 544-test full suite.",
+      "notes": "The fail-closed-on-the-field / fail-open-on-the-request asymmetry is the whole point: on a public lead-capture route, losing a tracking label is acceptable and losing a patient enquiry is not.",
+      "waiver": ""
+    },
+    {
+      "id": "D1",
+      "title": "THE REVIEW FINDING (round 4) - a real patient's inquiry survives a hostile attribution value under the enforce flag",
+      "surface": "api",
+      "precondition": "Real Express app driven over HTTP via Supertest with VALIDATION_ENFORCE=1 set before one beforeAll dynamic import of src/app.ts. One app/module graph serves all five cases; only mock call state is cleared per case, so no per-case resetModules/app reload can consume the normal 5-second test timeout or leave an unfinished request behind. Real router, middleware, and controller; DB/external seams are mocked.",
+      "steps": [
+        "Use the single app loaded after VALIDATION_ENFORCE=1 was set.",
+        "POST /api/websites/form-submission with a legitimate body (contents Name/Email) and an over-cap utm_source (300 chars), with an INTERNAL Referer.",
+        "Capture the object handed to FormSubmissionModel.create."
+      ],
+      "expected": "200; the row carries the visitor's real contents (Name='Sam Rivera', Email='sam@example.com'), and source/source_method are both null - the tracking parameter degraded to honest unknown while the LEAD landed.",
+      "status": "pass",
+      "evidence": "src/__tests__/form-submission-enforce-flag.test.ts D1 passed in the normal 5-test file run with no timeout override, the 118-test focused remediation run (6 files), and the default 563-test full suite (65 files) on Node 22.23.1. Before Rev 10, the same normal file command timed D1 out at 5000ms and its unfinished request contaminated D2; that failure was reproduced before editing.",
+      "notes": "This is the round-4 finding stated behaviorally. The Rev 8 design (sanitize, not enforce) was correct but incomplete: the three attribution fields were ALSO still declared in formSubmissionSchema, which the route mounted WITHOUT pinning a mode - so it inherited the process-wide VALIDATION_ENFORCE default and became a rejection path the moment that flag was set. Rev 8's Done criterion (b) claimed 'A12 fails if anyone flips these fields to a 400', but A12 runs under the DEFAULT mode only, so it could not see this. Fixed by pinning `mode: \"warn\"` at the mount.",
+      "waiver": ""
+    },
+    {
+      "id": "D2",
+      "title": "All three attribution fields out of contract under the enforce flag - the lead still persists, none reach the row",
+      "surface": "api",
+      "precondition": "Same single enforce-mode app/module graph and mocked seams as D1.",
+      "steps": [
+        "Use the single app loaded after VALIDATION_ENFORCE=1 was set.",
+        "POST with an over-cap source (300 chars), an over-cap utm_source (300 chars), AND a 3,032-char first_touch_referrer, with an INTERNAL Referer.",
+        "Capture the FormSubmissionModel.create payload."
+      ],
+      "expected": "200; the row carries the visitor's contents; source and source_method are both null; no fragment of the oversized referrer appears anywhere in the row.",
+      "status": "pass",
+      "evidence": "src/__tests__/form-submission-enforce-flag.test.ts D2 passed in the same normal-timeout file, focused, and full runs as D1. Before Rev 10, D2 failed with two FormSubmissionModel.create calls because D1's timed-out request was still running; the single-load structure removes that contamination.",
+      "notes": "This is Dave's round-3 ask ('add a route regression proving over-limit source, utm_source, and first_touch_referrer cannot reach persistence') re-proved in the world round 3 could not see - with the flag ON. A9/A10/A12 cover the same ground under the default mode and still pass; this is the flag-enabled twin, not a replacement.",
+      "waiver": ""
+    },
+    {
+      "id": "D3",
+      "title": "A healthy attribution value still classifies normally under the enforce flag (the pin did not cost the feature)",
+      "surface": "api",
+      "precondition": "Same single enforce-mode app/module graph and mocked seams as D1.",
+      "steps": [
+        "Use the single app loaded after VALIDATION_ENFORCE=1 was set.",
+        "POST with an in-contract utm_source=facebook and an INTERNAL Referer.",
+        "Capture the FormSubmissionModel.create payload."
+      ],
+      "expected": "200; source='facebook' AND source_method='client_label' - attribution still works when the value is in contract.",
+      "status": "pass",
+      "evidence": "src/__tests__/form-submission-enforce-flag.test.ts D3 passed in the same normal-timeout file, focused, and full runs as D1.",
+      "notes": "HONESTY - THIS TEST PASSES WITHOUT THE FIX and is therefore NOT proof of it. It passed in the negative-control run (2 of 5 passed pre-fix; this was one). It cannot fail pre-fix because an in-contract value satisfies formSubmissionSchema, so enforce mode never rejects it. It is a LOCK, not evidence: without it, D1/D2 could be satisfied by a route that ignored attribution entirely. D1, D2, and D4 are the tests that actually fail without the fix.",
+      "waiver": ""
+    },
+    {
+      "id": "D4",
+      "title": "/contact - a patient who writes at length is not turned away by the enforce flag (the WIDER instance of the same defect)",
+      "surface": "api",
+      "precondition": "Same single enforce-mode app/module graph as D1; reCAPTCHA and the email webhook are mocked for /contact.",
+      "steps": [
+        "Use the single app loaded after VALIDATION_ENFORCE=1 was set.",
+        "POST /api/websites/contact with valid name/phone/email/captchaToken and a message longer than 3,000 characters - the historical regression shape, now intentionally valid patient text.",
+        "Assert the response and that the email webhook fired."
+      ],
+      "expected": "200; sendEmailWebhook called exactly once - the enforced type boundary preserves and delivers the long patient inquiry.",
+      "status": "pass",
+      "evidence": "src/__tests__/form-submission-enforce-flag.test.ts D4 passed in the same normal-timeout file, focused, and full runs as D1. src/__tests__/website-contact-boundary-route.test.ts separately proved the long-message tail reaches the webhook under the route's explicit enforce posture.",
+      "notes": "Rev 10 corrected Rev 9's over-broad fix by enforcing authoritative string types. Rev 11 adds the missing finite abuse boundary: patient-written text is valid through 32,000 characters, more than ten times the old rejected size.",
+      "waiver": ""
+    },
+    {
+      "id": "D5",
+      "title": "The pin is SURGICAL - VALIDATION_ENFORCE still enforces on an unpinned route",
+      "surface": "cli",
+      "precondition": "Throwaway one-route Express app built against the same once-loaded enforce-mode middleware as D1, mounting validate() UNPINNED exactly as the auth/billing routes do.",
+      "steps": [
+        "Use the middleware loaded once after VALIDATION_ENFORCE=1 was set.",
+        "Mount validate(z.object({ field: z.string().max(5) })) with no mode option.",
+        "POST an over-cap field."
+      ],
+      "expected": "400 with code VALIDATION_ERROR - the flag's default-mode wiring is intact for every route that has not deliberately opted out.",
+      "status": "pass",
+      "evidence": "src/__tests__/form-submission-enforce-flag.test.ts D5 passed in the same normal-timeout file, focused, and full runs as D1.",
+      "notes": "HONESTY - THIS TEST PASSES WITHOUT THE FIX and is NOT proof of it (it was the other of the 2 that passed in the negative-control run). It tests middleware wiring this revision does not touch. Its job is to block the CHEAP fix: 'make the lead un-rejectable' must not be achieved by neutering VALIDATION_ENFORCE process-wide, because the auth/billing soak still needs to graduate to enforce one day. Kept as a guard against a future regression, not counted as evidence for this one.",
+      "waiver": ""
+    },
+    {
+      "id": "E1",
+      "title": "/contact enforces string types and a patient-safe finite message boundary",
+      "surface": "api",
+      "precondition": "Real Express app driven by Supertest under the normal test environment. reCAPTCHA and email webhook seams are mocked; the real route validator and controller execute.",
+      "steps": [
+        "POST a valid contact request with a message exactly 32,000 characters long and a unique tail marker.",
+        "Assert 200 and that the webhook body contains the tail marker at the end of the untruncated message.",
+        "POST the same request with a 32,001-character message and assert canonical 400 before reCAPTCHA or webhook work.",
+        "POST separate requests with arrays/objects in name, phone, email, captchaToken, service, and message.",
+        "Assert canonical 400 responses and that reCAPTCHA/webhook were never called for malformed types."
+      ],
+      "expected": "A message exactly at the named 32,000-character ceiling is preserved and delivered; one character over and every non-string value are stopped at the route boundary before controller work.",
+      "status": "pass",
+      "evidence": "Rev 11: src/__tests__/website-contact-boundary-route.test.ts and src/__tests__/websiteContact.schemas.test.ts passed together, 32/32. Both schema and the real route prove exact-boundary success and one-over rejection. The default full run passed 65 files / 567 tests.",
+      "notes": "The route explicitly uses mode=enforce for contactSubmissionSchema. CONTACT_MESSAGE_MAX_CHARS is centralized in src/config/websiteContact.ts and imported by both the runtime schema and tests.",
+      "waiver": ""
+    },
+    {
+      "id": "E2",
+      "title": "Enforce-flag regression suite passes under Vitest's normal 5-second test timeout",
+      "surface": "cli",
+      "precondition": "No --testTimeout override. VALIDATION_ENFORCE=1 is set before one beforeAll app import; five cases share that module graph and clear mock call state between requests.",
+      "steps": [
+        "Run npx vitest run src/__tests__/form-submission-enforce-flag.test.ts.",
+        "Run the six-file focused remediation command.",
+        "Run default npx vitest run."
+      ],
+      "expected": "All commands exit 0; no timeout and no cross-case FormSubmissionModel.create contamination.",
+      "status": "pass",
+      "evidence": "Rev 11 re-check: the enforce-flag file passed alone 5/5 with no timeout override, and the default full suite passed 65 files / 567 tests. The Rev 10 118-test focused receipt remains historical evidence for the isolation fix.",
+      "notes": "One attempted three-file parallel focused invocation timed out in beforeAll while multiple files imported the full app. No timeout was raised: the enforce file passed alone, the boundary pair passed together, and the default full suite passed. Pre-fix evidence remains the D1 timeout and D2 cross-case contamination that Rev 10 removed.",
+      "waiver": ""
+    },
+    {
+      "id": "E3",
+      "title": "sourceAttribution helper follows the websiteContact feature-utils structure",
+      "surface": "cli",
+      "precondition": "Repository checkout at the remediated PR head.",
+      "steps": [
+        "Verify sourceAttribution.ts exists under src/controllers/websiteContact/feature-utils and no live import references the old websiteContact-utils path.",
+        "Run its unit tests, TypeScript, strict conventions, and git diff --check."
+      ],
+      "expected": "All imports resolve, unit behavior is unchanged, and Constitution section 6.3 structure is satisfied.",
+      "status": "pass",
+      "evidence": "Helper remains at src/controllers/websiteContact/feature-utils/sourceAttribution.ts. Rev 11 re-check: npx tsc --noEmit exited 0; strict conventions found zero clear structural violations; git diff --check exited 0; full suite passed 567/567.",
+      "notes": "The older websiteContact-utils folder remains for pre-existing helpers only; this PR's new helper now uses the required feature-utils name.",
+      "waiver": ""
+    },
+    {
+      "id": "E4",
+      "title": "/contact rejects oversized JSON early and rate-limits repeated public requests",
+      "surface": "api",
+      "precondition": "Real Express app for the parser-order assertion, plus an isolated Express route using the same limiter factory with a two-request threshold. No database or external provider is used; reCAPTCHA and webhook seams are mocked.",
+      "steps": [
+        "Confirm the real app trust proxy setting is loopback, matching same-host Apache to PM2.",
+        "Send two requests for forwarded client A and one for client B; both chains carry the same spoofed left-most address but different right-most Apache-observed client addresses.",
+        "Send client A again and assert canonical 429, then send client B again and assert 200.",
+        "POST JSON whose serialized body exceeds CONTACT_REQUEST_BODY_MAX_BYTES (256 KiB) and assert canonical 413 before downstream work."
+      ],
+      "expected": "Only the loopback proxy is trusted; the right-most forwarded clients have separate buckets despite a shared spoofed left-most value; client A is limited without consuming client B's allowance; oversized JSON still returns the canonical 413 envelope.",
+      "status": "pass",
+      "evidence": "Rev 12: src/__tests__/website-contact-boundary-route.test.ts passed 11/11. The full backend suite passed 65 files / 568 tests. npx tsc --noEmit, npm run check:conventions -- --strict, and git diff --check exited 0; strict conventions reported 0 clear backend structural violations. Read-only checks of /etc/apache2/sites-enabled on both alloro-dev and alloro-app confirmed the deployed Alloro ProxyPass target is http://127.0.0.1:3000/.",
+      "notes": "Express trusts only loopback because deployed Apache and PM2 share a host. proxy-addr therefore stops at Apache's right-most forwarded address instead of accepting a caller-controlled left-most value. The generic multipart /form-submission limiter remains disabled and untouched.",
+      "waiver": ""
+    },
+    {
+      "id": "E5",
+      "title": "/contact returns canonical JSON for malformed JSON",
+      "surface": "api",
+      "precondition": "Real Express app with the route-specific JSON parser; reCAPTCHA and webhook seams mocked",
+      "steps": [
+        "POST a truncated application/json body to /api/websites/contact.",
+        "Assert HTTP 400 with success=false, data=null, and error.code=CONTACT_INVALID_JSON.",
+        "Assert reCAPTCHA and webhook dispatch were not called."
+      ],
+      "expected": "The body-parser entity.parse.failed error is handled at the request boundary using the canonical API envelope before controller/provider work",
+      "status": "pass",
+      "evidence": "The malformed-JSON regression passed in the 11/11 focused route file and the 65-file / 568-test full backend suite.",
+      "notes": "No malformed payload content is echoed in the response or logs. The oversized-body 413 remains a separate canonical contract.",
+      "waiver": ""
+    }
+  ]
+}

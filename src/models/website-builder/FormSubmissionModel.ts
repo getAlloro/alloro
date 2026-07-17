@@ -26,6 +26,24 @@ export interface IFormSubmission {
   submitted_at: Date;
   is_read: boolean;
   sender_ip?: string;
+  /**
+   * The channel a raised hand came through (referrer / UTM-derived at submit).
+   * Null when unknown or internal — never a guessed channel (Value #6).
+   *
+   * NOT verified attribution, and never to be reported as such. This label may
+   * have been CLAIMED by the visitor's browser rather than classified by us —
+   * always read it together with `source_method`, and get the honest wording
+   * tier from `sourceConfidence(source_method)` in
+   * controllers/websiteContact/feature-utils/sourceAttribution (§5.2).
+   */
+  source?: string | null;
+  /**
+   * HOW `source` was derived — `client_label` | `client_referrer` |
+   * `header_referrer` (see SourceMethod). Null iff `source` is null. Stored
+   * separately so a client claim can never be presented with the authority of a
+   * server-side classification.
+   */
+  source_method?: string | null;
   content_hash?: string;
   is_flagged?: boolean;
   flag_reason?: string;
