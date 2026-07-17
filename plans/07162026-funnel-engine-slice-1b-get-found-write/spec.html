@@ -58,7 +58,7 @@
 <div class="wrap">
 
   <header class="hero">
-    <span class="pill"><span class="dot"></span>In Progress &middot; Round 3 review fixes applied &middot; PR #159 &middot; Rev 1</span>
+    <span class="pill"><span class="dot"></span>Completed &middot; Exact-head receipt reconciled &middot; PR #159 &middot; Rev 4</span>
     <h1>Slice 1b — Get-Found Write Path</h1>
     <p class="sub">Write an owner-approved schema.org JSON-LD array to a hosted page's <code>seo_data.schema_json</code> through the edit-and-publish rail that already ships — gated by an honesty check that no rank, placement, or visibility claim can pass, and by a human approval that already exists.</p>
     <div class="meta">
@@ -166,6 +166,7 @@
       <li><strong>Batch-failure honesty</strong> <span class="art">&sect;3.2</span> — never complete a batch after a failed publish; downgrade its recommendations <code>executed&rarr;failed</code>.</li>
       <li><strong>Post-publish verification</strong> — confirm the approved array is live in the published <code>seo_data.schema_json</code>; fail on absence, on no published row, and on an unreadable read.</li>
       <li><strong>Acceptance artifacts</strong> <span class="art">&sect;20.5</span> — this spec, <code>test.html</code>, <code>test-results.json</code>.</li>
+      <li><strong>(Rev 4) Exact-head receipt reconciliation</strong> — preserve the PR-specific contract while recording the final focused <strong>119-test</strong> and full <strong>1,291-test</strong> results, TypeScript, lint, dependency, and strict-convention gates at the reviewed head. Keep the deferred producer as a written, waived contract boundary rather than converting it into a pass.</li>
     </ol>
   </section>
 
@@ -180,6 +181,7 @@
       <li>A batch whose page did not publish terminates <code>failed</code> and downgrades its recommendations; a healthy batch still completes.</li>
       <li>An approved schema that did not reach the live page is failed, not reported as a success.</li>
       <li><code>npx tsc --noEmit</code>, <code>npx vitest run</code>, and <code>npm run check:conventions -- --strict</code> all exit 0, with 0 clear structural violations.</li>
+      <li><strong>(Rev 4)</strong> The exact-head receipt records 4 focused files / 119 tests and 68 full-suite files / 1,291 tests, all passing, with TypeScript and strict conventions at exit 0; the receipt rolls up canonically to <strong>Passed</strong> only because T10's intentionally narrowed producer contract carries its explicit written waiver.</li>
       <li class="open"><strong>Deferred with the producer:</strong> a production path that creates a <code>page_seo_schema</code> recommendation (T10), and the live dogfood on one real hosted page — both need runtime pieces outside this PR.</li>
     </ul>
   </section>
@@ -203,6 +205,12 @@
       <p><strong>Change:</strong> None to 1b. The same adversary run surfaced coverage gaps in the <em>shared</em> safety service (<code>src/services/content-safety/GeneratedCopySafetyService.ts</code>), which belongs to Slice 1a / PR&nbsp;#158 — this PR's base — not to 1b. They fall into four groups: pattern-coverage gaps in the rank/placement family, negation-scope handling, input normalization, and over-blocking of honest disclaimers. <b>Details are deliberately not written down here.</b> This repo is public and those gaps are unpatched at the time of writing, so the specifics were routed to the reviewer out-of-band for #158 to close rather than published as a recipe. Nothing about them is fixed, or claimed to be fixed, in 1b.</p>
       <p><strong>Reason:</strong> Ownership, not difficulty — #158's head is moving and another agent is actively working that file; editing it from this branch would collide, and this PR was told not to merge #158 in. Recorded because 1b's honesty gate is only ever as strong as the shared service it calls, so a reviewer of 1b needs to know the dependency exists.</p>
       <p><strong>Updated Done criteria:</strong> none for 1b. These are #158's to close; 1b's honesty Done criteria are contingent on them.</p>
+    </article>
+    <article class="rev">
+      <h3>Rev 4 &mdash; 2026-07-17</h3>
+      <p><strong>Change:</strong> Reconciled only this PR-specific spec and acceptance receipt at the exact reviewed #159 head; no application or shared parent-plan file changed. The receipt now carries the final stack-aware proof: focused 4 files / <strong>119 tests</strong>, full 68 files / <strong>1,291 tests</strong>, TypeScript exit 0, strict conventions exit 0 with 0 clear structural violations, ESLint exit 0 with 0 errors, dependency-cruiser exit 0 with 0 errors, and changed-file lint/diff checks at exit 0. The modifier hard-gate regression was proven against the prior #158 behavior before passing on the final dependency state.</p>
+      <p><strong>Reason:</strong> Review remediation: the implementation was merge-ready, but this PR's own artifact still described earlier 57/563 runs and did not state the exact final stacked-branch proof. Acceptance evidence must identify the code state it actually validates <span class="art">&sect;20.5</span>.</p>
+      <p><strong>Updated Done criteria:</strong> final exact-head 119/1,291 evidence is present in <code>test-results.json</code>; T10 remains an explicit failed item with its written contract-narrowing waiver; the canonical rollup is <strong>Passed</strong> because every other item passes and the only failed item is waived. The deferred producer, live dogfood, and GBP identity snapshot remain outside this PR and are not represented as completed.</p>
     </article>
   </section>
 

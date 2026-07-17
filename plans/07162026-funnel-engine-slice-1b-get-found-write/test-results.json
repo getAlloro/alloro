@@ -1,6 +1,6 @@
 {
   "plan": "plans/07162026-funnel-engine-slice-1b-get-found-write",
-  "generatedAt": "2026-07-16",
+  "generatedAt": "2026-07-17",
   "status": "Passed",
   "items": [
     {
@@ -14,7 +14,7 @@
       ],
       "expected": "schema_json is written as a non-empty array and the pre-existing seo_data keys survive (no clobber).",
       "status": "pass",
-      "evidence": "src/__tests__/get-found-write.test.ts passed in the focused 57-test run and the 563-test / 64-file full suite (npx vitest run, exit 0, Node 22.23.1).",
+      "evidence": "Historical non-vacuity proof is preserved below. Final exact-head revalidation passed 4 focused files / 119 tests and 68 full-suite files / 1,291 tests, exit 0; see T12.",
       "notes": "The write lands on the batch's pinned draft, which the batch auto-publishes as one reversible page version.",
       "waiver": ""
     },
@@ -33,7 +33,7 @@
       ],
       "expected": "Every claim-bearing case fails the recommendation and PageModel.updateSeoDataById is never called; the honest cases still execute.",
       "status": "pass",
-      "evidence": "src/__tests__/get-found-write.test.ts passed all 11 per-key cases, the sameAs-array case, and the full-honest-schema no-false-positive guard (57/57 in the file; 563/563 full suite, exit 0). Verified as REAL regression tests: reverting the handler to the key-denylist head fails 15 of them (15 failed / 36 passed of 51), while the 'must still publish' guards pass in both states.",
+      "evidence": "The final exact-head 4-file focused run passed 119/119 and the 68-file full suite passed 1,291/1,291; see T12. Non-vacuity was previously proven by reverting the handler to the key-denylist head: 15 cases fail (15 failed / 36 passed of 51), while the must-still-publish guards pass in both states.",
       "notes": "Rewritten in round 3. The exclusion axis is now the VALUE, never the key. The round-2 gate skipped a denylist of structural KEYS without looking at the value, so a claim sentence parked under a structural key, and a claim inside sameAs, both returned ZERO violations — the key name is caller-supplied input (§5.2), so trusting it let any claim ride inside it. A value is now skipped only when it is actually structural for its key: a whole-value URL/mailto:/tel:/urn: under any key, a schema.org type token for @type/@context, a fragment or blank-node ref for @id, a phone shape for telephone/faxNumber, an addr-spec for email. Unknown key => scanned; known key with a non-structural value => scanned. Both directions fail CLOSED. `identifier` is deliberately absent from the shape table: a real identifier ('NPI-1234567890') trips no claim pattern, so scanning it is free.",
       "waiver": ""
     },
@@ -159,7 +159,7 @@
       ],
       "expected": "The two real names publish; the rank claim, the three outcome sentences, and all six guarantee fixtures fail the recommendation and write nothing.",
       "status": "pass",
-      "evidence": "src/__tests__/get-found-write.test.ts 'identity carve-out is bounded by NAME shape' passed 12/12 (563/563 full suite, exit 0). Verified non-vacuous twice: against the round-2 handler the three outcome-sentence cases fail; reverting only the promise rule fails exactly the six guarantee cases (6 failed | 51 passed of 57). The two must-publish guards pass in every state, proving they guard the carve-out rather than passing trivially.",
+      "evidence": "The final exact-head 4-file focused run passed 119/119 and the 68-file full suite passed 1,291/1,291; see T12. This class was previously proven non-vacuous twice: against the round-2 handler the three outcome-sentence cases fail; reverting only the promise rule fails exactly the six guarantee cases (6 failed | 51 passed of 57). The two must-publish guards pass in every state.",
       "notes": "Found by the round-3 class sweep, then WIDENED by an adversary run against that fix. Two defects, same axis. (1) The round-2 carve-out softened the medical/outcome code on the KEY alone, so a claim SENTENCE under an identity key published. Fixed by requiring the value to be name-shaped (no first/second-person pronoun, <=6 words). (2) Name-shape alone proved too wide: a short, pronoun-free value carrying a guarantee still published, and the carve-out could become the weakest link — when a claim reaches the gate with only the medical/outcome code surviving, softening it publishes the whole value. Fixed by never softening a PROMISE: the outcome family mixes DESCRIPTORS a practice may genuinely be named for (pain-free, cure, permanent results) with a GUARANTEE, a commitment Alloro cannot back (Value #6) wherever it sits. A business cannot name its way into a guarantee, and the carve-out must never be the last thing standing between a promise and a live page.",
       "waiver": "RESIDUAL, bounded and deliberate: a short, pronoun-free, guarantee-free DESCRIPTOR name still publishes — 'Permanent Results Dental' and 'Free Medical Advice Clinic LLC' pass. They are textually indistinguishable from 'Pain-Free Dental Studio', which the review requires to publish, so no textual rule separates them. The principled closure is checking `name` against the owner's real registered business name via the GBP identity source — already a deferred dependency of the producer (T10) — rather than guessing from shape. Human approval remains the second line."
     },
@@ -167,7 +167,7 @@
       "id": "T10",
       "title": "NOT PROVEN: no production path creates a page_seo_schema recommendation",
       "surface": "api",
-      "precondition": "Static reference check across src/, plus the base branch (claude/slice-1a-get-found) at its current head 556bd7a0, which this PR merges into.",
+      "precondition": "Static reference check across src/ plus the final stacked #158 dependency state included in this exact #159 head.",
       "steps": [
         "Grep for callers of queueSeoSchemaRecommendation.",
         "Grep for callers of the upstream Slice 1a runGetFoundChecker at the base branch head.",
@@ -177,7 +177,24 @@
       "status": "fail",
       "evidence": "queueSeoSchemaRecommendation is referenced only by its own definition (service.get-found-write.ts) and get-found-write.test.ts. runGetFoundChecker DOES have an application caller at the base branch head: auditTargetExecutionService.ts:166, inside runGetFoundAdvisory, which the audit run invokes for every hosted page it already fetched. That call discards the return value (it is never assigned) and persists nothing.",
       "notes": "Corrected after the second-round review: the earlier evidence claimed Slice 1a's checker had no application caller. That is stale against the base branch's current head. The accurate blocker is narrower: the checker RUNS in production but as a read-only advisory whose findings are discarded and never persisted (Slice 1a deliberately owns analysis, not routing), so no analysis result survives an audit run to turn into a recommendation. Closing the gap needs the deferred pieces: persisting the checker's findings, a GBP identity source, and a get-found batch type with its approval UI. The execute half IS production-wired: executeBatch dispatches page_seo_schema to the handler, reachable from POST /:id/ai-command/:batchId/execute.",
-      "waiver": "Contract narrowed instead of faked. service.get-found-write.ts states that Slice 1b ships the execute half plus the row contract, that queueSeoSchemaRecommendation has no production caller, and that the type is inert until a producer lands. The reviewer explicitly allowed 'add a real production path, OR honestly narrow the stated contract' and, in the second-round review, accepted this narrowing; the gap stays recorded here rather than reading as shipped."
+      "waiver": "Contract narrowed instead of faked. service.get-found-write.ts states that Slice 1b ships the execute half plus the row contract, that queueSeoSchemaRecommendation has no production caller, and that the type is inert until a producer lands. The reviewer explicitly allowed 'add a real production path, OR honestly narrow the stated contract' and accepted this narrowing; the gap stays recorded here rather than reading as shipped."
+    },
+    {
+      "id": "T12",
+      "title": "Final exact-head stack integration and verification receipt",
+      "surface": "cli",
+      "precondition": "Run every command independently in the exact PR #159 worktree so a later command cannot mask an earlier exit code.",
+      "steps": [
+        "Run the four focused #158/#159 contract and integration test files.",
+        "Run the complete backend test suite.",
+        "Run npx tsc --noEmit and npm run check:conventions -- --strict.",
+        "Run ESLint, dependency-cruiser, changed-file ESLint, and git diff checks."
+      ],
+      "expected": "The final stacked head passes the modifier hard-gate regression, Slice 1b atomicity and failure-path tests, the complete suite, TypeScript, strict conventions, lint, dependency, and diff gates.",
+      "status": "pass",
+      "evidence": "Final exact-head evidence: focused 4 files / 119 tests, exit 0; full 68 files / 1,291 tests, exit 0; npx tsc --noEmit exit 0; npm run check:conventions -- --strict exit 0 with 0 clear structural violations; ESLint exit 0 with 0 errors and 2,385 existing warnings; dependency-cruiser exit 0 with 0 errors and 38 advisory warnings; changed-file ESLint and git diff checks exit 0. The modifier hard-gate regression failed against the prior #158 behavior before passing on the final dependency state. Persistence proof uses the mocked model transaction seam; this PR has no migration.",
+      "notes": "Canonical rollup is Passed: T1-T9, T11, and T12 pass; T10 remains fail with a written contract-narrowing waiver. The GBP identity snapshot and a production recommendation producer remain activation/precondition work, not acceptance claims in this PR.",
+      "waiver": ""
     }
   ]
 }
