@@ -12,7 +12,9 @@ import {
 } from "../../../models/website-builder/WebsiteIntegrationModel";
 import type { QueryContext } from "../../../models/BaseModel";
 import logger from "../../../lib/logger";
+import { isPreviewAnalyticsEnabled } from "../../../config/rybbit";
 import { RybbitIntegrationError } from "./service.rybbit-integration";
+import { findOrCreateProviderSite } from "./service.rybbit-provider";
 
 /** Hostname suffix for hosted preview sites. */
 const PREVIEW_HOST_SUFFIX = ".sites.getalloro.com";
@@ -39,90 +41,6 @@ export interface PreviewAnalyticsResult {
 type PreviewProject = NonNullable<
   Awaited<ReturnType<typeof ProjectModel.findPreviewProvisioningContextById>>
 >;
-
-const RYBBIT_API_URL = process.env.RYBBIT_API_URL || "";
-const RYBBIT_API_KEY = process.env.RYBBIT_API_KEY || "";
-const RYBBIT_ORG_ID = process.env.RYBBIT_ORG_ID || "";
-
-function requireRybbitConfiguration(): void {
-  if (RYBBIT_API_URL && RYBBIT_API_KEY && RYBBIT_ORG_ID) return;
-
-  throw new RybbitIntegrationError(
-    503,
-    "RYBBIT_PROVIDER_UNAVAILABLE",
-    "Rybbit provisioning is not configured",
-  );
-}
-
-function readProviderSiteId(payload: unknown): string | null {
-  if (!payload || typeof payload !== "object") return null;
-  const record = payload as Record<string, unknown>;
-  const value = record.siteId ?? record.id;
-  if (typeof value === "string" && value.trim()) return value.trim();
-  if (typeof value === "number" && Number.isFinite(value)) return String(value);
-  return null;
-}
-
-async function readProviderResponse(response: Response): Promise<string> {
-  let payload: unknown;
-  try {
-    payload = await response.json();
-  } catch (error) {
-    logger.error({ err: error }, "[Rybbit] Site creation returned invalid JSON");
-    throw new RybbitIntegrationError(
-      502,
-      "RYBBIT_PROVIDER_INVALID_RESPONSE",
-      "Rybbit returned an invalid provisioning response",
-    );
-  }
-
-  const siteId = readProviderSiteId(payload);
-  if (siteId) return siteId;
-  throw new RybbitIntegrationError(
-    502,
-    "RYBBIT_PROVIDER_INVALID_RESPONSE",
-    "Rybbit returned an invalid provisioning response",
-  );
-}
-
-async function createProviderSite(domain: string): Promise<string> {
-  requireRybbitConfiguration();
-  let response: Response;
-  try {
-    response = await fetch(
-      `${RYBBIT_API_URL}/api/organizations/${RYBBIT_ORG_ID}/sites`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${RYBBIT_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ domain, name: domain, blockBots: true }),
-      },
-    );
-  } catch (error) {
-    logger.error({ err: error }, "[Rybbit] Site creation request failed");
-    throw new RybbitIntegrationError(
-      502,
-      "RYBBIT_PROVIDER_ERROR",
-      "Rybbit could not create the analytics site",
-    );
-  }
-
-  if (!response.ok) {
-    logger.error(
-      { providerStatus: response.status },
-      "[Rybbit] Site creation returned an error",
-    );
-    throw new RybbitIntegrationError(
-      502,
-      "RYBBIT_PROVIDER_ERROR",
-      "Rybbit could not create the analytics site",
-    );
-  }
-
-  return readProviderResponse(response);
-}
 
 async function upsertRybbitIntegration(
   projectId: string,
@@ -161,43 +79,28 @@ async function persistRybbitSite(
   projectId: string,
   siteId: string,
   existingIntegration: IWebsiteIntegrationSafe | undefined,
+  trx: QueryContext,
 ): Promise<void> {
-  try {
-    await WebsiteIntegrationModel.transaction(async (trx) => {
-      const projectUpdates = await ProjectModel.updateRybbitSiteId(
-        projectId,
-        siteId,
-        trx,
-      );
-      if (projectUpdates === 0) {
-        throw new RybbitIntegrationError(
-          404,
-          "PROJECT_NOT_FOUND",
-          "Website project not found",
-        );
-      }
-
-      const saved = await upsertRybbitIntegration(
-        projectId,
-        siteId,
-        existingIntegration,
-        trx,
-      );
-
-      if (!saved) {
-        throw new RybbitIntegrationError(
-          500,
-          "RYBBIT_PERSISTENCE_FAILED",
-          "Failed to save the Rybbit integration",
-        );
-      }
-    });
-  } catch (error) {
-    if (error instanceof RybbitIntegrationError) throw error;
-    logger.error(
-      { err: error, projectId },
-      "[Rybbit] Failed to persist site assignment",
+  const projectUpdates = await ProjectModel.updateRybbitSiteId(
+    projectId,
+    siteId,
+    trx,
+  );
+  if (projectUpdates === 0) {
+    throw new RybbitIntegrationError(
+      404,
+      "PROJECT_NOT_FOUND",
+      "Website project not found",
     );
+  }
+
+  const saved = await upsertRybbitIntegration(
+    projectId,
+    siteId,
+    existingIntegration,
+    trx,
+  );
+  if (!saved) {
     throw new RybbitIntegrationError(
       500,
       "RYBBIT_PERSISTENCE_FAILED",
@@ -213,50 +116,86 @@ export async function provisionRybbitSite(
   projectId: string,
   domain: string,
 ): Promise<string> {
-  const project = await ProjectModel.findRybbitSiteIdById(projectId);
-  if (!project) {
-    throw new RybbitIntegrationError(
-      404,
-      "PROJECT_NOT_FOUND",
-      "Website project not found",
-    );
-  }
-
-  const existingIntegration =
-    await WebsiteIntegrationModel.findByProjectAndPlatform(projectId, "rybbit");
-  const existingSiteId = existingIntegration?.metadata?.siteId;
-  if (typeof existingSiteId === "string" && existingSiteId.trim()) {
-    const siteId = existingSiteId.trim();
-    if (project.rybbit_site_id !== siteId) {
-      const updated = await ProjectModel.updateRybbitSiteId(projectId, siteId);
-      if (updated === 0) {
+  try {
+    return await WebsiteIntegrationModel.transaction(async (trx) => {
+      const project = await ProjectModel.findRybbitSiteIdByIdForUpdate(
+        projectId,
+        trx,
+      );
+      if (!project) {
         throw new RybbitIntegrationError(
           404,
           "PROJECT_NOT_FOUND",
           "Website project not found",
         );
       }
-    }
-    logger.info(
-      `[Rybbit] Integration already provisioned (${siteId}) for project ${projectId}, skipping`,
-    );
-    return siteId;
-  }
 
-  if (project.rybbit_site_id) {
-    const siteId = String(project.rybbit_site_id);
-    await persistRybbitSite(projectId, siteId, existingIntegration);
-    logger.info(
-      `[Rybbit] Existing project site ID registered (${siteId}) for project ${projectId}`,
-    );
-    return siteId;
-  }
+      const existingIntegration =
+        await WebsiteIntegrationModel.findByProjectAndPlatform(
+          projectId,
+          "rybbit",
+          trx,
+        );
+      const existingSiteId = existingIntegration?.metadata?.siteId;
+      if (typeof existingSiteId === "string" && existingSiteId.trim()) {
+        const siteId = existingSiteId.trim();
+        if (project.rybbit_site_id !== siteId) {
+          const updated = await ProjectModel.updateRybbitSiteId(
+            projectId,
+            siteId,
+            trx,
+          );
+          if (updated === 0) {
+            throw new RybbitIntegrationError(
+              404,
+              "PROJECT_NOT_FOUND",
+              "Website project not found",
+            );
+          }
+        }
+        logger.info(
+          `[Rybbit] Integration already provisioned (${siteId}) for project ${projectId}, skipping`,
+        );
+        return siteId;
+      }
 
-  logger.info(`[Rybbit] Creating site for domain: ${domain}`);
-  const siteId = await createProviderSite(domain);
-  await persistRybbitSite(projectId, siteId, existingIntegration);
-  logger.info(`[Rybbit] Site ${siteId} persisted for project ${projectId}`);
-  return siteId;
+      if (project.rybbit_site_id) {
+        const siteId = String(project.rybbit_site_id);
+        await persistRybbitSite(
+          projectId,
+          siteId,
+          existingIntegration,
+          trx,
+        );
+        logger.info(
+          `[Rybbit] Existing project site ID registered (${siteId}) for project ${projectId}`,
+        );
+        return siteId;
+      }
+
+      logger.info(`[Rybbit] Reconciling site for domain: ${domain}`);
+      const siteId = await findOrCreateProviderSite(domain);
+      await persistRybbitSite(
+        projectId,
+        siteId,
+        existingIntegration,
+        trx,
+      );
+      logger.info(`[Rybbit] Site ${siteId} persisted for project ${projectId}`);
+      return siteId;
+    });
+  } catch (error) {
+    if (error instanceof RybbitIntegrationError) throw error;
+    logger.error(
+      { err: error, projectId },
+      "[Rybbit] Failed to persist site assignment",
+    );
+    throw new RybbitIntegrationError(
+      500,
+      "RYBBIT_PERSISTENCE_FAILED",
+      "Failed to save the Rybbit integration",
+    );
+  }
 }
 
 async function requirePreviewProject(projectId: string): Promise<PreviewProject> {
@@ -309,16 +248,17 @@ function getPreviewDomain(project: PreviewProject): string | null {
  *    before anything is provisioned. This gate is intentional: B1 cannot see the
  *    renderer's injected snippet (separate repo), so it cannot assert the snippet
  *    is cookieless / no-PII — enabling is gated on a human verifying that first.
- *  - On-demand, per-project — never a backfill sweep. Each project gets its OWN
- *    Rybbit site id (isolation is inherited from provisionRybbitSite, which mints
- *    a fresh site per domain and dedups on this project's own integration row).
- *  - Idempotent; typed provisioning failures propagate to the controller.
+ *  - On-demand, per-project — never a backfill sweep. Each project maps to its
+ *    unique domain's Rybbit site id; local lookups remain project-scoped.
+ *  - Idempotent under concurrency: a project-row lock serializes callers, and
+ *    exact-domain provider reconciliation recovers an orphan after local rollback.
+ *  - Typed provisioning failures propagate to the controller.
  *  - Reports the ACTUAL persisted state by re-reading the active integration.
  */
 export async function provisionPreviewAnalytics(
   projectId: string,
 ): Promise<PreviewAnalyticsResult> {
-  if (process.env.PREVIEW_ANALYTICS_ENABLED !== "true") {
+  if (!isPreviewAnalyticsEnabled()) {
     logger.info(
       `[Rybbit] Preview analytics gate disabled — skipping project ${projectId}`,
     );

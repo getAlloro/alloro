@@ -1,9 +1,13 @@
 import type { Request, Response } from "express";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import request from "supertest";
 import { RybbitIntegrationError } from "../controllers/admin-websites/feature-services/service.rybbit-integration";
+import { app } from "./helpers/app";
+import { authHeader, superAdminAuthHeader } from "./helpers/auth";
 
 const mocks = vi.hoisted(() => ({
   provisionPreviewAnalytics: vi.fn(),
+  findHighestPrivilegeByUserId: vi.fn(),
 }));
 
 vi.mock(
@@ -13,7 +17,16 @@ vi.mock(
   }),
 );
 
+vi.mock("../models/OrganizationUserModel", () => ({
+  OrganizationUserModel: {
+    findHighestPrivilegeByUserId: mocks.findHighestPrivilegeByUserId,
+  },
+}));
+
 import { provisionRybbitPreview } from "../controllers/admin-websites/WebsiteIntegrationsController";
+
+const ROUTE =
+  "/api/admin/websites/project-1/integrations/rybbit/preview";
 
 function mockResponse(): {
   res: Response;
@@ -115,5 +128,49 @@ describe("provisionRybbitPreview error mapping", () => {
       error: "RYBBIT_PERSISTENCE_FAILED",
       message: "Failed to save the Rybbit integration",
     });
+  });
+});
+
+describe("POST preview analytics route", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.findHighestPrivilegeByUserId.mockResolvedValue({
+      role: "admin",
+      organization_id: 1,
+    });
+  });
+
+  it("returns the disabled result through the callable admin route", async () => {
+    mocks.provisionPreviewAnalytics.mockResolvedValueOnce({
+      enabled: false,
+      provisioned: false,
+      reason: "gate_disabled",
+    });
+
+    const response = await request(app)
+      .post(ROUTE)
+      .set(superAdminAuthHeader());
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      success: true,
+      data: {
+        enabled: false,
+        provisioned: false,
+        reason: "gate_disabled",
+      },
+    });
+    expect(mocks.provisionPreviewAnalytics).toHaveBeenCalledWith("project-1");
+  });
+
+  it("rejects unauthenticated and non-admin callers before the controller", async () => {
+    const unauthenticated = await request(app).post(ROUTE);
+    const nonAdmin = await request(app)
+      .post(ROUTE)
+      .set(authHeader({ email: "user@example.com" }));
+
+    expect(unauthenticated.status).toBe(401);
+    expect(nonAdmin.status).toBe(403);
+    expect(mocks.provisionPreviewAnalytics).not.toHaveBeenCalled();
   });
 });

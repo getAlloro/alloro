@@ -300,6 +300,17 @@ export class ProjectModel extends BaseModel {
   }
 
   /**
+   * Lock the project row while provisioning its external Rybbit site.
+   * Serializes concurrent callers across application processes.
+   */
+  static async findRybbitSiteIdByIdForUpdate(
+    projectId: string,
+    trx: QueryContext,
+  ): Promise<{ rybbit_site_id: string | null } | undefined> {
+    return q.findRybbitSiteIdByIdForUpdateQuery(projectId, trx);
+  }
+
+  /**
    * Preview-provisioning projection: identity + both hostnames + custom domain +
    * lifecycle (status, archived_at). Used to gate + derive the preview domain for
    * on-demand Rybbit provisioning of *.sites.getalloro.com sites.

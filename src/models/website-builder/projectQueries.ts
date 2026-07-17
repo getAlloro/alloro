@@ -357,6 +357,17 @@ export function findRybbitSiteIdByIdQuery(
     .first();
 }
 
+export function findRybbitSiteIdByIdForUpdateQuery(
+  projectId: string,
+  trx: QueryContext,
+): Promise<{ rybbit_site_id: string | null } | undefined> {
+  return table(trx)
+    .select("rybbit_site_id")
+    .where("id", projectId)
+    .forUpdate()
+    .first();
+}
+
 export function findPreviewProvisioningContextByIdQuery(
   projectId: string,
   trx?: QueryContext,

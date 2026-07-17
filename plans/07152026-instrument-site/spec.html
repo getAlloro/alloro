@@ -54,7 +54,7 @@
     <p class="kicker">Alloro Funnel Engine · Stage B (Get Considered) · Feature B1</p>
     <h1>Provision the disabled preview&#8209;analytics foundation</h1>
     <p class="lede">Provision Rybbit analytics for preview sites (<span class="mono">*.sites.getalloro.com</span>) on&#8209;demand — the step that must exist <em>before</em> the renderer can instrument them. <strong>This PR does not measure previews.</strong> It ships <strong>disabled</strong>, and whether the renderer injects safely on a preview host remains <strong>unverified</strong> in a separate repo. The merge scope is only the disabled provisioning foundation; renderer, privacy, and live&#8209;traffic checks are activation preconditions, not waived acceptance claims.</p>
-    <div style="margin-top:22px;"><span class="pill dot">Completed</span></div>
+    <div style="margin-top:22px;"><span class="pill dot">In Progress · Code complete · Layer 2 pending</span></div>
     <div class="meta">
       <span><b>Plan folder:</b> plans/07152026-instrument-site/</span>
       <span><b>Branch:</b> claude/b1-instrument-site → dev/dave</span>
@@ -69,7 +69,7 @@
   <p>B1 is the first disabled foundation needed before Alloro can later show an owner what happened on a preview site. It does not yet provide that evidence, and it does not promise a ranking or a customer (Value&nbsp;#6 — no rank/visibility/guarantee). The owner cannot know a lever worked until the separate renderer and privacy activation checks are complete.</p>
 
   <h2>What — the buildable brick</h2>
-  <p>An admin&#8209;initiated, gated, idempotent action that provisions a Rybbit site for a <strong>preview&#8209;only project</strong> (one without a verified custom domain), reusing the proven <span class="mono">provisionRybbitSite()</span> path. The <em>expectation</em> is that once the active Rybbit integration row exists, the already&#8209;deployed <span class="mono">website-renderer</span> injects its tracking snippet on the preview hostname with no renderer change needed. <strong>That expectation is UNVERIFIED and this spec does not assert it</strong> — the inject condition lives in the <span class="mono">website-renderer</span> repo, which is not checked out on this machine (confirmed by search, 2026&#8209;07&#8209;16). It remains an activation precondition. If it turns out to be false, this PR provisions correctly and instruments nothing — which is why it ships disabled.</p>
+  <p>An admin&#8209;initiated, gated, idempotent action that provisions a Rybbit site for a <strong>preview&#8209;only project</strong> (one without a verified custom domain), reusing the proven <span class="mono">provisionRybbitSite()</span> path. Rev 6 makes that shared path safe under concurrent calls and provider&#8209;success/local&#8209;persistence&#8209;failure: a project&#8209;row lock serializes callers, and an exact&#8209;domain provider lookup adopts an already&#8209;created Rybbit site on retry. The <em>expectation</em> is that once the active Rybbit integration row exists, the already&#8209;deployed <span class="mono">website-renderer</span> injects its tracking snippet on the preview hostname with no renderer change needed. <strong>That expectation is UNVERIFIED and this spec does not assert it</strong> — the inject condition lives in the <span class="mono">website-renderer</span> repo, which is not checked out on this machine (confirmed by search, 2026&#8209;07&#8209;16). It remains an activation precondition. If it turns out to be false, this PR provisions correctly and instruments nothing — which is why it ships disabled.</p>
 
   <div class="warnbar">
     <p style="margin:0"><strong>Load&#8209;bearing scope correction (verified 2026&#8209;07&#8209;15).</strong> The B1 premise named <span class="mono">publicRoutes.ts</span> + <span class="mono">instantWebsiteGenerator.ts</span> as "the inject point." They are not. HTML serving <em>and</em> snippet injection live in a separate <span class="mono">website-renderer</span> repo (header comment <span class="mono">service.rybbit.ts:5</span> — "The renderer owns script injection"; <span class="mono">service.clarity-integration.ts:511</span> — "the renderer injects only <span class="mono">status='active'</span> rows"). This repo only <em>stores</em> the siteId and <em>provisions</em> it. So B1 in this repo = <strong>provision previews so the renderer instruments them</strong>, not "inject the snippet here."</p>
@@ -88,7 +88,9 @@
     <tr><td>Route</td><td><span class="mono">src/routes/admin/websites/integrations.routes.ts</span></td><td>Add <span class="mono">POST /:id/integrations/rybbit/preview</span> (before the <span class="mono">/:integrationId</span> matcher), guarded by the existing <span class="mono">...adminGscAuth</span> stack.</td><td>§7.2, §11.1</td></tr>
     <tr><td>Controller</td><td><span class="mono">WebsiteIntegrationsController.ts</span></td><td>Add thin <span class="mono">provisionRybbitPreview</span> — reads <span class="mono">req.params.id</span>, calls the service, returns via <span class="mono">ok()/failRybbitError()</span>. No DB, no logic.</td><td>§7.3, §8.1</td></tr>
     <tr><td>Service</td><td><span class="mono">feature-services/service.rybbit.ts</span></td><td>Add <span class="mono">provisionPreviewAnalytics(projectId)</span>: env gate → load project projection → guards → derive preview domain → reuse <span class="mono">provisionRybbitSite()</span> → re&#8209;read siteId → return structured result.</td><td>§6.1, §7.1</td></tr>
-    <tr><td>Model</td><td><span class="mono">website-builder/projectQueries.ts</span> + <span class="mono">ProjectModel.ts</span></td><td>Add <span class="mono">findPreviewProvisioningContextById</span> projection (<span class="mono">id, hostname, generated_hostname, custom_domain, status, archived_at</span>).</td><td>§7.4</td></tr>
+    <tr><td>Config</td><td><span class="mono">src/config/rybbit.ts</span></td><td>Centralize lazy provisioning config and the fail&#8209;closed preview gate; services do not read secrets directly.</td><td>§14.3</td></tr>
+    <tr><td>Provider client</td><td><span class="mono">feature-services/service.rybbit-provider.ts</span></td><td>List the organization’s Rybbit sites and reconcile by exact normalized domain before POSTing a new site. A retry after local rollback adopts the provider site instead of duplicating it.</td><td>§3.2, §7.1</td></tr>
+    <tr><td>Model</td><td><span class="mono">website-builder/projectQueries.ts</span> + <span class="mono">ProjectModel.ts</span></td><td>Add <span class="mono">findPreviewProvisioningContextById</span> plus <span class="mono">findRybbitSiteIdByIdForUpdate</span>; the latter locks one project row during provider reconciliation and local persistence.</td><td>§7.4, §10.5</td></tr>
   </table>
 
   <h3>The behavior, precisely</h3>
@@ -102,13 +104,17 @@
   3. previewHost = (hostname ?? generated_hostname)
         -> missing          -> { enabled:true, provisioned:false, reason:"no_hostname" }
         previewDomain = `${previewHost}.sites.getalloro.com`
-  4. provisionRybbitSite(projectId, previewDomain)     // REUSE — idempotent, typed failures
+  4. provisionRybbitSite(projectId, previewDomain)
+        -> transaction + SELECT ... FOR UPDATE on the project row
+        -> re-read both local site-id sources under the lock
+        -> if neither exists, GET the Rybbit organization sites and match exact domain
+        -> no match -> POST one provider site; match -> adopt it (retry recovery)
         -> provider failure -> throw RYBBIT_PROVIDER_ERROR (HTTP 502)
-        -> save project + integration together in one DB transaction
+        -> save project + integration in the same transaction
   5. Re-read the active integration row (report ACTUAL state, never assumed)
         -> siteId present   -> { enabled:true, provisioned:true, siteId, previewDomain }
         -> still null        -> throw RYBBIT_PERSISTENCE_FAILED (HTTP 500)</pre>
-  <p>Idempotency and per&#8209;tenant site creation are inherited from <span class="mono">provisionRybbitSite()</span>. Provider, project&#8209;missing, and persistence failures are now typed and reach the endpoint as non&#8209;200 responses. The two local rows commit or roll back together (§10.5).</p>
+  <p>Idempotency is now explicit rather than assumed. The project row lock serializes concurrent callers across application processes. Exact&#8209;domain provider reconciliation recovers a Rybbit site left behind when the provider succeeded but the local transaction rolled back, so retry does not POST a duplicate. Provider, project&#8209;missing, and persistence failures are typed and reach the endpoint as non&#8209;200 responses. The two local rows commit or roll back together (§10.5).</p>
 
   <h2>The signal — tied to the funnel finish line</h2>
   <table>
@@ -138,7 +144,7 @@
 
   <div class="card">
     <h3>2 · Per&#8209;tenant isolation — each site gets its OWN siteId</h3>
-    <p><span class="mono">provisionRybbitSite()</span> POSTs a fresh Rybbit site per domain and its dedup check reads only <em>this</em> project's integration row (<span class="mono">findByProjectAndPlatform(projectId, "rybbit")</span>). One practice's traffic cannot land in another's analytics because siteIds are never shared across projects. <strong>Proven by test:</strong> provisioning project A then project B yields two distinct siteIds, and A's row is never mutated by B's call.</p>
+    <p><span class="mono">provisionRybbitSite()</span> locks and reads only <em>this</em> project's local rows, while provider reconciliation matches the project's exact unique hostname/domain. One practice's traffic cannot land in another's analytics because different project domains do not reconcile to the same provider site. <strong>Proven by test:</strong> provisioning project A then project B yields two distinct siteIds, and A's row is never mutated by B's call.</p>
   </div>
 
   <div class="card">
@@ -161,7 +167,7 @@
   <ul>
     <li><span class="sec">Destructive schema change:</span> none — no migration.</li>
     <li><span class="sec">Data rewrite / backfill:</span> none — on&#8209;demand per project, explicitly no sweep.</li>
-    <li><span class="sec">Long lock:</span> none — single&#8209;row read + the existing provisioning writes.</li>
+    <li><span class="sec">Long lock:</span> one project row is deliberately locked while the provider list/create call runs. This holds a DB connection across external I/O, but the endpoint is admin&#8209;only, on&#8209;demand, and disabled by default; the bounded lock is the schema&#8209;free mechanism that serializes callers across app processes. Provider timeouts remain the operational backstop.</li>
     <li><span class="sec">Irreversible:</span> no — un&#8209;provision by clearing the row/siteId; Rybbit site can be deleted admin&#8209;side.</li>
     <li><span class="sec">Dev&#8209;only assumption:</span> none — the same production provisioning path is used, with typed failure propagation and atomic local persistence added in Rev 4.</li>
   </ul>
@@ -179,9 +185,10 @@
     <li><strong>Tests</strong> (stub <span class="mono">fetch</span>): gate&#8209;off provisions nothing; gate&#8209;on + LIVE preview provisions (sets siteId + active row); idempotent second call; per&#8209;tenant isolation (A ≠ B, A untouched by B); archived / non&#8209;LIVE / no&#8209;hostname guards; no live beacon fired.</li>
     <li><strong>Gates:</strong> <span class="mono">npx tsc --noEmit</span>, <span class="mono">npm test</span>, <span class="mono">npm run check:conventions --strict</span> all green (Node 22).</li>
     <li><strong>Adversary:</strong> cross&#8209;model <span class="mono">alloro-proof</span> aimed at PII leakage, cross&#8209;tenant siteId mixing, test traffic reaching prod. Fix findings; re&#8209;verify.</li>
-    <li><strong>Acceptance artifact (Rev 3, superseded by Rev 4):</strong> the first artifact mixed disabled&#8209;foundation acceptance with three activation checks. Rev 4 narrows merge acceptance to the canonical internal&#8209;only N/A item and keeps renderer/privacy/live checks as unwaived activation preconditions. (§20.5)</li>
+    <li><strong>Acceptance artifact (Rev 3/4, superseded by Rev 6):</strong> the first artifact mixed disabled&#8209;foundation acceptance with three activation checks; Rev 4 then incorrectly replaced the mounted endpoint with an internal&#8209;only N/A item. Rev 6 records the real disabled response and auth boundary as pending callable&#8209;route checks while keeping renderer/privacy/live checks as unwaived activation preconditions. (§20.5)</li>
     <li><strong>(Rev 4) Review remediation:</strong> propagate typed project/provider/persistence failures to the endpoint; save the project + integration rows in one model&#8209;owned transaction; add rollback and HTTP status tests; narrow merge acceptance to the provably disabled internal foundation. Keep renderer, privacy, and live&#8209;traffic checks as explicit activation blockers with no waiver. (§3.2, §8.1, §8.4, §10.5, §20.5)</li>
     <li><strong>(Rev 5) Keystone follow&#8209;up:</strong> merge #158 follow&#8209;up <span class="mono">74c1f4eda</span> on top of <span class="mono">9ab895c</span>, preserving #158's newest shared funnel spec and its modifier/adverb negation bypass coverage. Re&#8209;run every #169 verification gate against the combined head.</li>
+    <li><strong>(Rev 6) Concurrency, recovery, and real acceptance:</strong> lock the project row before checking either local site&#8209;id source; reconcile the provider by exact domain before creation; prove simultaneous callers create one provider site and both succeed; prove a provider success followed by local rollback is adopted on retry without a second POST; exercise the disabled response and auth boundary through the mounted Express route; replace the false internal&#8209;only N/A receipt with callable API items. (§3.2, §10.5, §11.1, §20.2, §20.5)</li>
   </ol>
 
   <h2>Done</h2>
@@ -197,9 +204,11 @@
     <li>PR opened to <span class="mono">dev/dave</span> (never pushed direct). Tracker updated B1 → done.</li>
     <li><strong>(Rev 4)</strong> Missing projects return HTTP 404; provider failures return HTTP 502; persistence failures return HTTP 500. No failure is converted into a success envelope.</li>
     <li><strong>(Rev 4)</strong> Project and integration persistence runs in one transaction, with rollback proven at the model seam when the second write fails (§10.5).</li>
-    <li><strong>(Rev 4)</strong> Acceptance is the canonical internal&#8209;only N/A item because <span class="mono">PREVIEW_ANALYTICS_ENABLED</span> is absent from every shipped environment/workflow/config and the foundation has no enabled runtime behavior. Layer 1 tests prove the disabled gate and code paths (§20.5).</li>
+    <li><strong>(Rev 6, supersedes Rev 4’s N/A claim)</strong> Acceptance contains real API checks for the mounted disabled response and the unauthenticated/non&#8209;admin boundary. They remain pending until run against a branch runtime; Layer 1 Supertest coverage does not get mislabeled as Layer 2 (§20.5).</li>
     <li><strong>(Rev 4)</strong> The renderer snippet check, no&#8209;PII/cookieless audit, privacy&#8209;policy decision, and live preview observation remain mandatory <strong>before activation</strong>. They are not passed, waived, or represented as part of this merge.</li>
     <li><strong>(Rev 5)</strong> Both required #158 fixes are present as LagDave&#8209;authored merge commits, #158's newest shared spec and acceptance artifact match <span class="mono">74c1f4eda</span> byte&#8209;for&#8209;byte, and focused plus full verification passes on the resulting combined head.</li>
+    <li><strong>(Rev 6)</strong> Concurrent calls for one project serialize and create one provider site; provider success followed by local persistence failure rolls back both local rows, and retry adopts the existing provider site without another POST.</li>
+    <li><strong>(Rev 6)</strong> Focused Rybbit service + mounted&#8209;route tests pass <strong>27/27 across 2 files</strong>; the full backend suite passes <strong>1,246/1,246 across 68 files</strong>; <span class="mono">npx tsc --noEmit</span> and <span class="mono">npm run check:conventions -- --strict</span> both exit 0 with 0 clear structural violations.</li>
   </ul>
 
   <h2>Named follow-on (a tracked brick, not a dropped intent)</h2>
@@ -245,9 +254,15 @@
       <p><strong>Reason:</strong> Scope addition: #159 and later stacked work depend on #158's corrected safety behavior, so #169 must be verified against the full required keystone state rather than the superseded intermediate commit.</p>
       <p><strong>Updated Done criteria:</strong> both #158 fixes are included through LagDave&#8209;authored merge commits; the newest #158 shared artifacts match <span class="mono">74c1f4eda</span> byte&#8209;for&#8209;byte; focused #158/#169 tests, the full suite, TypeScript, strict conventions, lint, and dependency checks all pass on the final combined head. Activation blockers and the no&#8209;waiver privacy record remain unchanged.</p>
     </article>
+    <article class="revision-entry">
+      <h3>Rev 6 — 2026-07-17</h3>
+      <p><strong>Change:</strong> Closed the shared provisioning race and orphan&#8209;retry gap. <span class="mono">provisionRybbitSite()</span> now opens one model&#8209;owned transaction, locks the project row with <span class="mono">SELECT … FOR UPDATE</span>, re&#8209;reads both local site&#8209;id sources under that lock, and then persists both local rows in the same transaction. A dedicated provider client uses Rybbit’s documented <span class="mono">GET /api/organizations/:organizationId/sites</span> response to find an exact normalized domain before calling the existing POST endpoint. If Rybbit succeeds and local persistence fails, the provider site remains discoverable and the retry adopts it; it does not create a second site. Tests now cover simultaneous calls, rollback plus retry, the mounted route’s disabled response, and its authentication/super&#8209;admin boundary. The false internal&#8209;only N/A acceptance item was removed and replaced by two real callable&#8209;route API checks.</p>
+      <p><strong>Reason:</strong> Review remediation: sequential local idempotency did not protect concurrent requests, and a provider success followed by a local rollback orphaned a site that the next call duplicated. The mounted POST route also made the N/A acceptance claim factually wrong.</p>
+      <p><strong>Updated Done criteria:</strong> one project&#8209;scoped provider creation under concurrent calls; provider orphan adopted on retry after local rollback; focused tests pass <strong>27/27 across 2 files</strong>; the full backend suite passes <strong>1,246/1,246 across 68 files</strong>; TypeScript and strict conventions exit 0 with 0 clear structural violations; <code>test-results.json</code> contains disabled&#8209;response and auth&#8209;boundary API items with a canonical <strong>Not Run</strong> rollup until a real branch runtime executes them. Renderer/privacy/live&#8209;traffic activation blockers remain unchanged and unwaived.</p>
+    </article>
   </section>
 
-  <footer>Alloro · Code Constitution cited inline (§6.1, §7.1–7.4, §8.1, §9.1, §11.1, §13.1). Build in Dave's style; PR to dev/dave; Dave reviews + merges.</footer>
+  <footer>Alloro · Code Constitution cited inline (§3.2, §6.1, §7.1–7.4, §8.1, §9.1, §10.5, §11.1, §14.3, §20.2, §20.5). Build in Dave's style; PR to dev/dave; Dave reviews + merges.</footer>
 
 </main>
 </body>

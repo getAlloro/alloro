@@ -31,6 +31,8 @@ const integrationByProject = new Map<
   MockIntegration
 >();
 const transactionContext = { name: "test-transaction" };
+let transactionTail = Promise.resolve();
+const providerSites: Array<{ siteId: string; domain: string }> = [];
 
 const findPreviewProvisioningContextById = vi.fn<
   (projectId: string) => Promise<
@@ -47,8 +49,8 @@ const findPreviewProvisioningContextById = vi.fn<
   >
 >();
 
-const findRybbitSiteIdById = vi.fn(
-  async (projectId: string, _trx?: unknown) => ({
+const findRybbitSiteIdByIdForUpdate = vi.fn(
+  async (projectId: string, _trx: unknown) => ({
     rybbit_site_id: rybbitSiteIdByProject.get(projectId) ?? null,
   }),
 );
@@ -108,6 +110,13 @@ function restoreMap<K, V>(target: Map<K, V>, snapshot: Map<K, V>): void {
 
 const transaction = vi.fn(
   async <T>(callback: (trx: typeof transactionContext) => Promise<T>) => {
+    const previous = transactionTail;
+    let releaseTransaction: () => void = () => undefined;
+    transactionTail = new Promise<void>((resolve) => {
+      releaseTransaction = resolve;
+    });
+    await previous;
+
     const projectSnapshot = new Map(rybbitSiteIdByProject);
     const integrationSnapshot = new Map(integrationByProject);
     try {
@@ -116,6 +125,8 @@ const transaction = vi.fn(
       restoreMap(rybbitSiteIdByProject, projectSnapshot);
       restoreMap(integrationByProject, integrationSnapshot);
       throw error;
+    } finally {
+      releaseTransaction();
     }
   },
 );
@@ -123,7 +134,7 @@ const transaction = vi.fn(
 vi.mock("../models/website-builder/ProjectModel", () => ({
   ProjectModel: {
     findPreviewProvisioningContextById,
-    findRybbitSiteIdById,
+    findRybbitSiteIdByIdForUpdate,
     updateRybbitSiteId,
   },
 }));
@@ -141,22 +152,32 @@ vi.mock("../lib/logger", () => ({
   default: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
-// Rybbit's site-create endpoint is stubbed so no test ever creates a real site.
-// The stub echoes a siteId derived from the requested domain, so distinct
-// preview hostnames deterministically get distinct siteIds.
-const fetchMock = vi.fn(
-  async (_url: string, opts: { body: string }) => {
-    const body = JSON.parse(opts.body) as { domain: string };
-    return {
-      ok: true,
-      status: 200,
-      json: async (): Promise<{ siteId?: string }> => ({
-        siteId: `site-${body.domain}`,
-      }),
-      text: async () => "",
-    };
-  },
-);
+// Rybbit's organization-site list/create endpoints are stubbed so no test ever
+// reaches the provider. Provider state survives a local transaction rollback,
+// matching the real failure boundary.
+function jsonResponse(payload: unknown, status = 200): Response {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    json: async () => payload,
+  } as Response;
+}
+
+async function defaultProviderFetch(
+  _url: string,
+  opts: RequestInit,
+): Promise<Response> {
+  if (opts.method === "GET") {
+    return jsonResponse({ sites: [...providerSites] });
+  }
+
+  const body = JSON.parse(String(opts.body)) as { domain: string };
+  const siteId = `site-${body.domain}`;
+  providerSites.push({ siteId, domain: body.domain });
+  return jsonResponse({ siteId }, 201);
+}
+
+const fetchMock = vi.fn(defaultProviderFetch);
 
 async function loadService() {
   return import(
@@ -178,6 +199,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   rybbitSiteIdByProject.clear();
   integrationByProject.clear();
+  providerSites.length = 0;
+  transactionTail = Promise.resolve();
+  fetchMock.mockImplementation(defaultProviderFetch);
   vi.stubGlobal("fetch", fetchMock);
   process.env.RYBBIT_API_URL = "http://rybbit.test";
   process.env.RYBBIT_API_KEY = "test-key";
@@ -250,9 +274,24 @@ describe("provisionPreviewAnalytics — happy path", () => {
 
     await provisionPreviewAnalytics("proj-a");
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [, opts] = fetchMock.mock.calls[0];
-    const body = JSON.parse(opts.body);
+    const postCall = fetchMock.mock.calls.find(
+      ([, opts]) => opts.method === "POST",
+    );
+    expect(postCall).toBeDefined();
+    expect(
+      fetchMock.mock.calls.map(([url, opts]) => [url, opts.method]),
+    ).toEqual([
+      [
+        "http://rybbit.test/api/organizations/test-org/sites",
+        "GET",
+      ],
+      [
+        "http://rybbit.test/api/organizations/test-org/sites",
+        "POST",
+      ],
+    ]);
+    const [, opts] = postCall as [string, RequestInit];
+    const body = JSON.parse(String(opts.body));
     // The payload carries the domain (+ name/blockBots) and nothing patient-identifying.
     expect(body.domain).toBe("smiles-of-austin-123.sites.getalloro.com");
     expect(Object.keys(body).sort()).toEqual(["blockBots", "domain", "name"]);
@@ -283,9 +322,41 @@ describe("provisionPreviewAnalytics — idempotency", () => {
     expect(first.provisioned).toBe(true);
     expect(second.provisioned).toBe(true);
     expect(second.siteId).toBe(first.siteId);
-    // Only ONE beacon across both calls — the second short-circuits on the existing id.
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    // One provider lookup + one creation. The repeat call short-circuits locally.
+    expect(
+      fetchMock.mock.calls.filter(([, opts]) => opts.method === "POST"),
+    ).toHaveLength(1);
     expect(createIntegration).toHaveBeenCalledTimes(1);
+  });
+
+  it("serializes concurrent calls and creates only one provider site", async () => {
+    findPreviewProvisioningContextById.mockResolvedValue(LIVE_PREVIEW);
+    const { provisionPreviewAnalytics } = await loadService();
+
+    const [first, second] = await Promise.all([
+      provisionPreviewAnalytics("proj-a"),
+      provisionPreviewAnalytics("proj-a"),
+    ]);
+
+    expect(first.siteId).toBe(second.siteId);
+    expect(first.provisioned).toBe(true);
+    expect(second.provisioned).toBe(true);
+    expect(
+      fetchMock.mock.calls.filter(([, opts]) => opts.method === "POST"),
+    ).toHaveLength(1);
+    expect(providerSites).toHaveLength(1);
+    expect(createIntegration).toHaveBeenCalledTimes(1);
+    expect(transaction).toHaveBeenCalledTimes(2);
+    expect(findRybbitSiteIdByIdForUpdate).toHaveBeenNthCalledWith(
+      1,
+      "proj-a",
+      transactionContext,
+    );
+    expect(findRybbitSiteIdByIdForUpdate).toHaveBeenNthCalledWith(
+      2,
+      "proj-a",
+      transactionContext,
+    );
   });
 });
 
@@ -451,12 +522,11 @@ describe("provisionPreviewAnalytics — active-row invariant (no false success)"
 
   it("throws a typed provider error when Rybbit returns no site ID", async () => {
     findPreviewProvisioningContextById.mockResolvedValue(LIVE_PREVIEW);
-    fetchMock.mockImplementationOnce(async () => ({
-      ok: true,
-      status: 200,
-      json: async () => ({}),
-      text: async () => "",
-    }));
+    fetchMock.mockImplementation(async (_url, opts) =>
+      opts.method === "GET"
+        ? jsonResponse({ sites: [] })
+        : jsonResponse({}, 201),
+    );
     const { provisionPreviewAnalytics } = await loadService();
 
     await expect(provisionPreviewAnalytics("proj-a")).rejects.toMatchObject({
@@ -467,14 +537,45 @@ describe("provisionPreviewAnalytics — active-row invariant (no false success)"
     expect(integrationByProject.has("proj-a")).toBe(false);
   });
 
+  it("fails closed when the provider site list is malformed", async () => {
+    findPreviewProvisioningContextById.mockResolvedValue(LIVE_PREVIEW);
+    fetchMock.mockResolvedValue(jsonResponse({ unexpected: [] }));
+    const { provisionPreviewAnalytics } = await loadService();
+
+    await expect(provisionPreviewAnalytics("proj-a")).rejects.toMatchObject({
+      status: 502,
+      code: "RYBBIT_PROVIDER_INVALID_RESPONSE",
+    });
+    expect(
+      fetchMock.mock.calls.filter(([, opts]) => opts.method === "POST"),
+    ).toHaveLength(0);
+    expect(rybbitSiteIdByProject.has("proj-a")).toBe(false);
+    expect(integrationByProject.has("proj-a")).toBe(false);
+  });
+
+  it("fails with typed 503 before provider I/O when configuration is absent", async () => {
+    findPreviewProvisioningContextById.mockResolvedValue(LIVE_PREVIEW);
+    delete process.env.RYBBIT_API_URL;
+    delete process.env.RYBBIT_API_KEY;
+    delete process.env.RYBBIT_ORG_ID;
+    const { provisionPreviewAnalytics } = await loadService();
+
+    await expect(provisionPreviewAnalytics("proj-a")).rejects.toMatchObject({
+      status: 503,
+      code: "RYBBIT_PROVIDER_UNAVAILABLE",
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(rybbitSiteIdByProject.has("proj-a")).toBe(false);
+    expect(integrationByProject.has("proj-a")).toBe(false);
+  });
+
   it("throws a typed provider error when Rybbit returns non-2xx", async () => {
     findPreviewProvisioningContextById.mockResolvedValue(LIVE_PREVIEW);
-    fetchMock.mockImplementationOnce(async () => ({
-      ok: false,
-      status: 503,
-      json: async () => ({}),
-      text: async () => "provider unavailable",
-    }));
+    fetchMock.mockImplementation(async (_url, opts) =>
+      opts.method === "GET"
+        ? jsonResponse({ sites: [] })
+        : jsonResponse({}, 503),
+    );
     const { provisionPreviewAnalytics } = await loadService();
 
     await expect(provisionPreviewAnalytics("proj-a")).rejects.toMatchObject({
@@ -485,7 +586,7 @@ describe("provisionPreviewAnalytics — active-row invariant (no false success)"
     expect(integrationByProject.has("proj-a")).toBe(false);
   });
 
-  it("rolls back the project write when the integration write fails", async () => {
+  it("rolls back local writes and adopts the provider site on retry", async () => {
     findPreviewProvisioningContextById.mockResolvedValue(LIVE_PREVIEW);
     createIntegration.mockRejectedValueOnce(new Error("insert failed"));
     const { provisionPreviewAnalytics } = await loadService();
@@ -502,5 +603,23 @@ describe("provisionPreviewAnalytics — active-row invariant (no false success)"
     );
     expect(rybbitSiteIdByProject.has("proj-a")).toBe(false);
     expect(integrationByProject.has("proj-a")).toBe(false);
+
+    const retry = await provisionPreviewAnalytics("proj-a");
+
+    expect(retry).toMatchObject({
+      provisioned: true,
+      siteId: "site-smiles-of-austin-123.sites.getalloro.com",
+    });
+    expect(
+      fetchMock.mock.calls.filter(([, opts]) => opts.method === "POST"),
+    ).toHaveLength(1);
+    expect(
+      fetchMock.mock.calls.filter(([, opts]) => opts.method === "GET"),
+    ).toHaveLength(2);
+    expect(providerSites).toHaveLength(1);
+    expect(rybbitSiteIdByProject.get("proj-a")).toBe(retry.siteId);
+    expect(integrationByProject.get("proj-a")?.metadata?.siteId).toBe(
+      retry.siteId,
+    );
   });
 });

@@ -1,19 +1,39 @@
 {
   "plan": "plans/07152026-instrument-site",
   "generatedAt": "2026-07-17",
-  "status": "Passed",
-  "notes": "Merge scope is the disabled internal provisioning foundation only. PREVIEW_ANALYTICS_ENABLED is absent from shipped environment templates, workflows, and config, so no preview analytics behavior is enabled by this PR. Renderer injection, the no-PII/cookieless audit, the privacy-policy decision, and a live preview observation remain mandatory activation preconditions. They are not passed or waived here.",
+  "status": "Not Run",
+  "notes": "Layer 2 now reflects the mounted POST route instead of claiming the feature has no behavioral surface. The two API checks are pending until a branch runtime can be called safely. Layer 1 evidence at the exact pre-commit worktree state: focused Rybbit service + mounted-route tests passed 27/27 across 2 files; the full backend suite passed 1,246/1,246 across 68 files; TypeScript and strict conventions exited 0 with 0 clear structural violations. That evidence is not substituted for running-app Layer 2 proof. Renderer injection, the no-PII/cookieless audit, the privacy-policy decision, and a live preview observation remain mandatory activation preconditions; none is passed or waived here.",
   "items": [
     {
-      "id": "T0",
-      "title": "No behavioral surface — verified by Layer 1 tests",
-      "surface": "none",
-      "precondition": "PREVIEW_ANALYTICS_ENABLED remains absent or any value other than the exact string true.",
-      "steps": [],
-      "expected": "The disabled foundation performs no project read, provider call, or persistence until an operator explicitly enables it after the separate renderer and privacy checks.",
-      "status": "pass",
-      "evidence": "At the exact local head before commit: focused #158 safety + #169 Rybbit service/endpoint tests passed 43/43 across 3 files; full backend suite passed 1,241/1,241 across 68 files; npx tsc --noEmit exited 0; strict conventions exited 0 with 0 clear structural violations; ESLint exited 0 with 0 errors (2,382 pre-existing warnings); dependency-cruiser exited 0 with 0 errors (38 advisory warnings). Source/config search confirms PREVIEW_ANALYTICS_ENABLED is not set by any shipped environment template, workflow, or config.",
-      "notes": "Layer 1 proves the fail-closed gate, typed 404/500/502 failures, and atomic rollback. This N/A item does not approve activation and grants no privacy waiver.",
+      "id": "T1",
+      "title": "Disabled preview provisioning returns the canonical route response",
+      "surface": "api",
+      "precondition": "Run this branch in a safe environment with PREVIEW_ANALYTICS_ENABLED absent or not equal to the exact string true, and authenticate as a super-admin.",
+      "steps": [
+        "POST /api/admin/websites/{projectId}/integrations/rybbit/preview with the super-admin bearer token.",
+        "Capture the HTTP status and JSON body.",
+        "Confirm the selected project and its Rybbit integration state are unchanged."
+      ],
+      "expected": "HTTP 200 with { success:true, data:{ enabled:false, provisioned:false, reason:\"gate_disabled\" } }; no provider site is created and no local Rybbit site id/integration is written.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "Layer 1 route coverage passes through the real Express router and middleware stack, but this item stays pending until the callable branch runtime is exercised.",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Preview provisioning route enforces authentication and super-admin access",
+      "surface": "api",
+      "precondition": "Run this branch in a safe environment with one valid non-super-admin token available.",
+      "steps": [
+        "POST /api/admin/websites/{projectId}/integrations/rybbit/preview with no Authorization header.",
+        "Repeat with a valid non-super-admin bearer token.",
+        "Confirm neither rejected request changes project or integration state."
+      ],
+      "expected": "The unauthenticated request returns HTTP 401; the authenticated non-super-admin request returns HTTP 403; neither reaches provisioning.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "The focused Supertest suite proves the middleware order in-process. This remains pending for Layer 2 because no running branch endpoint was called.",
       "waiver": ""
     }
   ]
