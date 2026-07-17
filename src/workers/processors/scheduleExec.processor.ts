@@ -49,13 +49,18 @@
  *     the schedule would sit due forever and never run again. Advancing changes
  *     the window, which changes the jobId, which releases it.
  *
- * RETRY IDENTITY: the dispatcher stores one logical UTC window/date in job data.
- * This processor also stores the created schedule_runs.id in that same payload.
- * BullMQ retains job data across attempts, so a retry crosses neither a logical
- * date boundary nor a run-row ownership boundary. NAP additionally preflights
- * its persisted (tenant, location, logical date) key before paid measurement:
- * locations that already landed are not paid for again; only failed locations
- * are retried. This is why retry remains opt-in per agent rather than queue-wide.
+ * RETRY IDENTITY: the dispatcher gives each due window a deterministic BullMQ
+ * job id. PostgreSQL stores that id as schedule_runs.logical_run_key under a
+ * unique (schedule_id, logical_run_key) index. BullMQ's runId copy is only a
+ * cache: if Redis updateData fails after the SQL insert, the retry recovers the
+ * same row by logical key instead of treating it as an unrelated active run.
+ * This does not claim cross-store atomicity; it removes the need for it.
+ *
+ * The dispatcher also stores one logical UTC window/date in job data. NAP
+ * preflights its persisted (tenant, location, logical date) key before paid
+ * measurement: locations that already landed are not paid for again; only
+ * failed locations are retried. This is why retry remains opt-in per agent
+ * rather than queue-wide.
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
@@ -145,46 +150,81 @@ interface OwnedRun {
   data: ScheduleExecJobData & AgentRunContext;
 }
 
+function logicalRunKey(
+  job: Job<ScheduleExecJobData>,
+  schedule: ISchedule,
+  data: ScheduleExecJobData & AgentRunContext
+): string {
+  if (job.id !== undefined) return String(job.id);
+  return `sched-${schedule.id}-${new Date(data.logicalRunAt).getTime()}`;
+}
+
+async function resumeOwnedRun(
+  run: IScheduleRun,
+  scheduleId: number,
+  data: ScheduleExecJobData & AgentRunContext
+): Promise<OwnedRun> {
+  if (run.status === "failed") {
+    await ScheduleRunModel.resumeRun(run.id, scheduleId);
+    return { run: { ...run, status: "running" }, data };
+  }
+  return { run, data };
+}
+
 async function resolveOwnedRun(
   job: Job<ScheduleExecJobData>,
   schedule: ISchedule,
   data: ScheduleExecJobData & AgentRunContext
 ): Promise<OwnedRun | null> {
+  const runKey = logicalRunKey(job, schedule, data);
+
   if (data.runId !== undefined) {
-    const ownedRun = await ScheduleRunModel.findRunByIdForSchedule(
+    const cachedRun = await ScheduleRunModel.findRunByIdForSchedule(
       data.runId,
       schedule.id
     );
-    if (!ownedRun) {
+    if (!cachedRun) {
       throw new Error(
         `Schedule job ${job.id ?? "unknown"} cannot find its run ${data.runId} ` +
           `for schedule ${schedule.id}.`
       );
     }
-    if (ownedRun.status === "failed") {
-      await ScheduleRunModel.resumeRun(ownedRun.id, schedule.id);
-      return { run: { ...ownedRun, status: "running" }, data };
-    }
-    // A prior failRun() may have thrown and left this exact row running. It is
-    // ours, identified by the persisted runId, so resume it. Do not apply the
-    // broad active-run no-op to the owning retry (§21.2).
-    return { run: ownedRun, data };
+    const ownedRun = await ScheduleRunModel.claimLogicalRunKey(
+      cachedRun.id,
+      schedule.id,
+      runKey
+    );
+    return resumeOwnedRun(ownedRun, schedule.id, data);
   }
 
-  // First attempt only: a different active row still protects against two
-  // distinct jobs executing the same schedule concurrently.
+  // PostgreSQL is authoritative for ownership. This lookup closes the failure
+  // window where createRun committed but Redis updateData never stored runId.
+  const existing = await ScheduleRunModel.findRunByLogicalKey(
+    schedule.id,
+    runKey
+  );
+  if (existing) {
+    return resumeOwnedRun(existing, schedule.id, data);
+  }
+
+  // A different logical job's active row still protects against two distinct
+  // due windows executing the same schedule concurrently.
   const isRunning = await ScheduleRunModel.hasActiveRun(schedule.id);
   if (isRunning) {
     logger.info(`[SCHEDULE-EXEC] Schedule ${schedule.id} already running — skipping`);
     return null;
   }
 
-  const run = await ScheduleRunModel.createRun(schedule.id);
+  const run = await ScheduleRunModel.createOrFindRunForLogicalJob(
+    schedule.id,
+    runKey
+  );
   const persistedData = await updateJobData(job, { runId: run.id });
-  return {
+  return resumeOwnedRun(
     run,
-    data: persistedData as ScheduleExecJobData & AgentRunContext,
-  };
+    schedule.id,
+    persistedData as ScheduleExecJobData & AgentRunContext
+  );
 }
 
 function attemptState(job: Job<ScheduleExecJobData>): {

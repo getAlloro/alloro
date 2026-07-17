@@ -379,7 +379,7 @@
       ],
       "expected": "The job payload owns one logical window/date. Crossing midnight cannot mint a 2026-07-17 idempotency key, and already-landed locations are no-ops before provider cost rather than ignored only after remeasurement.",
       "status": "pass",
-      "evidence": "src/__tests__/schedule-logical-run-context.test.ts (2/2) + src/__tests__/nap-consistency-retry-idempotency.test.ts (3/3) passed; focused PR run 65/65 and full normal Vitest 66 files / 521 tests passed on Node 22 (2026-07-17).",
+      "evidence": "src/__tests__/schedule-logical-run-context.test.ts (2/2) + src/__tests__/nap-consistency-retry-idempotency.test.ts (3/3) passed; focused PR run 8 files / 72 tests and full normal Vitest 68 files / 528 tests passed on Node 22 (2026-07-17).",
       "notes": "Layer 1 only. The scheduler and executor are real; queues, DB, and provider are mocked/in-memory. This proves the logical date/window and pre-measurement guard, not BullMQ persistence against Redis or PostgreSQL query semantics.",
       "waiver": "",
       "layer": 1
@@ -398,27 +398,48 @@
       ],
       "expected": "The owning retry bypasses the unrelated-active-run guard, resumes its exact row, and completes. A different first-attempt job with no owned runId still respects the active-run concurrency guard.",
       "status": "pass",
-      "evidence": "src/__tests__/schedule-exec-failure-contract.test.ts — 14/14 passed, including the exact two-attempt failRun failure injection and a separate UTC-midnight retry context case; focused PR run 65/65 and full normal Vitest 66 files / 521 tests passed on Node 22 (2026-07-17).",
-      "notes": "Layer 1 only. The processor is real and BullMQ attemptsMade/job-data semantics are represented by a mutable job double; no Redis worker was run. T14/T15 remain pending and this does not change the Layer 2 roll-up.",
+      "evidence": "src/__tests__/schedule-exec-failure-contract.test.ts — 15/15 passed, including the exact two-attempt failRun failure injection and a separate UTC-midnight retry context case; focused PR run 8 files / 72 tests and full normal Vitest 68 files / 528 tests passed on Node 22 (2026-07-17).",
+      "notes": "Layer 1 only. The processor is real and BullMQ attemptsMade/job-data semantics are represented by a mutable job double; no Redis worker was run. T14 is a waived failure and T15 remains pending, so this does not complete Layer 2.",
+      "waiver": "",
+      "layer": 1
+    },
+    {
+      "id": "T26",
+      "title": "A Redis runId-cache failure recovers the same run from PostgreSQL (§10.5 / §21.1 / §21.2)",
+      "surface": "none",
+      "precondition": "Drive the real processScheduleExec twice with one BullMQ job double. The deterministic job id is sched-7-1752537600000. The SQL create seam succeeds, but the first job.updateData call rejects before runId reaches Redis.",
+      "steps": [
+        "Attempt one creates logical run 99 under (schedule_id=7, logical_run_key=sched-7-1752537600000).",
+        "Force job.updateData({runId:99}) to reject and assert attempt one rejects while job.data still has no runId.",
+        "On attempt two, return run 99 from findRunByLogicalKey and make the broad hasActiveRun seam report true.",
+        "Assert attempt two executes and completes run 99, creates no second row, and does not rely on Redis to establish ownership.",
+        "Assert model tests pin ON CONFLICT (schedule_id, logical_run_key), the fallback find, and the two-column lookup.",
+        "Assert migration tests pin the nullable column, resumable unique index, and index-before-column rollback."
+      ],
+      "expected": "PostgreSQL is the durable owner of one BullMQ logical run. A Redis cache write can fail without stranding the SQL row or requiring cross-store atomicity.",
+      "status": "pass",
+      "evidence": "src/__tests__/schedule-exec-failure-contract.test.ts + schedule-run-logical-ownership-model.test.ts + schedule-run-logical-key-migration.test.ts — 3 files / 21 tests passed; focused PR run 8 files / 72 tests and full normal Vitest 68 files / 528 tests passed on Node 22 (2026-07-17).",
+      "notes": "Layer 1 only. The processor and model code are real, while Redis/PostgreSQL are represented by injected seams. This proves recovery logic and query/migration shape, not live cross-store behaviour. T14 carries the explicit PostgreSQL waiver; T15 remains pending.",
       "waiver": "",
       "layer": 1
     },
     {
       "id": "T14",
-      "title": "The migration lands against a real database — and writes no `schedules` row",
+      "title": "The migrations land against a real PostgreSQL database",
       "surface": "cli",
       "precondition": "Merge to dev/dave and let the deploy run npm run db:migrate against the dev database.",
       "steps": [
-        "Run the migration against dev.",
+        "Run both PR migrations against dev.",
         "Confirm nap_consistency_observation exists with the expected columns, unique index and FKs.",
         "Confirm NO schedules row for agent_key 'nap_consistency' was created by the migration.",
-        "Confirm the migration re-runs cleanly against the now-partial state (resumability)."
+        "Confirm schedule_runs.logical_run_key exists and its unique (schedule_id, logical_run_key) index supports the model's ON CONFLICT target.",
+        "Confirm the migrations re-run cleanly against the now-partial state (resumability)."
       ],
-      "expected": "The table is created; `schedules` is untouched; no error.",
-      "status": "pending",
-      "evidence": "",
-      "notes": "HONESTLY NOT RUN — and note the changed shape at Rev 6: with the seed removed there is no longer a seed-insert to verify, so this item now verifies real DDL plus the ABSENCE of a schedules write. Every migration proof in this file (T10-T13) asserts SHAPE via a mocked knex — they prove which knex calls are made, NOT that the DDL is valid PostgreSQL. This is the post-merge dev smoke test named in the get-found chain merge brief. It must NOT be marked pass until someone runs it against dev.",
-      "waiver": "",
+      "expected": "Both additive migrations run; `schedules` is untouched; the logical-run conflict target is accepted by PostgreSQL; no error.",
+      "status": "fail",
+      "evidence": "Not run against PostgreSQL in this review round. Mocked migration/model tests prove code shape only.",
+      "notes": "HONESTLY NOT RUN. With the seed removed there is no schedules insert to verify. T10-T13 and T26 assert shape through mocked Knex seams; they do not prove PostgreSQL DDL, index inference, or deployment locking behaviour.",
+      "waiver": "Dave explicitly waived PostgreSQL results for this PR batch on 2026-07-16. This waiver accepts only the missing live PostgreSQL result; it does not convert the item to pass and does not cover T15's live SerpApi acceptance.",
       "layer": 2
     },
     {
@@ -440,5 +461,5 @@
       "layer": 2
     }
   ],
-  "layerNote": "§20.5 defines this artifact as the Layer 2 acceptance checklist — behavioural validation against the RUNNING app. Every item marked `layer: 1` is a Layer 1 automated-test receipt (vitest, injected seams or mocked collaborators; no network, no Redis and no database); it is listed here for traceability and is NOT behavioural validation. T22 is weaker still: a static code-review receipt, not an executed test — it says so in its notes. T24/T25 prove the stable logical context, pre-measurement idempotency, and owned-run recovery against real application functions with test doubles; they do NOT prove Redis/BullMQ or PostgreSQL at runtime. NO Layer 2 validation has been performed for this plan: both layer-2 items (T14, T15) remain pending and unwaived. The roll-up therefore stays In Progress and must not be read as an accepted feature. Specifically NOT proven anywhere in this file: that the migration's DDL is valid PostgreSQL (T10-T13 assert which knex calls are made, via a mocked knex), that BullMQ persists/retries the job data against Redis, or that a live SerpApi run records correct production data."
+  "layerNote": "§20.5 defines this artifact as the Layer 2 acceptance checklist — behavioural validation against the RUNNING app. Every item marked `layer: 1` is a Layer 1 automated-test receipt (vitest, injected seams or mocked collaborators; no network, no Redis and no database); it is listed here for traceability and is NOT behavioural validation. T22 is weaker still: a static code-review receipt, not an executed test — it says so in its notes. T24/T25/T26 prove stable logical context, pre-measurement idempotency, owned-run recovery, and the exact SQL-success/Redis-cache-failure recovery path against real application functions with test doubles; they do NOT prove Redis/BullMQ or PostgreSQL at runtime. NO Layer 2 validation has been performed for this plan: T14 is fail-with-Dave's explicit PostgreSQL-results waiver, while T15 remains pending and unwaived. The roll-up therefore stays In Progress and must not be read as an accepted feature. Specifically NOT proven anywhere in this file: that either migration's DDL and conflict inference are valid PostgreSQL, that BullMQ persists/retries against Redis, or that a live SerpApi run records correct production data."
 }

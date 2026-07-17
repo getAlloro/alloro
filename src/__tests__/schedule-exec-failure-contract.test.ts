@@ -23,8 +23,10 @@ const {
   findById,
   updateById,
   hasActiveRun,
-  createRun,
+  createOrFindRunForLogicalJob,
+  findRunByLogicalKey,
   findRunByIdForSchedule,
+  claimLogicalRunKey,
   resumeRun,
   completeRun,
   failRun,
@@ -36,8 +38,10 @@ const {
   findById: vi.fn(),
   updateById: vi.fn(),
   hasActiveRun: vi.fn(),
-  createRun: vi.fn(),
+  createOrFindRunForLogicalJob: vi.fn(),
+  findRunByLogicalKey: vi.fn(),
   findRunByIdForSchedule: vi.fn(),
+  claimLogicalRunKey: vi.fn(),
   resumeRun: vi.fn(),
   completeRun: vi.fn(),
   failRun: vi.fn(),
@@ -54,8 +58,11 @@ vi.mock("../models/ScheduleModel", () => ({
   },
   ScheduleRunModel: {
     hasActiveRun: (...a: unknown[]) => hasActiveRun(...a),
-    createRun: (...a: unknown[]) => createRun(...a),
+    createOrFindRunForLogicalJob: (...a: unknown[]) =>
+      createOrFindRunForLogicalJob(...a),
+    findRunByLogicalKey: (...a: unknown[]) => findRunByLogicalKey(...a),
     findRunByIdForSchedule: (...a: unknown[]) => findRunByIdForSchedule(...a),
+    claimLogicalRunKey: (...a: unknown[]) => claimLogicalRunKey(...a),
     resumeRun: (...a: unknown[]) => resumeRun(...a),
     completeRun: (...a: unknown[]) => completeRun(...a),
     failRun: (...a: unknown[]) => failRun(...a),
@@ -84,7 +91,12 @@ const SCHEDULE = {
 };
 
 /** A BullMQ job double carrying only what the processor reads. */
-function makeJob(attemptsMade: number, attempts?: number): Job<{ scheduleId: number }> {
+function makeJob(
+  attemptsMade: number,
+  attempts?: number,
+  updateDataFailures = 0,
+): Job<{ scheduleId: number }> {
+  let remainingUpdateDataFailures = updateDataFailures;
   const job = {
     name: "run-schedule",
     id: "sched-7-1752537600000",
@@ -96,6 +108,10 @@ function makeJob(attemptsMade: number, attempts?: number): Job<{ scheduleId: num
     attemptsMade,
     opts: attempts === undefined ? {} : { attempts },
     async updateData(data: Record<string, unknown>) {
+      if (remainingUpdateDataFailures > 0) {
+        remainingUpdateDataFailures -= 1;
+        throw new Error("Redis updateData unavailable");
+      }
       job.data = data as typeof job.data;
     },
   };
@@ -106,12 +122,27 @@ beforeEach(() => {
   vi.clearAllMocks();
   findById.mockResolvedValue({ ...SCHEDULE });
   hasActiveRun.mockResolvedValue(false);
-  createRun.mockResolvedValue({ id: 99 });
+  createOrFindRunForLogicalJob.mockResolvedValue({
+    id: 99,
+    schedule_id: 7,
+    logical_run_key: "sched-7-1752537600000",
+    status: "running",
+  });
+  findRunByLogicalKey.mockResolvedValue(undefined);
   findRunByIdForSchedule.mockResolvedValue({
     id: 99,
     schedule_id: 7,
+    logical_run_key: "sched-7-1752537600000",
     status: "running",
   });
+  claimLogicalRunKey.mockImplementation(
+    async (_runId: number, _scheduleId: number, logicalRunKey: string) => ({
+      id: 99,
+      schedule_id: 7,
+      logical_run_key: logicalRunKey,
+      status: "running",
+    })
+  );
   getAgentHandler.mockReturnValue({
     displayName: "Citations & NAP Consistency Monitor",
     handler: vi.fn(),
@@ -161,6 +192,45 @@ describe("processScheduleExec — a failing agent must not resolve (§21.2/§3.2
 });
 
 describe("processScheduleExec — retry ownership and logical time (§21.1/§21.2)", () => {
+  it("recovers by PostgreSQL logical key when Redis loses the runId update", async () => {
+    const handler = vi.fn().mockResolvedValue({
+      summary: { recoveredFromPostgres: true },
+    });
+    getAgentHandler.mockReturnValue({ displayName: "x", handler });
+    const job = makeJob(0, 2, 1);
+
+    await expect(processScheduleExec(job)).rejects.toThrow(
+      "Redis updateData unavailable"
+    );
+    expect(job.data).not.toHaveProperty("runId");
+    expect(createOrFindRunForLogicalJob).toHaveBeenCalledWith(
+      7,
+      "sched-7-1752537600000"
+    );
+    expect(handler).not.toHaveBeenCalled();
+
+    findRunByLogicalKey.mockResolvedValue({
+      id: 99,
+      schedule_id: 7,
+      logical_run_key: "sched-7-1752537600000",
+      status: "running",
+    });
+    hasActiveRun.mockResolvedValue(true);
+    job.attemptsMade = 1;
+
+    await expect(processScheduleExec(job)).resolves.toBeUndefined();
+
+    expect(handler).toHaveBeenCalledOnce();
+    expect(createOrFindRunForLogicalJob).toHaveBeenCalledOnce();
+    expect(findRunByLogicalKey).toHaveBeenLastCalledWith(
+      7,
+      "sched-7-1752537600000"
+    );
+    expect(completeRun).toHaveBeenCalledWith(99, {
+      recoveredFromPostgres: true,
+    });
+  });
+
   it("attempt two resumes its own running row when attempt-one failRun bookkeeping also fails", async () => {
     const handler = vi
       .fn()
@@ -179,6 +249,7 @@ describe("processScheduleExec — retry ownership and logical time (§21.1/§21.
     findRunByIdForSchedule.mockResolvedValue({
       id: 99,
       schedule_id: 7,
+      logical_run_key: "sched-7-1752537600000",
       status: "running",
     });
     job.attemptsMade = 1;
@@ -186,8 +257,13 @@ describe("processScheduleExec — retry ownership and logical time (§21.1/§21.
     await expect(processScheduleExec(job)).resolves.toBeUndefined();
 
     expect(handler).toHaveBeenCalledTimes(2);
-    expect(createRun).toHaveBeenCalledOnce();
+    expect(createOrFindRunForLogicalJob).toHaveBeenCalledOnce();
     expect(findRunByIdForSchedule).toHaveBeenCalledWith(99, 7);
+    expect(claimLogicalRunKey).toHaveBeenCalledWith(
+      99,
+      7,
+      "sched-7-1752537600000"
+    );
     expect(resumeRun).not.toHaveBeenCalled();
     expect(completeRun).toHaveBeenCalledWith(99, { recovered: true });
   });
@@ -215,6 +291,13 @@ describe("processScheduleExec — retry ownership and logical time (§21.1/§21.
     findRunByIdForSchedule.mockResolvedValue({
       id: 99,
       schedule_id: 7,
+      logical_run_key: "sched-7-1752537600000",
+      status: "failed",
+    });
+    claimLogicalRunKey.mockResolvedValue({
+      id: 99,
+      schedule_id: 7,
+      logical_run_key: "sched-7-1752537600000",
       status: "failed",
     });
     job.attemptsMade = 1;
@@ -362,12 +445,12 @@ describe("processScheduleExec — the success path is untouched", () => {
   it("still no-ops (resolves) when the schedule is missing or already running", async () => {
     findById.mockResolvedValue(undefined);
     await expect(processScheduleExec(makeJob(0, 3))).resolves.toBeUndefined();
-    expect(createRun).not.toHaveBeenCalled();
+    expect(createOrFindRunForLogicalJob).not.toHaveBeenCalled();
 
     vi.clearAllMocks();
     findById.mockResolvedValue({ ...SCHEDULE });
     hasActiveRun.mockResolvedValue(true);
     await expect(processScheduleExec(makeJob(0, 3))).resolves.toBeUndefined();
-    expect(createRun).not.toHaveBeenCalled();
+    expect(createOrFindRunForLogicalJob).not.toHaveBeenCalled();
   });
 });

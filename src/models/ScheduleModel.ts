@@ -22,6 +22,7 @@ export interface ISchedule {
 export interface IScheduleRun {
   id: number;
   schedule_id: number;
+  logical_run_key: string | null;
   status: "running" | "completed" | "failed";
   started_at: Date;
   completed_at: Date | null;
@@ -110,6 +111,73 @@ export class ScheduleRunModel {
         created_at: new Date(),
       })
       .returning("*");
+    return run;
+  }
+
+  static async findRunByLogicalKey(
+    scheduleId: number,
+    logicalRunKey: string,
+    trx?: QueryContext,
+  ): Promise<IScheduleRun | undefined> {
+    return this.table(trx)
+      .where({
+        schedule_id: scheduleId,
+        logical_run_key: logicalRunKey,
+      })
+      .first();
+  }
+
+  static async createOrFindRunForLogicalJob(
+    scheduleId: number,
+    logicalRunKey: string,
+    trx?: QueryContext,
+  ): Promise<IScheduleRun> {
+    const [created] = await this.table(trx)
+      .insert({
+        schedule_id: scheduleId,
+        logical_run_key: logicalRunKey,
+        status: "running",
+        started_at: new Date(),
+        created_at: new Date(),
+      })
+      .onConflict(["schedule_id", "logical_run_key"])
+      .ignore()
+      .returning("*");
+    if (created) return created;
+
+    const existing = await this.findRunByLogicalKey(
+      scheduleId,
+      logicalRunKey,
+      trx,
+    );
+    if (!existing) {
+      throw new Error(
+        `Could not create or recover logical schedule run ${logicalRunKey}.`
+      );
+    }
+    return existing;
+  }
+
+  static async claimLogicalRunKey(
+    runId: number,
+    scheduleId: number,
+    logicalRunKey: string,
+    trx?: QueryContext,
+  ): Promise<IScheduleRun> {
+    const [run] = await this.table(trx)
+      .where({ id: runId, schedule_id: scheduleId })
+      .where((query) => {
+        query
+          .whereNull("logical_run_key")
+          .orWhere("logical_run_key", logicalRunKey);
+      })
+      .update({ logical_run_key: logicalRunKey })
+      .returning("*");
+    if (!run) {
+      throw new Error(
+        `Schedule run ${runId} is not claimable by logical job ${logicalRunKey}.`
+      );
+    }
     return run;
   }
 
