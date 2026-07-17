@@ -1,12 +1,12 @@
 {
-  "plan": "plans/07142026-alloro-funnel-engine (Slice 1a — get-found)",
-  "generatedAt": "2026-07-16",
+  "plan": "plans/07142026-alloro-funnel-engine",
+  "generatedAt": "2026-07-17",
   "status": "Passed",
   "items": [
     {
       "id": "T1",
       "title": "Schema completeness returns exactly the missing-field set",
-      "surface": "service",
+      "surface": "cli",
       "precondition": "Fixture page carrying a LocalBusiness/Dentist entity with only @type/name/address/telephone",
       "steps": [
         "1. Score the fixture with scoreSchemaCompleteness",
@@ -22,7 +22,7 @@
     {
       "id": "T2",
       "title": "Honesty gate blocks rank/placement/visibility copy without false positives",
-      "surface": "service",
+      "surface": "cli",
       "precondition": "GeneratedCopySafetyService.validateGeneratedCopy run over the rejected and honest copy sets",
       "steps": [
         "1. Submit 14 ranking/placement/visibility promises",
@@ -37,7 +37,7 @@
     {
       "id": "T3",
       "title": "AEO-incomplete gates nothing and never reaches owner-facing copy",
-      "surface": "service",
+      "surface": "cli",
       "precondition": "Checker run on an AEO-incomplete fixture page with honest candidate copy",
       "steps": [
         "1. Assert the internal signal is present",
@@ -53,7 +53,7 @@
     {
       "id": "T4",
       "title": "GBP<->page consistency flag is read-only and skips cleanly without a GBP",
-      "surface": "service",
+      "surface": "cli",
       "precondition": "Checker run with, and without, a supplied GBP identity",
       "steps": [
         "1. Run with gbpIdentity omitted",
@@ -68,7 +68,7 @@
     {
       "id": "T5",
       "title": "Answer-first lint enforces the boundary in document order (review fix)",
-      "surface": "service",
+      "surface": "cli",
       "precondition": "Fixture pages placing a 32-word substantive answer at different document positions",
       "steps": [
         "1. Answer before the first form",
@@ -87,7 +87,7 @@
     {
       "id": "T6",
       "title": "The checker has a production call site in the real per-page audit path",
-      "surface": "worker",
+      "surface": "cli",
       "precondition": "executeTargets invoked with the audit pipeline's collaborators (models, collector, scoring, persistence) mocked",
       "steps": [
         "1. Execute one page target and assert the checker was invoked",
@@ -103,7 +103,7 @@
     {
       "id": "T7",
       "title": "Observability hook emits on a real queued audit run against a live hosted page",
-      "surface": "app",
+      "surface": "cli",
       "precondition": "A running app: Postgres, Redis/BullMQ, the ai-seo-audit worker, and a real hosted practice page",
       "steps": [
         "1. Queue an organization or url_only audit run against a live hosted page",
@@ -120,23 +120,26 @@
     {
       "id": "T8",
       "title": "Repository gates are green with no regression",
-      "surface": "ci",
-      "precondition": "Node 22.23.1 in a clean worktree of claude/slice-1a-get-found",
+      "surface": "cli",
+      "precondition": "Node 20.19.0 in the isolated PR #158 remediation worktree",
       "steps": [
         "1. npx tsc --noEmit",
         "2. npm run check:conventions -- --strict",
-        "3. npm test (full suite)"
+        "3. npx vitest run (full suite)",
+        "4. npm run lint",
+        "5. npm run depcruise",
+        "6. git diff --check"
       ],
       "expected": "tsc exit 0; 0 clear structural violations; the full suite shows no new failures against the pre-change baseline",
       "status": "pass",
-      "evidence": "Round 7, exit codes read directly from each command (never through a pipe). npx tsc --noEmit: exit 0. npm run check:conventions -- --strict: exit 0, 'CLEAR structural violations — backend (size + console + db): 0'. npx vitest run (full suite): exit 0, 64 files / 1189 tests, 0 failures. npm run lint: exit 0 (warn-level advisory baseline, §18). npm run depcruise: exit 0 (38 warnings, advisory baseline, §18; 0 of them in src/services/content-safety/). Baseline on the reviewed head 42d4b6ec was 63 files / 751 tests / exit 0; this round adds +438 (the post-claim disclaimer class, the clausal-'no' class, and the new GBP content-safety unit).",
-      "notes": "check:all is NOT used as the receipt: it chains its steps with ';', so only the last command's exit code survives and a mid-chain failure reads as green. Each gate was run separately and its own exit code recorded. Round 6 also fixed a §2.4 violation it had itself introduced — GeneratedCopySafetyService.ts reached 859 lines, past the ~800 ceiling — by extracting the negation model to claimNegation.ts. §2.4 WATCH: claimNegation.ts is now 794 lines, under the ~800 ceiling but close enough that the next negation rule should extract rather than append.",
+      "evidence": "Round 8, exit codes read directly from each command. Focused remediation suite: exit 0, 6 files / 754 tests. npx vitest run (full suite): exit 0, 66 files / 1210 tests. npx tsc --noEmit: exit 0. npm run check:conventions -- --strict: exit 0, 'CLEAR structural violations — backend (size + console + db): 0'. npm run lint: exit 0, 2,384 warnings / 0 errors (repository advisory baseline). npm run depcruise: exit 0, 38 warnings / 0 errors (repository advisory baseline). git diff --check: exit 0.",
+      "notes": "check:all is not used as the receipt because its shell chaining does not preserve every intermediate exit code. Each gate was run separately. The §2.4 size watch was resolved by extracting the clause-boundary grammar: claimNegation.ts is 664 lines and claimNegationBoundary.ts is 81 lines.",
       "waiver": ""
     },
     {
       "id": "T9",
       "title": "Current GitHub checks attached to the PR",
-      "surface": "ci",
+      "surface": "cli",
       "precondition": "A CI workflow triggering on the claude/slice-1a-get-found branch",
       "steps": [
         "1. Read the PR's check runs",
@@ -151,7 +154,7 @@
     {
       "id": "T10",
       "title": "The two round-5 bypass classes are closed, and the fix is proven non-vacuous",
-      "surface": "service",
+      "surface": "cli",
       "precondition": "GeneratedCopySafetyService.validateGeneratedCopy on the round-6 head, Node 22.23.1",
       "steps": [
         "1. Measure every named bypass against the REVIEWED head (c56797e9) before changing anything",
@@ -167,7 +170,7 @@
     {
       "id": "T11",
       "title": "Round 6 found and fixed 11 defects in its OWN fix before shipping",
-      "surface": "service",
+      "surface": "cli",
       "precondition": "The round-6 fix, attacked in both directions by the author and then by an independent adversary against the already-fixed version",
       "steps": [
         "1. Attack the fix for over-blocks (honest copy wrongly blocked) and under-blocks",
@@ -183,7 +186,7 @@
     {
       "id": "T12",
       "title": "The GBP reply gate routes honesty claims through the shared negation-aware matcher",
-      "surface": "service",
+      "surface": "cli",
       "precondition": "GbpContentSafetyService.validateReviewReply on the round-7 head, Node 22.23.1",
       "steps": [
         "1. Measure honest disclaimers against the REVIEWED head (42d4b6ec) before changing anything",
@@ -200,7 +203,7 @@
     {
       "id": "T13",
       "title": "Post-claim disclaimers are fixed as a CLASS, and a second over-block class was found by attacking the fix",
-      "surface": "service",
+      "surface": "cli",
       "precondition": "GeneratedCopySafetyService.validateGeneratedCopy on the round-7 head, Node 22.23.1",
       "steps": [
         "1. Enumerate the disclaimer space (claim x boundary x denial head) rather than the three strings named in review",
@@ -217,7 +220,7 @@
     {
       "id": "T14",
       "title": "Performance measured, not assumed",
-      "surface": "service",
+      "surface": "cli",
       "precondition": "Node 22.23.1, median of 5 runs after a warm-up, measured on the reviewed head and this head with the same corpus",
       "steps": [
         "1. Time realistic page prose at 5/20/40KB",
@@ -228,6 +231,23 @@
       "status": "pass",
       "evidence": "REALISTIC 20KB page prose: 0.54ms (reviewed head 0.38ms) — linear, negligible. REAL WORKLOAD: a 900-char GBP reply is 0.02-0.1ms; the checker passes individual copy blocks, not whole pages. ADVERSARIAL disclaimer-dense 20KB (a claim match roughly every 20 chars, far denser than real copy): 106ms vs 23ms on the reviewed head — a ~4.5x constant-factor regression on the worst case, named rather than hidden.",
       "notes": "SCALING IS QUADRATIC ON BOTH HEADS AND IS PRE-EXISTING, NOT INTRODUCED HERE: 5/10/20/40KB costs 1.7/6.2/23/92.6ms on the reviewed head and 7/22/106/419ms on this one — the same ~4x-per-doubling curve. Cause: matchesUnnegatedInNormalizedCopy does text.slice(0, match.index) and re-scans for the last boundary ONCE PER MATCH, so cost is O(n*matches). Restructuring it (precompute boundary offsets, binary-search per match) was deliberately NOT attempted this round: the boundary walk is adversary-verified code and a full-text scan is not semantically identical to the per-match truncated scan (a boundary alternative can match differently when the text is cut at the claim), so it needs its own round and its own adversary pass. Two optimizations were applied: the claim slice is hoisted out of the negator loop, and the denial fragment runs a cheap bounded necessary-condition precheck before the backtracking pattern — the precheck is what keeps realistic prose flat, though it cannot help a corpus where a denial genuinely follows every claim.",
+      "waiver": ""
+    },
+    {
+      "id": "T15",
+      "title": "PR #158 exact-head remediation closes all four round-8 findings",
+      "surface": "cli",
+      "precondition": "GeneratedCopySafetyService, GbpContentSafetyService, answer-first lint, and the canonical acceptance receipt on the isolated PR #158 remediation head",
+      "steps": [
+        "1. Run the exact unrelated-negation sentence and predicate-class variants through GeneratedCopySafetyService",
+        "2. Run raw override, raw isolate, and entity-encoded bidi controls through both generated-copy and GBP reply safety services",
+        "3. Run visible-answer, collapsed-answer, and nav/chrome answer-first fixtures",
+        "4. Validate the exact plan path, the ui|api|cli|none surface enum, and the extracted claim-negation file sizes"
+      ],
+      "expected": "Unrelated positive promises block while genuinely shared negation still passes; unsafe bidi controls block before matching; answer_behind_accordion describes only a candidate answer inside collapsed non-chrome content; the §20.5 receipt is canonical and claimNegation.ts stays below the §2.4 ceiling",
+      "status": "pass",
+      "evidence": "src/__tests__/generated-copy-safety.test.ts, src/__tests__/answer-first-structure-lint.test.ts, src/__tests__/copy-normalization.test.ts, and src/__tests__/gbp-content-safety.test.ts passed in the focused 6-file / 754-test run and the full 66-file / 1210-test run. The JSON receipt validator reported the exact plan path, only canonical surface values, and a Passed rollup. wc -l reported claimNegation.ts at 664 lines and claimNegationBoundary.ts at 81 lines.",
+      "notes": "The stacked PR #159 consumer remains compatible at the shared service contract: standard blocked results still carry aligned reasonCodes and reasons, pinned by the generated-copy service test. No PR #159 files or other worktrees were edited. A synthetic merged-stack suite was not run.",
       "waiver": ""
     }
   ]

@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { normalizeForMatching } from "../services/content-safety/copyNormalization";
+import {
+  hasUnsafeBidiControl,
+  normalizeForMatching,
+} from "../services/content-safety/copyNormalization";
 
 /**
  * Unit coverage for the encoding fold that runs before the honesty gate matches
@@ -28,6 +31,20 @@ describe("normalizeForMatching — invisible characters", () => {
 
   it.each(invisible)("removes a %s sitting inside a word", (_label, input) => {
     expect(normalizeForMatching(input)).toBe("guarantee");
+  });
+});
+
+describe("hasUnsafeBidiControl — reject reordering before normalization", () => {
+  it.each([
+    ["override", "g\u202Eeetnarau\u202C"],
+    ["isolate", "g\u2066uarantee\u2069"],
+    ["entity-encoded override", "g&#x202E;eetnarau&#x202C;"],
+  ])("detects a %s as part of the Unicode Bidi_Control class", (_label, input) => {
+    expect(hasUnsafeBidiControl(input)).toBe(true);
+  });
+
+  it("does not reject non-reordering invisible formatting", () => {
+    expect(hasUnsafeBidiControl("guar\u200Bantee")).toBe(false);
   });
 });
 

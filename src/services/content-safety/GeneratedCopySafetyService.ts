@@ -17,7 +17,10 @@
  * in `src/services/`.
  */
 
-import { normalizeForMatching } from "./copyNormalization";
+import {
+  hasUnsafeBidiControl,
+  normalizeForMatching,
+} from "./copyNormalization";
 import { matchesUnnegatedInNormalizedCopy } from "./claimNegation";
 
 export interface ContentSafetyResult {
@@ -280,6 +283,20 @@ export class GeneratedCopySafetyService {
     const byteLength = Buffer.byteLength(trimmed, "utf8");
     const reasons: string[] = [];
     const reasonCodes: string[] = [];
+
+    // Reject before normalization or matching. Bidi overrides/isolates can
+    // reorder what a reader sees; stripping them would inspect a different
+    // logical-order string and can turn a visible claim into harmless text.
+    if (hasUnsafeBidiControl(trimmed)) {
+      return {
+        isSafe: false,
+        status: "blocked",
+        reasonCodes: ["bidirectional_control"],
+        reasons: ["Copy contains bidirectional formatting controls and cannot be matched safely."],
+        byteLength,
+        confidence: BLOCKED_CONFIDENCE,
+      };
+    }
 
     // Normalize ONCE, here, rather than per pattern: the gate runs ~40 patterns
     // and the fold is the same for all of them. `byteLength` stays measured on

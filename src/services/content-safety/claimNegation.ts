@@ -1,3 +1,12 @@
+import {
+  COMMA,
+  DASH_SEPARATOR,
+  GAP,
+  lastNegationScopeBoundaryEnd,
+  LINE_BREAK,
+  NEW_SUBJECT,
+} from "./claimNegationBoundary";
+
 /**
  * The negation model for the honesty gate — the part that decides whether a
  * matched claim is NEGATED (§6.2 top-level shared service).
@@ -125,26 +134,6 @@ const MAX_UNLINKED_WORDS_TO_CLAIM = 1;
 const DETERMINER_NEGATORS = new Set(["no", "without"]);
 
 /**
- * Words that can open a new independent clause's SUBJECT. Pronouns, plus the
- * possessive/demonstrative determiners that head a subject NP ("your practice
- * ranks…"). Deliberately EXCLUDES the bare articles "the"/"a"/"an": those head
- * OBJECT list items far more often than subjects in this copy ("we do not
- * promise rankings, the top spot, or page one"), so admitting them would split
- * an honest coordinated object list.
- *
- * Declared here, above BOTH consumers: Rule D reads it at module-init time to
- * build its skip guard, and the negation-scope boundary reads it further down.
- * One definition, because "what opens a new subject" is one idea — a second copy
- * would drift, and the two uses must agree.
- */
-const NEW_SUBJECT =
-  "(?:we|i|you|he|she|it|they|this|that|these|those|there|our|your|his|her|its|their|alloro|" +
-  // Relative pronouns open a relative clause with its own verb. They are safe to
-  // admit because, unlike a noun, a relative pronoun is never an item in a
-  // coordinated object list, so they cannot split an honest disclaimer's list.
-  "which|who|whom|whose|where|everyone|anyone|nobody)";
-
-/**
  * RULE D — a determiner negator whose NP is the SUBJECT OF A FINITE VERB.
  *
  * Rules A–C ask how far the negator sits from the claim, because a determiner
@@ -197,6 +186,53 @@ const IDIOM_HEAD_WINDOW = 64;
 
 /** Enough characters to see the hyphen and the letter Rule A needs. */
 const COMPOUND_WINDOW = 2;
+
+/**
+ * Ordinary negators still need a governing relationship. A copular denial
+ * cannot silently carry across a coordinator into a separate positive finite
+ * predicate:
+ *
+ *   "This is not complicated and guarantees top placement."
+ *
+ * The `is not complicated` predicate is complete before `guarantees`; the
+ * negation does not reach the promise. This is different from a shared negative
+ * auxiliary ("we do not guarantee rankings or promise page one"), where both
+ * bare verb phrases genuinely remain under `do not`.
+ */
+const COPULAR_NEGATOR_TOKENS = new Set(["isn't", "isnt", "aren't", "arent"]);
+const COPULAR_AUXILIARY_BEFORE_NEGATOR =
+  /\b(?:am|is|are|was|were|be|been|being)(?:\s{1,8}(?:really|simply|actually|necessarily|generally|typically|usually|currently|still|always|ever|even)){0,3}\s{1,8}$/i;
+const COPULAR_COMPLEMENT_AFTER_NEGATOR = /^\s{1,8}be\b/i;
+const COORDINATED_POSITIVE_CLAIM_PREDICATE =
+  /\b(?:and|or|yet)\s{1,8}(?:(?:will|would|can|could|may|might|shall|should|must)\s{1,8})?(?:guarantees?|promises?|ensures?|assures?|delivers?|secures?|gets?|puts?|moves?|ranks?|boosts?|increases?|improves?|shows?|appears?|lands?|places?|features?|dominates?|out-?ranks?)\b/i;
+
+/**
+ * True when an ordinary (non-determiner) negator governs this matched claim.
+ * Clause boundaries have already localized the input. Within that clause,
+ * copular and `avoid` predicates stop before a separately coordinated positive
+ * claim; negative do/modal auxiliaries continue to distribute normally.
+ */
+function ordinaryNegatorGovernsClaim(
+  token: string,
+  clause: string,
+  matchIndex: number,
+  negatorEnd: number,
+  claim: string,
+): boolean {
+  const throughClaim = clause.slice(negatorEnd) + claim;
+  if (!COORDINATED_POSITIVE_CLAIM_PREDICATE.test(throughClaim)) {
+    return true;
+  }
+  if (token === "avoid") {
+    return false;
+  }
+  const beforeNegator = clause.slice(0, matchIndex);
+  const hasCopularFrame =
+    COPULAR_NEGATOR_TOKENS.has(token) ||
+    ((token === "not" || token === "never") && COPULAR_AUXILIARY_BEFORE_NEGATOR.test(beforeNegator)) ||
+    COPULAR_COMPLEMENT_AFTER_NEGATOR.test(clause.slice(negatorEnd));
+  return !hasCopularFrame;
+}
 
 /**
  * Index where the LAST complement link in `clause` starts, or -1. Computed once
@@ -266,32 +302,35 @@ function hasGoverningNegator(clause: string, claim: string): boolean {
     const isIdiomBound = idiom !== undefined && idiom.test(clause.slice(end, end + IDIOM_HEAD_WINDOW));
     if (!isCompoundBound && !isIdiomBound) {
       if (!DETERMINER_NEGATORS.has(token)) {
-        return true;
-      }
-      if (countWordsFrom(clause, end, MAX_UNLINKED_WORDS_TO_CLAIM) <= MAX_UNLINKED_WORDS_TO_CLAIM) {
-        return true;
-      }
-      // RULE D — the NP takes a finite verb, so the negation is clausal and
-      // reaches the predicate however long the subject is.
-      //
-      // The CLAIM is appended to the region scanned, because a claim pattern can
-      // begin AT the finite verb it needs: in "no SEO work | GUARANTEES a higher
-      // ranking" the verb is the first word of the match, leaving a verbless "no
-      // SEO work" behind it. Scanning only the text before the match made the
-      // same grammar pass or block depending on which pattern happened to match
-      // first — "no practice guarantees top placement" passed while "no SEO work
-      // guarantees a higher ranking" blocked.
-      if (claimHead === null) {
-        claimHead = claim.slice(0, FINITE_VERB_WINDOW);
-      }
-      if (FINITE_VERB_AFTER_NEGATED_SUBJECT.test(clause.slice(end, end + FINITE_VERB_WINDOW) + claimHead)) {
-        return true;
-      }
-      if (linkIndex === null) {
-        linkIndex = lastComplementLinkIndex(clause);
-      }
-      if (linkIndex >= end) {
-        return true;
+        if (ordinaryNegatorGovernsClaim(token, clause, match.index, end, claim)) {
+          return true;
+        }
+      } else {
+        if (countWordsFrom(clause, end, MAX_UNLINKED_WORDS_TO_CLAIM) <= MAX_UNLINKED_WORDS_TO_CLAIM) {
+          return true;
+        }
+        // RULE D — the NP takes a finite verb, so the negation is clausal and
+        // reaches the predicate however long the subject is.
+        //
+        // The CLAIM is appended to the region scanned, because a claim pattern can
+        // begin AT the finite verb it needs: in "no SEO work | GUARANTEES a higher
+        // ranking" the verb is the first word of the match, leaving a verbless "no
+        // SEO work" behind it. Scanning only the text before the match made the
+        // same grammar pass or block depending on which pattern happened to match
+        // first — "no practice guarantees top placement" passed while "no SEO work
+        // guarantees a higher ranking" blocked.
+        if (claimHead === null) {
+          claimHead = claim.slice(0, FINITE_VERB_WINDOW);
+        }
+        if (FINITE_VERB_AFTER_NEGATED_SUBJECT.test(clause.slice(end, end + FINITE_VERB_WINDOW) + claimHead)) {
+          return true;
+        }
+        if (linkIndex === null) {
+          linkIndex = lastComplementLinkIndex(clause);
+        }
+        if (linkIndex >= end) {
+          return true;
+        }
       }
     }
     if (match.index === scan.lastIndex) {
@@ -299,175 +338,6 @@ function hasGoverningNegator(clause: string, claim: string): boolean {
     }
   }
   return false;
-}
-
-/**
- * Coordinators and negators across which negation CARRIES rather than stopping.
- * A separator followed by one of these is continuing the negated predicate
- * ("we won't rank you #1 — or get you to page one"; "no guarantees, no
- * promises"), not opening a new one. "nor" is included because it explicitly
- * propagates the negation it follows.
- */
-const NEGATION_CARRYING = "(?:and|or|nor|yet|but|not|never|no|neither|without)";
-
-/**
- * Bounded run of whitespace. Every `\s` run that sits next to a literal is
- * capped rather than written `\s*`: an unbounded run adjacent to a literal that
- * may fail backtracks once per start position, which is quadratic on a long
- * whitespace run. Eight is far more than real copy uses between two words.
- */
-const GAP = "\\s{0,8}";
-
-/**
- * Dash used as a clause separator: em/en/figure/horizontal-bar/minus, a double
- * hyphen, or a SPACED single hyphen. The spacing requirement is what keeps
- * "page-one" and "pain-free" from reading as a clause break.
- */
-const DASH_SEPARATOR = `(?:${GAP}(?:\\u2014|\\u2013|\\u2015|\\u2012|\\u2212|--)${GAP}|\\s{1,8}-\\s{1,8})`;
-
-/**
- * Non-dash symbols used to set off one block of copy from another: the pipe of
- * a title tag, a bullet, an arrow, a guillemet, a slash. Page metadata is one
- * of the surfaces this gate validates, and "A | B" there is two independent
- * fragments, never one verb phrase — so these behave like a dash.
- */
-const SYMBOL_SEPARATOR = `${GAP}[|\\uff5c\\u00a6\\u2022\\u2023\\u25aa\\u25e6\\u2192\\u27f6\\u00bb\\u203a/]{1,8}${GAP}`;
-
-/**
- * Comma, including the full-width and ideographic forms. A comma look-alike is
- * still a comma: copy that has been round-tripped through another locale must
- * not read as one unbroken clause.
- */
-const COMMA = "[,\\uff0c\\u201a\\u3001]";
-
-/** A line break, and a break that is a full paragraph break. */
-const LINE_BREAK = "[\\n\\r\\u2028\\u2029]";
-const PARAGRAPH_BREAK = `${LINE_BREAK}${GAP}${LINE_BREAK}`;
-
-/** A list-item marker opening a new line — a new bullet is a new clause. */
-const LIST_MARKER = `${LINE_BREAK}${GAP}(?:[-*\\u2022\\u2023\\u25aa\\u25e6\\u00b7>]{1,8}|\\d{1,9}[.)])${GAP}`;
-
-/**
- * Clause boundaries that END the scope of a preceding negator.
- *
- * A negator governs its own clause and no further. The boundary set below is
- * the enumeration of ways a new clause can OPEN, grouped by what licenses the
- * split. It is a regex heuristic over grammar — deliberately conservative, and
- * NOT exhaustive (see the residuals named at the end of this comment).
- *
- * HARD — these close a clause outright, whatever follows:
- *   - Sentence/clause punctuation (. ! ? ; :) and the ellipsis.
- *   - A PARAGRAPH break or a new list item. A lone line break is NOT hard:
- *     generated copy is often soft-wrapped, and "we do not\nguarantee a higher
- *     ranking" is a single negated verb phrase.
- *   - An ADVERSATIVE, conjunctive adverb, or causal subordinator ("but",
- *     "however", "instead", "therefore", "because", …). These cannot share a
- *     preceding negated auxiliary: in "not X, but Y" the negation does not
- *     reach Y, and "not X because Y" asserts Y, so Y is judged on its own.
- *   - A LEADING subordinate clause ("While/Although X, Y") consumed through its
- *     closing comma: the negator lives in X, and the conjunction itself sits
- *     BEFORE the negator, so the closing comma — not the conjunction — is the
- *     boundary.
- *   - A LEADING verbless negated NP fragment ("No hidden fees, …") consumed
- *     through its closing comma. Determiner-"no" heading a subject-less
- *     fragment negates only its own noun phrase; with no verb for it to attach
- *     to, its scope cannot reach a following predication. Exempted when the
- *     next segment is itself negation-carrying, so "No guarantees, no promises"
- *     stays honest.
- *
- * SOFT — a separator only ends negation scope when what follows OPENS a new
- * predication rather than continuing the negated one:
- *   - A comma or an opening paren + a NEW SUBJECT. This is the comma splice /
- *     asyndetic coordination case.
- *   - A line break or tab + a NEW SUBJECT.
- *   - A coordinating conjunction ("and"/"or"/"yet"/"so"/"then"/"plus") + a NEW
- *     SUBJECT, which starts an independent clause with its own verb.
- *   - A dash, or a block separator (the pipe of a title tag, a bullet, an
- *     arrow, a slash), + anything that is not negation-carrying. These set off
- *     a new element, so the only way negation crosses one is an explicit
- *     coordinator sharing the auxiliary or an explicit re-negation.
- *
- * Deliberately EXCLUDED: bare "and"/"or"/"yet"/"nor" with NO new subject, and a
- * bare comma. Those coordinate verb phrases that SHARE the negated auxiliary,
- * where the negation genuinely does distribute — "we will not rank you #1 or
- * get you to page one" is honest, so is "we do not guarantee rankings, promise
- * page one, or boost your visibility", and so is the parenthetical "we do not,
- * and will not, guarantee a higher ranking". Splitting there would over-block
- * honest copy, which is a real failure, not a safe default.
- *
- * KNOWN RESIDUALS — this guard is NOT exhaustive. These are left open on
- * purpose: each is surface-identical to honest copy, so closing it here would
- * over-block a real disclaimer, and over-blocking is a real failure too.
- * Closing them needs a part-of-speech tagger, not a longer regex.
- *   - A clausal negator + comma + a claim headed by a PARTICIPLE rather than a
- *     subject ("we don't cut corners, guaranteed top spot"). Indistinguishable
- *     by surface form from an honest coordinated object list ("we do not offer
- *     refunds, guaranteed placements, or free audits"), which must pass. Note
- *     the verbless "No hidden fees, guaranteed top spot" IS caught — a
- *     determiner-"no" fragment has no verb for the negation to attach to.
- *   - A comma + an OPEN-CLASS subject — a proper noun or a common noun
- *     ("…, Smile Dental gets you to page one"; "…, customers rank #1"). Only
- *     closed-class subjects are enumerated: admitting nouns, or capitalized
- *     words, would split honest object lists ("we do not promise rankings,
- *     Google placements, or page one").
- * The gate is defence in depth, not a proof. It is the last line, not the only
- * one: copy that reaches it should already be honest.
- */
-const NEGATION_SCOPE_BOUNDARY = new RegExp(
-  [
-    // Sentence / clause punctuation and the ellipsis.
-    "[.!?;:\\u2026]",
-    // A paragraph break, or a new list item, ends a clause outright. A LONE
-    // line break deliberately does NOT: generated copy is often soft-wrapped,
-    // and "we do not\nguarantee a higher ranking" is one negated verb phrase.
-    PARAGRAPH_BREAK,
-    LIST_MARKER,
-    // A line break or tab that introduces a new subject.
-    `[\\n\\r\\u2028\\u2029\\t]${GAP}${NEW_SUBJECT}\\b`,
-    // A leading subordinate clause, consumed through its closing comma.
-    `\\b(?:while|whilst|although|though|whereas)\\b[^,\\uff0c\\u201a\\u3001.;:!?\\n]*${COMMA}`,
-    // A leading verbless negated NP fragment, consumed through its closing
-    // comma, unless the next segment carries the negation onward. The opening
-    // anchor is a LOOKBEHIND, not a consuming match: sentence punctuation is
-    // its own boundary alternative above and would otherwise eat the anchor
-    // before this alternative could use it.
-    `(?:^|(?<=[.!?;:\\n]))${GAP}(?:no|without)\\b[^,\\uff0c\\u201a\\u3001.;:!?\\n]*${COMMA}${GAP}(?!${NEGATION_CARRYING}\\b)`,
-    // An adversative, conjunctive adverb, or causal subordinator, mid-sentence.
-    // A reason clause ("not X because Y") asserts Y; the negation does not
-    // reach it.
-    "\\b(?:but|however|nevertheless|nonetheless|while|whilst|although|though|whereas|" +
-      "instead|rather|conversely|otherwise|regardless|therefore|thus|hence|meanwhile|" +
-      "besides|additionally|furthermore|moreover|consequently|accordingly|still|anyway|" +
-      "ultimately|because|since)\\b",
-    // A coordinating conjunction that introduces a new subject.
-    `\\b(?:and|or|yet|so|then|plus)\\s{1,8}${NEW_SUBJECT}\\b`,
-    // A comma or opening paren that introduces a new subject.
-    `(?:${COMMA}|\\()${GAP}${NEW_SUBJECT}\\b`,
-    // A dash or a block separator, unless it introduces negation-carrying
-    // material. The lookahead re-skips whitespace on purpose: the separator's
-    // trailing \s* can backtrack, and without it "— or get you to page one"
-    // would read as a new clause instead of a continuation of the negated
-    // auxiliary.
-    `(?:${DASH_SEPARATOR}|${SYMBOL_SEPARATOR})(?!${GAP}${NEGATION_CARRYING}\\b)`,
-  ].join("|"),
-  "gi",
-);
-
-/**
- * Index just past the last negation-scope boundary in `before`, or 0 if none.
- * The returned slice is the clause that governs the matched phrase.
- */
-function lastNegationScopeBoundaryEnd(before: string): number {
-  const boundary = new RegExp(NEGATION_SCOPE_BOUNDARY.source, NEGATION_SCOPE_BOUNDARY.flags);
-  let end = 0;
-  let match: RegExpExecArray | null;
-  while ((match = boundary.exec(before)) !== null) {
-    end = match.index + match[0].length;
-    if (match.index === boundary.lastIndex) {
-      boundary.lastIndex++;
-    }
-  }
-  return end;
 }
 
 /**

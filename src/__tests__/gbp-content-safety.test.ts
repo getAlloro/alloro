@@ -60,6 +60,14 @@ describe("GBP review reply — honesty claims route through the shared negation 
   });
 });
 
+describe("GBP review reply — bidi controls fail closed before matching", () => {
+  it("blocks a bidi-reordered outcome claim through the shared safety contract", () => {
+    const result = GbpContentSafetyService.validateReviewReply("We g\u202Eeetnarau\u202C results.");
+    expect(result.isSafe).toBe(false);
+    expect(result.reasonCodes).toContain("bidirectional_control");
+  });
+});
+
 describe("GBP review reply — the privacy gate is NOT negation-aware, deliberately", () => {
   /*
    * Negation does not make a reference to a reviewer's care safe: "we cannot

@@ -184,11 +184,12 @@ const SURROGATE_END = 0xdfff;
 
 /**
  * Characters that render as NOTHING but sit inside a word and break an ASCII
- * pattern: the zero-width set, the bidi controls, the soft hyphen, the word
- * joiner, the BOM (all Unicode category Cf), plus the variation selectors and
- * the combining grapheme joiner (category Mn). Matched by PROPERTY rather than
- * by an enumerated list, so the whole category is covered rather than the four
- * code points someone remembered.
+ * pattern: the zero-width set, the soft hyphen, the word joiner, the BOM (all
+ * Unicode category Cf), plus the variation selectors and the combining grapheme
+ * joiner (category Mn). Bidi controls are also Cf, but both service callers MUST
+ * reject them through hasUnsafeBidiControl before this normalization removes
+ * them: directional overrides and isolates can reorder what a reader sees, so
+ * stripping them does not safely recover display order.
  */
 const INVISIBLE_FORMATTING = /[\p{Cf}\u034F\uFE00-\uFE0F]/gu;
 
@@ -399,6 +400,20 @@ function decodeEntity(source: string, body: string): string {
 }
 
 /**
+ * Bidi formatting controls can reorder visible text. Stripping them before
+ * matching is unsafe because the remaining logical-order string may not be what
+ * a reader saw. Reject the entire Bidi_Control Unicode property as a class,
+ * including entity-encoded controls after the same single decode a browser gives
+ * generated copy.
+ */
+const UNSAFE_BIDI_CONTROL = /\p{Bidi_Control}/u;
+
+export function hasUnsafeBidiControl(text: string): boolean {
+  const decoded = text.replace(HTML_ENTITY, decodeEntity);
+  return UNSAFE_BIDI_CONTROL.test(decoded);
+}
+
+/**
  * Fold generated copy to the text a reader actually sees, so the honesty gate's
  * ASCII patterns match what is on the page rather than one encoding of it.
  *
@@ -409,8 +424,8 @@ function decodeEntity(source: string, body: string): string {
  *      literal text "<br>", not as a line break, so it must not become one.
  *   3. HTML entities — a single pass. Never re-run: double decoding would let
  *      `&amp;lt;` become a tag, which is its own bypass.
- *   4. Invisible formatting characters — removed, after decoding, so an
- *      entity-encoded zero-width space is caught too.
+ *   4. Invisible formatting characters — removed, after callers have rejected
+ *      bidi controls, so an entity-encoded zero-width space is caught too.
  *   5. NFKC — folds fullwidth, mathematical, circled, ligature, and superscript
  *      letter forms, the non-breaking space, and `；`/`！`/`？` to ASCII.
  *   6. Cross-script confusables, apostrophes, quotes — what NFKC leaves behind.

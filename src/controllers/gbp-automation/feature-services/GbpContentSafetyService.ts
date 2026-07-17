@@ -2,7 +2,10 @@ import {
   OUTCOME_CLAIM_PATTERNS,
   type ContentSafetyResult,
 } from "../../../services/content-safety/GeneratedCopySafetyService";
-import { normalizeForMatching } from "../../../services/content-safety/copyNormalization";
+import {
+  hasUnsafeBidiControl,
+  normalizeForMatching,
+} from "../../../services/content-safety/copyNormalization";
 import { matchesUnnegatedInNormalizedCopy } from "../../../services/content-safety/claimNegation";
 
 /**
@@ -47,15 +50,6 @@ export class GbpContentSafetyService {
     const trimmed = content.trim();
     const byteLength = Buffer.byteLength(trimmed, "utf8");
 
-    // This gate's patterns are ASCII, so the same encoding fold the generated-copy
-    // gate needs applies here: a zero-width character or a homoglyph inside
-    // "guarantee" renders identically and defeats every pattern below.
-    //
-    // The LIMITS above stay measured on `trimmed`, never on the normalized text:
-    // Google's 4096-byte ceiling and Alloro's 900-character ceiling apply to the
-    // reply that actually ships. Only MATCHING reads the normalized view.
-    const normalized = normalizeForMatching(trimmed);
-
     if (!trimmed) {
       reasonCodes.push("required");
       reasons.push("Reply content is required.");
@@ -69,17 +63,32 @@ export class GbpContentSafetyService {
       reasons.push("Reply exceeds Alloro's 900-character review reply limit.");
     }
 
+    // Reject before normalization or matching. Bidi controls can reorder visible
+    // text, so stripping them would inspect a different string than the reader.
+    const hasUnsafeBidi = hasUnsafeBidiControl(trimmed);
+    if (hasUnsafeBidi) {
+      reasonCodes.push("bidirectional_control");
+      reasons.push("Reply contains bidirectional formatting controls and cannot be matched safely.");
+    }
+
+    // This gate's patterns are ASCII, so the same encoding fold the generated-copy
+    // gate needs applies here. The limits above remain measured on the original.
+    // Unsafe bidi copy is already rejected and deliberately never reaches matching.
+    const normalized = hasUnsafeBidi ? "" : normalizeForMatching(trimmed);
+
     // PRIVACY patterns stay a RAW match, deliberately. Negation does not make a
     // reference to a reviewer's care safe to publish: "we cannot discuss your
     // treatment" still confirms there was treatment, so a negated match is as
     // disclosing as a bare one. This gate's asymmetry runs the other way from the
     // honesty gate's — the harm is the publish, not the block — so it stays
     // conservative and the reply goes back for a human edit.
-    for (const pattern of BLOCKED_PATIENT_CONFIRMATION) {
-      if (pattern.test(normalized)) {
-        reasonCodes.push("private_detail_confirmation");
-        reasons.push("Reply appears to confirm patient relationship or private details.");
-        break;
+    if (!hasUnsafeBidi) {
+      for (const pattern of BLOCKED_PATIENT_CONFIRMATION) {
+        if (pattern.test(normalized)) {
+          reasonCodes.push("private_detail_confirmation");
+          reasons.push("Reply appears to confirm patient relationship or private details.");
+          break;
+        }
       }
     }
 
@@ -93,11 +102,13 @@ export class GbpContentSafetyService {
     // Sharing the inventory without sharing the matcher is what made this
     // possible: the fix to the negation model landed in the shared service and
     // this path never called it. The two now cannot drift apart again.
-    for (const pattern of OUTCOME_CLAIM_PATTERNS) {
-      if (matchesUnnegatedInNormalizedCopy(normalized, pattern)) {
-        reasonCodes.push("medical_or_outcome_claim");
-        reasons.push("Reply appears to make a medical or outcome claim.");
-        break;
+    if (!hasUnsafeBidi) {
+      for (const pattern of OUTCOME_CLAIM_PATTERNS) {
+        if (matchesUnnegatedInNormalizedCopy(normalized, pattern)) {
+          reasonCodes.push("medical_or_outcome_claim");
+          reasons.push("Reply appears to make a medical or outcome claim.");
+          break;
+        }
       }
     }
 
