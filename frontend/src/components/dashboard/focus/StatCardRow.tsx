@@ -151,7 +151,11 @@ export function StatCardRow() {
     const reviewsThisMonth = reviews?.reviews_this_month ?? null;
 
     const latestSubs = timeseries.data?.at(-1) ?? null;
-    const thisMonthSubs = latestSubs?.total ?? null;
+    // Show VERIFIED submissions, not total: `total` includes flagged spam and
+    // blocked bots, so it overcounts the real people who reached out. `verified`
+    // is the canonical raised-hand count (is_flagged=false, non-newsletter) used
+    // by every other surface (the WebsiteOverview modal, countVerifiedByProjectId).
+    const thisMonthSubs = latestSubs?.verified ?? null;
     const submissionsMonth = formatDataMonth(latestSubs?.month);
 
     cards = [
