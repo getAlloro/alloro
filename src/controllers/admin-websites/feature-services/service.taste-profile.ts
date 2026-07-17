@@ -39,7 +39,10 @@
  * Wiring needs a product decision this slice does not make: WHAT triggers a
  * compose (review/GBP sync? website build? an owner action?), which
  * org/location context it runs under, and which surface consumes the result.
- * That belongs to the slice that adds the owner preview/approve path — see
+ * PR #171 Path A removed the previously promised writer and does not own this
+ * path. PR #160 is therefore scoped as a DORMANT INTERNAL FOUNDATION. A
+ * separately scoped future owner must add both a production writer and reader
+ * before this can be described as live. See
  * `plans/07162026-taste-profile-spine/spec.html` ("Narrowed contract").
  */
 

@@ -1,5 +1,39 @@
-import { BaseModel, QueryContext } from "../BaseModel";
+import type { Knex } from "knex";
+import { BaseModel } from "../BaseModel";
+import type { QueryContext } from "../BaseModel";
 import type { TasteProfile, TasteProfileAudit } from "../../types/tasteProfile";
+
+const TASTE_PROFILE_APPROVAL_LOCK_NAMESPACE = 0x54505246;
+const APPROVAL_SCOPE_LOCK_SQL =
+  "SELECT pg_advisory_xact_lock(?::integer, hashtext(?::text))";
+
+function approvalScopeLockKey(
+  organizationId: number,
+  locationId: number | null
+): string {
+  const locationScope =
+    locationId === null ? "organization" : `location:${locationId}`;
+  return `${organizationId}:${locationScope}`;
+}
+
+function requireTransaction(trx: Knex.Transaction): void {
+  if (trx.isTransaction !== true) {
+    throw new TypeError(
+      "TasteProfileModel.markApproved requires a Knex.Transaction when a context is supplied."
+    );
+  }
+}
+
+async function lockApprovalScope(
+  trx: Knex.Transaction,
+  organizationId: number,
+  locationId: number | null
+): Promise<void> {
+  await trx.raw(APPROVAL_SCOPE_LOCK_SQL, [
+    TASTE_PROFILE_APPROVAL_LOCK_NAMESPACE,
+    approvalScopeLockKey(organizationId, locationId),
+  ]);
+}
 
 /**
  * The profile lifecycle. Every transition is one-way and guarded in a WHERE
@@ -11,8 +45,8 @@ import type { TasteProfile, TasteProfileAudit } from "../../types/tasteProfile";
  *                  it is the ONLY status this model will delete.
  *  - `approved` .. a human put their name on it. This is the RECORD. It is
  *                  never deleted, never re-approved, and its signature is never
- *                  rewritten. At most one per org+location (see the concurrency
- *                  bound in the class docstring).
+ *                  rewritten. At most one exists per org+location, enforced by
+ *                  the approval transaction and database uniqueness.
  *  - `superseded`. a former record, retired by a NEWER approval. It keeps its
  *                  own `approved_by`/`approved_at` forever — that is the
  *                  approval history, not a copy of it.
@@ -99,48 +133,44 @@ export interface ITasteProfile {
  * threat was never "someone else approves" — it was "someone else approves and
  * the previous stake disappears".
  *
- * REMAINING BOUNDS, named rather than implied away:
+ * CONCURRENCY IS ENFORCED TWICE (§10.5/§20.2). `markApproved()` takes a
+ * transaction-scoped PostgreSQL advisory lock keyed by org+location before it
+ * retires the incumbent. Concurrent approvals for one scope therefore serialize
+ * while different location scopes remain independent. The additive migration
+ * `20260717000000_enforce_taste_profile_approval_uniqueness` is the final
+ * database backstop: one partial unique index covers non-null locations and a
+ * second covers the organization-level `location_id IS NULL` case, which a
+ * normal composite unique index cannot enforce because PostgreSQL treats NULLs
+ * as distinct.
  *
- *  1. CONCURRENCY. Sequentially, at most one row per org+location is `approved`.
- *     Two CONCURRENT approvals of two DIFFERENT drafts for the same org+location
- *     can both commit, leaving two approved rows — a resolution ambiguity, NOT a
- *     lost signature: nothing is deleted and nothing is reattributed, and both
- *     rows carry a real human's stake. `findCurrentApprovedByOrgAndLocation`
- *     returns the most recently approved, which is still a profile a human
- *     staked. This is strictly NARROWER than the pre-fix behaviour, where two
- *     approved rows could also arise SEQUENTIALLY (nothing retired an
- *     incumbent). Closing it for real is a partial unique index on
- *     (organization_id, location_id) WHERE status = 'approved' — which needs TWO
- *     indexes, since Postgres treats NULLs as distinct and `location_id` is
- *     nullable. That is a schema change this branch cannot execute or verify
- *     (no live database here), and it would void the byte-identical basis of
- *     T18's owner waiver, so it is recorded for the wiring PR rather than
- *     guessed at now.
- *  2. RAW-HANDLE WRITES BYPASS THIS MODEL ENTIRELY. `table()` is `protected` in
- *     TypeScript only, so at runtime `(Model as any).table()` returns a live
- *     knex builder; `transaction()`/`beginTransaction()` likewise hand back a
- *     handle that can write any table. Neither is guarded here. This is true of
- *     every model in the repo — the model is the enforcement boundary for
- *     TYPED callers, not the database. Real enforcement against a raw writer
- *     would be a DB-level CHECK/trigger, which this table does not have (T21).
+ * RAW-HANDLE WRITES STILL BYPASS THE MODEL'S SIGNATURE-LIFECYCLE RULES.
+ * `table()` is `protected` in TypeScript only, and transaction helpers expose a
+ * handle that can rewrite columns directly. The database uniqueness indexes
+ * still prevent two current approvals, but they do not make
+ * `approved_by`/`approved_at` immutable against arbitrary SQL. This model is the
+ * typed lifecycle boundary; the unique indexes are the current-state invariant.
  *
  * Through this model's typed public API, the column-writing paths are `create()`
  * (draft-only, explicit column copy), `markApproved()` (draft-only transition +
  * supersession) and `deleteByIdForOrg()` (draft-only delete) — every other
- * inherited writer is sealed. `TasteProfileModel.test.ts` enforces that list by
- * enumerating the class's whole callable surface, so a newly added or newly
- * inherited write path FAILS the suite until it is audited against this rule.
+ * inherited writer is sealed. `TasteProfileModelSurface.test.ts` enforces that
+ * list by enumerating the class's whole callable surface, so a newly added or
+ * newly inherited write path FAILS the suite until it is audited against this
+ * rule.
  *
  * So: no TYPED caller can erase or reattribute a stake. That is the guarantee.
- * It is not "the audit trail is tamper-proof" — bound 2 above is why.
+ * It is not "the audit trail is tamper-proof" — raw SQL can still rewrite a
+ * signature even though it cannot create a second current approval.
  *
  * Persisted JSONB shapes come from the neutral `types/tasteProfile` module —
  * never from the composition service, which is a controller-layer module (§7.1).
  *
- * WIRING STATUS: this model has NO importers yet — the compose→persist path has
- * no production entry point (see the WIRING STATUS block in
- * `controllers/admin-websites/feature-services/service.taste-profile.ts`). It is
- * a tested capability, not a live path; do not describe it as one.
+ * WIRING STATUS: this model has NO production importers — the compose→persist
+ * path has no production entry point (see the WIRING STATUS block in
+ * `controllers/admin-websites/feature-services/service.taste-profile.ts`).
+ * PR #171 no longer owns that wiring. PR #160 is intentionally a dormant
+ * internal foundation until a separately scoped future owner adds both writer
+ * and reader. It is a tested capability, not a live path.
  */
 export class TasteProfileModel extends BaseModel {
   protected static tableName = "taste_profiles";
@@ -318,25 +348,21 @@ export class TasteProfileModel extends BaseModel {
    * signature. That is not what happens here, because the read is not load-
    * bearing for the guarantee — the final UPDATE still carries `status =
    * 'draft'` in its own WHERE. A stale read costs 0 rows, never a signature.
-   * `forUpdate()` additionally locks the draft for the transaction's duration.
-   * Under Postgres READ COMMITTED a second concurrent approval blocks on that
-   * lock and, on commit, re-evaluates its predicate against the updated row
-   * (EvalPlanQual); it no longer matches `status = 'draft'` and reports 0. Under
-   * REPEATABLE READ/SERIALIZABLE it raises a serialization failure instead.
-   * Either way the signature is not overwritten — only the observable differs.
-   * NOTE: that concurrency behaviour is reasoned from documented Postgres
-   * semantics, NOT observed — there is no live database in this branch's
-   * environment, and the unit suite's in-memory table has no locks, no isolation
-   * and no real transaction, so no test here proves it. See also the concurrency
-   * bound in the class docstring, which this does NOT close.
+   * `forUpdate()` additionally locks this draft for the transaction's duration.
+   * After the draft is found, a transaction-scoped advisory lock serializes all
+   * approvals for its org+location scope. The database's two partial unique
+   * indexes remain the final invariant if a writer bypasses that cooperative
+   * lock. Both rollback and concurrent approvals for nullable and non-null
+   * locations are exercised by `scripts/verify-taste-profile-postgres.ts`
+   * against PostgreSQL 16.
    *
    * Why that matters: `approved_by`/`approved_at` are the audit record of WHO
    * staked this profile and WHEN. A signature that a later caller can silently
    * overwrite is not a signature — the whole owner-approval gate would be
    * decorative, and the audit trail would attribute a sign-off to someone who
    * never made it. The guard is POSITIVE (`status = draft`), not a negative
-   * `whereNot status = approved`, so it fails closed: any status added later is
-   * non-transitionable until this predicate is deliberately widened.
+   * `whereNot status = approved`, so it fails closed: every status added later
+   * is non-transitionable until this predicate is deliberately widened.
    *
    * Returns the number of rows updated: 1 when the transition happened, 0 when
    * it did not. A 0 deliberately does NOT distinguish "wrong organization" from
@@ -354,13 +380,10 @@ export class TasteProfileModel extends BaseModel {
    *    for, and this transition is the kind of thing a job will retry.
    *    PRECISELY: a SEQUENTIAL repeat (the retry case §21.1 is about — the first
    *    call already committed) returns 0 at every isolation level. A CONCURRENT
-   *    second writer is a different scenario: under READ COMMITTED it also
-   *    returns 0, but under REPEATABLE READ/SERIALIZABLE it raises `40001
-   *    could not serialize access due to concurrent update` rather than
-   *    returning 0. Since this method accepts a `trx`, a caller threading a
-   *    REPEATABLE READ transaction must expect that throw. The signature is not
-   *    overwritten in either case — but "always returns 0, never throws" would
-   *    be a false contract, so it is not claimed. Whether a 0
+   *    caller may still receive a serialization or uniqueness error at stricter
+   *    isolation or when it bypasses the cooperative lock. The transaction
+   *    rolls back in either case, so the current approved profile survives.
+   *    Whether a 0
    *    is a 404, a 409, or a benign no-op is a POLICY question that depends on
    *    the surface asking, and this is a thin DB-correctness layer with no
    *    business logic in it (§6.1). The model's job is to make the illegal write
@@ -372,9 +395,9 @@ export class TasteProfileModel extends BaseModel {
     id: string,
     organizationId: number,
     approvedBy: string,
-    trx?: QueryContext
+    trx?: Knex.Transaction
   ): Promise<number> {
-    const run = async (ctx: QueryContext): Promise<number> => {
+    const run = async (ctx: Knex.Transaction): Promise<number> => {
       // Read the draft's OWN location scope to find the incumbent it retires.
       // The scope is taken from the row, never from a caller-supplied argument:
       // a caller passing a location could otherwise retire a different scope's
@@ -389,6 +412,12 @@ export class TasteProfileModel extends BaseModel {
         .forUpdate()
         .first();
       if (!draft) return 0;
+
+      // The draft lock protects this row. The advisory transaction lock protects
+      // the org+location CURRENT slot shared by every draft in that scope.
+      // `raw` is necessary for PostgreSQL advisory locks and is parameterized
+      // (§10.2); the namespace prevents collision with unrelated lock domains.
+      await lockApprovalScope(ctx, organizationId, draft.location_id);
 
       // Retire the incumbent record for this org+location. Guarded UPDATE
       // (`status: "approved"`), so it self-serializes on the row lock and
@@ -410,13 +439,10 @@ export class TasteProfileModel extends BaseModel {
       //
       // The `status: "draft"` here is NOT redundant with the read above, and an
       // adversary proved it by deleting it: the suite stayed green (38/38), so
-      // this predicate is the one thing standing between a stale read and a
-      // reattributed signature. It is load-bearing whenever `ctx` is not a real
-      // transaction — `forUpdate()` then holds no lock past its own statement,
-      // two callers can both pass the read, and without this clause the second
-      // would overwrite the first's `approved_by`/`approved_at`. Do not "simplify"
-      // it away; the test below asserts THIS update's own predicate for that
-      // reason.
+      // this predicate is the final state check even inside the required real
+      // transaction. It protects retries, stale callers, and future changes to
+      // the surrounding lock sequence. Do not "simplify" it away; the tests
+      // assert THIS update's own predicate for that reason.
       return this.table(ctx)
         .where({ id, organization_id: organizationId, status: "draft" })
         .update({
@@ -429,10 +455,15 @@ export class TasteProfileModel extends BaseModel {
 
     // Retiring the incumbent and staking its replacement must be ONE atomic
     // step: a crash between them would leave an org+location with either two
-    // approved records or none. A caller-supplied `trx` owns the boundary
-    // (§6.1 — the orchestration layer decides); otherwise open one here, so an
-    // unwrapped call is still atomic rather than atomic-if-you-remembered.
-    return trx ? run(trx) : this.transaction(run);
+    // approved records or none. A caller may supply only a real Knex transaction
+    // — never root Knex, which would make each statement autocommit. TypeScript
+    // rejects root Knex, and this runtime guard backstops JS/casts. Without a
+    // supplied transaction, always open one here.
+    if (trx) {
+      requireTransaction(trx);
+      return run(trx);
+    }
+    return this.transaction(run);
   }
 
   /**
@@ -442,9 +473,9 @@ export class TasteProfileModel extends BaseModel {
    * profile stops being served the moment its replacement is approved.
    *
    * This, not {@link findLatestByOrgAndLocation}, is the consumer read. Ordered
-   * by `approved_at` desc so that if the concurrency bound in the class
-   * docstring ever produces two approved rows, this returns the most recent real
-   * stake rather than an arbitrary one.
+   * by `approved_at` desc for deterministic reads and safe handling of legacy
+   * duplicate state. The additive uniqueness migration prevents new
+   * duplicate-current rows, including organization-level NULL scopes.
    */
   static async findCurrentApprovedByOrgAndLocation(
     organizationId: number,
@@ -493,7 +524,7 @@ export class TasteProfileModel extends BaseModel {
    *    this method is not that path and should not be widened into it.
    *
    * The guard is POSITIVE (`status = draft`), not `whereNot status = approved`,
-   * so it fails closed: any status added later is undeletable until this
+   * so it fails closed: every status added later is undeletable until this
    * predicate is deliberately widened.
    *
    * Returns the number of rows deleted. A 0 deliberately does NOT distinguish
