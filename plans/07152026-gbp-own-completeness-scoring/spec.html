@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Alloro Funnel Engine — A2: GBP Own-Completeness Scoring</title>
+<style>
+  :root{
+    --bg:#ffffff; --ink:#111214; --muted:#5b5e63; --line:#e3e4e7; --card:#fafafa;
+    --good:#1f7a3d; --warn:#8a6d1e; --stop:#9a2b25; --chip:#f0f0f1;
+    --mono:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{--bg:#131417;--ink:#ecedef;--muted:#a2a5ab;--line:#2a2c31;--card:#1a1c20;--chip:#22242a;}
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.55;font-size:16px;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:860px;margin:0 auto;padding:0 24px 96px}
+  .hero{min-height:56vh;display:flex;flex-direction:column;justify-content:center;padding:64px 0 40px;border-bottom:1px solid var(--line)}
+  .pill{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--chip);width:max-content}
+  .pill .dot{width:8px;height:8px;border-radius:50%;background:var(--good)}
+  h1{font-size:38px;line-height:1.12;letter-spacing:-.02em;margin:20px 0 10px;text-wrap:balance}
+  .sub{font-size:18px;color:var(--muted);max-width:62ch}
+  .meta{margin-top:26px;font-size:13px;color:var(--muted);font-family:var(--mono)}
+  .meta b{color:var(--ink);font-weight:600}
+  section{padding:40px 0;border-bottom:1px solid var(--line)}
+  h2{font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0 0 18px;font-weight:700}
+  h3{font-size:19px;margin:26px 0 8px;letter-spacing:-.01em}
+  p{margin:0 0 14px}
+  ul{margin:0 0 14px;padding-left:22px}
+  li{margin:6px 0}
+  strong{font-weight:650}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin:14px 0}
+  code{font-family:var(--mono);font-size:.86em;background:var(--chip);padding:1px 6px;border-radius:5px}
+  .tier{display:inline-block;font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.06em;padding:2px 8px;border-radius:5px;border:1px solid var(--warn);color:var(--warn);vertical-align:middle}
+  .guard{border-left:3px solid var(--stop);padding:10px 0 10px 16px;margin:14px 0}
+  .guard b{color:var(--stop)}
+  .reuse{border-left:3px solid var(--good);padding:10px 0 10px 16px;margin:14px 0}
+  .reuse b{color:var(--good)}
+  ol.tasks{counter-reset:t;list-style:none;padding-left:0}
+  ol.tasks>li{counter-increment:t;position:relative;padding:14px 0 14px 44px;border-top:1px solid var(--line)}
+  ol.tasks>li:before{content:counter(t);position:absolute;left:0;top:12px;width:28px;height:28px;border:1px solid var(--line);border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:13px;font-weight:700}
+  .done li{list-style:none}
+  .done li:before{content:"\2610\00a0\00a0";font-family:var(--mono);color:var(--muted)}
+  .rev h3,.revision-entry h3{font-family:var(--mono);font-size:14px;margin:18px 0 6px}
+  a{color:var(--ink)}
+  @media(max-width:560px){h1{font-size:30px}.hero{min-height:auto;padding:44px 0 28px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <span class="pill"><span class="dot"></span>Completed &middot; Rev 4</span>
+    <h1>A2 — GBP Own-Completeness Scoring</h1>
+    <p class="sub">Get-found, in-lane. Score the practice's <em>own</em> Google Business Profile for completeness — deterministically, read-only — and return the exact set of missing fields as advisory recommendations. Extends the shipping get-found checker; scores data Alloro already has.</p>
+    <div class="meta">
+      <div><b>Plan:</b> 07152026-gbp-own-completeness-scoring &nbsp;&middot;&nbsp; <b>Funnel:</b> Stage A (get found), item A2 &nbsp;&middot;&nbsp; <b>Source map:</b> plans/07142026-alloro-funnel-engine/funnel-feature-sequence.md</div>
+      <div><b>Lane:</b> Corey+Claude spec &rarr; sandbox build + adversary &rarr; PR to <code>dev/dave</code> for Dave to review + merge</div>
+      <div><b>Evidence:</b> <span class="tier">DIRECTIONAL</span> — completeness correlates with crawl/trust eligibility, NOT placement. No rank claim.</div>
+    </div>
+  </header>
+
+  <section>
+    <h2>Why</h2>
+    <p>Alloro's job is Driver 2 — help people find the practice. A practice's Google Business Profile is a top get-found surface, and an incomplete profile (missing category, hours, or photos) leaves the practice less legible to Google and to a person deciding whether to visit. Today Alloro <strong>scores competitors'</strong> profile strength but <strong>never scores the client's own</strong> in a deterministic, testable way (verified: <code>connect-lever-audit.md</code> &sect;discovery — "CLIENT's own completeness never scored/tracked (only competitors', <code>util.competitor-profile-strength.ts</code>)").</p>
+    <p>A2 closes that gap the same honest way Slice&nbsp;1a closed the schema gap: a deterministic grader that returns the exact <strong>missing-field set</strong> as an advisory recommendation, so the owner (via the approved rail, in a later item) can complete their own profile. It improves <strong>eligibility and trust</strong>, never a ranking — Value&nbsp;#6.</p>
+  </section>
+
+  <section>
+    <h2>What — in scope</h2>
+    <div class="reuse">
+      <p><b>Reuse first (reconciliation — verified against real code, not assumed).</b></p>
+      <ul>
+        <li><b>Mirror the shipping completeness pattern:</b> <code>src/services/ai-seo-audit/schemaCompletenessScoring.ts</code> — a pure grader that returns <code>{ presentFields, missingFields, completeness, &hellip;Incomplete }</code> and whose incomplete-signal <em>gates nothing</em>. A2's <code>scoreGbpCompleteness()</code> is the same shape for GBP fields.</li>
+        <li><b>Plug into the shipping orchestrator:</b> <code>src/services/ai-seo-audit/getFoundChecker.ts</code> — <code>runGetFoundChecker</code> already runs schema-completeness, GBP&harr;page consistency, answer-first, honesty, and observability, and assembles <code>AdvisoryRecommendation[]</code>. A2 adds one more piece + one more recommendation <code>code: "gbp_completeness"</code>. No new orchestrator.</li>
+        <li><b>Reuse the data Alloro already fetches:</b> the leadgen pipeline's condensed <code>client_gbp</code> record and the organization audit's existing <code>getGBPAIReadyData().profile</code> result. <code>mapAiReadyGbpToCompletenessInput</code> adapts the live organization-audit shape without another Google request. It grades only fields that source returned; the current AI-ready response has no photo count, so photos are not falsely reported missing.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>The one new module + the wiring</h3>
+      <ul>
+        <li><strong>New:</strong> <code>src/services/ai-seo-audit/gbpCompletenessScoring.ts</code> — a pure function <code>scoreGbpCompleteness(clientGbp)</code> grading the client's own GBP against the fixed set of <em>real</em> GBP fields the condensed record actually carries (business category, website, phone, opening hours, address, at least one photo). A GBP <em>description</em> is deliberately NOT graded &mdash; the condensed <code>client_gbp</code> record does not carry a description field, so grading it would emit a permanent false-&ldquo;missing&rdquo; (see Rev 2). Returns present/missing sets + a 0..1 completeness + an internal-only <code>gbpIncomplete</code> flag that gates nothing. Pure: no DB, no IO (matches the analog).</li>
+        <li><strong>Wire:</strong> thread the optional completeness input into <code>GetFoundCheckInput</code>; in production, <code>auditTargetExecutionService</code> selects the target's matching location and adapts its already-fetched GBP profile. A single-location site may safely use its only profile when page mapping is absent; an unmapped multi-location page skips instead of borrowing another location's data. When present, run the score and add a <code>gbp_completeness</code> advisory recommendation via the existing <code>buildRecommendations</code>; extend the observability log line with the GBP missing-field count.</li>
+      </ul>
+      <p>A2 is <em>advisory + read-only</em>. It writes nothing, touches no Google API for writes, and adds no autonomy — identical posture to Slice&nbsp;1a.</p>
+    </div>
+    <h2 style="margin-top:34px">What — explicitly NOT in A2</h2>
+    <ul>
+      <li><strong>No GBP write-back</strong> (no category/hours/description patch to Google). That is item A6, a later slice with its own rollback design.</li>
+      <li><strong>Not a replacement for the LLM audit.</strong> <code>src/agents/auditAgents/GBPAnalysis.md</code> already produces a <em>narrative</em> <code>gbp_readiness_score</code>. A2 is the <strong>deterministic, testable</strong> complement — an exact missing-field set the LLM prose can't guarantee — <em>not</em> a twin. If review shows the deterministic score should feed the LLM inputs, that wiring is a follow-up, not this PR.</li>
+      <li><strong>No owner-facing "rank" or "visibility" language.</strong> Completeness &ne; placement.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Context</h2>
+    <p><strong>Source of truth:</strong> the funnel map (<code>plans/07142026-alloro-funnel-engine/funnel-feature-sequence.md</code>, item A2) and the graded lever menu. Evidence tier is <span class="tier">DIRECTIONAL</span> — GBP completeness correlates with crawl/trust eligibility, not placement; carry that tier into the code and never over-claim (same rule the shipped <code>schemaCompletenessScoring.ts</code> header states).</p>
+    <p><strong>Existing infrastructure (verified against code this session):</strong></p>
+    <ul>
+      <li><code>schemaCompletenessScoring.ts</code> — the deterministic grader to mirror (present/missing/completeness + gate-nothing internal signal).</li>
+      <li><code>getFoundChecker.ts</code> — <code>runGetFoundChecker</code>, <code>buildRecommendations</code>, <code>AdvisoryRecommendation</code>, <code>INTERNAL_AEO_INCOMPLETE_SIGNAL</code> (the "internal signal gates nothing / never owner-facing" pattern to follow).</li>
+      <li><code>util.competitor-profile-strength.ts</code> — <code>calculateProfileStrength</code>, the competitor analog (Places fields). A2 is its client-side sibling but reads the richer <code>client_gbp</code> fields, so it is a new grader, not a call into the competitor one.</li>
+      <li><code>GBPAnalysis.md</code> — the verified <code>client_gbp</code> condensed-record shape and the existing LLM readiness scorer (reconcile against, don't duplicate).</li>
+      <li><code>organizationAuditContextService.ts</code> and <code>auditTargetExecutionService.ts</code> — the production organization-audit path that already fetches location-scoped GBP profiles and now supplies the matching profile to the checker.</li>
+      <li><code>GbpReadinessService.ts</code> — connection/scope/review readiness only; NOT profile-field completeness (so A2 does not belong there).</li>
+    </ul>
+    <p><strong>Constitution:</strong> <code>&sect;7.1</code> keeps the safety dependency in the neutral shared service rather than another controller domain; <code>&sect;4.5</code> requires unknown-value narrowing in the GBP adapter; <code>&sect;20.2</code> requires the production and cross-location error boundaries to be test-proven; <code>&sect;20.5</code> requires the canonical acceptance package.</p>
+  </section>
+
+  <section>
+    <h2>Constraints</h2>
+    <div class="guard">
+      <p><b>Honesty (Value #6).</b> The completeness score and missing-field set improve <b>eligibility/trust only</b>. No owner-facing copy may claim or imply a rank/visibility outcome ("complete your profile to rank higher" is banned; "add your hours and services so people and Google can read your profile" is allowed). Any generated recommendation copy runs through the neutral shared honesty gate (<code>GeneratedCopySafetyService.validateGeneratedCopy</code>) exactly as corrected Slice 1a does.</p>
+    </div>
+    <div class="guard">
+      <p><b>Grade real fields only.</b> Every graded field is a genuine GBP profile field the owner could actually fill (category, hours, website, phone, address, photo). Never invent a field to pad the score, and never mark a field "present" from inferred/guessed data — only from a real GBP source.</p>
+    </div>
+    <ul>
+      <li><strong>Read-only.</strong> No write to Google; no new autonomy. Advisory recommendations only.</li>
+      <li><strong>Internal signal gates nothing.</strong> A <code>gbpIncomplete</code> flag is admin/internal, mirrors <code>INTERNAL_AEO_INCOMPLETE_SIGNAL</code>, and never appears in owner-facing copy.</li>
+      <li><strong>Edge cases:</strong> no GBP connected &rarr; skip the GBP score entirely. A standard condensed record missing a key &rarr; grade it missing. A narrower adapter explicitly marks its gradable fields so a field the source never returned is ungraded, not falsely missing. Multi-location &rarr; use only the target's matching location; an unmapped multi-location page skips. A single-location site may use its only profile when page mapping is absent. Never guess a location or provider field.</li>
+      <li><strong>Pure function.</strong> <code>scoreGbpCompleteness</code> takes the condensed record and returns the grade — no DB, no IO, no logging inside it (logging stays in the orchestrator, as in 1a).</li>
+      <li><strong>Docs parity:</strong> A2 has no dashboard UI in this PR (advisory output only). If a later item renders it, that item adds the <code>alloro-docs</code> parity task; state so then.</li>
+      <li><strong>Lane:</strong> Corey+Claude author; build + adversary in the sandbox; PR to <code>dev/dave</code>; Dave reviews + merges. Never push to <code>dev/dave</code> or <code>main</code> directly.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Risk</h2>
+    <ul>
+      <li><strong>Duplicating the LLM audit (the main reconcile risk).</strong> Mitigation: A2 is explicitly the deterministic missing-field grader, not a narrative score; a reviewer should reject any A2 code that re-implements the LLM's judgment. It complements <code>GBPAnalysis.md</code>.</li>
+      <li><strong>Provider-shape drift.</strong> The leadgen condensed record and the organization-audit AI-ready profile are different shapes. Mitigation: one pure adapter narrows unknown data, tests the live profile contract, and explicitly records which fields that source can grade; absent provider coverage is never converted into an owner-facing missing-field claim.</li>
+      <li><strong>Directional evidence hardening into a promise.</strong> Mitigation: the module header states the tier (like the schema analog); the honesty gate rejects rank language; owner copy is eligibility/trust framed.</li>
+      <li><strong>Scope creep toward a write.</strong> Mitigation: A2 stays read-only; the write is A6.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Tasks</h2>
+    <ol class="tasks">
+      <li><strong>Confirm the <code>client_gbp</code> contract</strong> — read the condensed-record builder (<code>auditLeadgen.processor.ts</code> / <code>BusinessDataService.ts</code>) to pin the exact field names/types A2 grades; note any field in <code>GBPAnalysis.md</code>'s shape that isn't actually populated.</li>
+      <li><strong>Write <code>gbpCompletenessScoring.ts</code></strong> — pure <code>scoreGbpCompleteness(clientGbp)</code> mirroring <code>schemaCompletenessScoring.ts</code>: fixed real-field set, present/missing/completeness, internal <code>gbpIncomplete</code> flag (gates nothing), tolerant of missing keys.</li>
+      <li><strong>Wire into <code>getFoundChecker.ts</code></strong> — add optional condensed <code>client_gbp</code> to <code>GetFoundCheckInput</code>; when present, run the score, push a <code>gbp_completeness</code> advisory recommendation (owner-facing, eligibility/trust framed, no rank word) in <code>buildRecommendations</code>; extend the observability log with the GBP missing-field count. Skip cleanly when absent.</li>
+      <li><strong>Honesty pass</strong> — run any new recommendation copy through <code>GeneratedCopySafetyService.validateGeneratedCopy</code>; confirm no rank/visibility phrase can appear.</li>
+      <li><strong>(Rev 3) Wire the production organization-audit path</strong> — merge the corrected #158 safety stack; select the target's matching location from <code>OrganizationAuditContext</code>; adapt its existing AI-ready GBP profile; prove exact-location, single-location fallback, multi-location skip, and unknown-photo behavior without a new provider request.</li>
+      <li><strong>(Rev 4) Compose the frozen #158 negation follow-up</strong> — merge <code>74c1f4eda</code> as a second parent, preserve Slice 1a Rev 9, and prove modifier-bearing unrelated promises still block while modifier-bearing disclaimers still pass.</li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>Test / verification (how Dave proves it)</h2>
+    <ul>
+      <li>Fixture <code>client_gbp</code> with known-missing fields (no website, no hours, no photo) &rarr; assert <code>missingFields</code> equals the expected set and <code>completeness</code> is the expected ratio.</li>
+      <li>A real <code>condenseGbp(null)</code> record (no listing — all-false derived booleans) &rarr; assert the score skips (<code>hasData:false</code>) and no recommendation is emitted (regression for the adversary's no-listing finding).</li>
+      <li>Fully-complete fixture &rarr; assert <code>missingFields</code> is empty and <code>gbpIncomplete</code> is false.</li>
+      <li>Condensed record missing a key entirely &rarr; assert it grades as "missing," no crash.</li>
+      <li>No GBP supplied to <code>runGetFoundChecker</code> &rarr; assert the GBP score is skipped and no <code>gbp_completeness</code> recommendation is emitted.</li>
+      <li>Assert the <code>gbp_completeness</code> recommendation's owner-facing <code>title</code>/<code>detail</code> contain no rank/visibility phrase and pass the honesty gate; assert the internal signal never appears in owner-facing copy.</li>
+      <li>Run <code>executeTargets</code> with two location profiles and assert the checker receives only the target location's profile; assert an unmapped multi-location page supplies no GBP completeness input and an unmapped single-location page uses its only location.</li>
+      <li>Adapt the current AI-ready profile shape and assert a field that source does not return (photo count) is ungraded rather than falsely marked missing.</li>
+      <li>Read each gate's exit directly: <code>npx tsc --noEmit</code>, <code>npm run check:conventions -- --strict</code>, <code>npx vitest run</code>, <code>npm run lint</code>, <code>npm run depcruise</code>, and <code>git diff --check</code>.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Done</h2>
+    <ul class="done">
+      <li><code>gbpCompletenessScoring.ts</code> exists as a pure grader mirroring the schema analog; returns present/missing/completeness + a gate-nothing internal signal.</li>
+      <li><code>getFoundChecker.ts</code> runs the GBP score when a condensed or adapted AI-ready profile is supplied, emits a <code>gbp_completeness</code> advisory recommendation, and skips cleanly when absent — read-only, no new autonomy.</li>
+      <li>Owner-facing recommendation copy is eligibility/trust framed, passes the honesty gate, and makes no rank/visibility claim (test-proven).</li>
+      <li><code>executeTargets</code> supplies real, correctly scoped organization-audit GBP data to the checker in production, with no cross-location fallback and no second Google request.</li>
+      <li>The acceptance package contains canonical <code>test.html</code> and truthful <code>test-results.json</code>; the exact focused and full-suite receipts are recorded.</li>
+      <li>Focused and full tests, TypeScript, strict conventions, lint, dependency-cruiser, and diff checks pass with each exit read directly.</li>
+      <li>(Rev 4) The final #164 tree contains #158 follow-up <code>74c1f4eda</code> as merge history, preserves its Rev 9 spec and receipt, and passes the composed modifier-negation regression corpus.</li>
+      <li>Opened as a PR to <code>dev/dave</code> with this spec linked for Dave's review.</li>
+    </ul>
+  </section>
+
+  <section id="revision-log">
+    <h2>Revision Log</h2>
+    <article class="rev">
+      <h3>Rev 1 &mdash; 2026-07-15</h3>
+      <p><strong>Change:</strong> Initial spec — A2 GBP own-completeness scoring, grounded in code verified this session (<code>schemaCompletenessScoring.ts</code>, <code>getFoundChecker.ts</code>, <code>GBPAnalysis.md</code> <code>client_gbp</code> shape, <code>util.competitor-profile-strength.ts</code>, <code>GbpReadinessService.ts</code>).</p>
+      <p><strong>Reason:</strong> Funnel map item A2; first real build unit after A1 verified done.</p>
+      <p><strong>Updated Done criteria:</strong> initial A2 set.</p>
+    </article>
+    <article class="rev">
+      <h3>Rev 2 &mdash; 2026-07-15</h3>
+      <p><strong>Change:</strong> Reconciled after the build's fresh-adversary pass. (1) <b>Correctness fix (adversary HIGH):</b> <code>condenseGbp(null)</code> — a practice with NO listing — emits all-false derived booleans (<code>hasWebsite/hasPhone/hasHours</code>); the first cut counted those as "signal" and graded a no-GBP practice as an incomplete real profile, emitting a false "complete your Google Business Profile." Fixed: <code>scoreGbpCompleteness</code> now skips (<code>hasData:false</code>) whenever no field is present; added a regression test feeding the real <code>condenseGbp(null)</code> producer. (2) <b>Field-set deviation:</b> dropped <b>description</b> from the graded set — the condensed <code>client_gbp</code> record carries no description field, so grading it would be a permanent false-"missing". Shipped field set = the six the record actually carries: category, website, phone, hours, address, photos ("additional categories" folds into category; "address specificity" = non-empty check).</p>
+      <p><strong>Reason:</strong> Execution deviation (client_gbp has no description field) + adversary (alloro-proof) BROKE-IT on the no-listing case.</p>
+      <p><strong>Updated Done criteria:</strong> no-listing / blank-GBP records skip with <code>hasData:false</code> (test-proven against <code>condenseGbp(null)</code>); graded field set is the six carried by the condensed record (no description).</p>
+    </article>
+    <article class="revision-entry">
+      <h3>Rev 3 &mdash; 2026-07-17</h3>
+      <p><strong>Change:</strong> Merged the corrected PR #158 stack at <code>9ab895c9</code>, preserved <code>GeneratedCopySafetyService</code> and Slice 1a's latest spec/history, and wired A2 into the real organization-audit path. <code>auditTargetExecutionService</code> now selects the matching location's already-fetched GBP data and adapts <code>getGBPAIReadyData().profile</code> to the completeness contract. Exact-location, safe single-location fallback, unmapped multi-location skip, and advisory-failure behavior are test-proven. The adapter does not treat the current source's absent photo count as proof that the owner lacks photos; photos become gradable only when a numeric count exists. Added canonical acceptance artifacts. No SQL migration and no new provider request.</p>
+      <p><strong>Reason:</strong> User QA: exact-head PR #164 review found that only tests supplied <code>gbpCompleteness</code>; the live call remained <code>runGetFoundChecker({ url, html })</code>, so A2 never emitted in production. The stacked branch also conflicted with #158's neutral safety-service refactor and lacked &sect;20.5 artifacts.</p>
+      <p><strong>Updated Done criteria:</strong> the production organization-audit path supplies correctly scoped live GBP completeness data; no profile can cross a location boundary; provider-unobserved fields are not reported as owner-missing; #158's Unicode/HTML and unrelated-negator regressions pass in the composed receipt; canonical acceptance artifacts contain no pending item and every unrun behavioral item has an explicit written waiver.</p>
+    </article>
+    <article class="revision-entry">
+      <h3>Rev 4 &mdash; 2026-07-17</h3>
+      <p><strong>Change:</strong> Merged frozen #158 follow-up <code>74c1f4eda</code> through merge commit <code>239e78e4</code>, retaining Slice 1a's append-only Rev 9 spec and acceptance receipt. The shared claim-negation grammar now catches positive predicates hidden behind bounded ordinary modifiers or modal-plus-adverb phrases while continuing to permit modifiers before an actual negator. No #164 production-wiring behavior changed. No SQL migration was added.</p>
+      <p><strong>Reason:</strong> User QA: the required #158 follow-up closed an additional modifier/adverb negation bypass after the initial #164 composition had already been committed.</p>
+      <p><strong>Updated Done criteria:</strong> the exact merged tree passes direct, single-adverb, modal-plus-adverb, and multi-modifier must-block cases plus paired must-pass disclaimer cases; the focused composed receipt, full suite, TypeScript, strict conventions, lint, dependency-cruiser, and diff checks are recorded from this final tree.</p>
+    </article>
+  </section>
+
+</div>
+</body>
+</html>

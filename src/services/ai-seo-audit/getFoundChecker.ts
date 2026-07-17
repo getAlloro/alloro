@@ -26,6 +26,12 @@ import {
   type SchemaCompletenessResult,
 } from "./schemaCompletenessScoring";
 import {
+  scoreGbpCompleteness,
+  gbpFieldLabel,
+  type GbpCompletenessInput,
+  type GbpCompletenessResult,
+} from "./gbpCompletenessScoring";
+import {
   lintAnswerFirstStructure,
   type AnswerFirstLintResult,
 } from "./answerFirstStructureLint";
@@ -34,6 +40,9 @@ import type { ExtractedBusinessIdentity, AiSeoExternalMatchState } from "./types
 
 /** Internal-only signal string. NEVER placed in owner-facing recommendation copy. */
 export const INTERNAL_AEO_INCOMPLETE_SIGNAL = "AEO-incomplete";
+
+/** Internal-only signal string for GBP completeness. NEVER owner-facing. Gates nothing. */
+export const INTERNAL_GBP_INCOMPLETE_SIGNAL = "GBP-incomplete";
 
 export interface GbpPageConsistencyFlag {
   state: AiSeoExternalMatchState;
@@ -62,6 +71,11 @@ export interface GetFoundCheckInput {
    * consistency flag is skipped (edge case: no GBP → score page schema only).
    */
   gbpIdentity?: ExtractedBusinessIdentity | null;
+  /**
+   * The practice's own condensed GBP record (client_gbp), when available. Omit
+   * → the GBP completeness score is skipped (hasData:false, no recommendation).
+   */
+  gbpCompleteness?: GbpCompletenessInput | null;
 }
 
 export interface GetFoundCheckResult {
@@ -69,6 +83,8 @@ export interface GetFoundCheckResult {
   schemaCompleteness: SchemaCompletenessResult;
   /** null when no GBP identity was supplied (consistency flag skipped). */
   gbpPageConsistency: GbpPageConsistencyFlag | null;
+  /** GBP own-completeness grade. hasData:false when no GBP record was supplied. */
+  gbpCompleteness: GbpCompletenessResult;
   answerFirst: AnswerFirstLintResult;
   honesty: {
     /** Copy proposed for this page; each entry run through the honesty gate. */
@@ -119,6 +135,9 @@ export function runGetFoundChecker(
   // 3. Answer-first structure lint.
   const answerFirst = lintAnswerFirstStructure(html);
 
+  // 3b. GBP own-completeness (read-only). hasData:false when no record supplied.
+  const gbpCompleteness = scoreGbpCompleteness(input.gbpCompleteness);
+
   // 4. Honesty gate over any proposed copy (shared GeneratedCopySafetyService).
   const blockedReasons: string[] = [];
   let honestyPassed = true;
@@ -134,16 +153,19 @@ export function runGetFoundChecker(
     schemaCompleteness,
     gbpPageConsistency,
     answerFirst,
+    gbpCompleteness,
   );
 
-  const internalSignals = schemaCompleteness.aeoIncomplete
-    ? [INTERNAL_AEO_INCOMPLETE_SIGNAL]
-    : [];
+  const internalSignals = [
+    ...(schemaCompleteness.aeoIncomplete ? [INTERNAL_AEO_INCOMPLETE_SIGNAL] : []),
+    ...(gbpCompleteness.gbpIncomplete ? [INTERNAL_GBP_INCOMPLETE_SIGNAL] : []),
+  ];
 
   const result: GetFoundCheckResult = {
     url,
     schemaCompleteness,
     gbpPageConsistency,
+    gbpCompleteness,
     answerFirst,
     honesty: {
       checked: candidateCopy.length,
@@ -163,6 +185,9 @@ export function runGetFoundChecker(
       schemaMissingFieldCount: schemaCompleteness.missingFields.length,
       schemaMissingFields: schemaCompleteness.missingFields,
       gbpConsistencyState: gbpPageConsistency?.state ?? "skipped",
+      gbpHasData: gbpCompleteness.hasData,
+      gbpMissingFieldCount: gbpCompleteness.missingFields.length,
+      gbpMissingFields: gbpCompleteness.missingFields,
       answerFirstFlags: answerFirst.flags,
       honestyChecked: candidateCopy.length,
       honestyPassed,
@@ -182,6 +207,7 @@ function buildRecommendations(
   schema: SchemaCompletenessResult,
   consistency: GbpPageConsistencyFlag | null,
   answerFirst: AnswerFirstLintResult,
+  gbp: GbpCompletenessResult,
 ): AdvisoryRecommendation[] {
   const recommendations: AdvisoryRecommendation[] = [];
 
@@ -191,6 +217,15 @@ function buildRecommendations(
       title: "Complete this page's structured data",
       detail: `Add these structured-data fields so search and AI readers can parse the page: ${schema.missingFields.join(", ")}.`,
       internalSignals: schema.aeoIncomplete ? [INTERNAL_AEO_INCOMPLETE_SIGNAL] : [],
+    });
+  }
+
+  if (gbp.hasData && gbp.missingFields.length > 0) {
+    recommendations.push({
+      code: "gbp_completeness",
+      title: "Complete your Google Business Profile",
+      detail: `Add these details to your Google Business Profile so people and search can read it fully: ${gbp.missingFields.map(gbpFieldLabel).join(", ")}.`,
+      internalSignals: gbp.gbpIncomplete ? [INTERNAL_GBP_INCOMPLETE_SIGNAL] : [],
     });
   }
 

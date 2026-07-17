@@ -4,6 +4,10 @@ import {
   IAiSeoAuditTarget,
 } from "../../models/website-builder/AiSeoAuditTargetModel";
 import { collectExternalEntitySources } from "./externalEntitySearchService";
+import {
+  mapAiReadyGbpToCompletenessInput,
+  type GbpCompletenessInput,
+} from "./gbpCompletenessScoring";
 import { runGetFoundChecker } from "./getFoundChecker";
 import {
   AiSeoAuditDetail,
@@ -94,7 +98,7 @@ export async function executeTargets(
       await recordFailedTarget(runId, entry.target, entry.error);
       continue;
     }
-    runGetFoundAdvisory(entry.snapshot);
+    runGetFoundAdvisory(entry.snapshot, entry.target, organizationContext);
     const output = scoreAuditTarget({
       snapshot: entry.snapshot,
       externalSources,
@@ -161,9 +165,21 @@ export async function executeTargets(
  *
  * Guarded: an advisory lint must never fail a real audit run.
  */
-function runGetFoundAdvisory(snapshot: UrlAuditSnapshot): void {
+function runGetFoundAdvisory(
+  snapshot: UrlAuditSnapshot,
+  target: IAiSeoAuditTarget,
+  organizationContext: OrganizationAuditContext | null,
+): void {
   try {
-    runGetFoundChecker({ url: snapshot.finalUrl, html: snapshot.html });
+    const gbpCompleteness = resolveTargetGbpCompleteness(
+      target.location_id,
+      organizationContext,
+    );
+    runGetFoundChecker({
+      url: snapshot.finalUrl,
+      html: snapshot.html,
+      ...(gbpCompleteness ? { gbpCompleteness } : {}),
+    });
   } catch (error) {
     logger.warn(
       {
@@ -174,6 +190,19 @@ function runGetFoundAdvisory(snapshot: UrlAuditSnapshot): void {
       "[get-found] advisory checker failed; audit run continues",
     );
   }
+}
+
+function resolveTargetGbpCompleteness(
+  locationId: number | null,
+  organizationContext: OrganizationAuditContext | null,
+): GbpCompletenessInput | null {
+  if (!organizationContext) return null;
+  const location = locationId === null
+    ? organizationContext.locations.length === 1
+      ? organizationContext.locations[0]
+      : null
+    : organizationContext.locations.find((candidate) => candidate.id === locationId) ?? null;
+  return mapAiReadyGbpToCompletenessInput(location?.gbpData);
 }
 
 function pickBaselineIdentity(
