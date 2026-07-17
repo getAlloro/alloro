@@ -37,8 +37,10 @@ const formUpload = multer({
 // The JSON contact form always enforces its boundary schema. Every value passed
 // to the controller's string sanitizer is therefore a string, never an
 // array/object that can throw and turn a malformed public request into a 500.
-// `message` intentionally has no schema length cap: a legitimate patient can
-// describe a long history without being rejected (§5.2, §11.2).
+// `message` has a generous finite cap defined in config: legitimate long
+// histories fit, while this unauthenticated route remains bounded (§5.2,
+// §11.2). The request-size and rate gates run earlier in app.ts, before the
+// app-wide 50 MB JSON parser.
 router.post(
   "/contact",
   validate(contactSubmissionSchema, { mode: "enforce" }),

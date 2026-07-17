@@ -19,6 +19,7 @@
  */
 
 import { z } from "zod";
+import { CONTACT_MESSAGE_MAX_CHARS } from "../config/websiteContact";
 
 const EMAIL_MAX = 320;
 const NAME_MAX = 200;
@@ -50,9 +51,10 @@ const referrerUrlField = z.string().max(REFERRER_URL_MAX);
 /**
  * POST /api/websites/contact
  * Controller hard-requires name, phone, email, captchaToken; service/message are
- * optional. This schema is enforced at the route so only strings reach the
- * controller's string sanitizer. `message` deliberately has no length cap:
- * long, legitimate patient histories must not be rejected at intake.
+ * optional. This schema is enforced at the route so only bounded strings reach
+ * the controller's string sanitizer. The patient-written message gets a
+ * generous finite ceiling rather than the old 3,000-character rejection or an
+ * unbounded pass-through.
  */
 export const contactSubmissionSchema = z
   .object({
@@ -60,7 +62,7 @@ export const contactSubmissionSchema = z
     phone: z.string().trim().min(1, "phone is required").max(PHONE_MAX),
     email: z.string().trim().min(1, "email is required").max(EMAIL_MAX),
     service: z.string().max(SERVICE_MAX).optional(),
-    message: z.string().optional(),
+    message: z.string().max(CONTACT_MESSAGE_MAX_CHARS).optional(),
     captchaToken: z
       .string({ message: "captchaToken is required" })
       .min(1, "captchaToken is required"),

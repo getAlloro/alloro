@@ -26,6 +26,7 @@ import {
   attributionInputSchema,
   ATTRIBUTION_FIELDS,
 } from "../validation/websiteContact.schemas";
+import { CONTACT_MESSAGE_MAX_CHARS } from "../config/websiteContact";
 
 /** Mirrors the caps in the schema (capture contract + browser URL cap). */
 const SOURCE_LABEL_MAX = 100;
@@ -58,9 +59,8 @@ function issuesFor(body: Record<string, unknown>): Array<{
 }
 
 describe("contactSubmissionSchema — enforced string boundary (§11.2)", () => {
-  it("accepts a legitimate long patient message without truncating it", () => {
-    const message =
-      "My symptoms and treatment history need more detail. ".repeat(200);
+  it("accepts a patient message exactly at the finite ceiling", () => {
+    const message = "x".repeat(CONTACT_MESSAGE_MAX_CHARS);
     const result = contactSubmissionSchema.safeParse({
       ...CONTACT_BASE,
       message,
@@ -69,6 +69,21 @@ describe("contactSubmissionSchema — enforced string boundary (§11.2)", () => 
     expect(result.success).toBe(true);
     if (!result.success) return;
     expect(result.data.message).toBe(message);
+  });
+
+  it("rejects a patient message one character over the ceiling", () => {
+    const result = contactSubmissionSchema.safeParse({
+      ...CONTACT_BASE,
+      message: "x".repeat(CONTACT_MESSAGE_MAX_CHARS + 1),
+    });
+
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: "too_big", path: ["message"] }),
+      ]),
+    );
   });
 
   it.each([

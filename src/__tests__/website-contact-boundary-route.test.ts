@@ -6,6 +6,7 @@
  * keeping legitimate long patient messages intact.
  */
 
+import express from "express";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import request from "supertest";
 
@@ -24,6 +25,12 @@ vi.mock(
 import { app } from "./helpers/app";
 import { verifyRecaptcha } from "../controllers/websiteContact/websiteContact-services/recaptchaService";
 import { sendEmailWebhook } from "../controllers/websiteContact/websiteContact-services/emailWebhookService";
+import {
+  CONTACT_MESSAGE_MAX_CHARS,
+  CONTACT_RATE_LIMIT_MAX_REQUESTS,
+  CONTACT_REQUEST_BODY_MAX_BYTES,
+} from "../config/websiteContact";
+import { createContactSubmissionLimiter } from "../middleware/websiteContactProtection";
 
 const ROUTE = "/api/websites/contact";
 const BASE_BODY = {
@@ -40,11 +47,10 @@ beforeEach(() => {
 });
 
 describe("POST /api/websites/contact — authoritative string boundary", () => {
-  it("preserves and delivers a legitimate long patient message", async () => {
+  it("preserves and delivers a patient message exactly at the ceiling", async () => {
     const marker = "LAST_CLINICAL_DETAIL";
     const message =
-      "My symptoms and treatment history need more detail. ".repeat(200) +
-      marker;
+      "x".repeat(CONTACT_MESSAGE_MAX_CHARS - marker.length) + marker;
 
     const res = await request(app).post(ROUTE).send({
       ...BASE_BODY,
@@ -52,9 +58,54 @@ describe("POST /api/websites/contact — authoritative string boundary", () => {
     });
 
     expect(res.status).toBe(200);
+    expect(res.headers["ratelimit-limit"]).toBe(
+      String(CONTACT_RATE_LIMIT_MAX_REQUESTS),
+    );
     expect(verifyRecaptcha).toHaveBeenCalledTimes(1);
     expect(sendEmailWebhook).toHaveBeenCalledTimes(1);
     expect(vi.mocked(sendEmailWebhook).mock.calls[0][0].body).toContain(marker);
+  });
+
+  it("rejects a patient message one character over the ceiling", async () => {
+    const res = await request(app).post(ROUTE).send({
+      ...BASE_BODY,
+      message: "x".repeat(CONTACT_MESSAGE_MAX_CHARS + 1),
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({
+      success: false,
+      data: null,
+      error: {
+        code: "VALIDATION_ERROR",
+        details: {
+          fields: expect.arrayContaining(["message"]),
+          issues: expect.arrayContaining(["too_big"]),
+        },
+      },
+    });
+    expect(verifyRecaptcha).not.toHaveBeenCalled();
+    expect(sendEmailWebhook).not.toHaveBeenCalled();
+  });
+
+  it("rejects a JSON request over the route-specific byte ceiling", async () => {
+    const res = await request(app).post(ROUTE).send({
+      ...BASE_BODY,
+      message: "x".repeat(CONTACT_REQUEST_BODY_MAX_BYTES),
+    });
+
+    expect(res.status).toBe(413);
+    expect(res.body).toEqual({
+      success: false,
+      data: null,
+      error: {
+        code: "CONTACT_REQUEST_TOO_LARGE",
+        message: "Contact form request is too large.",
+        details: { maxBytes: CONTACT_REQUEST_BODY_MAX_BYTES },
+      },
+    });
+    expect(verifyRecaptcha).not.toHaveBeenCalled();
+    expect(sendEmailWebhook).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -84,5 +135,34 @@ describe("POST /api/websites/contact — authoritative string boundary", () => {
     });
     expect(verifyRecaptcha).not.toHaveBeenCalled();
     expect(sendEmailWebhook).not.toHaveBeenCalled();
+  });
+
+  it("rate-limits repeated public contact requests with a canonical error", async () => {
+    const limiterApp = express();
+    limiterApp.use(express.json());
+    limiterApp.post(
+      "/contact",
+      createContactSubmissionLimiter(2),
+      (_req, res) => res.status(200).json({ ok: true }),
+    );
+
+    expect((await request(limiterApp).post("/contact").send({})).status).toBe(
+      200,
+    );
+    expect((await request(limiterApp).post("/contact").send({})).status).toBe(
+      200,
+    );
+
+    const limited = await request(limiterApp).post("/contact").send({});
+    expect(limited.status).toBe(429);
+    expect(limited.body).toEqual({
+      success: false,
+      data: null,
+      error: {
+        code: "CONTACT_RATE_LIMITED",
+        message: "Too many contact requests. Please wait before trying again.",
+        details: null,
+      },
+    });
   });
 });

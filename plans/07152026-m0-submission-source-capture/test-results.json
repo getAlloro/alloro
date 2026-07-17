@@ -348,7 +348,7 @@
       "expected": "200; sendEmailWebhook called exactly once - the enforced type boundary preserves and delivers the long patient inquiry.",
       "status": "pass",
       "evidence": "src/__tests__/form-submission-enforce-flag.test.ts D4 passed in the same normal-timeout file, focused, and full runs as D1. src/__tests__/website-contact-boundary-route.test.ts separately proved the long-message tail reaches the webhook under the route's explicit enforce posture.",
-      "notes": "Rev 10 corrects Rev 9's over-broad fix: /contact no longer pins the entire schema to warn. It enforces authoritative string types but places no arbitrary cap on patient-written message text.",
+      "notes": "Rev 10 corrected Rev 9's over-broad fix by enforcing authoritative string types. Rev 11 adds the missing finite abuse boundary: patient-written text is valid through 32,000 characters, more than ten times the old rejected size.",
       "waiver": ""
     },
     {
@@ -369,19 +369,20 @@
     },
     {
       "id": "E1",
-      "title": "/contact enforces string boundary types without rejecting legitimate long patient messages",
+      "title": "/contact enforces string types and a patient-safe finite message boundary",
       "surface": "api",
       "precondition": "Real Express app driven by Supertest under the normal test environment. reCAPTCHA and email webhook seams are mocked; the real route validator and controller execute.",
       "steps": [
-        "POST a valid contact request with a message longer than 9,000 characters and a unique tail marker.",
-        "Assert 200 and that the webhook body contains the tail marker.",
+        "POST a valid contact request with a message exactly 32,000 characters long and a unique tail marker.",
+        "Assert 200 and that the webhook body contains the tail marker at the end of the untruncated message.",
+        "POST the same request with a 32,001-character message and assert canonical 400 before reCAPTCHA or webhook work.",
         "POST separate requests with arrays/objects in name, phone, email, captchaToken, service, and message.",
         "Assert canonical 400 responses and that reCAPTCHA/webhook were never called for malformed types."
       ],
-      "expected": "Long string text is preserved and delivered; every non-string value is stopped at the route boundary before controller string sanitization.",
+      "expected": "A message exactly at the named 32,000-character ceiling is preserved and delivered; one character over and every non-string value are stopped at the route boundary before controller work.",
       "status": "pass",
-      "evidence": "src/__tests__/website-contact-boundary-route.test.ts passed 7/7 route cases; src/__tests__/websiteContact.schemas.test.ts passed the matching 7 contact-schema cases. Together with the existing attribution-schema cases, the two-file focused command passed 28/28. Both are included in the 118/118 focused remediation run and 563/563 default full run.",
-      "notes": "The route explicitly uses mode=enforce for contactSubmissionSchema. Only patient message length is intentionally unbounded; field types remain authoritative.",
+      "evidence": "Rev 11: src/__tests__/website-contact-boundary-route.test.ts and src/__tests__/websiteContact.schemas.test.ts passed together, 32/32. Both schema and the real route prove exact-boundary success and one-over rejection. The default full run passed 65 files / 567 tests.",
+      "notes": "The route explicitly uses mode=enforce for contactSubmissionSchema. CONTACT_MESSAGE_MAX_CHARS is centralized in src/config/websiteContact.ts and imported by both the runtime schema and tests.",
       "waiver": ""
     },
     {
@@ -396,8 +397,8 @@
       ],
       "expected": "All commands exit 0; no timeout and no cross-case FormSubmissionModel.create contamination.",
       "status": "pass",
-      "evidence": "Observed on Node 22.23.1: enforce-flag file 5/5 pass with no timeout override; focused remediation 6 files / 118 tests pass; default full suite 65 files / 563 tests pass.",
-      "notes": "Pre-fix evidence was reproduced: D1 timed out at 5000ms and D2 then saw two create calls. The fix removes per-case app reloads instead of raising the timeout.",
+      "evidence": "Rev 11 re-check: the enforce-flag file passed alone 5/5 with no timeout override, and the default full suite passed 65 files / 567 tests. The Rev 10 118-test focused receipt remains historical evidence for the isolation fix.",
+      "notes": "One attempted three-file parallel focused invocation timed out in beforeAll while multiple files imported the full app. No timeout was raised: the enforce file passed alone, the boundary pair passed together, and the default full suite passed. Pre-fix evidence remains the D1 timeout and D2 cross-case contamination that Rev 10 removed.",
       "waiver": ""
     },
     {
@@ -411,8 +412,25 @@
       ],
       "expected": "All imports resolve, unit behavior is unchanged, and Constitution section 6.3 structure is satisfied.",
       "status": "pass",
-      "evidence": "Helper moved to src/controllers/websiteContact/feature-utils/sourceAttribution.ts; focused tests passed 118/118; npx tsc --noEmit exited 0; npm run check:conventions -- --strict exited 0 with zero backend structural violations; git diff --check exited 0.",
+      "evidence": "Helper remains at src/controllers/websiteContact/feature-utils/sourceAttribution.ts. Rev 11 re-check: npx tsc --noEmit exited 0; strict conventions found zero clear structural violations; git diff --check exited 0; full suite passed 567/567.",
       "notes": "The older websiteContact-utils folder remains for pre-existing helpers only; this PR's new helper now uses the required feature-utils name.",
+      "waiver": ""
+    },
+    {
+      "id": "E4",
+      "title": "/contact rejects oversized JSON early and rate-limits repeated public requests",
+      "surface": "api",
+      "precondition": "Real Express app for the parser-order assertion, plus an isolated Express route using the same limiter factory with a two-request threshold. No database or external provider is used; reCAPTCHA and webhook seams are mocked.",
+      "steps": [
+        "POST a valid request at the 32,000-character message ceiling and assert the real route emits RateLimit-Limit: 20.",
+        "POST JSON whose serialized body exceeds CONTACT_REQUEST_BODY_MAX_BYTES (256 KiB).",
+        "Assert canonical 413 and that reCAPTCHA and webhook dispatch were never called.",
+        "Drive the same limiter factory with a threshold of two and issue three requests."
+      ],
+      "expected": "The exact contact path is protected before the app-wide 50 MB parser; oversized JSON returns CONTACT_REQUEST_TOO_LARGE at 413; the third request in the isolated rate test returns CONTACT_RATE_LIMITED at 429 with the canonical response envelope.",
+      "status": "pass",
+      "evidence": "src/__tests__/website-contact-boundary-route.test.ts passed as part of the 32/32 boundary pair and the 567/567 full suite. The real-route header assertion proves the production limiter is mounted; the 413 test proves the smaller parser runs before controller work; the isolated threshold test proves the limiter's rejection contract.",
+      "notes": "The protection is deliberately limited to POST /api/websites/contact. The generic multipart /form-submission limiter remains disabled and untouched, so this revision does not risk dropping unrelated hosted-site leads.",
       "waiver": ""
     }
   ]
