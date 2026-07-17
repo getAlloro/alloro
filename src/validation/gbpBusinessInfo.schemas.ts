@@ -154,6 +154,22 @@ const phoneNumbersSchema = z
     { message: "phoneNumbers must include a primaryPhone or additionalPhones" }
   );
 
+const numericLocationIdSchema = z
+  .number()
+  .int()
+  .positive()
+  .max(Number.MAX_SAFE_INTEGER);
+
+const stringLocationIdSchema = z
+  .string()
+  .trim()
+  .regex(/^\d+$/, "locationId must contain digits only")
+  .transform(Number)
+  .refine(
+    (value) => Number.isSafeInteger(value) && value > 0,
+    "locationId must be a positive safe integer"
+  );
+
 /**
  * POST /api/gbp-automation/business-info/draft — { fields, locationId? }.
  * `locationId` is read by the location-scope layer and clientContext; keep it.
@@ -162,7 +178,7 @@ const phoneNumbersSchema = z
  */
 export const businessInfoDraftSchema = z.object({
   locationId: z
-    .union([z.number().int().positive(), z.string().trim().min(1).max(32)])
+    .union([numericLocationIdSchema, stringLocationIdSchema])
     .optional(),
   fields: z
     .object({

@@ -278,6 +278,7 @@ describe("deployNow — structural gate + capture-before-write", () => {
       (c) => (c[1] as { business_info_payload?: { previousValues?: unknown } }).business_info_payload?.previousValues
     );
     expect(snapshotWrite).toBeTruthy();
+    expect(h.updateWorkItem).toHaveBeenCalledTimes(1);
     expect(h.updateWorkItem.mock.invocationCallOrder[0]).toBeLessThan(
       h.patchBusinessInfo.mock.invocationCallOrder[0]
     );
@@ -302,6 +303,27 @@ describe("deployNow — structural gate + capture-before-write", () => {
     expect(h.patchBusinessInfo).not.toHaveBeenCalled();
     expect(h.markPublished).not.toHaveBeenCalled();
     expect(h.markFailedToDraft).toHaveBeenCalledTimes(1);
+  });
+
+  it("aborts with SNAPSHOT_PERSIST_FAILED when the snapshot update affects zero rows", async () => {
+    h.findWorkItem.mockResolvedValue(deployingItem());
+    h.updateWorkItem.mockResolvedValue(0);
+
+    await GbpBusinessInfoDeploymentService.deployNow("wi-1", 5);
+
+    expect(h.patchBusinessInfo).not.toHaveBeenCalled();
+    expect(h.markPublished).not.toHaveBeenCalled();
+    expect(h.markFailed).toHaveBeenCalledWith(
+      "att-1",
+      "SNAPSHOT_PERSIST_FAILED",
+      "The rollback snapshot could not be saved; the update was not sent.",
+      null
+    );
+    expect(h.markFailedToDraft).toHaveBeenCalledWith(
+      "wi-1",
+      "SNAPSHOT_PERSIST_FAILED",
+      "The rollback snapshot could not be saved; the update was not sent."
+    );
   });
 
   it("on a 403 the snapshot is already saved and the item fails without publishing", async () => {

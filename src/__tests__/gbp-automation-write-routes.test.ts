@@ -49,6 +49,7 @@ import { GbpReviewDraftSlotService } from "../controllers/gbp-automation/feature
 import { GbpReviewEscalationService } from "../controllers/gbp-automation/feature-services/GbpReviewEscalationService";
 import { GbpPublishedReplyService } from "../controllers/gbp-automation/feature-services/GbpPublishedReplyService";
 import type { IGbpWorkItem } from "../models/GbpWorkItemModel";
+import { businessInfoDraftSchema } from "../validation/gbpBusinessInfo.schemas";
 
 const BASE = "/api/gbp-automation";
 
@@ -327,9 +328,25 @@ describe("§5.4 — mutating GBP automation routes require a write-capable role"
 });
 
 describe("§11.2 — business-info draft body is validated at the route (enforce mode)", () => {
-  const INVALID_BODIES: Array<{ title: string; body: Record<string, unknown> }> = [
+  const INVALID_BODIES: Array<{
+    title: string;
+    body: Record<string, unknown>;
+    accessibleLocationIds?: number[];
+  }> = [
     { title: "an empty body", body: {} },
     { title: "an empty fields object", body: { fields: {} } },
+    {
+      title: "a non-numeric locationId",
+      body: { locationId: "abc", fields: { title: "Bright Smile Dental" } },
+    },
+    {
+      title: "a partially numeric locationId",
+      body: { locationId: "42junk", fields: { title: "Bright Smile Dental" } },
+      // The location-scope middleware runs before route-specific validation.
+      // Make 42 accessible so this reaches the schema and proves the suffix is
+      // rejected instead of being interpreted as location 42.
+      accessibleLocationIds: [42],
+    },
     {
       title: "a numeric phone value",
       body: { fields: { phoneNumbers: { primaryPhone: 5551002000 } } },
@@ -455,9 +472,15 @@ describe("§11.2 — business-info draft body is validated at the route (enforce
     },
   ];
 
-  for (const { title, body } of INVALID_BODIES) {
+  for (const { title, body, accessibleLocationIds } of INVALID_BODIES) {
     it(`rejects ${title} with 400 before the controller runs`, async () => {
       setRole("admin");
+      if (accessibleLocationIds) {
+        setTableResult(
+          "locations",
+          accessibleLocationIds.map((id) => ({ id, organization_id: 7 }))
+        );
+      }
       const spy = vi
         .spyOn(GbpBusinessInfoDraftService, "createDraft")
         .mockResolvedValue(WORK_ITEM);
@@ -476,6 +499,16 @@ describe("§11.2 — business-info draft body is validated at the route (enforce
       expect(spy).not.toHaveBeenCalled();
     });
   }
+
+  it("normalizes a positive integer string locationId to a number", () => {
+    const parsed = businessInfoDraftSchema.parse({
+      locationId: " 002 ",
+      fields: { title: "Bright Smile Dental" },
+    });
+
+    expect(parsed.locationId).toBe(2);
+    expect(typeof parsed.locationId).toBe("number");
+  });
 
   it("accepts a well-formed body (nested phone + hours + category) and stages the draft", async () => {
     setRole("admin");

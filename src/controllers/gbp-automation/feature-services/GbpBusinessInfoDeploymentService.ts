@@ -444,9 +444,15 @@ export class GbpBusinessInfoDeploymentService {
       profile as Record<string, unknown>,
       payload.updateMask
     );
-    await GbpWorkItemModel.updateById(item.id, {
+    const snapshotUpdated = await GbpWorkItemModel.updateById(item.id, {
       business_info_payload: { ...payload, previousValues },
     });
+    if (snapshotUpdated !== 1) {
+      throw new GbpAutomationError(
+        "SNAPSHOT_PERSIST_FAILED",
+        "The rollback snapshot could not be saved; the update was not sent."
+      );
+    }
     return previousValues;
   }
 
