@@ -48,8 +48,9 @@ describe("agent retry policy — opt-in per agent, default off (§21.1)", () => 
   it("DOES retry `nap_consistency` — it earned it: UNIQUE(location_id, run_date) + onConflict ignore", () => {
     // The one agent whose repeat run is safe BY DESIGN, not by luck: the
     // observation table carries UNIQUE (location_id, run_date) and the model
-    // records with onConflict(...).ignore(), so a retry inside the same run day
-    // writes nothing new and counts itself as `locationsAlreadyRecorded`.
+    // records with onConflict(...).ignore(). The scheduler persists one logical
+    // run date across every attempt, and the executor preflights that key before
+    // paid work, so retries skip locations that already landed even at midnight.
     expect(getAgentRetryPolicy("nap_consistency")).toEqual({
       attempts: 3,
       backoffMs: 60000,

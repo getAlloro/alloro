@@ -113,6 +113,37 @@ export class ScheduleRunModel {
     return run;
   }
 
+  static async findRunByIdForSchedule(
+    runId: number,
+    scheduleId: number,
+    trx?: QueryContext,
+  ): Promise<IScheduleRun | undefined> {
+    return this.table(trx)
+      .where({ id: runId, schedule_id: scheduleId })
+      .first();
+  }
+
+  static async resumeRun(
+    runId: number,
+    scheduleId: number,
+    trx?: QueryContext,
+  ): Promise<void> {
+    const updated = await this.table(trx)
+      .where({ id: runId, schedule_id: scheduleId, status: "failed" })
+      .update({
+        status: "running",
+        completed_at: null,
+        duration_ms: null,
+        summary: null,
+        error: null,
+      });
+    if (updated !== 1) {
+      throw new Error(
+        `Could not resume schedule run ${runId} for schedule ${scheduleId}.`
+      );
+    }
+  }
+
   static async completeRun(
     runId: number,
     summary: Record<string, unknown>,

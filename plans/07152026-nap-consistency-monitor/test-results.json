@@ -1,6 +1,6 @@
 {
   "plan": "plans/07152026-nap-consistency-monitor",
-  "generatedAt": "2026-07-16",
+  "generatedAt": "2026-07-17",
   "status": "In Progress",
   "items": [
     {
@@ -365,6 +365,45 @@
       "layer": 1
     },
     {
+      "id": "T24",
+      "title": "One stable logical UTC window/date survives midnight, and completed locations are skipped before paid measurement (§21.1)",
+      "surface": "none",
+      "precondition": "Drive the scheduler after UTC midnight with a due window immediately before midnight; drive two NAP executor attempts with an in-memory persisted-key set. No Redis, database, or provider.",
+      "steps": [
+        "Dispatch at 2026-07-17T00:00:00.500Z for next_run_at 2026-07-16T23:59:59.000Z; inspect BullMQ job data.",
+        "Assert the registry passes logicalRunDate 2026-07-16 and the exact logicalRunAt into the NAP executor.",
+        "Run the executor once before midnight so location 42 lands under 42|2026-07-16.",
+        "Advance the clock past midnight and run the retry with the same logical date.",
+        "Assert the second attempt increments locationsAlreadyRecorded and never invokes the paid runner or record seam again.",
+        "Assert the real model preflight requires organization_id, location_id, and run_date."
+      ],
+      "expected": "The job payload owns one logical window/date. Crossing midnight cannot mint a 2026-07-17 idempotency key, and already-landed locations are no-ops before provider cost rather than ignored only after remeasurement.",
+      "status": "pass",
+      "evidence": "src/__tests__/schedule-logical-run-context.test.ts (2/2) + src/__tests__/nap-consistency-retry-idempotency.test.ts (3/3) passed; focused PR run 65/65 and full normal Vitest 66 files / 521 tests passed on Node 22 (2026-07-17).",
+      "notes": "Layer 1 only. The scheduler and executor are real; queues, DB, and provider are mocked/in-memory. This proves the logical date/window and pre-measurement guard, not BullMQ persistence against Redis or PostgreSQL query semantics.",
+      "waiver": "",
+      "layer": 1
+    },
+    {
+      "id": "T25",
+      "title": "Attempt two recovers its own stranded running row instead of resolving as an active-run no-op (§21.2)",
+      "surface": "none",
+      "precondition": "Drive the real processScheduleExec twice with one mutable BullMQ job double. Attempt one handler throws and failRun also throws, leaving run 99 running; attempt two sees hasActiveRun=true.",
+      "steps": [
+        "Attempt one creates run 99 and persists runId=99 in BullMQ job data.",
+        "Inject an agent failure followed by a failRun bookkeeping failure; assert attempt one rejects.",
+        "Set attemptsMade=1 and return run 99 as still running for schedule 7.",
+        "Make the broad hasActiveRun guard report true — the exact old no-op condition.",
+        "Run attempt two; assert it identifies run 99 as its own, executes the handler, completes run 99, and creates no second row."
+      ],
+      "expected": "The owning retry bypasses the unrelated-active-run guard, resumes its exact row, and completes. A different first-attempt job with no owned runId still respects the active-run concurrency guard.",
+      "status": "pass",
+      "evidence": "src/__tests__/schedule-exec-failure-contract.test.ts — 14/14 passed, including the exact two-attempt failRun failure injection and a separate UTC-midnight retry context case; focused PR run 65/65 and full normal Vitest 66 files / 521 tests passed on Node 22 (2026-07-17).",
+      "notes": "Layer 1 only. The processor is real and BullMQ attemptsMade/job-data semantics are represented by a mutable job double; no Redis worker was run. T14/T15 remain pending and this does not change the Layer 2 roll-up.",
+      "waiver": "",
+      "layer": 1
+    },
+    {
       "id": "T14",
       "title": "The migration lands against a real database — and writes no `schedules` row",
       "surface": "cli",
@@ -401,5 +440,5 @@
       "layer": 2
     }
   ],
-  "layerNote": "§20.5 defines this artifact as the Layer 2 acceptance checklist — behavioural validation against the RUNNING app. Every item marked `layer: 1` is a Layer 1 automated-test receipt (vitest, injected seams or mocked collaborators; no network, no Redis and no database); it is listed here for traceability and is NOT behavioural validation. T22 is weaker still: a static code-review receipt, not an executed test — it says so in its notes. NO Layer 2 validation has been performed for this plan: both layer-2 items (T14, T15) are pending. The roll-up therefore stays In Progress and must not be read as an accepted feature. Specifically NOT proven anywhere in this file: that the migration's DDL is valid PostgreSQL (T10-T13 assert which knex calls are made, via a mocked knex), and that BullMQ actually retries a rejected job (T21 proves only the precondition — that the promise rejects)."
+  "layerNote": "§20.5 defines this artifact as the Layer 2 acceptance checklist — behavioural validation against the RUNNING app. Every item marked `layer: 1` is a Layer 1 automated-test receipt (vitest, injected seams or mocked collaborators; no network, no Redis and no database); it is listed here for traceability and is NOT behavioural validation. T22 is weaker still: a static code-review receipt, not an executed test — it says so in its notes. T24/T25 prove the stable logical context, pre-measurement idempotency, and owned-run recovery against real application functions with test doubles; they do NOT prove Redis/BullMQ or PostgreSQL at runtime. NO Layer 2 validation has been performed for this plan: both layer-2 items (T14, T15) remain pending and unwaived. The roll-up therefore stays In Progress and must not be read as an accepted feature. Specifically NOT proven anywhere in this file: that the migration's DDL is valid PostgreSQL (T10-T13 assert which knex calls are made, via a mocked knex), that BullMQ persists/retries the job data against Redis, or that a live SerpApi run records correct production data."
 }

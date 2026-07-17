@@ -7,7 +7,11 @@
 import { Request, Response } from "express";
 import { CronExpressionParser } from "cron-parser";
 import { ScheduleModel, ScheduleRunModel, ISchedule } from "../../models/ScheduleModel";
-import { getAgentHandler, getRegisteredAgents } from "../../services/agentRegistry";
+import {
+  createAgentRunContext,
+  getAgentHandler,
+  getRegisteredAgents,
+} from "../../services/agentRegistry";
 import logger from "../../lib/logger";
 
 function handleError(res: Response, error: unknown, operation: string): Response {
@@ -236,7 +240,7 @@ export async function triggerRun(req: Request, res: Response): Promise<any> {
     // corrupt the response.
     void (async () => {
       try {
-        const result = await agent.handler();
+        const result = await agent.handler(createAgentRunContext(new Date()));
         await ScheduleRunModel.completeRun(run.id, result.summary);
         await ScheduleModel.updateById(schedule.id, { last_run_at: new Date() });
         logger.info(

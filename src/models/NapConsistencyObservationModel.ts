@@ -36,7 +36,8 @@ export interface RecordNapObservationInput {
  * read path, never an optional filter a caller can skip. EVERY unscoped
  * `BaseModel` read/write entry point is SEALED rather than inherited, so the
  * scope cannot be bypassed by accident or on purpose. The only ways into this
- * table are {@link record} and {@link listForLocation}.
+ * table are {@link record}, {@link hasObservationForLogicalRun}, and
+ * {@link listForLocation}.
  *
  * The sealed set was derived by ENUMERATING `BaseModel`'s public static surface
  * (`src/models/BaseModel.ts`), not from a remembered list. That surface is 11
@@ -92,6 +93,28 @@ export class NapConsistencyObservationModel extends BaseModel {
       .ignore()
       .returning("id");
     return inserted.length > 0;
+  }
+
+  /**
+   * Pre-measurement idempotency guard (§21.1). A BullMQ retry uses the same
+   * logical run date, so a location already persisted by an earlier attempt is
+   * skipped before another paid provider request. Tenant and location are both
+   * required even though the database uniqueness key is (location, run_date).
+   */
+  static async hasObservationForLogicalRun(
+    organizationId: number,
+    locationId: number,
+    runDate: string,
+    trx?: QueryContext
+  ): Promise<boolean> {
+    const row = await this.table(trx)
+      .where({
+        organization_id: organizationId,
+        location_id: locationId,
+        run_date: runDate,
+      })
+      .first("id");
+    return Boolean(row);
   }
 
   /**

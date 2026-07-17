@@ -11,7 +11,10 @@
 
 import { Job } from "bullmq";
 import { ScheduleModel, ScheduleRunModel } from "../../models/ScheduleModel";
-import { getAgentRetryPolicy } from "../../services/agentRegistry";
+import {
+  createAgentRunContext,
+  getAgentRetryPolicy,
+} from "../../services/agentRegistry";
 import { getMindsQueue } from "../queues";
 import { recordSchedulerTick } from "../workerHealth";
 import logger from "../../lib/logger";
@@ -54,13 +57,18 @@ export async function processSchedulerTick(_job: Job): Promise<void> {
     // Idempotent jobId keyed on the due window (next_run_at). Re-ticks that fire
     // before the run advances next_run_at produce the same id, so BullMQ dedupes
     // the enqueue instead of stacking duplicate executions.
-    const windowMs = schedule.next_run_at
-      ? new Date(schedule.next_run_at).getTime()
-      : Date.now();
+    const logicalWindow = schedule.next_run_at
+      ? new Date(schedule.next_run_at)
+      : new Date();
+    const logicalContext = createAgentRunContext(logicalWindow);
+    const windowMs = logicalWindow.getTime();
 
     await execQueue.add(
       "run-schedule",
-      { scheduleId: schedule.id },
+      {
+        scheduleId: schedule.id,
+        ...logicalContext,
+      },
       {
         jobId: `sched-${schedule.id}-${windowMs}`,
         // Bounded retry with backoff (§21.2), PER AGENT (§21.1) — never a

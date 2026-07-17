@@ -30,10 +30,31 @@ export interface AgentRetryPolicy {
 /** No retry. The conservative default for an agent that has not proven §21.1. */
 const NO_RETRY: AgentRetryPolicy = { attempts: 1, backoffMs: 0 };
 
+/**
+ * Stable identity for one logical scheduled run. The scheduler derives this
+ * once from the due window and persists it in BullMQ job data; retries must
+ * receive the same values even when the wall clock crosses UTC midnight.
+ */
+export interface AgentRunContext {
+  logicalRunAt: string;
+  logicalRunDate: string;
+}
+
+export function createAgentRunContext(logicalRunAt: Date): AgentRunContext {
+  if (Number.isNaN(logicalRunAt.getTime())) {
+    throw new Error("Cannot create an agent run context from an invalid date.");
+  }
+  const logicalRunAtIso = logicalRunAt.toISOString();
+  return {
+    logicalRunAt: logicalRunAtIso,
+    logicalRunDate: logicalRunAtIso.slice(0, 10),
+  };
+}
+
 export interface AgentHandler {
   displayName: string;
   description: string;
-  handler: () => Promise<{ summary: Record<string, unknown> }>;
+  handler: (context: AgentRunContext) => Promise<{ summary: Record<string, unknown> }>;
   /**
    * Omit to inherit NO_RETRY. Only set `attempts > 1` with a stated reason why
    * a repeat run of THIS handler is safe (§21.1).
@@ -86,20 +107,25 @@ const registry: Record<string, AgentHandler> = {
     // than let the defaults bite.
     description:
       "Recurring NAP-consistency check across external listings for all onboarded locations — observe + flag conflicts to fix, never a rank promise. NOT scheduled by default: no schedule is seeded, so nothing runs until you create one here. When you do: it starts running IMMEDIATELY (this form creates schedules enabled), and every run incurs SerpApi cost — so set it to an interval of 14 days rather than accepting the daily default.",
-    handler: async () => {
-      const result = await executeNapConsistencyAgent();
+    handler: async (context) => {
+      const result = await executeNapConsistencyAgent({
+        runDate: context.logicalRunDate,
+        observedAt: new Date(context.logicalRunAt),
+      });
       return { summary: result.summary as unknown as Record<string, unknown> };
     },
     // RETRY EARNED (§21.1 → §21.2). Unlike ranking/proofline, a repeat run of
     // this handler is safe, and that is a designed property rather than a hope:
     // `nap_consistency_observation` carries UNIQUE (location_id, run_date) and
     // `NapConsistencyObservationModel.record` inserts with `onConflict(...).ignore()`,
-    // returning whether a row actually landed — so a retry within the same run
-    // day re-measures and writes nothing new, counting itself honestly as
-    // `locationsAlreadyRecorded`. Retrying is therefore worth doing: the failure
-    // this exists to survive is a rejected WRITE (NapPersistenceError), which is
-    // typically a transient connection blip. Bounded at 3 because a retry
-    // re-runs the paid SerpApi measurement.
+    // returning whether a row actually landed. The scheduler also passes one
+    // stable logicalRunDate through every BullMQ attempt, and the executor
+    // checks that key BEFORE provider work. A retry therefore skips locations
+    // already recorded by an earlier attempt, including across UTC midnight;
+    // only locations whose write did not land are measured again. Retrying is
+    // worth doing because the failure this survives is a rejected write
+    // (NapPersistenceError), typically a transient connection blip. Bounded at
+    // 3 because failed writes can still require another paid measurement.
     retry: { attempts: 3, backoffMs: 60000 },
   },
 };

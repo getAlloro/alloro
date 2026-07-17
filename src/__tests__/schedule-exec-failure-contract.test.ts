@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { Job } from "bullmq";
 
 /**
@@ -24,6 +24,8 @@ const {
   updateById,
   hasActiveRun,
   createRun,
+  findRunByIdForSchedule,
+  resumeRun,
   completeRun,
   failRun,
   getAgentHandler,
@@ -35,6 +37,8 @@ const {
   updateById: vi.fn(),
   hasActiveRun: vi.fn(),
   createRun: vi.fn(),
+  findRunByIdForSchedule: vi.fn(),
+  resumeRun: vi.fn(),
   completeRun: vi.fn(),
   failRun: vi.fn(),
   getAgentHandler: vi.fn(),
@@ -51,6 +55,8 @@ vi.mock("../models/ScheduleModel", () => ({
   ScheduleRunModel: {
     hasActiveRun: (...a: unknown[]) => hasActiveRun(...a),
     createRun: (...a: unknown[]) => createRun(...a),
+    findRunByIdForSchedule: (...a: unknown[]) => findRunByIdForSchedule(...a),
+    resumeRun: (...a: unknown[]) => resumeRun(...a),
     completeRun: (...a: unknown[]) => completeRun(...a),
     failRun: (...a: unknown[]) => failRun(...a),
   },
@@ -79,13 +85,21 @@ const SCHEDULE = {
 
 /** A BullMQ job double carrying only what the processor reads. */
 function makeJob(attemptsMade: number, attempts?: number): Job<{ scheduleId: number }> {
-  return {
+  const job = {
     name: "run-schedule",
     id: "sched-7-1752537600000",
-    data: { scheduleId: 7 },
+    data: {
+      scheduleId: 7,
+      logicalRunAt: "2026-07-16T23:59:59.000Z",
+      logicalRunDate: "2026-07-16",
+    },
     attemptsMade,
     opts: attempts === undefined ? {} : { attempts },
-  } as unknown as Job<{ scheduleId: number }>;
+    async updateData(data: Record<string, unknown>) {
+      job.data = data as typeof job.data;
+    },
+  };
+  return job as unknown as Job<{ scheduleId: number }>;
 }
 
 beforeEach(() => {
@@ -93,10 +107,19 @@ beforeEach(() => {
   findById.mockResolvedValue({ ...SCHEDULE });
   hasActiveRun.mockResolvedValue(false);
   createRun.mockResolvedValue({ id: 99 });
+  findRunByIdForSchedule.mockResolvedValue({
+    id: 99,
+    schedule_id: 7,
+    status: "running",
+  });
   getAgentHandler.mockReturnValue({
     displayName: "Citations & NAP Consistency Monitor",
     handler: vi.fn(),
   });
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe("processScheduleExec — a failing agent must not resolve (§21.2/§3.2)", () => {
@@ -134,6 +157,81 @@ describe("processScheduleExec — a failing agent must not resolve (§21.2/§3.2
 
     // Rethrowing must not have cost us the honest run record.
     expect(failRun).toHaveBeenCalledWith(99, "db down");
+  });
+});
+
+describe("processScheduleExec — retry ownership and logical time (§21.1/§21.2)", () => {
+  it("attempt two resumes its own running row when attempt-one failRun bookkeeping also fails", async () => {
+    const handler = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("provider write failed"))
+      .mockResolvedValueOnce({ summary: { recovered: true } });
+    getAgentHandler.mockReturnValue({ displayName: "x", handler });
+    failRun.mockRejectedValueOnce(new Error("database still unavailable"));
+    const job = makeJob(0, 2);
+
+    await expect(processScheduleExec(job)).rejects.toThrow("provider write failed");
+    expect(job.data).toMatchObject({ runId: 99 });
+
+    // The exact defect: failRun left row 99 running, so the old broad
+    // hasActiveRun guard made attempt two resolve without executing.
+    hasActiveRun.mockResolvedValue(true);
+    findRunByIdForSchedule.mockResolvedValue({
+      id: 99,
+      schedule_id: 7,
+      status: "running",
+    });
+    job.attemptsMade = 1;
+
+    await expect(processScheduleExec(job)).resolves.toBeUndefined();
+
+    expect(handler).toHaveBeenCalledTimes(2);
+    expect(createRun).toHaveBeenCalledOnce();
+    expect(findRunByIdForSchedule).toHaveBeenCalledWith(99, 7);
+    expect(resumeRun).not.toHaveBeenCalled();
+    expect(completeRun).toHaveBeenCalledWith(99, { recovered: true });
+  });
+
+  it("keeps the original UTC logical date on the retry after midnight", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-16T23:59:59.500Z"));
+    const contexts: unknown[] = [];
+    const handler = vi
+      .fn()
+      .mockImplementationOnce(async (context) => {
+        contexts.push(context);
+        throw new Error("transient");
+      })
+      .mockImplementationOnce(async (context) => {
+        contexts.push(context);
+        return { summary: { recovered: true } };
+      });
+    getAgentHandler.mockReturnValue({ displayName: "x", handler });
+    const job = makeJob(0, 2);
+
+    await expect(processScheduleExec(job)).rejects.toThrow("transient");
+
+    vi.setSystemTime(new Date("2026-07-17T00:00:00.500Z"));
+    findRunByIdForSchedule.mockResolvedValue({
+      id: 99,
+      schedule_id: 7,
+      status: "failed",
+    });
+    job.attemptsMade = 1;
+
+    await expect(processScheduleExec(job)).resolves.toBeUndefined();
+
+    expect(contexts).toEqual([
+      {
+        logicalRunAt: "2026-07-16T23:59:59.000Z",
+        logicalRunDate: "2026-07-16",
+      },
+      {
+        logicalRunAt: "2026-07-16T23:59:59.000Z",
+        logicalRunDate: "2026-07-16",
+      },
+    ]);
+    expect(resumeRun).toHaveBeenCalledWith(99, 7);
   });
 });
 

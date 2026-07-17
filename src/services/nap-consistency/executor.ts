@@ -85,6 +85,15 @@ export interface NapExecutorSummary {
 export interface NapExecutorDeps {
   targetProvider?: NapTargetProvider;
   runner?: NapCheckRunner;
+  /**
+   * Tenant-scoped preflight for the stable logical run key. Returning true
+   * skips the paid runner because an earlier BullMQ attempt already landed.
+   */
+  hasObservationForLogicalRun?: (
+    organizationId: number,
+    locationId: number,
+    runDate: string
+  ) => Promise<boolean>;
   /** Resolves TRUE when a row was inserted, FALSE when the write was a
    * same-run-day no-op the model ignored. */
   record?: (input: RecordNapObservationInput) => Promise<boolean>;
@@ -272,11 +281,99 @@ async function recordMeasurement(
   );
 }
 
+/**
+ * Returns true only when this location still needs paid measurement. Both an
+ * already-landed row and a failed preflight stop before the provider call; the
+ * latter is recorded as a run-level persistence failure.
+ */
+async function shouldMeasureLogicalRun(
+  target: NapTarget,
+  runDate: string,
+  hasObservationForLogicalRun: NonNullable<
+    NapExecutorDeps["hasObservationForLogicalRun"]
+  >,
+  counters: RunCounters,
+  failedLocationIds: number[]
+): Promise<boolean> {
+  try {
+    const wasRecorded = await hasObservationForLogicalRun(
+      target.organizationId,
+      target.locationId,
+      runDate
+    );
+    if (!wasRecorded) return true;
+    counters.locationsAlreadyRecorded++;
+    logger.info(
+      { locationId: target.locationId, runDate },
+      "[NAP-MONITOR] observation already recorded for this logical run — skipping measurement"
+    );
+    return false;
+  } catch (err) {
+    failedLocationIds.push(target.locationId);
+    logger.error(
+      { locationId: target.locationId, runDate, err: (err as Error)?.message },
+      "[NAP-MONITOR] FAILED to check the logical run key — measurement skipped and the run will be failed"
+    );
+    return false;
+  }
+}
+
+function finishRun(
+  targetCount: number,
+  counters: RunCounters,
+  failedLocationIds: number[]
+): { summary: NapExecutorSummary } {
+  const summary: NapExecutorSummary = {
+    targets: targetCount,
+    ...counters,
+    persistenceFailures: failedLocationIds.length,
+  };
+  if (failedLocationIds.length === 0) {
+    logger.info(
+      { checker: "nap-consistency", ...summary },
+      "[NAP-MONITOR] run complete"
+    );
+    return { summary };
+  }
+
+  logger.error(
+    { checker: "nap-consistency", ...summary, failedLocationIds },
+    "[NAP-MONITOR] run FAILED — one or more observations could not be persisted"
+  );
+  const operationCount =
+    failedLocationIds.length +
+    counters.locationsRecorded +
+    counters.locationsAlreadyRecorded;
+  throw new NapPersistenceError(
+    `NAP consistency run failed ${failedLocationIds.length} of ` +
+      `${operationCount} observation persistence operations ` +
+      `(locations: ${failedLocationIds.join(", ")})`,
+    summary,
+    failedLocationIds
+  );
+}
+
 export async function executeNapConsistencyAgent(
   deps: NapExecutorDeps = {}
 ): Promise<{ summary: NapExecutorSummary }> {
   const targetProvider = deps.targetProvider ?? defaultTargetProvider;
   const runner = deps.runner ?? defaultRunner;
+  const hasInjectedExecutionSeam = Boolean(
+    deps.targetProvider || deps.runner || deps.record
+  );
+  // Existing unit callers inject an entirely in-memory execution path. Keep
+  // that path DB-free unless they explicitly inject this new preflight seam;
+  // production injects nothing and therefore always uses the model check.
+  const hasObservationForLogicalRun =
+    deps.hasObservationForLogicalRun ??
+    (hasInjectedExecutionSeam
+      ? async () => false
+      : (organizationId, locationId, runDate) =>
+          NapConsistencyObservationModel.hasObservationForLogicalRun(
+            organizationId,
+            locationId,
+            runDate
+          ));
   const record =
     deps.record ?? ((input) => NapConsistencyObservationModel.record(input));
   const runDate = deps.runDate ?? new Date().toISOString().slice(0, 10);
@@ -294,6 +391,19 @@ export async function executeNapConsistencyAgent(
   const failedLocationIds: number[] = [];
 
   for (const target of targets) {
+    // ---- Idempotency preflight. BullMQ carries one stable runDate through all
+    // attempts, so rows that landed before a later failure are skipped before
+    // another paid provider measurement (§21.1). A preflight DB failure is a
+    // persistence failure, not permission to spend and hope the insert dedupes.
+    const shouldMeasure = await shouldMeasureLogicalRun(
+      target,
+      runDate,
+      hasObservationForLogicalRun,
+      counters,
+      failedLocationIds
+    );
+    if (!shouldMeasure) continue;
+
     // ---- Measurement. A failure here is isolated: one bad site must not cost
     // the whole run, and the location is honestly counted as skipped.
     let outcome: NapCheckOutcome;
@@ -329,36 +439,8 @@ export async function executeNapConsistencyAgent(
     }
   }
 
-  const summary: NapExecutorSummary = {
-    targets: targets.length,
-    ...counters,
-    persistenceFailures: failedLocationIds.length,
-  };
-
   // Every location was attempted before this point, so one failed write does not
   // cost the others their measurement. But the run did NOT do its job, so it
   // must not resolve into a green "completed" run (§3.2).
-  if (failedLocationIds.length > 0) {
-    logger.error(
-      { checker: "nap-consistency", ...summary, failedLocationIds },
-      "[NAP-MONITOR] run FAILED — one or more observations could not be persisted"
-    );
-    const attemptedWrites =
-      failedLocationIds.length +
-      counters.locationsRecorded +
-      counters.locationsAlreadyRecorded;
-    throw new NapPersistenceError(
-      `NAP consistency run failed to persist ${failedLocationIds.length} of ` +
-        `${attemptedWrites} observation writes ` +
-        `(locations: ${failedLocationIds.join(", ")})`,
-      summary,
-      failedLocationIds
-    );
-  }
-
-  logger.info(
-    { checker: "nap-consistency", ...summary },
-    "[NAP-MONITOR] run complete"
-  );
-  return { summary };
+  return finishRun(targets.length, counters, failedLocationIds);
 }
