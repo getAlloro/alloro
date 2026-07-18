@@ -36,7 +36,8 @@ export interface ActiveMetricActionQuery {
   locationId: number | null;
   projectId: string;
   stageKey: MetricActionStage;
-  metricKey: MetricActionMetric;
+  // Omit to match the latest action on the stage regardless of metric/type.
+  metricKey?: MetricActionMetric;
   now: Date;
   periodStart: Date;
   periodEnd: Date;
@@ -74,11 +75,17 @@ export class MetricActionModel extends BaseModel {
         organization_id: params.organizationId,
         project_id: params.projectId,
         stage_key: params.stageKey,
-        metric_key: params.metricKey,
       })
       .where("active_until", ">=", params.now)
       .where("occurred_at", "<", params.periodEnd)
       .where("active_until", ">", params.periodStart);
+
+    // Optional metric filter: omit to get the latest action on the stage
+    // regardless of metric/type (a completeness fill and a meta update on the
+    // same get-found stage are both eligible; the most recent shows).
+    if (params.metricKey) {
+      query.where("metric_key", params.metricKey);
+    }
 
     if (params.locationId === null) {
       query.whereNull("location_id");
