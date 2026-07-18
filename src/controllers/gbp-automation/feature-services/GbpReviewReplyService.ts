@@ -50,6 +50,12 @@ export class GbpReviewReplyService {
     userId: number | null;
     actorEmail?: string | null;
     accessibleLocationIds?: number[];
+    /**
+     * Extra metadata merged onto the created work item + draft_created event.
+     * Used by the auto-draft-on-ingest path to stamp `{ trigger: "auto_ingest" }`
+     * so an owner-held draft is traceable to its origin. Manual callers omit it.
+     */
+    metadata?: Record<string, unknown>;
   }): Promise<IGbpWorkItem> {
     if (params.accessibleLocationIds && !params.accessibleLocationIds.includes(params.locationId)) {
       throw new GbpAutomationError("LOCATION_ACCESS_DENIED", "No access to this location.");
@@ -154,14 +160,18 @@ export class GbpReviewReplyService {
         safety_reasons: draft.safety.reasons,
         safety_confidence: draft.safety.confidence,
         created_by_user_id: params.userId,
-        metadata: actorMetadata(params.actorEmail),
+        metadata: { ...actorMetadata(params.actorEmail), ...(params.metadata || {}) },
       }, trx);
 
       await GbpWorkEventModel.create({
         work_item_id: created.id,
         actor_user_id: params.userId,
         event_type: "draft_created",
-        metadata: { reviewId: review.id, ...actorMetadata(params.actorEmail) },
+        metadata: {
+          reviewId: review.id,
+          ...actorMetadata(params.actorEmail),
+          ...(params.metadata || {}),
+        },
       }, trx);
 
       return created;

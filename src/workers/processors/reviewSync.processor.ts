@@ -14,6 +14,8 @@ import { ReviewModel } from "../../models/website-builder/ReviewModel";
 import { getValidOAuth2ClientByConnection } from "../../auth/oauth2Helper";
 import { buildAuthHeaders } from "../../controllers/gbp/gbp-services/gbp-api.service";
 import { GbpReviewInsightService } from "../../controllers/gbp-automation/feature-services/GbpReviewInsightService";
+import { GbpReviewReplyAutoDraftService } from "../../controllers/gbp-automation/feature-services/GbpReviewReplyAutoDraftService";
+import { IReview } from "../../models/website-builder/ReviewModel";
 import logger from "../../lib/logger";
 
 const STAR_TO_NUM: Record<string, number> = {
@@ -232,6 +234,7 @@ async function fetchAndStoreLocationReviews(auth: any, prop: ReviewSyncProperty)
 
   let synced = 0;
   let pageToken: string | undefined;
+  const upsertedReviews: IReview[] = [];
 
   do {
     const { data } = await axios.get(
@@ -265,12 +268,22 @@ async function fetchAndStoreLocationReviews(auth: any, prop: ReviewSyncProperty)
         reply_date: r.reviewReply?.updateTime ? new Date(r.reviewReply.updateTime) : null,
       });
       await GbpReviewInsightService.ensureForReviews([review]);
+      upsertedReviews.push(review);
 
       synced++;
     }
 
     pageToken = data.nextPageToken || undefined;
   } while (pageToken);
+
+  // Owner-approved outbound: stage held reply DRAFTS for any newly-ingested
+  // replyable reviews. Best-effort and gated on the same readiness the manual
+  // path uses; never throws, so a draft failure cannot break review ingestion.
+  await GbpReviewReplyAutoDraftService.enqueueForIngestedReviews({
+    organizationId: prop.organization_id,
+    locationId: prop.location_id,
+    reviews: upsertedReviews,
+  });
 
   return synced;
 }
