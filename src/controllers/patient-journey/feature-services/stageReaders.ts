@@ -19,7 +19,25 @@ import { PracticeRankingModel } from "../../../models/PracticeRankingModel";
 import { aggregatePmsData } from "../../../utils/pms/pmsAggregator";
 import { fetchRybbitOverview } from "../../admin-websites/feature-services/service.rybbit-performance";
 import { resolveRybbitTimeZone } from "../../../utils/rybbit/rybbit-time-zone";
+import {
+  sourceConfidence,
+  type SourceConfidence,
+} from "../../websiteContact/feature-utils/sourceAttribution";
 import logger from "../../../lib/logger";
+
+/**
+ * One verified-leads bucket by entry channel, surfaced on the leads stage. The
+ * label rides with its honesty tier: `confidence` comes from the stored
+ * provenance (`sourceConfidence`), so a client CLAIM reads as "reported as",
+ * never "verified: came from" (Value #6). `source: null` is the honest unknown
+ * bucket — never folded into a real channel, never zero-filled.
+ */
+export interface LeadSourceBreakdown {
+  source: string | null;
+  method: string | null;
+  confidence: SourceConfidence;
+  verified: number;
+}
 
 export type StageReadMetadata = {
   gsc?: {
@@ -52,6 +70,13 @@ export type StageReadMetadata = {
   };
   leads?: {
     verified: number;
+    /**
+     * Verified leads broken down by entry channel (the connection-measurement
+     * moat surfaced). Omitted when the breakdown read fails — a by-source
+     * failure drops only the breakdown, never the headline `verified` count.
+     * The per-source `verified` counts sum to the top-level `verified`.
+     */
+    bySource?: LeadSourceBreakdown[];
   };
 };
 
@@ -318,6 +343,39 @@ function clampAsOfToToday(dateStr: string | null): string | null {
   return dateStr < today ? dateStr : today;
 }
 
+/**
+ * Verified leads broken down by entry channel for [monthStart, monthEnd) —
+ * the same window and verified predicate as the headline lead count, so the
+ * buckets reconcile. Best-effort (§3.1): a failed by-source read degrades to
+ * `undefined` (breakdown dropped) rather than throwing and losing the working
+ * verified count. Each bucket's honesty tier is derived from stored provenance.
+ */
+async function readLeadsBySource(
+  projectId: string,
+  monthStart: Date,
+  monthEnd: Date,
+): Promise<LeadSourceBreakdown[] | undefined> {
+  try {
+    const rows = await FormSubmissionModel.getVerifiedStatsBySource(
+      projectId,
+      monthStart.toISOString(),
+      monthEnd.toISOString(),
+    );
+    return rows.map((row) => ({
+      source: row.source,
+      method: row.source_method,
+      confidence: sourceConfidence(row.source_method),
+      verified: row.verified,
+    }));
+  } catch (err) {
+    logger.warn(
+      { err, projectId },
+      "[patient-journey] leads by-source read failed",
+    );
+    return undefined;
+  }
+}
+
 /** Lead count = non-flagged form submissions for the project in the month. */
 export async function readLeads(
   projectId: string,
@@ -350,11 +408,14 @@ export async function readLeads(
         : { ...emptyRead(), unavailableReason: "no_data" };
     }
     const verified = Number(row.verified) || 0;
+    const bySource = await readLeadsBySource(projectId, monthStart, monthEnd);
     return {
       value: verified,
       available: true,
       asOf: leadsAsOf,
-      metadata: { leads: { verified } },
+      metadata: {
+        leads: { verified, ...(bySource ? { bySource } : {}) },
+      },
     };
   } catch (err) {
     logger.warn({ err, projectId }, "[patient-journey] leads read failed");
