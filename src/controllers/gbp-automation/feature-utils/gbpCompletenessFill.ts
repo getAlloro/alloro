@@ -32,8 +32,19 @@ import { sanitizeGbpUrl } from "./GbpInputSanitizer";
  * layer (§7.4) and passes them in.
  */
 
-/** Why a detected-missing field was NOT staged for auto-fill. */
-export type CompletenessFillSkipReason = "no-value-source" | "not-writable";
+/**
+ * Why a detected-missing field was NOT staged for auto-fill.
+ *
+ * `unhandled-field` is the safety-net reason: a detected field the bridge has no
+ * explicit case for. It should be unreachable in normal use (the switch below is
+ * compile-time exhaustive over GbpCompletenessField), but if a new field is ever
+ * added or an untyped value slips through, the gap is surfaced here rather than
+ * silently dropped from owner-visible reporting.
+ */
+export type CompletenessFillSkipReason =
+  | "no-value-source"
+  | "not-writable"
+  | "unhandled-field";
 
 /** The Alloro-held values this bridge can draw on. Grows as real sources are added. */
 export interface CompletenessFillSources {
@@ -110,6 +121,17 @@ export function buildCompletenessFillPatch(
       case "photos":
         unfillable.push({ field, reason: "not-writable" });
         break;
+      default: {
+        // Compile-time exhaustiveness guard: if a new GbpCompletenessField is added
+        // to GBP_COMPLETENESS_FIELDS without a case above, this `never` assignment
+        // fails `tsc`, forcing an explicit classification decision instead of a
+        // silent drop. Runtime safety-net: an unhandled field (e.g. an untyped
+        // value from upstream) is surfaced as unfillable so a detected gap can
+        // NEVER vanish from owner-visible reporting (Value #6 honesty).
+        const unhandled: never = field;
+        unfillable.push({ field: unhandled, reason: "unhandled-field" });
+        break;
+      }
     }
   }
 
