@@ -38,6 +38,7 @@ import { authHeader } from "./helpers/auth";
 import gbpAutomationRouter from "../routes/gbpAutomation";
 import { GbpWorkItemActionService } from "../controllers/gbp-automation/feature-services/GbpWorkItemActionService";
 import { GbpBusinessInfoDraftService } from "../controllers/gbp-automation/feature-services/GbpBusinessInfoDraftService";
+import { GbpCompletenessDraftService } from "../controllers/gbp-automation/feature-services/GbpCompletenessDraftService";
 import { GbpWorkItemService } from "../controllers/gbp-automation/feature-services/GbpWorkItemService";
 import { GbpLocalPostDraftService } from "../controllers/gbp-automation/feature-services/GbpLocalPostDraftService";
 import { GbpCustomizationService } from "../controllers/gbp-automation/feature-services/GbpCustomizationService";
@@ -128,6 +129,22 @@ const MUTATING_ROUTES: MutatingRoute[] = [
     body: { fields: { title: "Bright Smile Dental" } },
     spy: () =>
       vi.spyOn(GbpBusinessInfoDraftService, "createDraft").mockResolvedValue(WORK_ITEM),
+  },
+  {
+    method: "post",
+    routerPath: "/business-info/completeness-fill",
+    path: `${BASE}/business-info/completeness-fill`,
+    spy: () =>
+      vi
+        .spyOn(GbpCompletenessDraftService, "stageFillForLocation")
+        .mockResolvedValue({
+          workItem: WORK_ITEM,
+          filled: [],
+          unfillable: [],
+          hasGbpData: true,
+          completeness: 1,
+          missingFields: [],
+        }),
   },
   {
     method: "post",

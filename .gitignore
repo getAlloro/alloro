@@ -57,3 +57,4 @@ signals-google-key.json
 .claude
 .agents
 .github/skills
+node_modules
