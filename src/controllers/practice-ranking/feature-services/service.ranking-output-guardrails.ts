@@ -1,3 +1,6 @@
+import { OrgType } from "../../../config/orgLabels";
+import { substitutePromptPlaceholders } from "../../../agents/service.prompt-substituter";
+
 type RankingRecommendation = {
   priority?: number;
   title?: string;
@@ -19,6 +22,7 @@ type RankingGap = {
 type RankingLlmGuardrailContext = {
   visibleScore?: number | null;
   searchPosition?: number | null;
+  orgType?: OrgType;
 };
 
 const WEBSITE_ACTION_PATTERN =
@@ -82,9 +86,9 @@ const TOP_THREE_SEARCH_POSITIONS = new Set([2, 3]);
 // This should fire rarely; a specific LLM recommendation is the norm.
 const SAFE_RECOMMENDATION_BACKFILL: RankingRecommendation[] = [
   {
-    title: "Reviews are the signal patients weigh most",
+    title: "Reviews are the signal {{customers}} weigh most",
     description:
-      "A steady stream of reviews is one of the strongest things that helps patients choose a practice. Asking each happy patient for one is the simplest way to keep them coming.",
+      "A steady stream of reviews is one of the strongest things that helps {{customers}} choose a {{org_noun}}. Asking each happy {{customer}} for one is the simplest way to keep them coming.",
     impact: "high",
     effort: "low",
     timeline: "30 days",
@@ -92,9 +96,9 @@ const SAFE_RECOMMENDATION_BACKFILL: RankingRecommendation[] = [
     generic: true,
   },
   {
-    title: "An up-to-date profile reassures patients",
+    title: "An up-to-date profile reassures {{customers}}",
     description:
-      "An up-to-date Google profile reassures patients before they call. One useful post a week is enough to keep it current.",
+      "An up-to-date Google profile reassures {{customers}} before they call. One useful post a week is enough to keep it current.",
     impact: "medium",
     effort: "low",
     timeline: "30 days",
@@ -102,13 +106,13 @@ const SAFE_RECOMMENDATION_BACKFILL: RankingRecommendation[] = [
     generic: true,
   },
   {
-    title: "Photos are often the first thing patients check",
+    title: "Photos are often the first thing {{customers}} check",
     description:
-      "Many patients look at your photos before they call. A few current office and team photos keep that first impression strong.",
+      "Many {{customers}} look at your photos before they call. A few current office and team photos keep that first impression strong.",
     impact: "medium",
     effort: "low",
     timeline: "2 weeks",
-    expected_outcome: "Photos that reassure patients at the first look.",
+    expected_outcome: "Photos that reassure {{customers}} at the first look.",
     generic: true,
   },
 ];
@@ -353,8 +357,37 @@ function isWebsiteActionGap(gap: RankingGap): boolean {
   );
 }
 
+// The prompt bans these as a single recommendation ("generic homework any tool
+// says"). Enforce it in code: a recommendation whose action IS one of these
+// literal generic phrases is dropped so backfillRecommendations replaces it with
+// the honest safe copy. The regex catches the explicit ban list, not every
+// paraphrase — full "no generic homework" needs the recommendation-quality eval.
+const BANNED_GENERIC_ACTION_PATTERN =
+  /\b(get more reviews|post more often|add more photos|keep review momentum|rating is lower than average)\b/i;
+
+function isBannedGenericHomework(rec: RankingRecommendation): boolean {
+  return (
+    BANNED_GENERIC_ACTION_PATTERN.test(rec.title ?? "") ||
+    BANNED_GENERIC_ACTION_PATTERN.test(rec.description ?? "")
+  );
+}
+
+// Translate the static fallback copy into the org's vocabulary. The fallback
+// tokens ({{customers}}, {{org_noun}}) resolve to health terms for health orgs
+// (byte-identical) and business terms for generic orgs.
+function substituteVocab(
+  text: string | undefined,
+  orgType?: OrgType,
+): string | undefined {
+  if (!text) return text;
+  // Default to health when unknown so tokens always resolve (never leak a raw
+  // {{token}}); health terms are byte-identical to the original copy.
+  return substitutePromptPlaceholders(text, orgType ?? "health");
+}
+
 function backfillRecommendations(
   recommendations: RankingRecommendation[],
+  orgType?: OrgType,
 ): RankingRecommendation[] {
   const titles = new Set(
     recommendations.map((rec) => rec.title?.toLowerCase()).filter(Boolean),
@@ -368,7 +401,13 @@ function backfillRecommendations(
     if (next.length >= 1) break;
     const key = fallback.title?.toLowerCase();
     if (key && titles.has(key)) continue;
-    next.push({ ...fallback, priority: next.length + 1 });
+    next.push({
+      ...fallback,
+      title: substituteVocab(fallback.title, orgType),
+      description: substituteVocab(fallback.description, orgType),
+      expected_outcome: substituteVocab(fallback.expected_outcome, orgType),
+      priority: next.length + 1,
+    });
     if (key) titles.add(key);
   }
 
@@ -383,7 +422,9 @@ export function sanitizeRankingLlmAnalysis<T extends Record<string, any>>(
   const recommendations = Array.isArray(next.top_recommendations)
     ? next.top_recommendations
         .filter(
-          (rec: RankingRecommendation) => !isWebsiteActionRecommendation(rec),
+          (rec: RankingRecommendation) =>
+            !isWebsiteActionRecommendation(rec) &&
+            !isBannedGenericHomework(rec),
         )
         .map((rec: RankingRecommendation) =>
           sanitizeRecommendation(rec, context),
@@ -395,7 +436,10 @@ export function sanitizeRankingLlmAnalysis<T extends Record<string, any>>(
         .map((gap: RankingGap) => sanitizeGap(gap, context))
     : [];
 
-  next.top_recommendations = backfillRecommendations(recommendations);
+  next.top_recommendations = backfillRecommendations(
+    recommendations,
+    context.orgType,
+  );
   next.gaps = gaps.slice(0, 4);
   next.render_text = sanitizeText(next.render_text, context);
   next.client_summary = sanitizeText(next.client_summary, context);

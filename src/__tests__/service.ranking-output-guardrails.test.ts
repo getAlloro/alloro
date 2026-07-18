@@ -47,6 +47,50 @@ describe("ranking output guardrail search-position bands", () => {
   });
 });
 
+describe("ranking output guardrail generic-homework + vocabulary", () => {
+  const bannedTitles = [
+    "Get more reviews",
+    "Post more often on Google",
+    "Add more photos to your profile",
+  ];
+
+  it.each(bannedTitles)(
+    "drops the banned generic-homework recommendation and falls back to safe copy: %s",
+    (title) => {
+      const result = sanitizeRankingLlmAnalysis(
+        { top_recommendations: [{ title, description: title }], gaps: [] },
+        { orgType: "health" },
+      );
+      expect(result.top_recommendations).toHaveLength(1);
+      expect(result.top_recommendations[0].title).not.toBe(title);
+      expect(result.top_recommendations[0].generic).toBe(true);
+    },
+  );
+
+  it("renders the fallback in business vocabulary for a generic org", () => {
+    const result = sanitizeRankingLlmAnalysis(
+      { top_recommendations: [], gaps: [] },
+      { orgType: "generic" },
+    );
+    const rec = result.top_recommendations[0];
+    const text = `${rec.title} ${rec.description} ${rec.expected_outcome}`;
+    expect(text).toContain("customer");
+    expect(text).not.toMatch(/patient|\bpractice\b/i);
+    expect(text).not.toContain("{{");
+  });
+
+  it("renders the fallback in health vocabulary by default (byte-identical)", () => {
+    const result = sanitizeRankingLlmAnalysis(
+      { top_recommendations: [], gaps: [] },
+      { orgType: "health" },
+    );
+    const rec = result.top_recommendations[0];
+    const text = `${rec.title} ${rec.description} ${rec.expected_outcome}`;
+    expect(text).toContain("patient");
+    expect(text).not.toContain("{{");
+  });
+});
+
 describe("ranking output guardrail Google post honesty", () => {
   const unsupportedPostRankClaims = [
     "Publish weekly Google posts to stay visible in local search.",
