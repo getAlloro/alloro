@@ -15,6 +15,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const findByProjectAndDateRange = vi.fn();
 const findByProjectAndPlatform = vi.fn();
 const findDailyByOrgAndDateRange = vi.fn();
+const findSelectedGbpForSync = vi.fn();
 
 vi.mock("../models/website-builder/GscDataModel", () => ({
   GscDataModel: {
@@ -26,6 +27,11 @@ vi.mock("../models/GoogleDataStoreModel", () => ({
   GoogleDataStoreModel: {
     findDailyByOrgAndDateRange: (...a: unknown[]) =>
       findDailyByOrgAndDateRange(...a),
+  },
+}));
+vi.mock("../models/GooglePropertyModel", () => ({
+  GooglePropertyModel: {
+    findSelectedGbpForSync: (...a: unknown[]) => findSelectedGbpForSync(...a),
   },
 }));
 vi.mock("../models/website-builder/WebsiteIntegrationModel", () => ({
@@ -111,6 +117,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   findByProjectAndDateRange.mockResolvedValue([]);
   findDailyByOrgAndDateRange.mockResolvedValue([]);
+  // Default: the single test location is a mapped GBP listing.
+  findSelectedGbpForSync.mockResolvedValue([{ location_id: LOCATION }]);
 });
 
 describe("readImpressions — empty-window reasons", () => {
@@ -185,6 +193,24 @@ describe("readImpressions — Get Found = organic + whole-practice Maps", () => 
     data: { rows: [{ clicks: 5, impressions, position: 4 }] },
   });
 
+  it("counts Maps once per mapped location — unmapped siblings never inflate (C1)", async () => {
+    findByProjectAndDateRange.mockResolvedValue([gscDay(100)]);
+    // Three locations, same day. Location 42 is mapped (50 Maps). 43 and 44 are
+    // UNMAPPED and carry the fabricated account-blob copy of 42's Maps data.
+    findDailyByOrgAndDateRange.mockResolvedValue([
+      dailyRow(START, END, [0, 0], [30, 20], 42, 1),
+      dailyRow(START, END, [0, 0], [30, 20], 43, 2),
+      dailyRow(START, END, [0, 0], [30, 20], 44, 3),
+    ]);
+    // Only location 42 has a mapped GBP listing.
+    findSelectedGbpForSync.mockResolvedValue([{ location_id: 42 }]);
+
+    const read = await readImpressions(PROJECT, START, END, true, ORG);
+
+    // 100 organic + 50 Maps (location 42 only) = 150, NOT 100 + 150 (3x).
+    expect(read.value).toBe(150);
+  });
+
   it("adds Maps impressions to GSC organic for the same window (org-scoped)", async () => {
     findByProjectAndDateRange.mockResolvedValue([gscDay(100)]);
     // One day of Maps: 30 desktop + 20 mobile = 50.
@@ -210,6 +236,10 @@ describe("readImpressions — Get Found = organic + whole-practice Maps", () => 
       // Location 43: 06-09 = 15, 06-10 = 25.
       dailyRow("2026-06-09", "2026-06-10", [10, 5], [20, 5], 43, 2),
     ]);
+    findSelectedGbpForSync.mockResolvedValue([
+      { location_id: 42 },
+      { location_id: 43 },
+    ]);
 
     const read = await readImpressions(PROJECT, START, END, true, ORG);
 
@@ -224,6 +254,10 @@ describe("readImpressions — Get Found = organic + whole-practice Maps", () => 
       // Both locations report 2026-06-10 — they must BOTH count, not collapse.
       dailyRow("2026-06-09", "2026-06-10", [0, 0], [10, 0], 42, 1),
       dailyRow("2026-06-09", "2026-06-10", [0, 0], [7, 0], 43, 2),
+    ]);
+    findSelectedGbpForSync.mockResolvedValue([
+      { location_id: 42 },
+      { location_id: 43 },
     ]);
 
     const read = await readImpressions(PROJECT, START, END, true, ORG);
@@ -356,6 +390,10 @@ describe("readImpressions — Get Found = organic + whole-practice Maps", () => 
           },
         },
       },
+    ]);
+    findSelectedGbpForSync.mockResolvedValue([
+      { location_id: 42 },
+      { location_id: 43 },
     ]);
 
     const read = await readImpressions(PROJECT, START, END, true, ORG);

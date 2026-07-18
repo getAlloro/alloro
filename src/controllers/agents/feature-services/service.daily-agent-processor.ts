@@ -66,8 +66,12 @@ export async function processDailyAgent(
         log(`  [DAILY] Scoped GBP to location ${locationId} (${gbpProps.length} properties)`);
       }
     }
-    // Fallback: if no location-scoped properties, parse from JSON blob
-    if (!propertyIds.gbp || propertyIds.gbp.length === 0) {
+    // Fallback: only the org-level/primary run (no locationId) uses the account
+    // blob. A real location with NO mapped GBP property must NOT fall back to the
+    // account's first listing — that fabricates Maps data for a location with no
+    // listing (the C1 double-count). It stays unmapped, so its stored row carries
+    // no GBP data rather than a copy of locations[0].
+    if ((!propertyIds.gbp || propertyIds.gbp.length === 0) && !locationId) {
       propertyIds = typeof account.google_property_ids === "string"
         ? JSON.parse(account.google_property_ids)
         : (account.google_property_ids || {});

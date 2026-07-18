@@ -11,6 +11,7 @@
 
 import { GscDataModel } from "../../../models/website-builder/GscDataModel";
 import { GoogleDataStoreModel } from "../../../models/GoogleDataStoreModel";
+import { GooglePropertyModel } from "../../../models/GooglePropertyModel";
 import type { StageUnavailableReason } from "../feature-utils/types";
 import { FormSubmissionModel } from "../../../models/website-builder/FormSubmissionModel";
 import { WebsiteIntegrationModel } from "../../../models/website-builder/WebsiteIntegrationModel";
@@ -292,12 +293,26 @@ async function readMapsImpressions(
     endDate,
   );
   if (!rows.length) return null;
+  // Count Maps only for locations that actually have a mapped GBP listing. An
+  // unmapped location has no Maps presence, but the daily job's account-blob
+  // fallback stores the account's first listing under each unmapped location's
+  // id, so counting every location_id would double-count that one listing N
+  // times (the C1 fabrication). Gate to the org's mapped GBP locations — this
+  // corrects historical mis-stored rows too, not just future ones.
+  const mappedGbp = await GooglePropertyModel.findSelectedGbpForSync({
+    organizationId,
+  });
+  const mappedLocationIds = new Set<number>(
+    mappedGbp.map((property) => property.location_id),
+  );
   const perLocationDay = new Map<string, number>();
   let asOf: string | null = null;
   for (const row of rows) {
     const data = row.gbp_data as GbpDailyPayload | null;
     if (!data) continue;
     const loc = row.location_id;
+    // Unmapped location -> its Maps data is the fabricated account-blob copy; skip.
+    if (loc === null || !mappedLocationIds.has(loc)) continue;
     const endDay = isoDate(row.date_end);
     if (endDay && endDay >= startDate && endDay <= endDate) {
       const value = mapsImpressionsForSide(data.yesterday);
