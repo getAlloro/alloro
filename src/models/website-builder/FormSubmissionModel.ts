@@ -56,6 +56,24 @@ export interface FormSubmissionFormStats {
   unread_count: number;
 }
 
+/**
+ * One verified-submission bucket grouped by (source, source_method) — the
+ * by-CHANNEL read of raised hands (the connection-measurement moat, Slice 4).
+ *
+ * `source` is returned AS captured: null means unknown (Value #6), never folded
+ * into a real channel and never zero-filled. `source_method` is the PROVENANCE
+ * that rides with the label so a reader can pick the honest confidence tier via
+ * `sourceConfidence()` — a client CLAIM is never presented as verified
+ * attribution. `verified` counts the same rows as the `verified` column of
+ * getMonthlyStatsByProject (non-flagged, non-newsletter), so the per-source
+ * counts SUM to that window's verified total.
+ */
+export interface FormSubmissionSourceStat {
+  source: string | null;
+  source_method: string | null;
+  verified: number;
+}
+
 type FormSubmissionFilters = {
   is_read?: boolean;
   is_flagged?: boolean;
@@ -425,6 +443,53 @@ export class FormSubmissionModel extends BaseModel {
       .andWhere("submitted_at", ">=", rangeStartIso)
       .groupBy(db.raw("date_trunc('month', submitted_at)"))
       .orderBy("month", "asc");
+  }
+
+  /**
+   * Verified (non-flagged, non-newsletter) submission counts grouped by
+   * (source, source_method) for a project within [rangeStartIso, rangeEndIso).
+   * Tenant-scoped by project_id (§11.7). The verified predicate mirrors
+   * getMonthlyStatsByProject's `verified` FILTER exactly, so the per-source
+   * counts SUM to that window's verified total — the honesty invariant this
+   * feature exists to keep (a by-channel breakdown that doesn't reconcile with
+   * the headline lead count would be worse than none).
+   *
+   * A null `source`/`source_method` is returned AS null (unknown) — grouped into
+   * its own honest bucket, never folded into a real channel and never
+   * zero-filled (Value #6). The window is half-open [start, end) to match the
+   * caller's month boundary without double-counting the boundary row.
+   */
+  static async getVerifiedStatsBySource(
+    projectId: string,
+    rangeStartIso: string,
+    rangeEndIso: string,
+    trx?: QueryContext,
+  ): Promise<FormSubmissionSourceStat[]> {
+    const rows = await this.table(trx)
+      .select("source", "source_method")
+      .count<
+        Array<{
+          source: string | null;
+          source_method: string | null;
+          count: string | number;
+        }>
+      >("* as count")
+      .where("project_id", projectId)
+      .andWhere("is_flagged", false)
+      .andWhereNot("form_name", "Newsletter Signup")
+      .andWhere("submitted_at", ">=", rangeStartIso)
+      .andWhere("submitted_at", "<", rangeEndIso)
+      .groupBy("source", "source_method")
+      .orderBy("count", "desc");
+
+    return rows.map((row) => ({
+      source: row.source ?? null,
+      source_method: row.source_method ?? null,
+      verified:
+        typeof row.count === "number"
+          ? row.count
+          : parseInt(String(row.count), 10) || 0,
+    }));
   }
 
   /**
