@@ -68,9 +68,18 @@ function isReplyableReview(review: IReview, locationId: number): boolean {
 
 export class GbpReviewReplyAutoDraftService {
   /**
-   * Queue auto-draft jobs for the genuinely-new replyable reviews just ingested
-   * for one location. Safe to call on every sync: dedup + idempotent jobId mean a
-   * review is drafted at most once. Never throws.
+   * Queue auto-draft jobs for the replyable reviews just ingested for one
+   * location. Safe to call on every sync: dedup + idempotent jobId mean a review
+   * is drafted at most once. Never throws.
+   *
+   * OPEN DECISION (documented for owner review): "new" here means "replyable with
+   * no existing review-reply work item." Because the OAuth sync re-upserts every
+   * review each run, the FIRST run after the feature is enabled backfills a draft
+   * for every currently-unreplied review; steady-state, only truly-new reviews
+   * qualify. This is owner-gated (nothing sends) and once-only, but it is a burst
+   * of drafts + LLM calls on first enable. To restrict to strictly-new rows,
+   * detect insert-vs-update in ReviewModel.upsertByGoogleName (e.g. RETURNING
+   * xmax=0) and pass only true inserts here.
    */
   static async enqueueForIngestedReviews(params: {
     organizationId: number;
