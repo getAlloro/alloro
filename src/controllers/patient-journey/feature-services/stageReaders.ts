@@ -344,22 +344,24 @@ function clampAsOfToToday(dateStr: string | null): string | null {
 }
 
 /**
- * Verified leads broken down by entry channel for [monthStart, monthEnd) —
- * the same window and verified predicate as the headline lead count, so the
- * buckets reconcile. Best-effort (§3.1): a failed by-source read degrades to
- * `undefined` (breakdown dropped) rather than throwing and losing the working
- * verified count. Each bucket's honesty tier is derived from stored provenance.
+ * Verified leads broken down by entry channel for the reported month — keyed to
+ * the SAME `startIso` lower bound and `monthKey` bucket as the headline lead
+ * count (not a UTC instant window), so the buckets reconcile with the headline
+ * total for any DB session timezone. Best-effort (§3.1): a failed by-source read
+ * degrades to `undefined` (breakdown dropped) rather than throwing and losing
+ * the working verified count. Each bucket's honesty tier is from stored
+ * provenance.
  */
 async function readLeadsBySource(
   projectId: string,
-  monthStart: Date,
-  monthEnd: Date,
+  startIso: string,
+  monthKey: string,
 ): Promise<LeadSourceBreakdown[] | undefined> {
   try {
     const rows = await FormSubmissionModel.getVerifiedStatsBySource(
       projectId,
-      monthStart.toISOString(),
-      monthEnd.toISOString(),
+      startIso,
+      monthKey,
     );
     return rows.map((row) => ({
       source: row.source,
@@ -408,13 +410,16 @@ export async function readLeads(
         : { ...emptyRead(), unavailableReason: "no_data" };
     }
     const verified = Number(row.verified) || 0;
-    const bySource = await readLeadsBySource(projectId, monthStart, monthEnd);
+    const bySource = await readLeadsBySource(projectId, startIso, monthKey);
+    // Only attach a non-empty breakdown. An empty [] beside a nonzero headline
+    // would read as a breakdown that sums to zero — dishonest; drop it instead.
+    const hasBreakdown = Array.isArray(bySource) && bySource.length > 0;
     return {
       value: verified,
       available: true,
       asOf: leadsAsOf,
       metadata: {
-        leads: { verified, ...(bySource ? { bySource } : {}) },
+        leads: { verified, ...(hasBreakdown ? { bySource } : {}) },
       },
     };
   } catch (err) {
