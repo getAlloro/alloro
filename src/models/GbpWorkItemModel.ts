@@ -117,6 +117,30 @@ export class GbpWorkItemModel extends BaseModel {
     return row ? this.deserializeJsonFields(row) : undefined;
   }
 
+  /**
+   * Dedup source of truth for review-reply auto-draft: given a set of review
+   * ids, return the subset that ALREADY has a review_reply work item in ANY
+   * status (draft, awaiting_approval, approved, deploying, published, rejected).
+   * Auto-draft-on-ingest drafts a review at most once, ever — so a rejected or
+   * published prior draft still counts here and is never re-drafted (the owner's
+   * decision stands). Empty input returns an empty set.
+   */
+  static async findReviewIdsWithReviewReply(
+    reviewIds: string[],
+    trx?: QueryContext
+  ): Promise<Set<string>> {
+    if (reviewIds.length === 0) return new Set();
+    const rows: Array<Pick<IGbpWorkItem, "source_review_id">> = await this.table(trx)
+      .whereIn("source_review_id", reviewIds)
+      .where({ content_type: "review_reply" })
+      .select("source_review_id");
+    return new Set(
+      rows
+        .map((row) => row.source_review_id)
+        .filter((id): id is string => Boolean(id))
+    );
+  }
+
   static async findLocalPostForGenerationWindow(
     organizationId: number,
     locationId: number,
