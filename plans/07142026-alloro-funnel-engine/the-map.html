@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>The Funnel Map — the buyer journey</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --paper:#fff; --ink:#0a0a0a; --muted:#616161; --line:#d8d8d8; --soft:#f5f5f5;
+      --stay:#0a0a0a; --edge:#9a5a00; --wait:#9a9a9a; --loop:#3a5a8a;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root { --paper:#0c0c0c; --ink:#f2f2f2; --muted:#9a9a9a; --line:#2a2a2a; --soft:#161616;
+        --stay:#f2f2f2; --edge:#e0a052; --wait:#6a6a6a; --loop:#7fa8e0; }
+    }
+    :root[data-theme="light"] { --paper:#fff; --ink:#0a0a0a; --muted:#616161; --line:#d8d8d8; --soft:#f5f5f5; --stay:#0a0a0a; --edge:#9a5a00; --wait:#9a9a9a; --loop:#3a5a8a; }
+    :root[data-theme="dark"] { --paper:#0c0c0c; --ink:#f2f2f2; --muted:#9a9a9a; --line:#2a2a2a; --soft:#161616; --stay:#f2f2f2; --edge:#e0a052; --wait:#6a6a6a; --loop:#7fa8e0; }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--paper); color:var(--ink); font-family:Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; line-height:1.5; }
+    .shell { width:min(900px, calc(100% - 32px)); margin:0 auto; padding:40px 0 64px; }
+    h1 { font-size:clamp(1.8rem,5vw,2.8rem); line-height:1.02; margin:0 0 8px; letter-spacing:-0.01em; }
+    .sub { color:var(--muted); margin:0 0 24px; font-size:0.98rem; max-width:60ch; }
+    .eyebrow { color:var(--muted); font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.08em; margin:0 0 6px; }
+
+    .journeyline { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:0 0 24px; font-size:0.86rem; }
+    .journeyline .s { border:1px solid var(--line); border-radius:999px; padding:4px 12px; background:var(--soft); font-weight:700; }
+    .journeyline .s.gate { border-color:var(--ink); }
+    .journeyline .arr { color:var(--muted); }
+
+    .law { border:1px solid var(--ink); border-radius:10px; padding:18px 20px; margin:0 0 22px; background:var(--soft); }
+    .law h2 { margin:0 0 8px; font-size:0.92rem; text-transform:uppercase; letter-spacing:0.04em; }
+    .law ol { margin:0; padding-left:20px; }
+    .law li { padding:2px 0; }
+    .law .burger { margin:10px 0 0; padding-top:10px; border-top:1px dashed var(--line); color:var(--muted); font-size:0.9rem; }
+
+    .ladder { display:flex; flex-direction:column; }
+    .rung { border:1px solid var(--line); border-radius:10px; padding:16px 20px; background:var(--paper); position:relative; }
+    .rung + .rung { margin-top:24px; }
+    .rung + .rung::before { content:""; position:absolute; top:-24px; left:34px; width:2px; height:24px; background:var(--line); }
+    .rung.staked { border-color:var(--stay); border-left-width:5px; }
+    .rung.here { border-color:var(--edge); border-left-width:5px; box-shadow:0 0 0 1px var(--edge); }
+    .rung.book { border-style:dashed; background:var(--soft); }
+    .rung.book .body { color:var(--muted); }
+
+    .rhead { display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; }
+    .stage { font-size:0.72rem; font-weight:800; letter-spacing:0.06em; text-transform:uppercase; color:var(--muted); }
+    .rname { font-size:1.15rem; font-weight:700; margin:0; }
+    .num { margin-left:auto; font-size:0.7rem; font-weight:800; text-transform:uppercase; letter-spacing:0.04em; padding:3px 10px; border-radius:999px; border:1px solid var(--muted); color:var(--muted); white-space:nowrap; }
+    .pill { font-size:0.64rem; font-weight:800; text-transform:uppercase; letter-spacing:0.05em; padding:2px 9px; border-radius:999px; border:1px solid currentColor; }
+    .pill.s { color:var(--stay); } .pill.e { color:var(--edge); } .pill.w { color:var(--wait); } .pill.l { color:var(--loop); }
+    .ask { color:var(--muted); font-size:0.9rem; margin:4px 0 0; }
+    .body { margin:10px 0 0; font-size:0.95rem; }
+    .inside { margin-top:8px; font-size:0.92rem; }
+    .inside b { font-weight:700; }
+    .flag { margin-top:10px; padding:9px 12px; border-radius:8px; border:1px solid var(--edge); background:color-mix(in srgb, var(--edge) 8%, transparent); font-size:0.88rem; }
+    .youare { display:inline-block; margin-top:10px; font-size:0.8rem; font-weight:800; color:var(--edge); text-transform:uppercase; letter-spacing:0.05em; }
+    .loopnote { margin-top:8px; font-size:0.88rem; color:var(--loop); font-weight:600; }
+
+    .eqbox { margin-top:24px; border:1px solid var(--line); border-radius:10px; padding:16px 20px; }
+    .eq { font-size:1.05rem; font-weight:700; margin:0; }
+    .eq span { color:var(--muted); font-weight:400; }
+    .eqbox p { margin:8px 0 0; font-size:0.9rem; color:var(--muted); }
+
+    .gate { margin-top:22px; border:1px solid var(--line); border-radius:10px; padding:16px 20px; }
+    .gate h2 { margin:0 0 8px; font-size:0.92rem; text-transform:uppercase; letter-spacing:0.04em; }
+    .steps { display:flex; flex-wrap:wrap; gap:8px; align-items:center; font-size:0.88rem; }
+    .steps .step { border:1px solid var(--line); border-radius:999px; padding:4px 12px; background:var(--soft); }
+    .steps .arr { color:var(--muted); }
+    .steps .last { border-color:var(--ink); font-weight:700; }
+    .foot { margin-top:22px; color:var(--muted); font-size:0.82rem; }
+    .foot code { background:var(--soft); border:1px solid var(--line); border-radius:4px; padding:0.05rem 0.3rem; }
+    @media (max-width:560px){ .num{margin-left:0;} .rhead{gap:6px;} }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <p class="eyebrow">Alloro · the funnel = the buyer journey</p>
+    <h1>The Map</h1>
+    <p class="sub">The one place to look when in doubt — the same checklist, in the same order, every time. It's the classic buyer journey. We own the three measurable stages in the middle; you work one at a time and never build on a stage that isn't staked.</p>
+
+    <div class="journeyline">
+      <span class="s">Awareness</span><span class="arr">→</span>
+      <span class="s gate">Research</span><span class="arr">→</span>
+      <span class="s gate">Consideration</span><span class="arr">→</span>
+      <span class="s gate">Decision</span><span class="arr">→</span>
+      <span class="s">Loyalty</span>
+      <span class="arr" style="width:100%;text-align:center;margin-top:2px;font-size:0.8rem;">↑ loyalty (a review) loops back into research + consideration for the next person ↑</span>
+    </div>
+
+    <section class="law">
+      <h2>How you move</h2>
+      <ol>
+        <li>One stage at a time — never skip ahead.</li>
+        <li>Move on only when the stage you're on is <b>staked</b>.</li>
+        <li>Go back only one stage, and only if you must.</li>
+        <li><b>Never build on a stage that isn't staked.</b> The features come out of a staked map, not before it.</li>
+      </ol>
+      <p class="burger">Same steps, same order, every time — whether the case is simple or complicated, you never skip ahead or reorder.</p>
+    </section>
+
+    <div class="ladder">
+
+      <!-- AWARENESS -->
+      <section class="rung book">
+        <div class="rhead">
+          <span class="stage">Awareness</span>
+          <p class="rname">A problem exists</p>
+          <span class="pill l" style="margin-left:auto">Upstream — not ours to make</span>
+        </div>
+        <div class="body">Someone realizes they need this ("I need a root canal," "best lake to paddle board"). We don't create the demand — we catch it the moment they go looking.</div>
+      </section>
+
+      <!-- RESEARCH = GET FOUND -->
+      <section class="rung staked">
+        <div class="rhead">
+          <span class="stage">Research → Get found</span>
+          <p class="rname">Do you come up at all?</p>
+          <span class="num">impressions</span>
+        </div>
+        <p class="ask"><span class="pill s">Level 1 staked</span> &nbsp; the question brings up the options</p>
+        <div class="body">
+          <p class="inside"><b>What it is:</b> SEO + AEO — you get surfaced in search and in AI answers. Where: the map (GBP), the blue links (your site), the AI answer. All Google-side. Number from Google (GSC + GBP).</p>
+          <div class="flag"><b>Open defect —</b> today this counts organic only. It must add local + organic. The map data is already ingested, just not wired. <b>Nothing downstream is trustworthy until it sums both.</b></div>
+        </div>
+      </section>
+
+      <!-- CONSIDERATION = GET CONSIDERED -->
+      <section class="rung here">
+        <div class="rhead">
+          <span class="stage">Consideration → Get considered</span>
+          <p class="rname">Is this one right for me?</p>
+          <span class="num">visits</span>
+        </div>
+        <p class="ask"><span class="pill e">Level 3 being fixed</span> &nbsp; they compare you against the alternatives</p>
+        <div class="body">
+          <p class="inside"><b>What it is:</b> your content answers their questions and builds trust — <b>photos, copy, FAQs, reviews, and your search-result title (the snippet)</b> — across your GBP, third-party (forums, review sites), and your website. They're deciding which experience fits <i>them</i>. Number from your site's analytics (visits).</p>
+          <div class="flag"><b>Checked 2026-07-17 — three fresh adversaries. Not ready to stake.</b> Same fault in each row: shaky evidence (a guess, an old mock study, a survey, a study from another industry) written down as hard fact. Grounded fixes pending, then a dry run, then stake.</div>
+          <span class="youare">◀ You are here — this is the edge</span>
+        </div>
+      </section>
+
+      <!-- DECISION = GET CHOSEN -->
+      <section class="rung staked">
+        <div class="rhead">
+          <span class="stage">Decision → Get chosen</span>
+          <p class="rname">Do they reach out?</p>
+          <span class="num">submissions</span>
+        </div>
+        <p class="ask"><span class="pill s">Level 1 staked</span> &nbsp; they make the choice and act</p>
+        <div class="body">
+          <p class="inside"><b>What it is:</b> availability + ease to reach out — how simple it is to book / reserve / contact. Where: your website (the form). Our finish line is the raised hand (the submission). The booking itself is the practice's job — outside our lane. Number from your site.</p>
+        </div>
+      </section>
+
+      <!-- LOYALTY / ADVOCACY -->
+      <section class="rung book">
+        <div class="rhead">
+          <span class="stage">Loyalty → Advocacy</span>
+          <p class="rname">They come back — and leave a review</p>
+          <span class="pill l" style="margin-left:auto">Word of mouth</span>
+        </div>
+        <div class="body">After a good experience they leave a review.</div>
+        <p class="loopnote">↑ That review becomes a research + consideration signal for the <b>next</b> person. This is <b>word-of-mouth / advocacy</b> — not the "loyalty loop" (that's the same customer repurchasing, which barely applies to a one-time specialty like a root canal). It's what makes the funnel a loop, not a line. Owner-approved: we ask, the owner confirms, then it sends. <b>(Review-generation isn't built yet — a to-verify capability, owner-approved outbound only.)</b></p>
+      </section>
+
+    </div>
+
+    <section class="gate">
+      <h2>What's on this map — and what's a different machine</h2>
+      <p class="body" style="margin-top:0"><b>On the map:</b> the search path — get found → get considered → get chosen. Someone who already has a need searches, finds you, compares you, reaches out. <b>That is Alloro's lane.</b></p>
+      <p class="body"><b>Real, but a different machine — not this map:</b></p>
+      <ul style="margin:6px 0 0; padding-left:20px; font-size:0.93rem;">
+        <li><b>Professional referrals</b> (a dentist sends a patient to a specialist) — often the biggest channel for a specialist, but we can't control it. We <b>observe</b> it — spot patterns and trends via Reflect (done-with-you). A referral map is possible; its value is unproven, so it's <b>parked</b>, not built.</li>
+        <li><b>Paid ads</b> (Google Local Services Ads / PPC) — <b>out.</b> It muddies pricing and operations, and a local business can win without it.</li>
+      </ul>
+    </section>
+
+    <section class="eqbox">
+      <p class="eq">submissions = impressions × CTR × CRO</p>
+      <p>Each gate <b>is</b> its number. Submissions low? The equation names which one is small — you open only that stage's doors, nothing else. (An observed run, not a proof: 1,436 × 19% × 2.5% ≈ 7. The arithmetic always closes — CTR and CRO <em>are</em> those ratios — so what it shows is the small term, here CRO, the website.)</p>
+    </section>
+
+    <section class="gate">
+      <h2>What turns a stage from drafted into staked</h2>
+      <div class="steps">
+        <span class="step">Stated</span><span class="arr">→</span>
+        <span class="step">Checked vs sources</span><span class="arr">→</span>
+        <span class="step">Fresh adversary</span><span class="arr">→</span>
+        <span class="step">Dry run — test the whole real thing, no shortcuts</span><span class="arr">→</span>
+        <span class="step last">Corey stakes it</span>
+      </div>
+      <p class="foot">Only Corey stakes. An agent drafts and checks; the human commits. A staked stage is never re-debated.</p>
+    </section>
+
+    <p class="foot">Reasoning behind each line lives in the anchor memory <code>project_funnel_three_gates</code>. This page is the map you look at; the anchor is why each line reads the way it does. The followable build form is <code>build-checklist.md</code>. <b>Reconciled 2026-07-17:</b> the buyer-journey frame + scope are now staked in the anchor, so the canon, this map, and the checklist all agree — single source, no drift.</p>
+  </main>
+</body>
+</html>

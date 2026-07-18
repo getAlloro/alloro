@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>What Alloro Covers — everything behind a new patient</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --paper:#fff; --ink:#0b0b0b; --muted:#606060; --line:#dcdcdc; --soft:#f6f6f6;
+      --live:#0a6b2e; --build:#8a5a00; --watch:#5a5a5a; --theirs:#8a8a8a;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root { --paper:#0c0c0c; --ink:#f1f1f1; --muted:#9a9a9a; --line:#282828; --soft:#161616;
+        --live:#4cc27e; --build:#e0a94e; --watch:#9a9a9a; --theirs:#7a7a7a; }
+    }
+    :root[data-theme="light"]{--paper:#fff;--ink:#0b0b0b;--muted:#606060;--line:#dcdcdc;--soft:#f6f6f6;--live:#0a6b2e;--build:#8a5a00;--watch:#5a5a5a;--theirs:#8a8a8a;}
+    :root[data-theme="dark"]{--paper:#0c0c0c;--ink:#f1f1f1;--muted:#9a9a9a;--line:#282828;--soft:#161616;--live:#4cc27e;--build:#e0a94e;--watch:#9a9a9a;--theirs:#7a7a7a;}
+    *{box-sizing:border-box;}
+    body{margin:0;background:var(--paper);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;line-height:1.5;}
+    .shell{width:min(1000px,calc(100% - 32px));margin:0 auto;padding:44px 0 72px;}
+    .eyebrow{color:var(--muted);font-size:0.72rem;font-weight:800;text-transform:uppercase;letter-spacing:0.09em;margin:0 0 8px;}
+    h1{font-size:clamp(2rem,5vw,3.1rem);line-height:1.02;margin:0 0 14px;letter-spacing:-0.015em;max-width:16ch;}
+    .lede{font-size:1.06rem;max-width:60ch;margin:0 0 8px;}
+    .lede b{font-weight:700;}
+    .uses{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin:22px 0 26px;}
+    .use{border:1px solid var(--line);border-radius:10px;padding:14px 16px;background:var(--soft);font-size:0.92rem;}
+    .use b{display:block;margin-bottom:3px;}
+    .legend{display:flex;flex-wrap:wrap;gap:14px;padding:12px 16px;border:1px solid var(--line);border-radius:10px;margin-bottom:30px;font-size:0.84rem;}
+    .tag{display:inline-flex;align-items:center;gap:6px;font-weight:700;white-space:nowrap;}
+    .dot{width:9px;height:9px;border-radius:50%;display:inline-block;}
+    .dot.live{background:var(--live);} .dot.build{background:var(--build);} .dot.watch{background:var(--watch);} .dot.theirs{background:var(--theirs);border:1px solid var(--muted);}
+
+    .stage{margin:0 0 34px;}
+    .stagehead{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;border-bottom:2px solid var(--ink);padding-bottom:8px;margin-bottom:4px;}
+    .stagehead h2{font-size:1.5rem;margin:0;letter-spacing:-0.01em;}
+    .stagehead .metric{color:var(--muted);font-size:0.8rem;font-weight:800;text-transform:uppercase;letter-spacing:0.05em;margin-left:auto;}
+    .stagehead .q{width:100%;color:var(--muted);font-size:0.95rem;margin-top:2px;}
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;margin-top:16px;}
+    .item{border:1px solid var(--line);border-radius:10px;padding:13px 15px;display:flex;gap:11px;align-items:flex-start;}
+    .item input{margin-top:3px;width:16px;height:16px;flex:none;accent-color:var(--ink);}
+    .item .body{flex:1;}
+    .item .name{font-weight:700;font-size:0.96rem;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+    .item .desc{color:var(--muted);font-size:0.86rem;margin-top:3px;}
+    .pill{font-size:0.62rem;font-weight:800;text-transform:uppercase;letter-spacing:0.04em;padding:2px 7px;border-radius:999px;border:1px solid currentColor;white-space:nowrap;}
+    .pill.live{color:var(--live);} .pill.build{color:var(--build);} .pill.watch{color:var(--watch);} .pill.theirs{color:var(--theirs);}
+
+    .loop{border:1px dashed var(--line);border-radius:10px;padding:16px 18px;background:var(--soft);margin-bottom:30px;}
+    .loop h3{margin:0 0 6px;font-size:1.05rem;}
+    .loop p{margin:0;font-size:0.92rem;color:var(--muted);}
+    .honesty{border:1px solid var(--ink);border-radius:10px;padding:18px 20px;margin-bottom:20px;}
+    .honesty h3{margin:0 0 8px;font-size:0.9rem;text-transform:uppercase;letter-spacing:0.05em;}
+    .honesty ul{margin:0;padding-left:20px;font-size:0.9rem;}
+    .honesty li{padding:2px 0;}
+    .foot{color:var(--muted);font-size:0.82rem;}
+    .foot code{background:var(--soft);border:1px solid var(--line);border-radius:4px;padding:0.05rem 0.3rem;}
+    @media (max-width:560px){.stagehead .metric{margin-left:0;}}
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <p class="eyebrow">Alloro · what we cover</p>
+    <h1>Everything behind a new patient.</h1>
+    <p class="lede">Getting one new patient isn't one thing — it's dozens, and owners never see most of them. Here's the whole map: everything that decides whether a stranger <b>finds you, trusts you, and reaches out</b>. <b>Alloro is one system built to own all of it</b> — instead of the ten tools you'd otherwise juggle.</p>
+
+    <div class="uses">
+      <div class="use"><b>Two ways to read this</b>Tick each box to check nothing's missing. Or just look at the length — that's the answer to "so what does Alloro do?"</div>
+      <div class="use"><b>Why it's lost on people</b>Most owners don't know most of these exist. Seeing them all at once is what makes the scope land.</div>
+    </div>
+
+    <div class="legend">
+      <span class="tag"><span class="dot live"></span> Live — Alloro does this today</span>
+      <span class="tag"><span class="dot build"></span> Building</span>
+      <span class="tag"><span class="dot watch"></span> We watch it (can't be controlled)</span>
+      <span class="tag"><span class="dot theirs"></span> Your team's job (not our lane)</span>
+    </div>
+
+    <div class="honesty" style="border-style:dashed;margin-bottom:26px;">
+      <h3>Marks validated 2026-07-17 (against the live code)</h3>
+      <p style="margin:0 0 8px;font-size:0.9rem;">Checked by three code audits + two independent adversary passes. Four pills were marked <b>Live</b> and were corrected to <b>Building</b>: <i>Website words that build trust</i>, <i>Answers to what they wonder</i>, <i>Your team and credentials</i>, and <i>A page per service and town</i>.</p>
+      <p style="margin:0;font-size:0.9rem;">The four on-page "Get chosen" items (loads fast, trust in the first half-second, the deciding answers, reviews on the page) are shown Live but depend on the site renderer we can't inspect from here — <b>treat them as unverified</b> until that check runs. Staked build-state + connection map: <code>build-checklist.md</code>.</p>
+    </div>
+
+    <!-- STAGE 1 -->
+    <section class="stage">
+      <div class="stagehead">
+        <h2>1 · Do they find you?</h2>
+        <span class="metric">Get found · impressions</span>
+        <p class="q">Whether you come up at all when someone searches — on the map, in the blue links, and in AI answers.</p>
+      </div>
+      <div class="grid">
+        <div class="item"><input type="checkbox"><div class="body"><div class="name">Google listing category <span class="pill build">Building</span></div><div class="desc">The main label on your Google profile. Pick the wrong one and you don't show up for the right searches — it's the single strongest lever here.</div></div></div>
+        <div class="item"><input type="checkbox"><div class="body"><div class="name">Extra categories <span class="pill build">Building</span></div><div class="desc">The additional labels that widen what you show up for.</div></div></div>
+        <div class="item"><input type="checkbox"><div class="body"><div class="name">Name, address, phone match <span class="pill build">Building</span></div><div class="desc">Your details matching everywhere online. Mismatches quietly sink your ranking, and nobody tells you.</div></div></div>
+        <div class="item"><input type="checkbox"><div class="body"><div class="name">Citations / directory listings <span class="pill build">Building</span></div><div class="desc">Consistent listings across the many directories Google cross-checks to decide it can trust you.</div></div></div>
+        <div class="item"><input type="checkbox"><div class="body"><div class="name">Profile completeness <span class="pill build">Building</span></div><div class="desc">Every field on your Google profile filled in — services, hours, description, attributes.</div></div></div>
+        <div class="item"><input type="checkbox"><div class="body"><div class="name">Reviews as a ranking signal <span class="pill watch">We watch</span></div><div class="desc">How many reviews you have and your rating. Google uses these to decide who shows up at all.</div></div></div>
+        <div class="item"><input type="checkbox"><div class="body"><div class="name">Open hours <span class="pill build">Building</span></div><div class="desc">You can vanish from the map entirely when you're marked closed.</div></div></div>
+        <div class="item"><input type="checkbox"><div class="body"><div class="name">Business-name keywords <span class="pill watch">We watch</span></div><div class="desc">Keywords in your name help a lot — but stuffing them gets you suspended. Only a real legal name counts.</div></div></div>
+        <div class="item"><input type="checkbox"><div class="body"><div class="name">How close you are <span class="pill watch">We watch</span></div><div class="desc">Distance to the searcher is the biggest single factor — you can't change it, but you can widen the circle you still appear in.</div></div></div>
+        <div class="item"><input type="checkbox"><div class="body"><div class="name">Words on your website <span class="pill live">Live</span></div><div class="desc">The content that tells Google what you actually do.</div></div></div>
+        <div class="item"><input type="checkbox"><div class="body"><div class="name">Can Google read your site <span class="pill live">Live</span></div><div class="desc">Whether search engines can crawl and index you at all — the gate under everything else.</div></div></div>
+        <div class="item"><input type="checkbox"><div class="body"><div class="name">Links to and within your site <span class="pill build">Building</span></div><div class="desc">Other sites linking to you, and your own pages linking to each other.</div></div></div>
+        <div class="item"><input type="checkbox"><div class="body"><div class="name">A page per service and town <span class="pill build">Building</span></div><div class="desc">A dedicated page for each thing you do and each place you serve.</div></div></div>
+        <div class="item"><input type="checkbox"><div class="body"><div class="name">Showing up in AI answers <span class="pill build">Building</span></div><div class="desc">Whether ChatGPT and Google's AI name you when someone asks. New, and growing fast.</div></div></div>
+      </div>
+    </section>
+
+    <!-- STAGE 2 -->
+    <section class="stage">
+      <div class="stagehead">
+        <h2>2 · Do they consider you?</h2>
+        <span class="metric">Get considered · visits</span>
+        <p class="q">Of everyone who saw you, who opens you up and thinks "this one might be right for me."</p>
+      </div>
+      <div class="grid">
+        <div class="item"><input type="checkbox"><div class="body"><div class="name">Your reviews on the listing <span class="pill watch">We watch</span></div><div class="desc">The stars, the count, how fresh they are — what makes someone tap you instead of the practice right next to you.</div></div></div>
+        <div class="item"><input type="checkbox"><div class="body"><div class="name">Your search headline <span class="pill live">Live</span></div><div class="desc">The blue title in the search result. The single biggest thing that earns the click.</div></div></div>
+        <div class="item"><input type="checkbox"><div class="body"><div class="name">Photos <span class="pill build">Building</span></div><div class="desc">The pictures on your listing and site — the first read on whether you look like the real thing.</div></div></div>
+        <div class="item"><input type="checkbox"><div class="body"><div class="name">Website words that build trust <span class="pill build">Building</span></div><div class="desc">Copy that answers their questions and earns trust in seconds, in your real voice.</div></div></div>
+        <div class="item"><input type="checkbox"><div class="body"><div class="name">Answers to what they wonder <span class="pill build">Building</span></div><div class="desc">The common questions handled up front, so they don't leave to find out.</div></div></div>
+        <div class="item"><input type="checkbox"><div class="body"><div class="name">Your team and credentials <span class="pill build">Building</span></div><div class="desc">Who they'll see, and the signals that say "you can trust these people."</div></div></div>
+        <div class="item"><input type="checkbox"><div class="body"><div class="name">Whether you take their insurance <span class="pill build">Building</span></div><div class="desc">Often the very first thing they check — and a dealbreaker if it's hard to find.</div></div></div>
+        <div class="item"><input type="checkbox"><div class="body"><div class="name">Replying to reviews <span class="pill live">Live</span></div><div class="desc">Answering reviews, good and bad — it shows you're present and you care.</div></div></div>
+        <div class="item"><input type="checkbox"><div class="body"><div class="name">GBP posts <span class="pill live">Live</span></div><div class="desc">Regular updates on your Google profile — keeps it active and current. (Engagement, not ranking.)</div></div></div>
+        <div class="item"><input type="checkbox"><div class="body"><div class="name">Fresh reviews <span class="pill build">Building</span></div><div class="desc">Recent reviews count far more than old ones. Steady beats a big number from years ago.</div></div></div>
+        <div class="item"><input type="checkbox"><div class="body"><div class="name">Other places they check you <span class="pill watch">We watch</span></div><div class="desc">Healthgrades, Zocdoc, Yelp — the profiles you don't own but they still read.</div></div></div>
+      </div>
+    </section>
+
+    <!-- STAGE 3 -->
+    <section class="stage">
+      <div class="stagehead">
+        <h2>3 · Do they choose you?</h2>
+        <span class="metric">Get chosen · form submissions</span>
+        <p class="q">Of everyone who opened you up, who actually raises their hand and reaches out.</p>
+      </div>
+      <div class="grid">
+        <div class="item"><input type="checkbox"><div class="body"><div class="name">Is the number even real <span class="pill build">Building</span></div><div class="desc">Making sure your visitor count isn't just bots and existing patients — so you fix a real problem, not a phantom. (Clean measurement is the piece we're building.)</div></div></div>
+        <div class="item"><input type="checkbox"><div class="body"><div class="name">Loads fast, on a phone <span class="pill live">Live</span></div><div class="desc">A slow page on a phone loses people before they read a word. We host it, so we keep it fast.</div></div></div>
+        <div class="item"><input type="checkbox"><div class="body"><div class="name">Trust in the first half-second <span class="pill live">Live</span></div><div class="desc">The gut feeling the moment your site loads — does this look safe and real.</div></div></div>
+        <div class="item"><input type="checkbox"><div class="body"><div class="name">The answers that decide it <span class="pill live">Live</span></div><div class="desc">Cost, insurance, what happens at the first visit, who they'll see — findable in seconds.</div></div></div>
+        <div class="item"><input type="checkbox"><div class="body"><div class="name">Real reviews on the page <span class="pill live">Live</span></div><div class="desc">The review text shown right on your site, not a link away where they'll wander off.</div></div></div>
+        <div class="item"><input type="checkbox"><div class="body"><div class="name">Easy to reach out <span class="pill live">Live</span></div><div class="desc">A simple form with no friction — and it runs through Alloro's own intake, not a form you rent elsewhere. (Counting exactly who raised their hand is the measurement piece we're building.)</div></div></div>
+        <div class="item"><input type="checkbox"><div class="body"><div class="name">Showing your availability <span class="pill build">Building</span></div><div class="desc">Making it clear you're open to take them. (The booking itself stays your front desk's job.)</div></div></div>
+        <div class="item"><input type="checkbox"><div class="body"><div class="name">How fast you reply <span class="pill theirs">Your team</span></div><div class="desc">Speed to a new lead makes or breaks it — that's your team. We make sure the lead lands clean and fast.</div></div></div>
+      </div>
+    </section>
+
+    <!-- LOOP -->
+    <div class="loop">
+      <h3>And then it loops — they come back and refer <span class="pill build" style="vertical-align:middle">Building</span></h3>
+      <p>After a good visit, a happy patient leaves a review — with your say-so first. That review becomes the thing the next stranger finds and trusts. Do it well and the funnel feeds itself.</p>
+    </div>
+
+    <section class="honesty">
+      <h3>The honest part</h3>
+      <ul>
+        <li><b>Built to own all of it — not "already runs itself."</b> The map above is the whole job; the marks show what's live today and what we're building.</li>
+        <li><b>We never promise a rank, a number, or an outcome.</b> Everything here is designed to improve how eligible, trusted, and easy-to-reach you are — never a guarantee.</li>
+        <li><b>These are your numbers, not our scorecard.</b> We show you the vitals and do the work. If a stage is healthy, we'll tell you to leave it alone.</li>
+      </ul>
+    </section>
+
+    <p class="foot">Internal + external use. Coverage marks are the honest build state as of 2026-07-17 — <b>confirm against the live build before showing anyone outside the team.</b> The diagnostic version of this map is <code>the-map.html</code>; the build order is <code>build-checklist.md</code>; the reasoning is the anchor memory <code>project_funnel_three_gates</code>.</p>
+  </main>
+</body>
+</html>
