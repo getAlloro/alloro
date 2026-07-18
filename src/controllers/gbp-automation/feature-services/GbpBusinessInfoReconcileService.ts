@@ -7,11 +7,15 @@ import {
 import { GooglePropertyModel, IGoogleProperty } from "../../../models/GooglePropertyModel";
 import { GbpWorkEventModel } from "../../../models/GbpWorkEventModel";
 import { GbpWorkItemModel, IGbpWorkItem } from "../../../models/GbpWorkItemModel";
+import { ProjectModel } from "../../../models/website-builder/ProjectModel";
+import { MetricActionService } from "../../../services/MetricActionService";
 import { getLocationProfileForRanking } from "../../gbp/gbp-services/location-handler.service";
 import { GbpAutomationError } from "../feature-utils/GbpAutomationError";
 import {
+  BUSINESS_INFO_ORIGIN_COMPLETENESS_AUTOFILL,
   BusinessInfoPatch,
   BusinessInfoPayload,
+  businessInfoFieldLabels,
   businessInfoLocationName,
   liveMatchesDesired,
 } from "../feature-utils/gbpBusinessInfo";
@@ -191,6 +195,46 @@ export class GbpBusinessInfoReconcileService {
       );
     });
 
+    // Seam 11: surface a completeness auto-fill on the owner's get-found stage — but
+    // only for drafts Alloro staged from a detected gap (the origin marker), never a
+    // manual owner edit, and only now that the write has actually landed on Google.
+    if (payload.origin === BUSINESS_INFO_ORIGIN_COMPLETENESS_AUTOFILL) {
+      await this.recordCompletenessFillForOwner(item, payload).catch((recordError) => {
+        // §3.2 — best-effort, never silent: the fill is live on Google regardless; a
+        // failed owner-surface record must not fail the publish that already succeeded.
+        logger.error(
+          { err: recordError, workItemId: item.id },
+          "[GBP] completeness-fill owner-surface record failed"
+        );
+      });
+    }
+
     return (await GbpWorkItemModel.findById(item.id))!;
+  }
+
+  /**
+   * Record the owner-facing "Alloro filled in X" action for a published completeness
+   * auto-fill (seam 11). Keyed to the org's project so it lands on that location's
+   * get-found stage — the SAME project the patient-journey read resolves
+   * (ProjectModel.findByOrganizationId), or the surface would never show it. No project
+   * means the journey wouldn't read it either, so there is nothing to record against.
+   *
+   * Records what Alloro DID, plainly; it never claims the fill moved a metric — the
+   * doctor rule (show the action and the trend, never a caused-lift claim).
+   */
+  private static async recordCompletenessFillForOwner(
+    item: IGbpWorkItem,
+    payload: BusinessInfoPayload
+  ): Promise<void> {
+    if (payload.updateMask.length === 0) return;
+    const project = await ProjectModel.findByOrganizationId(item.organization_id);
+    if (!project) return;
+    await MetricActionService.recordGbpCompletenessFill({
+      organizationId: item.organization_id,
+      locationId: item.location_id,
+      projectId: project.id,
+      workItemId: item.id,
+      filledFields: businessInfoFieldLabels(payload.updateMask),
+    });
   }
 }
