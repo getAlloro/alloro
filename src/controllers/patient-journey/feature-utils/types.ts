@@ -39,8 +39,10 @@ export type OrgType = "health" | "generic";
 
 export interface PatientJourneyAction {
   id: string;
-  actionType: "seo_meta_update";
-  metricKey: "ctr";
+  // "seo_meta_update" (ctr) or "gbp_completeness_fill" (impressions). The UI
+  // renders summary + measurementNote, so it does not switch on this.
+  actionType: string;
+  metricKey: string;
   occurredAt: string;
   activeUntil: string;
   summary: string;
