@@ -8,6 +8,7 @@ import { GbpWorkItemModel, IGbpWorkItem } from "../../../models/GbpWorkItemModel
 import { getGbpAutomationQueue } from "../../../workers/queues";
 import { GbpAutomationError } from "../feature-utils/GbpAutomationError";
 import { sanitizeGbpUrl } from "../feature-utils/GbpInputSanitizer";
+import { GbpLocalPostDraftService } from "./GbpLocalPostDraftService";
 import { GbpReadinessService } from "./GbpReadinessService";
 import {
   OrganizationArchivedError,
@@ -16,6 +17,17 @@ import {
 
 const LOCAL_POST_INTERVAL_DAYS = 14;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+/**
+ * Error codes that mean "there is legitimately nothing to post this cycle" —
+ * not a failure. The location stays enabled; we simply advance to the next
+ * window. Anything else counts as a real failure.
+ */
+const NOTHING_TO_POST_CODES = new Set([
+  "GBP_POST_NO_CANDIDATE_REVIEW", // no eligible positive review to seed a post
+  "REVIEW_NOT_POST_CANDIDATE", // seed review is not a post candidate
+  "GBP_NOT_READY", // owner has not finished GBP setup (no property selected)
+]);
 
 export interface GbpLocalPostScheduleResult {
   processed: number;
@@ -189,26 +201,86 @@ export class GbpLocalPostScheduleService {
         continue;
       }
 
+      // Date-scoped, scheduled-namespaced window. If a second scan hits the
+      // same location in the same window (e.g. an advance-write raced or
+      // failed), createFromBestReview returns the existing draft instead of
+      // spawning a fresh LLM generation — the idempotency guard that keeps the
+      // hourly scan from duplicating work or cost.
+      const generationWindow = `scheduled:${generationWindowFor(settings, now)}`;
+      const scheduleMetadata: Record<string, unknown> = {};
+
+      try {
+        // Generate a real held DRAFT for owner approval — never auto-publish
+        // (owner-control canon). Reuses the same review-seeded generation the
+        // manual "generate now" path uses, but text-optional: we honor an
+        // owner-set default image when present, else post text-only, which the
+        // deploy path (GbpLocalPostDeploymentService.buildPayload) accepts.
+        //
+        // OPEN POLICY DECISION (documented for Corey — not guessed here):
+        //   (1) Image policy for recurring posts. Decision-free default is
+        //       text-optional (owner default image if set, else text-only). The
+        //       open call is whether scheduled posts should REQUIRE an image or
+        //       auto-generate/attach one for engagement.
+        //   (2) Content source. Today recurring content is seeded from the
+        //       best eligible positive review. A location with no eligible
+        //       review produces NO post that cycle (honest skip — we never
+        //       fabricate a post). The open call is whether recurring posts
+        //       should draw on other sources (services, seasonal, offers).
+        const item = await GbpLocalPostDraftService.createFromBestReview({
+          organizationId: settings.organization_id,
+          locationId: settings.location_id,
+          userId: null,
+          generationWindow,
+          featuredImageUrl: settings.default_featured_image_url ?? null,
+        });
+        result.created += 1;
+        scheduleMetadata.lastLocalPostGeneratedAt = now.toISOString();
+        scheduleMetadata.lastLocalPostWorkItemId = item.id;
+        scheduleMetadata.lastLocalPostGenerationWindow = generationWindow;
+        scheduleMetadata.lastLocalPostSkipReason = null;
+      } catch (error) {
+        const code = error instanceof GbpAutomationError ? error.code : null;
+        if (code && NOTHING_TO_POST_CODES.has(code)) {
+          result.skipped += 1;
+          scheduleMetadata.lastLocalPostSkipReason = code;
+          scheduleMetadata.lastLocalPostSkippedAt = now.toISOString();
+          scheduleMetadata.skippedGenerationWindow = generationWindow;
+        } else {
+          result.failed += 1;
+          result.errors.push({
+            organizationId: settings.organization_id,
+            locationId: settings.location_id,
+            message:
+              error instanceof Error
+                ? error.message
+                : "Post draft generation failed.",
+          });
+          scheduleMetadata.lastLocalPostSkipReason = code || "generation_failed";
+          scheduleMetadata.lastLocalPostSkippedAt = now.toISOString();
+        }
+      }
+
+      // Always advance the window — success, skip, OR failure. The scan runs
+      // hourly; without this a due location would be regenerated every hour.
+      // Advancing caps generation to at most once per interval per location.
       try {
         await GbpAutomationSettingsModel.updateById(settings.id, {
           next_post_generation_at: nextGenerationAt(now),
           metadata: {
             ...(settings.metadata || {}),
-            lastLocalPostSkipReason: "per_post_image_required",
-            lastLocalPostSkippedAt: now.toISOString(),
-            skippedGenerationWindow: generationWindowFor(settings, now),
+            ...scheduleMetadata,
           },
         });
-        result.skipped += 1;
       } catch (error) {
-        result.failed += 1;
+        // Do not swallow (§3.2). Record it without re-classifying the
+        // generation outcome already counted above.
         result.errors.push({
           organizationId: settings.organization_id,
           locationId: settings.location_id,
           message:
             error instanceof Error
-              ? error.message
-              : "Post draft schedule skip failed.",
+              ? `Schedule advance failed: ${error.message}`
+              : "Schedule advance failed.",
         });
       }
     }
