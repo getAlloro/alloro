@@ -72,23 +72,29 @@ const TOP_THREE_SEARCH_POSITIONS = new Set([2, 3]);
 // contract: the cross-stage selector (Summary v2) is meant to de-prioritize a generic
 // candidate in favor of a specific, caught-unseen one from another stage. Wiring that
 // consumer is Chapter 7's job; today the flag is an honest passthrough (emitted, not
-// yet read). Copy is relief-first (leads with what is already working), never
-// deficit-framed. This should fire rarely; a specific LLM recommendation is the norm.
+// yet read).
+// HONESTY CONSTRAINT (do not weaken): this path receives NO practice data, so every line
+// must be true for ANY practice. State only why a lever matters (a general truth) and the
+// forward action to take. NEVER assert this practice's current state — "your reviews are
+// working", "your profile is active", "your photos are strong" — because with no data
+// those can be false, and a false claim to an owner breaks the honesty bar. Relief-first
+// means non-deficit framing, not a claim of a good state we cannot see.
+// This should fire rarely; a specific LLM recommendation is the norm.
 const SAFE_RECOMMENDATION_BACKFILL: RankingRecommendation[] = [
   {
-    title: "Your reviews are already working for you",
+    title: "Reviews are the signal patients weigh most",
     description:
-      "Recent reviews are helping patients choose you. Asking each happy patient for one keeps that trust growing.",
+      "A steady stream of reviews is one of the strongest things that helps patients choose a practice. Asking each happy patient for one is the simplest way to keep them coming.",
     impact: "high",
     effort: "low",
     timeline: "30 days",
-    expected_outcome: "Fresh reviews that keep your local search trust signals strong.",
+    expected_outcome: "Fresh reviews that strengthen your local search trust signals.",
     generic: true,
   },
   {
-    title: "Your Google profile is active, keep it fresh",
+    title: "An up-to-date profile reassures patients",
     description:
-      "An active profile reassures patients before they call. One useful Google post a week keeps it looking cared-for.",
+      "An up-to-date Google profile reassures patients before they call. One useful post a week is enough to keep it current.",
     impact: "medium",
     effort: "low",
     timeline: "30 days",
@@ -96,13 +102,13 @@ const SAFE_RECOMMENDATION_BACKFILL: RankingRecommendation[] = [
     generic: true,
   },
   {
-    title: "Your photos make a strong first impression",
+    title: "Photos are often the first thing patients check",
     description:
-      "Patients look at your photos before they call. A few current office and team photos keep that impression current.",
+      "Many patients look at your photos before they call. A few current office and team photos keep that first impression strong.",
     impact: "medium",
     effort: "low",
     timeline: "2 weeks",
-    expected_outcome: "A complete profile that reassures patients at the first look.",
+    expected_outcome: "Photos that reassure patients at the first look.",
     generic: true,
   },
 ];
