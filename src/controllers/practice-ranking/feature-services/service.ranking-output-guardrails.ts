@@ -23,6 +23,7 @@ type RankingLlmGuardrailContext = {
   visibleScore?: number | null;
   searchPosition?: number | null;
   orgType?: OrgType;
+  competitorNames?: string[];
 };
 
 const WEBSITE_ACTION_PATTERN =
@@ -357,19 +358,41 @@ function isWebsiteActionGap(gap: RankingGap): boolean {
   );
 }
 
-// The prompt bans these as a single recommendation ("generic homework any tool
-// says"). Enforce it in code: a recommendation whose action IS one of these
-// literal generic phrases is dropped so backfillRecommendations replaces it with
-// the honest safe copy. The regex catches the explicit ban list, not every
-// paraphrase — full "no generic homework" needs the recommendation-quality eval.
-const BANNED_GENERIC_ACTION_PATTERN =
-  /\b(get more reviews|post more often|add more photos|keep review momentum|rating is lower than average)\b/i;
+// The prompt bans generic homework as the single recommendation ("get more
+// reviews", "ask every patient for a review", "post more often", "add more
+// photos", chasing a review count) UNLESS it is framed around a specific
+// competitor from the input. Enforce that in code: a recommendation matching a
+// generic-homework shape is dropped (backfillRecommendations replaces it with
+// honest safe copy), but one that NAMES an actual competitor is kept — it is the
+// specific, caught-unseen card the prompt allows. This closes the incident card
+// ("ask every patient for a review to protect your #1 ranking" — names no
+// competitor -> dropped) while keeping a real "beat Bright Smiles's 48 photos"
+// card. It also catches the specialist-vs-generalist shape, which never names a
+// specific competitor ("vs 400-500+ nearby competitors"). Deterministic shape
+// check, not a full quality judgment — a number-bearing but still-vague card is
+// the residual the recommendation-quality eval must catch.
+const GENERIC_HOMEWORK_PATTERN =
+  /\b(get more reviews|grow(?:ing)?\s+(?:your\s+)?reviews?(?:\s+count)?|ask\s+(?:every|each|all|your|more|happy)\b[^.!?]{0,60}?\breviews?\b|keep\s+review\s+momentum|post\s+more\s+often|add\s+more\s+photos|(?:your\s+)?rating\s+is\s+lower\s+than\s+average)\b/i;
 
-function isBannedGenericHomework(rec: RankingRecommendation): boolean {
-  return (
-    BANNED_GENERIC_ACTION_PATTERN.test(rec.title ?? "") ||
-    BANNED_GENERIC_ACTION_PATTERN.test(rec.description ?? "")
+function namesACompetitor(text: string, competitorNames?: string[]): boolean {
+  const haystack = text.toLowerCase();
+  return (competitorNames ?? []).some(
+    (name) =>
+      typeof name === "string" &&
+      name.trim().length > 2 &&
+      haystack.includes(name.toLowerCase()),
   );
+}
+
+function isBannedGenericHomework(
+  rec: RankingRecommendation,
+  competitorNames?: string[],
+): boolean {
+  const text = `${rec.title ?? ""} ${rec.description ?? ""}`;
+  if (!GENERIC_HOMEWORK_PATTERN.test(text)) return false;
+  // Prompt escape valve: a generic action is allowed only when it names a
+  // specific competitor the owner can't see; otherwise it is generic homework.
+  return !namesACompetitor(text, competitorNames);
 }
 
 // Translate the static fallback copy into the org's vocabulary. The fallback
@@ -424,7 +447,7 @@ export function sanitizeRankingLlmAnalysis<T extends Record<string, any>>(
         .filter(
           (rec: RankingRecommendation) =>
             !isWebsiteActionRecommendation(rec) &&
-            !isBannedGenericHomework(rec),
+            !isBannedGenericHomework(rec, context.competitorNames),
         )
         .map((rec: RankingRecommendation) =>
           sanitizeRecommendation(rec, context),

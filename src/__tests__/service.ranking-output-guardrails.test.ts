@@ -48,6 +48,15 @@ describe("ranking output guardrail search-position bands", () => {
 });
 
 describe("ranking output guardrail generic-homework + vocabulary", () => {
+  type Rec = {
+    title?: string;
+    description?: string;
+    expected_outcome?: string;
+    generic?: boolean;
+  };
+  const recAt = (result: { top_recommendations: unknown[] }, i = 0): Rec =>
+    result.top_recommendations[i] as Rec;
+
   const bannedTitles = [
     "Get more reviews",
     "Post more often on Google",
@@ -62,18 +71,55 @@ describe("ranking output guardrail generic-homework + vocabulary", () => {
         { orgType: "health" },
       );
       expect(result.top_recommendations).toHaveLength(1);
-      expect(result.top_recommendations[0].title).not.toBe(title);
-      expect(result.top_recommendations[0].generic).toBe(true);
+      expect(recAt(result).title).not.toBe(title);
+      expect(recAt(result).generic).toBe(true);
     },
   );
+
+  it("drops the incident card (ask-for-reviews-to-protect-rank, names no competitor)", () => {
+    const result = sanitizeRankingLlmAnalysis(
+      {
+        top_recommendations: [
+          {
+            title: "Protect your #1 ranking",
+            description:
+              "Ask every happy patient for a review this week to protect your #1 local ranking. With only 77 reviews vs 400-500+ for nearby competitors, growing your review count is the fastest way.",
+          },
+        ],
+        gaps: [],
+      },
+      {
+        orgType: "health",
+        searchPosition: 1,
+        competitorNames: ["Bright Smiles Endodontics"],
+      },
+    );
+    // Numbers present, but no NAMED competitor -> generic homework -> honest fallback.
+    expect(recAt(result).generic).toBe(true);
+    expect(recAt(result).title).not.toContain("Protect your #1 ranking");
+  });
+
+  it("keeps a specific recommendation that names an actual competitor", () => {
+    const specific = {
+      title: "Close the photo gap with Bright Smiles Endodontics",
+      description:
+        "Bright Smiles Endodontics shows 48 photos to your 6. Add more photos of the office this week to close the gap.",
+    };
+    const result = sanitizeRankingLlmAnalysis(
+      { top_recommendations: [specific], gaps: [] },
+      { orgType: "health", competitorNames: ["Bright Smiles Endodontics"] },
+    );
+    // Contains "add more photos" but names a real competitor -> kept, not dropped.
+    expect(recAt(result).title).toContain("Bright Smiles");
+    expect(recAt(result).generic).not.toBe(true);
+  });
 
   it("renders the fallback in business vocabulary for a generic org", () => {
     const result = sanitizeRankingLlmAnalysis(
       { top_recommendations: [], gaps: [] },
       { orgType: "generic" },
     );
-    const rec = result.top_recommendations[0];
-    const text = `${rec.title} ${rec.description} ${rec.expected_outcome}`;
+    const text = `${recAt(result).title} ${recAt(result).description} ${recAt(result).expected_outcome}`;
     expect(text).toContain("customer");
     expect(text).not.toMatch(/patient|\bpractice\b/i);
     expect(text).not.toContain("{{");
@@ -84,8 +130,7 @@ describe("ranking output guardrail generic-homework + vocabulary", () => {
       { top_recommendations: [], gaps: [] },
       { orgType: "health" },
     );
-    const rec = result.top_recommendations[0];
-    const text = `${rec.title} ${rec.description} ${rec.expected_outcome}`;
+    const text = `${recAt(result).title} ${recAt(result).description} ${recAt(result).expected_outcome}`;
     expect(text).toContain("patient");
     expect(text).not.toContain("{{");
   });

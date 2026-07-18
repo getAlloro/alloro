@@ -451,6 +451,9 @@ export async function runRankingAnalysis(
       visibleScore: leanInput.client?.visible_local_search_score,
       searchPosition: leanInput.search_position?.position,
       orgType,
+      competitorNames: (leanInput.competitors ?? [])
+        .map((competitor: { name?: string }) => competitor?.name)
+        .filter((name: string | undefined): name is string => Boolean(name)),
     });
 
     // Ensure practice_ranking_id is set correctly

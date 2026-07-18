@@ -286,7 +286,7 @@ rule
 #   path must state only why a lever matters and the forward action, never a good-state
 #   claim it cannot see. Comment lines (which legitimately DOCUMENT the banned phrases)
 #   are excluded — only shipped strings / prompt prose count.
-SC_STATE='your (reviews?|profile|photos?|listing|rating|ratings|hours|posts?|website|ranking|presence|score) (is|are|look|looks|is not|are not|isn'"'"'?t|aren'"'"'?t) (working|active|strong|healthy|good|great|fine|solid|excellent|complete|current|optimized|up[- ]?to[- ]?date|in good shape|all set|looking good)'
+SC_STATE='(your|our|recent) ([a-z]+ )?(reviews?|profile|photos?|listing|rating|ratings|hours|posts?|website|ranking|presence|score) (is|are|look|looks|make|makes|is not|are not|isn'"'"'?t|aren'"'"'?t) (already |still |now |really |a )?(working|active|strong|healthy|good|great|fine|solid|excellent|complete|current|optimized|helping|up[- ]?to[- ]?date|in good shape|all set|looking good)'
 static_claim=""
 for f in $(grep -rlEi "$SC_STATE" src/agents src/controllers/practice-ranking src/emails/templates --include='*.ts' --include='*.md' 2>/dev/null | sort); do
   # keep the file only if a MATCHING line is not a comment (real shipped copy, not the rule's own docs)
