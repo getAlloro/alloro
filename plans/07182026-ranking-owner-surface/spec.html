@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ranking Owner Surface — connect, honest, in the owner's vocabulary Spec</title>
+  <style>
+    :root { color-scheme: light; --paper:#fff; --ink:#080808; --muted:#5f5f5f; --line:#d8d8d8; --soft:#f5f5f5; }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--paper); color:var(--ink); font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; line-height:1.5; }
+    .spec-shell { width:min(1120px,calc(100% - 32px)); margin:0 auto; padding:48px 0; }
+    .spec-hero,.spec-card,.task-card { border:1px solid var(--line); border-radius:8px; background:var(--paper); }
+    .spec-hero { border-color:var(--ink); padding:32px; margin-bottom:20px; }
+    .hero-topline { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px; }
+    .spec-card { padding:28px; margin-top:16px; }
+    .task-card { padding:20px; background:var(--soft); margin-top:12px; }
+    .eyebrow,dt { color:var(--muted); font-size:0.78rem; font-weight:700; text-transform:uppercase; }
+    .eyebrow { margin:0; }
+    .status-pill { display:inline-flex; align-items:center; min-height:34px; padding:0 12px; border:1px solid var(--ink); border-radius:999px; background:var(--ink); color:var(--paper); font-size:0.78rem; font-weight:800; text-transform:uppercase; }
+    .status-card { border-color:var(--ink); }
+    h1,h2,h3,p { margin-top:0; }
+    h1 { max-width:840px; margin-bottom:24px; font-size:clamp(2rem,5vw,3.4rem); line-height:1; }
+    h2 { font-size:1.35rem; } h3 { font-size:1rem; }
+    code { padding:0.1rem 0.3rem; border:1px solid var(--line); border-radius:4px; background:var(--soft); font-size:0.92em; }
+    .meta-grid,.split-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; margin:0; }
+    .meta-grid div,.split-grid>div { border:1px solid var(--line); border-radius:8px; padding:16px; }
+    dd { margin:4px 0 0; font-weight:700; }
+    .task-card dl { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:10px; margin:0; }
+    .task-card dl>div { border:1px solid var(--line); border-radius:6px; padding:10px; background:var(--paper); }
+    .checklist { list-style:none; padding-left:0; }
+    .checklist li { display:flex; gap:10px; align-items:flex-start; padding:10px 0; border-top:1px solid var(--line); }
+    ul { margin:0; padding-left:20px; }
+    @media (max-width:640px){ .spec-shell{width:min(100% - 20px,1120px); padding:24px 0;} .spec-hero,.spec-card{padding:20px;} }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec · A–E Engine · Item 1 of the end-to-end build</p>
+        <span class="status-pill">Pending Execution</span>
+      </div>
+      <h1>Ranking owner surface: connect, honest, and in the owner's own words.</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Pending Execution</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/07182026-ranking-owner-surface</dd></div>
+        <div><dt>Size</dt><dd>Medium</dd></div>
+        <div><dt>Risk</dt><dd>Level 3 (live customer surface)</dd></div>
+      </dl>
+      <p style="margin-top:20px;max-width:70ch;"><strong>Worktree:</strong> <code>alloro-worktrees/ranking-owner-surface</code> · <strong>Branch:</strong> <code>claude/ranking-owner-surface</code> off <code>claude/honest-fallback-copy</code> @ <code>c358b6c2</code> (itself off <code>origin/dev/dave</code> @ <code>4cdb0eaf</code>) — carries the fallback-honesty fix + this work as one reviewable unit. Build-and-hold, no PR; Dave reviews and merges (CD SOP).</p>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>The ranking dashboard is the surface the owner actually reads — the "1 ACTION" card and the stat tiles. As Alloro drives the whole A–E funnel, this surface is the <strong>CMO's report to the owner</strong> (of the local presence funnel — its lane): your funnel health, the one move, and later the lift it produced. It is the door almost every A–E finding must surface through. Today it has two live defects: it speaks hardcoded <strong>dental vocabulary</strong> to owners in every other vertical (real ICP = any local service business with a GBP + online appointments + higher ticket; dental is one vertical), and its <strong>honesty rules live in an LLM prompt, not in code</strong>, so a banned generic card ("ask every patient for a review… to protect your #1 ranking") can and did ship to a paying owner. Fix the door first, honestly, or every downstream A–E item lands on a broken surface.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Route the ranking recommendation path through the vocabulary system that already exists, and enforce the honesty rules that already exist in prose as real code checks — then add mechanized guards so neither defect can silently return.</p>
+      <ul>
+        <li><strong>Resolve</strong> the org's <code>orgType</code> at the ranking LLM stage (it is <em>not</em> resolved anywhere in the ranking pipeline today), and tokenize the hardcoded system prompt so it substitutes the org's vocabulary via the built <code>substitutePromptPlaceholders</code>.</li>
+        <li>Enforce the prompt's own ban-list in the deterministic guardrail: reject a recommendation that is generic "get more reviews" with no specific competitor+number, that tells a specialist to match a generalist's review count, or that ties reviews/posts to rank for a non-leader — falling back to the honest, vocab-correct safe copy.</li>
+        <li>Pass <code>orgType</code> into the guardrail so the fallback and honest-action copy also translate.</li>
+        <li>Add two advisory CI checks (vocab-bypass + owner-facing static-claim) to <code>scripts/check-conventions.sh</code>.</li>
+      </ul>
+      <p><strong>Done when:</strong> a generic (non-dental) org's ranking prompt and card render "customer/business," never "patient/practice/doctor"; no banned-shape recommendation can reach the owner (falls to the honest backfill); the CI checks flag any new hardcoded owner-facing healthcare noun or unconditioned claim; tsc + tests + <code>check:conventions --strict</code> green.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant files (re-verified in the worktree this session, file:line)</h3>
+      <ul>
+        <li><code>service.ranking-llm.ts:109</code> — <code>SYSTEM_PROMPT</code> "expert…specializing in <strong>dental specialty practices</strong>," hardcodes patient/doctor/practice; ban-list <code>:152</code>, specialist-vs-generalist <code>:153</code>; <code>runRankingAnalysis()</code> <code>:397</code>, uses <code>systemPrompt: SYSTEM_PROMPT</code> <code>:418</code>; <strong>0 occurrences of <code>orgType</code></strong> (confirmed bypass).</li>
+        <li><code>service.ranking-stage-llm.ts:225</code> — the <strong>only</strong> caller of <code>runRankingAnalysis</code>. The stage already has <code>organizationId</code> in scope (<code>:32</code>, used for <code>buildRankingEngagementSummary</code>), so the org handle to resolve orgType exists here.</li>
+        <li><code>service.ranking-output-guardrails.ts</code> — <code>SAFE_RECOMMENDATION_BACKFILL:83</code> (claims already de-fabricated on this branch, still hardcodes "patients"); <code>LEADER_SEARCH_POSITION:68</code>; leader exemption <code>:182</code>; posts→rank-only rewriter <code>hasPostToRankCausalClaim:239</code>; <code>backfillRecommendations:356</code>; <code>sanitizeRankingLlmAnalysis:378</code> (takes the analysis + <code>{visibleScore, searchPosition}</code> — <strong>no orgType</strong>).</li>
+        <li><code>src/config/orgLabels.ts</code> — <code>OrgType = "health" | "generic"</code> <code>:14</code>; <code>resolveOrgType()</code> <code>:22</code>; <code>PROMPT_PLACEHOLDERS</code> <code>:31</code> (incl. <code>vocab_directive</code>); <code>resolveLabels()</code> <code>:215</code>. <code>src/agents/service.prompt-substituter.ts:23</code> <code>substitutePromptPlaceholders(prompt, orgType)</code>.</li>
+        <li><code>scripts/check-conventions.sh:187-192</code> — the §5.1 secret-scan block: the mold for an advisory "verify each" check.</li>
+      </ul>
+      <h3>Patterns to follow (Code Constitution)</h3>
+      <ul>
+        <li>Route vocabulary through the existing system — <strong>invent nothing</strong>; no parallel translator (§4.3).</li>
+        <li>Mirror a real consumer that resolves orgType then substitutes: <code>src/controllers/agents/feature-services/service.daily-agent-processor.ts</code>, <code>GbpDraftGenerationService.ts</code>.</li>
+      </ul>
+      <p><strong>Reference file:</strong> <code>service.daily-agent-processor.ts</code> — resolves orgType and calls <code>substitutePromptPlaceholders</code>; the exact pattern the ranking stage is missing.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Route through the built vocab system (§6.1 mirror the reference domain; no parallel abstraction).</li>
+            <li>Enforce honesty in code — owner-facing claims are verified, not prose to the model.</li>
+            <li>Server-authoritative orgType from the org record (§5.4); Pino not console (§9.1); no new <code>any</code> (§4.5); DB access in models (§7.4).</li>
+            <li>Use the <strong>safe generic</strong> vocab path (won't mislabel a law firm).</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>Touch a locked value ($2k, no-guarantees, presence-side lane, owner-approval).</li>
+            <li>Expand <code>OrgType</code> beyond health|generic (Corey's parked decision).</li>
+            <li>Change what auto-sends/publishes (owner-approval unchanged).</li>
+            <li>Refactor unrelated ranking logic (no drive-by cleanup).</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out of scope</h3>
+      <ul>
+        <li>Per-vertical native vocabulary (Corey's decision) — deferred; generic path used meanwhile.</li>
+        <li>Wiring the dark detectors (completeness/NAP/geo-grid) to this surface — the <em>next</em> A–E item; this item makes the surface fit to receive them.</li>
+        <li><code>CRO.md</code> vocab token + the one email label — a later item; the CI check will flag them.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 3 — edits the live customer-facing ranking pipeline (overview card + recommendations + stat labels for every org).</p>
+      <h3>Risks + mitigation</h3>
+      <ul>
+        <li><strong>Grounded scope change:</strong> orgType is NOT pre-resolved in the ranking pipeline (the earlier "one call up" assumption was wrong), so T1 resolves it from the org record. Mitigation: the stage already holds <code>organizationId</code>; mirror the daily-agent resolution exactly; DB read stays in a model (§7.4).</li>
+        <li><strong>Regression on the most-read screen.</strong> Mitigation: build-and-hold; fresh different-model adversary; generic vocab path safe by construction; tests pin banned-shape rejection + generic-org vocab.</li>
+        <li><strong>Over-eager rejector drops a good card.</strong> Mitigation: rejector falls to honest safe copy (never blank); rejects only the three named shapes.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> every org's Local Rankings view (<code>RankingsHubSurface.tsx</code> consumes <code>llmAnalysis.top_recommendations</code> + stat tiles). Dave reviews before any merge.</p>
+      <h3>Pushback</h3>
+      <ul><li>The deepest honesty fix (verify competitor numbers against real input) is larger than this item; here we enforce ban-shapes + kill unconditioned claims, and the CI check surfaces the rest. Flagged, not silently deferred.</li></ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <article class="task-card">
+        <h3>T1: Resolve + thread orgType, tokenize the ranking system prompt</h3>
+        <dl>
+          <div><dt>Do</dt><dd>At <code>service.ranking-stage-llm.ts</code> (org id already in scope, <code>:32</code>), fetch the org's <code>organization_type</code> via a model and resolve <code>orgType</code> with <code>resolveOrgType</code>; pass into <code>runRankingAnalysis</code>; replace hardcoded patient/doctor/practice in <code>SYSTEM_PROMPT</code> with placeholders and run through <code>substitutePromptPlaceholders</code> — mirroring <code>service.daily-agent-processor.ts</code>.</dd></div>
+          <div><dt>Files</dt><dd><code>service.ranking-stage-llm.ts</code>, <code>service.ranking-llm.ts</code>, an OrganizationModel getter if absent, test</dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Generic-org prompt has no hardcoded healthcare noun; <code>tsc --noEmit</code>; targeted test</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T2: Enforce honesty ban-shapes in the guardrail + translate fallback</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add a rejecting validator (generic "get more reviews" w/o competitor+number; specialist-vs-generalist review count; reviews/posts→rank for non-leader) → fall to safe backfill; thread orgType into <code>sanitizeRankingLlmAnalysis</code> (<code>:378</code>) so backfill/honest-action copy translate; re-scope the <code>:182</code> leader exemption so rank-protection language is still governed.</dd></div>
+          <div><dt>Files</dt><dd><code>service.ranking-output-guardrails.ts</code>, its caller (to pass orgType), test</dd></div>
+          <div><dt>Depends on</dt><dd>T1 (orgType available)</dd></div>
+          <div><dt>Verify</dt><dd>Banned-shape card rejected → honest backfill; generic org sees "customer/business"; tests</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T3: Mechanized vocab-bypass CI check</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Advisory check in <code>check-conventions.sh</code> mirroring §5.1: scan owner-facing prose paths for hardcoded healthcare nouns; exclude field/schema/route names; flag a <code>.md</code> prompt only if it lacks <code>{{vocab_directive}}</code>.</dd></div>
+          <div><dt>Files</dt><dd><code>scripts/check-conventions.sh</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Flags <code>CRO.md</code>; clears tokenized prompts; count-only, non-blocking</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T4: Mechanized owner-facing static-claim check</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Advisory check flagging a static owner-facing recommendation/claim that asserts practice state ("your reviews are…", "your profile is…") without data conditioning — the class of the fallback bug.</dd></div>
+          <div><dt>Files</dt><dd><code>scripts/check-conventions.sh</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Clears the now-fixed backfill; would have flagged the pre-fix copy</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled> <code>npx tsc --noEmit</code> — zero new errors</li>
+        <li><input type="checkbox" disabled> Targeted tests pass (generic-org vocab; banned-shape rejection; leader-exemption re-scoped) + full suite no regression</li>
+        <li><input type="checkbox" disabled> <code>npm run check:conventions --strict</code> — 0 structural violations; the two new checks run advisory</li>
+        <li><input type="checkbox" disabled> Trace: a generic org's ranking prompt + card render "customer/business," never "patient/practice/doctor"</li>
+        <li><input type="checkbox" disabled> Trace: a banned-shape recommendation falls to the honest backfill; nothing auto-sends/publishes</li>
+        <li><input type="checkbox" disabled> Fresh different-model adversary round — SURVIVED (grounded refutation)</li>
+        <li><input type="checkbox" disabled> Build-and-hold on <code>claude/ranking-owner-surface</code>; no PR; honest status handed to Dave</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>
