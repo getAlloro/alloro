@@ -42,12 +42,28 @@ const FIELD_LABELS: Record<BusinessInfoField, string> = {
 
 export type BusinessInfoPatch = Partial<Record<BusinessInfoField, unknown>>;
 
+/**
+ * Marks a business_info draft that Alloro STAGED from a detected completeness gap
+ * (the A2→A6 auto-fill), as opposed to a manual owner edit. Both draft kinds publish
+ * through the same path, so this is how the publish trigger tells them apart: only an
+ * auto-fill surfaces an owner-facing "Alloro filled in X" action — a manual edit must
+ * never claim Alloro did the owner's own work (Value #6 honesty).
+ */
+export const BUSINESS_INFO_ORIGIN_COMPLETENESS_AUTOFILL = "completeness_autofill";
+
 /** The full slot persisted on the work item (gbp_work_items.business_info_payload). */
 export interface BusinessInfoPayload {
   patch: BusinessInfoPatch;
   updateMask: BusinessInfoField[];
   /** Captured live values for the masked fields, written just before the PATCH. */
   previousValues?: BusinessInfoPatch | null;
+  /** Set only for A2→A6 completeness auto-fill drafts; drives the owner-surface action. */
+  origin?: typeof BUSINESS_INFO_ORIGIN_COMPLETENESS_AUTOFILL;
+}
+
+/** Plain, owner-facing labels for a set of written fields (e.g. websiteUri → "website"). */
+export function businessInfoFieldLabels(fields: BusinessInfoField[]): string[] {
+  return fields.map((field) => FIELD_LABELS[field]);
 }
 
 export interface BusinessInfoDraftInput {
