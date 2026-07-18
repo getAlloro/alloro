@@ -87,7 +87,7 @@ export function buildGateDetailContent(
       return {
         title,
         description:
-          "How often your website appeared in Google Search during the selected period.",
+          "How often you showed up on Google — in search and on the map — during the selected period.",
         summary: [
           metric(
             "Google clicks",
@@ -102,7 +102,8 @@ export function buildGateDetailContent(
         ],
         insightsTitle: "Top Google searches",
         insights: topGscQueries(stage),
-        footer: "From Google Search Console for the selected period.",
+        footer:
+          "From Google Search Console + Business Profile for the selected period.",
       };
     }
     case "visits": {

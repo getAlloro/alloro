@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gate-1 Impressions: Search + Maps Spec</title>
+  <style>
+    :root { color-scheme: light; --paper:#fff; --ink:#080808; --muted:#5f5f5f; --line:#d8d8d8; --soft:#f5f5f5; }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--paper); color:var(--ink); font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; line-height:1.5; }
+    .spec-shell { width:min(1120px,calc(100% - 32px)); margin:0 auto; padding:48px 0; }
+    .spec-hero, .spec-card, .task-card { border:1px solid var(--line); border-radius:8px; background:var(--paper); }
+    .spec-hero { border-color:var(--ink); padding:32px; margin-bottom:20px; }
+    .hero-topline { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px; }
+    .spec-card { padding:28px; margin-top:16px; }
+    .task-card { padding:20px; background:var(--soft); margin-top:12px; }
+    .eyebrow, dt { color:var(--muted); font-size:0.78rem; font-weight:700; text-transform:uppercase; }
+    .eyebrow { margin:0; }
+    .status-pill { display:inline-flex; align-items:center; min-height:34px; padding:0 12px; border:1px solid var(--ink); border-radius:999px; background:var(--ink); color:var(--paper); font-size:0.78rem; font-weight:800; text-transform:uppercase; }
+    .status-card { border-color:var(--ink); }
+    h1,h2,h3,p { margin-top:0; }
+    h1 { max-width:840px; margin-bottom:24px; font-size:clamp(2rem,5vw,3.4rem); line-height:0.98; }
+    h2 { font-size:1.35rem; } h3 { font-size:1rem; }
+    code { padding:0.1rem 0.3rem; border:1px solid var(--line); border-radius:4px; background:var(--soft); font-size:0.92em; }
+    .meta-grid, .split-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; }
+    .meta-grid { margin:0; } .meta-grid div, .split-grid > div { border:1px solid var(--line); border-radius:8px; padding:16px; }
+    dd { margin:4px 0 0; font-weight:700; }
+    .checklist { list-style:none; padding-left:0; }
+    .checklist li { display:flex; gap:10px; align-items:flex-start; padding:10px 0; border-top:1px solid var(--line); }
+    ul { margin-top:0; }
+    @media (max-width:640px){ .spec-shell{width:min(100% - 20px,1120px);padding:24px 0;} .spec-hero,.spec-card{padding:20px;} }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill">In Progress</span>
+      </div>
+      <h1>Gate-1 impressions = Google search + Maps</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>In Progress — backend Maps sum done + self-verified; honesty-seam fixes done (Rev 3: shared-note shadow, frontend labels, double-count guard, CTR blast radius); Layer-2 acceptance + Docs parity pending</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/07172026-gate1-impressions-search-maps</dd></div>
+        <div><dt>Size</dt><dd>Small–Medium (8 files — backend + frontend labels)</dd></div>
+        <div><dt>Risk</dt><dd>Level 2</dd></div>
+        <div><dt>Branch</dt><dd>claude/gate1-impressions ← origin/dev/dave @ 4cdb0ea</dd></div>
+        <div><dt>Author</dt><dd>coreyw22 (PR target: dev/dave)</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>The patient-journey funnel's first gate ("Get Found" = impressions) under-counts: <code>readImpressions</code> summed only GSC organic web-search impressions and ignored Google Maps/local impressions — even though the Maps data is already stored daily. The map pack is where people actually look for a local specialist, so the very first number an owner sees about their own business was confidently wrong (too low). This is the staked <strong>gate-1 prerequisite</strong> (Jidoka: fix the foundational number before building any get-found lever on top of it — see <code>plans/07142026-alloro-funnel-engine/build-checklist.md</code> § STAKED).</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Gate 1's impressions value = <strong>whole-website GSC organic impressions (counted once) + whole-practice GBP Maps impressions (summed across ALL the org's locations)</strong> for the date window. This is the honest whole-practice aggregate — the impressions/visits/leads gates are all <code>shared: true</code> (org-wide, identical on every location tab), so folding one location's Maps into an org-wide organic number would be incoherent. An org has ONE website (one project → one GSC organic total) but MANY locations; per-location impressions is impossible today, so the number is deliberately practice-wide. Additive and best-effort: when the org has stored daily GBP data it is folded in; otherwise the Maps term is simply absent (organic-only), never a fabricated add, and the shared website is never multiplied across locations. Done = the number includes whole-practice Maps, the honesty edge-cases hold, the owner-facing label honestly describes the combined number, tests + <code>tsc</code> pass.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant files</h3>
+      <ul>
+        <li><code>src/controllers/patient-journey/feature-services/stageReaders.ts</code> — the funnel stage readers; <code>readImpressions</code> lives here.</li>
+        <li><code>src/models/GoogleDataStoreModel.ts</code> — model for <code>google_data_store</code>, where the daily agent flattens GBP data (incl. Maps impressions) via <code>flattenDailyGbpData</code> (<code>service.daily-agent-processor.ts:169-180</code>).</li>
+        <li><code>src/controllers/patient-journey/feature-services/PatientJourneyService.ts</code> — assembles the stages; already resolves <code>organizationId</code> + <code>locationId</code>; owns the stage <strong>labels</strong> (line 249-257).</li>
+      </ul>
+      <h3>Grounded data path (verified, not assumed)</h3>
+      <ul>
+        <li>GSC organic → <code>GscDataModel</code> (keyed by project — one org has one project/website). GBP Maps → <code>google_data_store</code>, <code>run_type='daily'</code> (keyed by org, summed across all locations). Separate APIs, separate stores → <strong>no double-count</strong>.</li>
+        <li>A daily row stores two consecutive days (<code>gbp_data.yesterday</code>↔<code>date_end</code>, <code>gbp_data.dayBefore</code>↔<code>date_start</code>); a location's consecutive/retried runs overlap by one day → de-dup per <strong>(location_id, calendar-day)</strong>, then sum across all locations. A (location, day) only counts when its stored side carries a <code>visibility</code> payload — an empty/missing payload is absent, never a fabricated zero, so <code>metadata.maps.days</code> reflects real coverage.</li>
+        <li>Whole-practice keying: the reader needs only <code>organizationId</code> (already resolved by the caller); <code>locationId</code> is no longer part of the Maps term. The model query is scoped to real locations (<code>location_id NOT NULL</code>) so an org-level aggregate row can never double-count per-location rows, and ordered by <code>(date_start, id)</code> so duplicate rows resolve deterministically.</li>
+      </ul>
+      <p><strong>Reference analog:</strong> the existing per-location readers in <code>stageReaders.ts</code> (<code>readRank</code>, <code>readReviews</code>) and the certified-clean <code>src/controllers/gbp-automation/</code> (§6.1).</p>
+      <h3>Articles touched (Code Constitution)</h3>
+      <ul>
+        <li>§7.4 — all DB access in <code>models/</code> (new query added to <code>GoogleDataStoreModel</code>; <code>db.raw</code> only for <code>::text</code> casts, inside the model).</li>
+        <li>§3.1 / §3.2 — every async wrapped; the Maps read degrades to organic-only on failure, never swallowed silently (logged).</li>
+        <li>§5.5 / §11.7 — tenant-scoped by <code>organization_id</code> from server context (never a client-supplied value).</li>
+        <li>§4.5 — no <code>any</code> added (<code>unknown</code> + <code>readNumber</code> narrowing).</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div><h3>Must</h3><ul>
+          <li>Never fabricate a Maps figure — missing days absent, not zero-filled; expose real coverage (<code>metadata.maps.days</code>).</li>
+          <li>Additive + reversible; owner-facing number handled carefully.</li>
+          <li>The displayed label must honestly describe the combined number (Value #3, no misleading copy).</li>
+        </ul></div>
+        <div><h3>Must not</h3><ul>
+          <li>No double-count of organic vs Maps.</li>
+          <li>No new dependencies; no refactor of unrelated code.</li>
+          <li>Do not touch other stages. Frontend is limited to the impressions <strong>label/copy</strong> alignment (Rev 3) — no funnel-math or component-structure changes.</li>
+        </ul></div>
+      </div>
+      <h3>Out of scope</h3>
+      <ul>
+        <li>Org-level daily rows with <code>location_id = null</code> are not folded in (conservative — a NULL <code>location_id</code> is one un-keyable listing's data, not an org aggregate; folding it in would double-count). A follow-up if org-level attribution is ever wanted.</li>
+        <li>Per-location impressions. Impossible today — one project (website) per org, so GSC organic is inherently practice-wide; the gate is deliberately a whole-practice aggregate, not a per-tab number.</li>
+        <li>Funnel math (leak pick / <code>buildConversions</code> / <code>buildHeadline</code>) is NOT changed here even though the added Maps impressions shift the impressions→visits ratio — see Risk (CTR blast radius) + Flags for Dave.</li>
+        <li>The daily-writer double-count root cause (blob-fallback storing the first listing under unmapped siblings' <code>location_id</code>) is NOT fixed here — flagged for Dave with a data-check (see Risk + Flags).</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 2 (Concern) — owner-facing number changes (goes up); mis-labeling would mislead.</p>
+      <h3>Risks + mitigations</h3>
+      <ul>
+        <li>Double-count of organic vs Maps. <strong>Mitigation:</strong> separate APIs/stores confirmed; per-(location, calendar-day) dedup on overlap.</li>
+        <li>Fabricated/partial data reads as complete. <strong>Mitigation:</strong> a missing <code>visibility</code> side is absent; <code>days</code> exposes coverage. <strong>Honesty caveat (Rev 3):</strong> the daily writer ALWAYS emits a <code>visibility</code> object (zero-filled when Google returned nothing, <code>service.agent-input-builder.ts</code> flattenSingleDayGbp), so <code>metadata.maps.days</code> is <em>stored-day</em> coverage, NOT "days Google returned Maps data". A Google-empty day still counts as a stored day. Docstrings corrected to say so.</li>
+        <li>Misleading label (number now includes Maps, label still says "search"). <strong>Mitigation:</strong> backend label done (T3) AND the SPA labels aligned (Rev 3, T4) — subtext, detail-deck description + footer, and the shared multi-location note (which SHADOWS the source in the SPA tooltip) all now honestly describe search + Maps.</li>
+        <li><strong>Blob-fallback double-count (Rev 3, C1 — flagged, not fixed).</strong> The daily processor loops every non-cancelled location (<code>service.proofline-executor.ts:98</code>); a location with no <code>google_properties</code> mapping hits the JSON-blob fallback (<code>service.daily-agent-processor.ts:57-75</code>) and the extractors read <code>gbpData.locations[0]</code> (<code>service.agent-input-builder.ts:20-21</code>) — the FIRST listing — storing it under that unmapped location's own <code>location_id</code>. So N unmapped siblings store the SAME first listing's Maps under N distinct <code>location_id</code>s, and the reader's (location, day) dedup then sums it N×. <strong>Why not fixed by identity-dedup:</strong> the stored <code>gbp_data</code> carries NO stable listing identity (no place_id / external_id) — only <code>profile.{title,address,phone,website}</code>, which are nullable AND themselves read from the same buggy <code>locations[0]</code>. Deduping on them would trade a detectable over-count for a silent UNDER-count (two profile-less locations, or a legit title collision, collapse). <strong>Mitigation:</strong> keep (location, day) dedup; flag for Dave with a data-check (see Flags). The gate-1 number CAN inflate for an org that has GBP data but some locations unmapped, until that check clears.</li>
+        <li><strong>CTR blast radius (Rev 3, C3 — staked here, not owner-discovered).</strong> Adding whole-practice Maps to impressions RAISES the impressions denominator, so the impressions→visits ratio (the gauge-implied CTR) DROPS. That can (a) flip which step <code>buildConversions</code> marks as the leak and change <code>buildHeadline</code>, and (b) disagree with the detail deck's separate organic-only "Google click-through rate" (<code>gsc.ctr</code>, which stays Search-Console-only). The deck will show a higher organic CTR than the gauge's blended ratio implies. <strong>Mitigation:</strong> funnel math deliberately unchanged here; flagged for Dave to reconcile the deck CTR and re-check the "Clicked through" caption (<code>patientJourney.utils.ts:164</code>, a known mislabel — it captions the impressions→visits step as clicks).</li>
+        <li><strong>Retroactive shrink on location delete (Rev 3, C4).</strong> <code>google_data_store.location_id</code> is <code>ON DELETE SET NULL</code>. Deleting a location NULLs its historical daily rows; the model's <code>whereNotNull("location_id")</code> then excludes them, so a past month's gate-1 impressions shrinks retroactively after a location is deleted. Acceptable (the location is gone), but noted so a "why did last month drop?" question has an answer.</li>
+        <li><strong>Org-with-GBP-but-no-project gap (Rev 3, N2).</strong> <code>readImpressions</code> only runs when the org has a project (<code>PatientJourneyService.ts:191</code> guards on <code>projectId</code>); otherwise the stage is the empty "not connected" read and the whole-practice Maps-only availability branch is never reached. An org with real GBP Maps data but no website project shows no impressions at all. Edge case, noted.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> <code>readImpressions</code> consumers = <code>PatientJourneyService.assemblePatientJourney</code> (only caller). <code>GoogleDataStoreModel</code> new method has one consumer (the reader). Frontend copy touched: <code>patientJourney.utils.ts</code> (impressions subtext + type doc), <code>patientJourneyDetailDeck.utils.ts</code> (description + footer) — pure label strings, no data-flow change. Owner-facing surface: the "Get Found" gauge + its detail deck on the patient-journey dashboard → <strong>Alloro Docs parity check required</strong> before finalize.</p>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <article class="task-card"><h3>T1: Whole-practice model query for stored daily Maps impressions <em>(Rev 2)</em></h3>
+        <dl><div><dt>Do</dt><dd><code>findDailyByOrgAndDateRange(org, start, end)</code> — tenant-scoped by <code>organization_id</code>, <code>run_type='daily'</code>, real locations only (<code>location_id NOT NULL</code>), two-day overlap window, ordered by <code>(date_start, id)</code> for deterministic dedup. Returns all locations' daily rows. (Replaced the earlier per-location <code>findDailyByLocationAndDateRange</code>.)</dd></div>
+        <div><dt>Files</dt><dd><code>GoogleDataStoreModel.ts</code></dd></div><div><dt>Verify</dt><dd><code>tsc</code> + reader tests exercising the mock</dd></div></dl></article>
+      <article class="task-card"><h3>T2: Sum whole-website organic + whole-practice Maps in readImpressions <em>(Rev 2)</em></h3>
+        <dl><div><dt>Do</dt><dd><code>readMapsImpressions(org, start, end)</code> — dedup per <strong>(location_id, calendar-day)</strong>, count a (location, day) only when its <code>visibility</code> payload exists (missing ≠ measured zero), sum across all locations, null when no rows. Fold into <code>readImpressions</code> (best-effort, own try/catch, Pino-logged), add <code>metadata.maps</code>. <code>isoDate</code> hardened to split on <code>/[T ]/</code> so Postgres <code>timestamp::text</code> ("YYYY-MM-DD 00:00:00") doesn't drop the boundary day or leak a time into <code>asOf</code>.</dd></div>
+        <div><dt>Files</dt><dd><code>stageReaders.ts</code>, <code>PatientJourneyService.ts</code> (pass <code>organizationId</code> only; <code>locationId</code> dropped from the Maps term)</dd></div><div><dt>Verify</dt><dd>37 unit tests pass (incl. multi-location sum, per-location dedup, empty-payload coverage, timestamp dates, partial coverage)</dd></div></dl></article>
+      <article class="task-card"><h3>T3: Honest label — DONE <em>(Rev 2)</em></h3>
+        <dl><div><dt>Do</dt><dd>Corey chose <code>"How often you showed up on Google"</code> (subtitle) + <code>"Google Search Console + Business Profile"</code> (source) at <code>PatientJourneyService.ts:252-253</code> — both honestly describe the combined whole-practice number. Done in the backend.</dd></div>
+        <div><dt>Files</dt><dd><code>PatientJourneyService.ts</code></dd></div><div><dt>Depends on</dt><dd>Corey's copy choice — resolved</dd></div><div><dt>Verify</dt><dd>Service contract-shape test asserts the exact subtitle + source strings (green).</dd></div></dl></article>
+      <article class="task-card"><h3>T4: Align the SPA labels with the honest backend label <em>(Rev 3)</em></h3>
+        <dl><div><dt>Do</dt><dd>Match the frontend copy to the combined search + Maps number so a backend-alone deploy isn't dishonest. <code>patientJourney.utils.ts</code> impressions subtext → "How often you showed up on Google"; detail-deck <code>description</code> → "…in search and on the map…"; detail-deck <code>footer</code> → "From Google Search Console + Business Profile…". Type doc-comment corrected off "whole-practice website".</dd></div>
+        <div><dt>Files</dt><dd><code>frontend/.../patientJourney.utils.ts</code>, <code>frontend/.../patientJourneyDetailDeck.utils.ts</code>, <code>frontend/src/types/patientJourney.ts</code></dd></div><div><dt>Depends on</dt><dd>T3</dd></div><div><dt>Verify</dt><dd>New <code>patientJourney.utils.test.ts</code> (subtext not "search"-only; tooltip shadow honest) + frontend <code>tsc</code>/vitest green.</dd></div></dl></article>
+      <article class="task-card"><h3>T5: Fix the shared-note shadow (M1) <em>(Rev 3)</em></h3>
+        <dl><div><dt>Do</dt><dd>The multi-location shared note was "Whole-practice website total." — dishonest for impressions (now includes Maps, not just the site) AND it SHADOWS the corrected source in the SPA tooltip (<code>stageTooltip</code>: <code>note?.trim() || source</code>). Changed to "Whole-practice total — all locations." — true for all three gates, no "website" claim. Also corrected the <code>GoogleDataStoreModel</code> <code>whereNotNull("location_id")</code> rationale (N1: NULL rows are one listing's unkeyable data, NOT org-level aggregates) and softened the <code>metadata.maps.days</code> docstrings (C2: stored-day, not Google-returned, coverage).</dd></div>
+        <div><dt>Files</dt><dd><code>PatientJourneyService.ts</code>, <code>GoogleDataStoreModel.ts</code>, <code>stageReaders.ts</code></dd></div><div><dt>Depends on</dt><dd>none</dd></div><div><dt>Verify</dt><dd>Service test asserts the exact note text + no "website"; backend 37/37 green.</dd></div></dl></article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" checked disabled> <code>npx tsc --noEmit</code> — clean, backend AND frontend (verified)</li>
+        <li><input type="checkbox" checked disabled> Backend unit tests pass — 37/37 (incl. whole-practice + hardening + the new note-text/no-"website" assertion)</li>
+        <li><input type="checkbox" checked disabled> Frontend unit tests pass — 6/6 (incl. new <code>patientJourney.utils.test.ts</code>: subtext not "search"-only, tooltip shadow honest)</li>
+        <li><input type="checkbox" checked disabled> Honesty edge-cases hold — verified by tests (no fabrication, per-(location,day) dedup, empty-payload not counted, timestamp dates, safe degrade)</li>
+        <li><input type="checkbox" checked disabled> T3: backend owner-facing label honestly describes the combined number — "How often you showed up on Google" / "Google Search Console + Business Profile"</li>
+        <li><input type="checkbox" checked disabled> T4 (Rev 3): SPA labels aligned (subtext, detail-deck description + footer, type doc) so a backend-alone deploy isn't dishonest</li>
+        <li><input type="checkbox" checked disabled> T5 (Rev 3): shared-note shadow fixed ("Whole-practice total — all locations."); N1 model rationale + C2 <code>days</code> docstrings corrected</li>
+        <li><input type="checkbox" disabled> Acceptance (test-results.json) run — the dashboard "Get Found" number reflects whole-practice search + Maps for a seeded practice (Layer 2, needs running app + <code>google_data_store</code> daily rows on the dev DB)</li>
+        <li><input type="checkbox" disabled> Alloro Docs parity checked (dashboard label change)</li>
+        <li><input type="checkbox" disabled> PR to dev/dave as coreyw22</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="flags-for-dave">
+      <h2>Flags for Dave</h2>
+      <ul>
+        <li><strong>(a) DONE in this pass (Rev 3): the SPA labels are now aligned.</strong> Previously the owner-facing label was ALSO hardcoded in the SPA and under-described the combined number. Now fixed: <code>patientJourney.utils.ts</code> subtext → "How often you showed up on Google"; detail-deck description + footer → search + Business Profile. Left here for the record; no action needed.</li>
+        <li><strong>(a2) NEW — blob-fallback double-count (C1). The gate-1 number can inflate; needs a data-check + a writer fix.</strong> For an org with GBP data where some locations have NO <code>google_properties</code> mapping, the daily writer stores the FIRST listing's Maps under each unmapped location's own <code>location_id</code> (blob fallback + <code>locations[0]</code>), so the reader's (location, day) dedup sums it once per unmapped sibling → over-count. Not fixable from the read side: the stored <code>gbp_data</code> has no stable listing identity (no place_id/external_id; only nullable, same-source profile strings), so identity-dedup would risk a silent under-count instead. <strong>Data-check for Dave:</strong> for a multi-location org, group its <code>run_type='daily'</code> rows by calendar day and compare <code>gbp_data</code> across sibling <code>location_id</code>s — identical same-day <code>visibility</code> payloads across siblings ⇒ the blob-fallback bug is active for that org (locations lacking <code>google_properties</code>). <strong>Real fix (writer side):</strong> stop reading <code>locations[0]</code> for an unmapped location — either skip storing Maps for locations with no <code>google_properties</code>, or persist the listing's own place_id in <code>gbp_data</code> so the reader can dedup by real identity.</li>
+        <li><strong>(a3) NEW — reconcile the detail-deck CTR (C3).</strong> Impressions now includes whole-practice Maps, so the gauge's implied impressions→visits ratio drops, but the detail deck still shows an organic-only "Google click-through rate" (<code>gsc.ctr</code>). They will disagree. Decide the intended story (blended vs organic-only CTR) and reconcile. While there, re-check the "Clicked through" caption (<code>patientJourney.utils.ts:164</code>) — it labels the impressions→visits step as clicks, a known mislabel now made more visible by the Maps addition.</li>
+        <li><strong>(b) Verify <code>google_data_store</code> exists + has daily rows on the dev runtime DB.</strong> The local <code>.env</code> DB used for this build did not have the table, so the whole-practice Maps sum is proven only by unit tests against mocked models, not against real dev data. Before/at acceptance, confirm on the dev DB: the table exists, and there are <code>run_type='daily'</code> rows with <code>gbp_data.{yesterday,dayBefore}.visibility.impressions_maps_*</code> for a seeded org's locations. If the table/rows are absent, the gate silently runs organic-only (honest, but Maps won't show).</li>
+        <li><strong>(c) <code>ProjectModel.findByOrganizationId</code> is non-deterministic for a two-project org.</strong> <code>projectQueries.ts:findByOrganizationIdQuery</code> uses <code>.where({ organization_id }).first()</code> with NO <code>orderBy</code> — if an org ever has two projects, which one resolves is arbitrary. This underpins the "one project per org" assumption the whole-practice impressions design rests on. Not in scope here; flagged so it's a known assumption, not a silent one. A one-line <code>orderBy('created_at')</code> (or a hard guarantee of one project per org) would make it deterministic.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="task-card"><h3>Rev 1 - 2026-07-17</h3>
+        <p><strong>Change:</strong> Spec written after implementation (a fresh build agent produced the code before the spec existed). Captured retroactively to bring the change into the spec-first process; code self-verified against it.</p>
+        <p><strong>Reason:</strong> Execution deviation: the build was dispatched on "go" without a spec.html first; corrected to match Dave's manner (spec + parity + acceptance before PR).</p>
+        <p><strong>Updated Done criteria:</strong> added T3 label honesty + acceptance run + Docs parity as blocking Done items.</p>
+      </article>
+      <article class="task-card"><h3>Rev 2 - 2026-07-17</h3>
+        <p><strong>Change:</strong> Made the Maps term WHOLE-PRACTICE. The three funnel gates (impressions/visits/leads) are all <code>shared: true</code> = org-wide/identical on every location tab; folding the currently-viewed location's Maps into the org-wide organic number was incoherent (Rev 1's bug). Reworked so impressions = whole-website GSC organic (one project per org, counted once) + GBP Maps summed across ALL the org's locations. Model method renamed <code>findDailyByLocationAndDateRange</code> → <code>findDailyByOrgAndDateRange</code> (org-scoped, <code>location_id NOT NULL</code>, deterministic <code>(date_start, id)</code> order); reader dedups per (location_id, calendar-day) then sums; <code>readImpressions</code>/<code>PatientJourneyService</code> pass <code>organizationId</code> only (dropped <code>locationId</code> from the Maps term). Three adversary-flagged hardenings: <code>isoDate</code> splits on <code>/[T ]/</code> (Postgres <code>timestamp::text</code> won't drop the boundary day / leak a time into <code>asOf</code>); days-coverage counts a (location, day) only when its <code>visibility</code> payload exists (missing-metric ≠ measured-zero); deterministic secondary sort. Tests: 37/37 (added multi-location sum, per-location dedup, empty-payload coverage, timestamp dates, partial coverage). T3 label resolved.</p>
+        <p><strong>Reason:</strong> User QA: label chosen + multi-location resolved to whole-practice sum. Corey chose the subtitle "How often you showed up on Google" and source "Google Search Console + Business Profile"; the multi-location question resolved to a whole-practice aggregate because per-location impressions is impossible today (one website per org).</p>
+        <p><strong>Updated Done criteria:</strong> T3 (backend label) now DONE and checked. Unit-test bar raised to 37/37 with the whole-practice + hardening cases. Added a "Frontend follow-up filed" Done item (the SPA's own hardcoded label) and a "Flags for Dave" section (frontend label, dev-DB verification, ProjectModel determinism).</p>
+      </article>
+      <article class="task-card"><h3>Rev 3 - 2026-07-17</h3>
+        <p><strong>Change:</strong> Honesty-seam fixes from a fresh adversary pass. (1) M1/T5 — the multi-location shared note "Whole-practice website total." was dishonest for impressions (now includes Maps, not just the site) AND it SHADOWS the corrected source in the SPA tooltip (<code>stageTooltip</code>: <code>note?.trim() || source</code>); changed to "Whole-practice total — all locations." (true for all three gates, no "website" claim). (2) M2/T4 — brought the FRONTEND into scope and aligned its labels with the honest backend so a backend-alone deploy isn't dishonest: impressions subtext → "How often you showed up on Google"; detail-deck description → "…in search and on the map…"; detail-deck footer → "…Google Search Console + Business Profile…"; type doc-comment corrected off "whole-practice website". (3) C1 — investigated the blob-fallback double-count: the writer stores <code>locations[0]</code> (first listing) under unmapped siblings' <code>location_id</code>; DECISION = flag-with-reason (no stable listing identity in <code>gbp_data</code> to dedup on; identity-dedup would risk a silent under-count), keep (location, day) dedup, add a Dave data-check. (4) C2 — softened the <code>metadata.maps.days</code> docstrings: the writer always emits <code>visibility</code>, so <code>days</code> is stored-day coverage, not "Google-returned-data" coverage. (5) N1 — corrected the <code>whereNotNull("location_id")</code> rationale (NULL rows are one listing's unkeyable data, NOT org-level aggregates). (6) C3/C4/N2 — documented as Risk + Flags (CTR blast radius + "Clicked through" caption; <code>ON DELETE SET NULL</code> retroactive shrink; GBP-but-no-project gap), no funnel-math change. Tests: backend 37/37 (added note-text + no-"website" assertion), frontend 6/6 (new <code>patientJourney.utils.test.ts</code>). <code>tsc</code> clean both trees.</p>
+        <p><strong>Reason:</strong> Adversary QA: honesty-seam fixes — note shadow, frontend labels, double-count guard, CTR blast radius.</p>
+        <p><strong>Updated Done criteria:</strong> frontend now in scope — added T4 (SPA label alignment) + T5 (shared-note shadow / N1 / C2) tasks with matching Done items; added a frontend-tests-pass Done item; replaced the "frontend follow-up filed" item (now done). New Flags for Dave: (a2) blob-fallback double-count data-check + writer fix, (a3) reconcile detail-deck CTR + "Clicked through" caption.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

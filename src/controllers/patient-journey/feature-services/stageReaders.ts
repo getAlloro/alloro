@@ -10,6 +10,7 @@
  */
 
 import { GscDataModel } from "../../../models/website-builder/GscDataModel";
+import { GoogleDataStoreModel } from "../../../models/GoogleDataStoreModel";
 import type { StageUnavailableReason } from "../feature-utils/types";
 import { FormSubmissionModel } from "../../../models/website-builder/FormSubmissionModel";
 import { WebsiteIntegrationModel } from "../../../models/website-builder/WebsiteIntegrationModel";
@@ -53,6 +54,22 @@ export type StageReadMetadata = {
   leads?: {
     verified: number;
   };
+  /**
+   * Whole-practice GBP Maps/local impressions folded into the "Get Found" gate
+   * alongside GSC organic. `impressions` is the summed value across ALL the
+   * org's locations; `days` is STORED-DAY coverage — how many (location,
+   * calendar-day) data points carried a stored GBP `visibility` payload in the
+   * window. It is NOT "days Google returned Maps data": the daily writer
+   * (service.agent-input-builder.ts flattenSingleDayGbp) ALWAYS emits a
+   * `visibility` object, zero-filling the metrics when Google returned nothing,
+   * so a genuine all-zero (or Google-empty) day is still counted as a stored
+   * day here. `days` only drops a (location, day) when the whole `visibility`
+   * side is absent (an un-run / un-stored day), not when Google returned zeros.
+   */
+  maps?: {
+    impressions: number;
+    days: number;
+  };
 };
 
 export interface StageRead {
@@ -75,8 +92,12 @@ function readNumber(value: unknown): number {
 
 function isoDate(value: string | Date | null | undefined): string | null {
   if (!value) return null;
-  if (value instanceof Date) return value.toISOString().split("T")[0];
-  return String(value).split("T")[0] || null;
+  // Split on either separator: ISO strings use "T", but a Postgres `timestamp`
+  // rendered via `::text` comes back as "YYYY-MM-DD 00:00:00" (space). Splitting
+  // on "T" only would leave the time component attached, silently breaking the
+  // window boundary checks (dropping the last day) and leaking a time into asOf.
+  if (value instanceof Date) return value.toISOString().split(/[T ]/)[0];
+  return String(value).split(/[T ]/)[0] || null;
 }
 
 type GscDayPayload = Record<string, unknown> & { schemaVersion?: unknown; summary?: { rows?: unknown } };
@@ -214,16 +235,150 @@ async function emptyImpressionsRead(
   }
 }
 
-/** Sum GSC `summary[].impressions` for a project over [startDate, endDate]. */
+/**
+ * Get Found = appearances on Google. That's GSC organic web-search impressions
+ * PLUS Google Maps/local impressions — two distinct surfaces (Search Console
+ * API vs Business Profile Performance API), so they never double-count.
+ */
+type GbpDailyVisibility = {
+  impressions_maps_desktop?: unknown;
+  impressions_maps_mobile?: unknown;
+};
+type GbpDailySide = { visibility?: GbpDailyVisibility };
+type GbpDailyPayload = { yesterday?: GbpDailySide; dayBefore?: GbpDailySide };
+
+/**
+ * Maps impressions (desktop + mobile) for one stored GBP day-side. Returns null
+ * when the side carries NO `visibility` payload — that's a missing metric, not
+ * a measured zero, so the caller must NOT count it toward day-coverage. A
+ * present `visibility` with zero values returns 0 (a real measured zero day).
+ */
+function mapsImpressionsForSide(side: GbpDailySide | undefined): number | null {
+  const visibility = side?.visibility;
+  if (!visibility) return null;
+  return (
+    readNumber(visibility.impressions_maps_desktop) +
+    readNumber(visibility.impressions_maps_mobile)
+  );
+}
+
+/**
+ * Whole-practice GBP Maps impressions over [startDate, endDate].
+ *
+ * An org has ONE website (one project → GSC organic) but MANY locations, and
+ * the three funnel gates are whole-practice aggregates. So the Maps term sums
+ * across EVERY location of the org — not the currently-viewed tab.
+ *
+ * Each daily row stores two consecutive days — `gbp_data.yesterday` maps to
+ * `date_end`, `gbp_data.dayBefore` to `date_start` — and a location's
+ * consecutive/retried runs overlap by one day, so we key each measured value by
+ * (location_id, calendar-day) to de-duplicate (never count one location's day
+ * twice), then sum across all locations and days. A (location, day) only counts
+ * when the stored side actually carries a `visibility` payload; a missing side
+ * (an un-run / un-stored day) is absent, never a fabricated zero. Note `days` is
+ * therefore STORED-DAY coverage, not "days Google returned data": the writer
+ * zero-fills `visibility` for a Google-empty day, so that day still counts here.
+ * Returns null when the org has no daily GBP rows in the window (the Maps term
+ * is then absent and the gate falls back to organic-only).
+ */
+async function readMapsImpressions(
+  organizationId: number,
+  startDate: string,
+  endDate: string,
+): Promise<{ impressions: number; days: number; asOf: string | null } | null> {
+  const rows = await GoogleDataStoreModel.findDailyByOrgAndDateRange(
+    organizationId,
+    startDate,
+    endDate,
+  );
+  if (!rows.length) return null;
+  const perLocationDay = new Map<string, number>();
+  let asOf: string | null = null;
+  for (const row of rows) {
+    const data = row.gbp_data as GbpDailyPayload | null;
+    if (!data) continue;
+    const loc = row.location_id;
+    const endDay = isoDate(row.date_end);
+    if (endDay && endDay >= startDate && endDay <= endDate) {
+      const value = mapsImpressionsForSide(data.yesterday);
+      if (value !== null) {
+        perLocationDay.set(`${loc}::${endDay}`, value);
+        if (!asOf || endDay > asOf) asOf = endDay;
+      }
+    }
+    const startDay = isoDate(row.date_start);
+    if (startDay && startDay >= startDate && startDay <= endDate) {
+      const value = mapsImpressionsForSide(data.dayBefore);
+      if (value !== null) {
+        perLocationDay.set(`${loc}::${startDay}`, value);
+        if (!asOf || startDay > asOf) asOf = startDay;
+      }
+    }
+  }
+  if (!perLocationDay.size) return null;
+  let impressions = 0;
+  for (const value of perLocationDay.values()) impressions += value;
+  return { impressions, days: perLocationDay.size, asOf };
+}
+
+/** Later of two nullable ISO YYYY-MM-DD dates (they compare lexically). */
+function laterIsoDate(a: string | null, b: string | null): string | null {
+  if (a === null) return b;
+  if (b === null) return a;
+  return a > b ? a : b;
+}
+
+/**
+ * Get Found (gate 1) = GSC organic impressions (one org = one website, counted
+ * once) + WHOLE-PRACTICE GBP Maps impressions (summed across all the org's
+ * locations) for the same window. This is the honest whole-practice aggregate:
+ * the shared website is never multiplied across locations, and every location's
+ * Maps presence is counted.
+ *
+ * Maps is additive and best-effort: when `organizationId` is provided and the
+ * org has stored daily GBP data, its Maps impressions are folded in; otherwise
+ * the Maps term is simply absent (organic-only), never a fabricated add. If GSC
+ * has no rows but the org has real (positive) Maps impressions, the gate is
+ * still available on the Maps signal alone — the practice genuinely appears on
+ * Maps. `metadata.gsc` stays GSC-only and correct; `metadata.maps` carries the
+ * Maps split for transparency.
+ */
 export async function readImpressions(
   projectId: string,
   startDate: string,
   endDate: string,
-  isCurrentMonth: boolean
+  isCurrentMonth: boolean,
+  organizationId?: number,
 ): Promise<StageRead> {
   try {
+    // Best-effort Maps read: a failure here must not sink the whole gate, so it
+    // degrades to null (organic-only) rather than throwing (§3.1).
+    let maps: Awaited<ReturnType<typeof readMapsImpressions>> = null;
+    if (organizationId != null) {
+      try {
+        maps = await readMapsImpressions(organizationId, startDate, endDate);
+      } catch (err) {
+        logger.warn(
+          { err, projectId, organizationId },
+          "[patient-journey] maps impressions read failed",
+        );
+      }
+    }
+
     const rows = await GscDataModel.findByProjectAndDateRange(projectId, startDate, endDate);
-    if (!rows.length) return emptyImpressionsRead(projectId, isCurrentMonth);
+    if (!rows.length) {
+      // No GSC rows. If there's a genuine (positive) Maps signal, the practice
+      // still appears on Maps — report that rather than a false "no data".
+      if (maps && maps.impressions > 0) {
+        return {
+          value: maps.impressions,
+          available: true,
+          asOf: maps.asOf,
+          metadata: { maps: { impressions: maps.impressions, days: maps.days } },
+        };
+      }
+      return emptyImpressionsRead(projectId, isCurrentMonth);
+    }
     const totals = emptyGscAccumulator();
     const queryMap = new Map<string, GscMetricAccumulator>();
     const pageMap = new Map<string, GscMetricAccumulator>();
@@ -248,10 +403,13 @@ export async function readImpressions(
     }
     const totalsSummary = summarizeGsc(totals);
     const topQueries = buildGscDimensions(queryMap);
+    // Get Found = organic + Maps. Maps is added even when 0 (a measured zero is
+    // still real); it's only absent when the location has no stored GBP data.
+    const mapsImpressions = maps ? maps.impressions : 0;
     return {
-      value: totalsSummary.impressions,
+      value: totalsSummary.impressions + mapsImpressions,
       available: true,
-      asOf: latest,
+      asOf: laterIsoDate(latest, maps ? maps.asOf : null),
       metadata: {
         gsc: {
           clicks: totalsSummary.clicks,
@@ -266,6 +424,9 @@ export async function readImpressions(
             (query) => query.position > 0 && query.position <= 3,
           ).length,
         },
+        ...(maps
+          ? { maps: { impressions: maps.impressions, days: maps.days } }
+          : {}),
       },
     };
   } catch (err) {

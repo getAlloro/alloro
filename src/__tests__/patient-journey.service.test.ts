@@ -207,8 +207,8 @@ describe("assemblePatientJourney — contract shape", () => {
     expect(result.stages[0]).toMatchObject({
       key: "impressions",
       label: "Google Visibility",
-      metaLabel: "Google search impressions",
-      source: "Google Search Console",
+      metaLabel: "How often you showed up on Google",
+      source: "Google Search Console + Business Profile",
       shared: true,
     });
   });
@@ -429,6 +429,7 @@ describe("assemblePatientJourney — impressions unavailable reason", () => {
         "2026-06-01",
         "2026-06-30",
         true,
+        ORG,
       );
 
       await assemblePatientJourney({
@@ -441,6 +442,7 @@ describe("assemblePatientJourney — impressions unavailable reason", () => {
         "2026-05-01",
         "2026-05-31",
         false,
+        ORG,
       );
     } finally {
       vi.useRealTimers();
@@ -541,6 +543,12 @@ describe("assemblePatientJourney — multi-location labelling", () => {
     expect(impressions?.shared).toBe(true);
     expect(impressions?.note).toMatch(/whole-practice/i);
     expect(leads?.note).toMatch(/whole-practice/i);
+    // The shared note must not claim "website": the impressions gate folds in
+    // whole-practice GBP Maps, and this note SHADOWS the source in the SPA
+    // tooltip (`note?.trim() || source`), so "website total" would mislabel the
+    // combined number. Honest for all three gates instead.
+    expect(impressions?.note).toBe("Whole-practice total — all locations.");
+    expect(impressions?.note).not.toMatch(/website/i);
   });
 });
 

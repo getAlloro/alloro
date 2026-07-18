@@ -143,7 +143,9 @@ export function stageGateLabel(stage: PatientJourneyStage): string {
 export function stageGateSubtext(stage: PatientJourneyStage): string {
   switch (stage.key) {
     case "impressions":
-      return "Google search impressions";
+      // Search Console organic + Business Profile Maps, folded together — the
+      // subtext must not say "search" only (it under-describes the number).
+      return "How often you showed up on Google";
     case "visits":
       return stage.metadata?.rybbit
         ? "Rybbit website visitors"
