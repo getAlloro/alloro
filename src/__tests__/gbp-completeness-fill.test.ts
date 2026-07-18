@@ -8,6 +8,7 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { buildCompletenessFillPatch } from "../controllers/gbp-automation/feature-utils/gbpCompletenessFill";
+import { GBP_COMPLETENESS_FIELDS } from "../services/ai-seo-audit/gbpCompletenessScoring";
 
 const h = vi.hoisted(() => ({
   findLocationById: vi.fn(),
@@ -83,6 +84,32 @@ describe("buildCompletenessFillPatch — pure per-field source map", () => {
     expect(r.unfillable).toEqual([
       { field: "phone", reason: "no-value-source" },
       { field: "address", reason: "not-writable" },
+    ]);
+  });
+
+  it("routes an unknown/unhandled field to unfillable — a detected gap is never lost", () => {
+    // Simulate a 7th field slipping through (e.g. added to GBP_COMPLETENESS_FIELDS
+    // without a switch case, or untyped upstream data). The cast reproduces that
+    // at the type boundary; the default branch must surface it, never drop it.
+    const unknownField = "menu" as unknown as (typeof GBP_COMPLETENESS_FIELDS)[number];
+    const r = buildCompletenessFillPatch([unknownField], { website: "x.com" });
+    expect(r.patch).toEqual({});
+    expect(r.updateMask).toEqual([]);
+    expect(r.filled).toEqual([]);
+    expect(r.unfillable).toEqual([{ field: "menu", reason: "unhandled-field" }]);
+  });
+
+  it("keeps handled fields and still surfaces an unknown field alongside them", () => {
+    const unknownField = "menu" as unknown as (typeof GBP_COMPLETENESS_FIELDS)[number];
+    const r = buildCompletenessFillPatch(
+      ["website", unknownField, "photos"],
+      { website: "smiles.co" }
+    );
+    expect(r.patch).toEqual({ websiteUri: "https://smiles.co/" });
+    expect(r.filled).toEqual(["websiteUri"]);
+    expect(r.unfillable).toEqual([
+      { field: "menu", reason: "unhandled-field" },
+      { field: "photos", reason: "not-writable" },
     ]);
   });
 });
