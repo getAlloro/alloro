@@ -38,11 +38,11 @@
     <header class="spec-hero">
       <div class="hero-topline">
         <p class="eyebrow">Alloro Plan Spec · A–E Engine · Item 1 of the end-to-end build</p>
-        <span class="status-pill">Pending Execution</span>
+        <span class="status-pill">In Progress</span>
       </div>
       <h1>Ranking owner surface: connect, honest, and in the owner's own words.</h1>
       <dl class="meta-grid">
-        <div class="status-card"><dt>Status</dt><dd>Pending Execution</dd></div>
+        <div class="status-card"><dt>Status</dt><dd>In Progress — built + adversary-defects fixed; Layer-1 tests pass; behavioral (Layer-2) pending the sandbox clone. Build-and-hold on PR 186.</dd></div>
         <div><dt>Plan Folder</dt><dd>plans/07182026-ranking-owner-surface</dd></div>
         <div><dt>Size</dt><dd>Medium</dd></div>
         <div><dt>Risk</dt><dd>Level 3 (live customer surface)</dd></div>
@@ -180,6 +180,15 @@
         <li><input type="checkbox" disabled> Fresh different-model adversary round — SURVIVED (grounded refutation)</li>
         <li><input type="checkbox" disabled> Build-and-hold on <code>claude/ranking-owner-surface</code>; no PR; honest status handed to Dave</li>
       </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="task-card"><h3>Rev 1 - 2026-07-19</h3>
+        <p><strong>Change:</strong> Status corrected. The hero said "Pending Execution," but the branch already carries the built feature (<code>b61d944ca</code>), the adversary-defect repair (<code>669aebd38</code>), and an honest acceptance doc (<code>bb0589968</code>) — and its own <code>test-results.json</code> reads "In Progress" (Layer-1 pass, behavioral pending clone). Hero pill + status card moved to "In Progress." Also noting: a PR (#186) now exists for this branch, so the Done line "no PR" is superseded.</p>
+        <p><strong>Reason:</strong> Overwatch QA (multi-agent recon): the spec's status contradicted its own commits and test-results; brought the snapshot in line with the code.</p>
+        <p><strong>Updated Done criteria:</strong> none changed — the checklist items still gate; only the status label was wrong. Layer-2 behavioral acceptance remains pending the sandbox clone.</p>
+      </article>
     </section>
   </main>
 </body>
