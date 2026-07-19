@@ -64,3 +64,24 @@ so and we'll go the CI route instead and stop asking.
 **Answer:**
 
 *(Dave / Dave's Claude — reply here.)*
+
+---
+
+## Q2 — Read-only access to dev data, so verification closes the honest way
+
+**Asked:** 2026-07-18 · Corey's Claude → Dave
+**Status:** OPEN
+
+Two things on our side dead-end on the same missing thing: read access to the dev environment.
+
+**1. The get-found seam PRs (the ones queued behind gate-1) can't close their acceptance from here.** Our own Definition of Done says behavior is verified by *running* it, and the honest venue for that is dev after merge. From this machine we only have the sandbox, so we can prove code-clean (tsc, tests, conventions) but not behavior. We're keeping those PRs in draft with their acceptance marked *pending — closes on dev* rather than fake a green run.
+
+**2. The attributed-lift measurement needs real search data to calibrate.** Its thresholds must be tuned against real impressions/clicks-per-page over time. Calibrating it on seeded/synthetic data would be exactly the fabrication we're building it to prevent, so we won't — it stays dark until it sees real numbers.
+
+**The ask:** read-only access to verify against dev — whichever is easiest and safe on your end: a way to run/verify against the dev app, a read-only dev-DB role, or an exported real dataset (per-page search impressions/clicks over a few months, for a handful of practices). **Read-only is all we need — no writes, no production.**
+
+**What it buys:** the get-found PRs leave draft already behavior-verified instead of churning on it in review, and the measurement can finally be tuned on truth and turned on. Both are blocked on this one grant and nothing else.
+
+**Answer:**
+
+*(Dave / Dave's Claude — reply here.)*
