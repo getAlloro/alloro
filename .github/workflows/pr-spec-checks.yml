@@ -1,0 +1,61 @@
+name: PR Spec Checks
+
+# Two deterministic, model-free checks on every PR into dev/dave. Each fails the run with a
+# non-zero exit from a plain script -- no LLM, no judgement, no flake surface.
+#
+#   1. Spec-status <-> PR-state parity: a plan's spec.html cannot claim the work is finished
+#      ("Completed"/"Deployed") while the PR carrying it has not merged. This is the exact
+#      class a human (Corey) caught by eye on PRs #185/#186 this week.
+#   2. PR-LOG.md freshness: the generated ledger must match what git/GitHub actually say.
+#      Guarded until scripts/pr-log.sh lands on dev/dave (it is on PR #181 today) -- the step
+#      arms itself automatically once the script exists on the base, and says so loudly if not.
+#
+# Trust boundary (lifted from PR #174, correct for a PUBLIC repo):
+#   * `pull_request` (NOT pull_request_target) -> fork PRs run WITHOUT repo secrets.
+#   * read-only token; nothing here writes to the repo, comments, or deploys.
+#   * pull-requests: read is the one added scope -- `gh pr view` needs it to read PR state.
+
+on:
+  pull_request:
+    branches: [dev/dave]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: pr-spec-checks-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  spec-checks:
+    runs-on: ubuntu-latest
+    env:
+      # gh reads this for every `gh pr view` / `gh pr list` call.
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          # No step pushes or writes, so the checkout token should not linger in .git/config.
+          persist-credentials: false
+
+      # ---- HARD FAIL: a "done" spec on an unlanded PR ----
+      - name: Spec-status ↔ PR-state parity
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: bash scripts/check-spec-parity.sh
+
+      # ---- HARD FAIL once armed: PR-LOG.md stale vs git/GitHub ----
+      # scripts/pr-log.sh is not on dev/dave yet (it ships in PR #181). Until it lands, this
+      # step is a loud no-op; the moment the script is on the base, it becomes a real gate.
+      - name: PR-LOG.md is current
+        run: |
+          if [ -f scripts/pr-log.sh ]; then
+            bash scripts/pr-log.sh --check
+          else
+            echo "PR-LOG check skipped — scripts/pr-log.sh is not on the base branch yet"
+            echo "(it lands via PR #181). This step arms automatically once it does."
+          fi
