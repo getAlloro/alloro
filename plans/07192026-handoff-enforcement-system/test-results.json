@@ -1,0 +1,80 @@
+{
+  "plan": "plans/07192026-handoff-enforcement-system",
+  "generatedAt": "2026-07-19",
+  "status": "Passed",
+  "note": "Layer-2 acceptance for the spec-status<->PR-state parity gate — the T3 slice shipped as PR #189. The behavioral surface is the CI check itself; each item is a deterministic script run against a real PR, or the workflow run on GitHub Actions.",
+  "items": [
+    {
+      "id": "T1",
+      "title": "Gate FIRES on a real PR that sets a spec to a done status while unmerged",
+      "surface": "cli",
+      "precondition": "gh authenticated; real open PR #180 has a diff that adds <span class=\"status-pill status-completed\">Completed</span>",
+      "steps": ["1. PR_NUMBER=180 scripts/check-spec-parity.sh"],
+      "expected": "exit 1 — 'PR #180 sets a \"done\" status ... but the PR is OPEN (not merged)'",
+      "status": "pass",
+      "evidence": "Ran against real open PR #180: FAIL, exit 1, naming plans/07172026-isolated-test-worktree-adapter/spec.html.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Gate PASSES a PR that merely brushes a finished plan folder (no spec change)",
+      "surface": "cli",
+      "precondition": "Real open PR #179 touches plans/07142026-alloro-funnel-engine/funnel-feature-sequence.md but not its spec.html",
+      "steps": ["1. PR_NUMBER=179 scripts/check-spec-parity.sh"],
+      "expected": "exit 0 — 'sets no spec.html to a done status — nothing to assert'",
+      "status": "pass",
+      "evidence": "Ran against real open PR #179: exit 0. This was the reproduced day-one false positive; now passes.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "Gate PASSES a PR that sets a spec to a non-done status",
+      "surface": "cli",
+      "precondition": "Real open PR #186 modifies its spec.html to 'In Progress'",
+      "steps": ["1. PR_NUMBER=186 scripts/check-spec-parity.sh"],
+      "expected": "exit 0 — no added done-pill",
+      "status": "pass",
+      "evidence": "Ran against real open PR #186: exit 0.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T4",
+      "title": "Residual closed — gate PASSES a non-status edit of an already-Completed spec",
+      "surface": "cli",
+      "precondition": "Throwaway fixture PR #190: base branch already held a Completed spec, head only appended a Rev note (pill unchanged)",
+      "steps": ["1. PR_NUMBER=190 scripts/check-spec-parity.sh"],
+      "expected": "exit 0 — the pill line is not an added line, so nothing is asserted",
+      "status": "pass",
+      "evidence": "Ran against real fixture PR #190: exit 0. The prior touch-based version would have false-fired here. Fixture PR closed and both branches deleted after proving.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T5",
+      "title": "Workflow runs green in real CI and the parity step executes",
+      "surface": "ci",
+      "precondition": ".github/workflows/pr-spec-checks.yml on PR #189; pull_request -> dev/dave",
+      "steps": ["1. Push to claude/ci-spec-parity-gate", "2. Read the 'PR Spec Checks' run on #189"],
+      "expected": "run conclusion success; parity step logs its verdict; guarded pr-log step logs its skip",
+      "status": "pass",
+      "evidence": "GitHub Actions run completed/success on #189: parity step logged 'PR #189 sets no spec.html to a done status — nothing to assert'; PR-LOG step logged the guarded skip.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T6",
+      "title": "pr-log --check step stays a loud no-op until its script lands on the base",
+      "surface": "ci",
+      "precondition": "scripts/pr-log.sh not yet on dev/dave (ships via PR #181)",
+      "steps": ["1. Read the PR-LOG step log on the #189 run"],
+      "expected": "'PR-LOG check skipped — scripts/pr-log.sh is not on the base branch yet'",
+      "status": "pass",
+      "evidence": "Confirmed in the #189 run log. Step arms automatically once #181 merges.",
+      "notes": "",
+      "waiver": ""
+    }
+  ]
+}

@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Handoff Enforcement System Spec</title>
+  <style>
+    :root { color-scheme: light; --paper:#fff; --ink:#080808; --muted:#5f5f5f; --line:#d8d8d8; --soft:#f5f5f5; }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--paper); color:var(--ink); font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; line-height:1.5; }
+    .spec-shell { width:min(1120px,calc(100% - 32px)); margin:0 auto; padding:48px 0; }
+    .spec-hero,.spec-card,.task-card { border:1px solid var(--line); border-radius:8px; background:var(--paper); }
+    .spec-hero { border-color:var(--ink); padding:32px; margin-bottom:20px; }
+    .hero-topline { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px; }
+    .spec-card { padding:28px; margin-top:16px; }
+    .task-card { padding:20px; background:var(--soft); margin-top:12px; }
+    .eyebrow,dt { color:var(--muted); font-size:0.78rem; font-weight:700; text-transform:uppercase; }
+    .eyebrow { margin:0; }
+    .status-pill { display:inline-flex; align-items:center; min-height:34px; padding:0 12px; border:1px solid var(--ink); border-radius:999px; background:var(--ink); color:var(--paper); font-size:0.78rem; font-weight:800; text-transform:uppercase; }
+    .status-card { border-color:var(--ink); }
+    h1,h2,h3,p { margin-top:0; }
+    h1 { max-width:840px; margin-bottom:24px; font-size:clamp(2rem,5vw,3.4rem); line-height:1.02; }
+    h2 { font-size:1.35rem; } h3 { font-size:1rem; }
+    code { padding:0.1rem 0.3rem; border:1px solid var(--line); border-radius:4px; background:var(--soft); font-size:0.92em; }
+    .meta-grid,.split-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; margin:0; }
+    .meta-grid div,.split-grid>div { border:1px solid var(--line); border-radius:8px; padding:16px; }
+    dd { margin:4px 0 0; font-weight:700; }
+    .checklist { list-style:none; padding-left:0; }
+    .checklist li { display:flex; gap:10px; align-items:flex-start; padding:10px 0; border-top:1px solid var(--line); }
+    ul { margin:0; padding-left:20px; }
+    @media (max-width:640px){ .spec-shell{width:min(100% - 20px,1120px); padding:24px 0;} .spec-hero,.spec-card{padding:20px;} }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec · Handoff / knowledge-transfer system</p>
+        <span class="status-pill">In Progress</span>
+      </div>
+      <h1>Handoff Enforcement: same map in, updated map out, caught by a gate.</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>In Progress — the first deterministic CI gate the adversary pointed to (spec-status↔PR-state parity) is BUILT and shipped as PR #189 to dev/dave: diff-based, proven on real PRs (#180 fire · #179/#186/#190 pass), CI green, running advisory pending promotion. See Rev 3. Still open: the broader 3-layer system and the other two T3 checks.</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/07192026-handoff-enforcement-system</dd></div>
+        <div><dt>Size</dt><dd>Medium (hooks + CI + skill wiring; phased)</dd></div>
+        <div><dt>Risk</dt><dd>Level 3 (touches every session's config)</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>Across ~24h and four sessions, one pattern held: <strong>the work gets done, but the knowledge does not transfer</strong>, so every session re-derives state from scratch and the only thing reliably catching errors is a human (Corey). The registry's own metric names it — on 2026-07-16, ~20 fires were caught <strong>4 by a gate, 16 by a human/adversary</strong> (<code>~/.claude/skills/LESSONS.md</code> header). Every session has diagnosed "the coordination state must be self-maintaining" and then written <em>another advisory doc</em> instead of a gate — the fix for "nothing lands" had not itself landed until this session shipped the write-side warn-hook. The deepest driver: the recurring defect is a <strong>claim that does not hold</strong> (a guard that guards nothing, a source that fabricates, a green that is wrong while rank is 10) — and a wrong green is invisible by construction, so it survives to review or to a customer. Corey is blind during deep coding and Dave is blind to intent, so the human net has a hole exactly where code errors happen.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>A three-layer system whose single success metric is <strong>moving the <code>caught by</code> column from human to gate.</strong> Nothing in it is a new advisory rule — every element is generation, a hook, a gate, or a step (DOCTRINE build-pillar #1: the rule-to-remember is the weakest, accreting form).</p>
+      <ul>
+        <li><strong>Layer 1 — Single source, generated (the map).</strong> One front door: the <strong>NOW block</strong> atop the auto-loaded <code>MEMORY.md</code> → generated <code>PR-LOG.md</code> (build/PR state, from git) + staked <code>build-checklist.md</code> (seam map) + Dave's global <code>CLAUDE.md</code> (process). <em>Done this session.</em> Honest limit: the seam/connection map is <strong>not fully generatable</strong> (it needs agent analysis + touches an external repo) — so it is staked-with-a-commit-stamp + a freshness flag (the build-checklist poka-yoke), never claimed "generated."</li>
+        <li><strong>Layer 2 — Enforced read + write (hooks).</strong> Read: the SessionStart hook that already injects <code>canon-grounding.md</code> gains a <strong>freshness check</strong> (warn if a NOW-named live doc is older than NOW's last-change date, or <code>PR-LOG.md</code> is stale vs git HEAD). Write: the warn-only Stop hook shipped this session becomes a <strong>hard gate</strong> — block session-end if the session shipped/changed state but did not re-point NOW + run <code>alloro-harvest</code>. The hard gate ships only after a test proves it can never wrongly block.</li>
+        <li><strong>Layer 3 — Autonomous verification (the human-replacement net).</strong> Because neither human catches code errors, the machine must, before a PR is "ready for Dave" and before promotion: a <strong>spec-code parity</strong> gate (status matches branch/PR/test — the #185/#186 class); an <strong>honesty-scan</strong> gate (no fabricated/placeholder numbers reach a customer surface); a <strong>no-"fixed"-without-a-mutation-receipt</strong> gate (revert the fix, prove the test fails — the vacuous-green class, rows 25/28); <strong>class-guard tests in CI</strong> (a test that fails on the whole class, not the named instance — row 28, PR #174); and <strong>sandbox acceptance on real data</strong> (taste in the test kitchen so "surfaced in use" becomes "surfaced in the sandbox"). Plausible-but-wrong is caught by an <strong>independent-framing adversary</strong> (rows 27/28 method: raw artifacts with no verdicts attached, framing varied per agent, ≥1 agent tasked to defend the killed option, never cite agreement among identically-briefed agents).</li>
+      </ul>
+      <p><strong>The compounding loop:</strong> <code>alloro-aar</code> fires on every correction → <strong>one</strong> <code>LESSONS.md</code> (path disambiguated so no twin) → a per-seat <code>Read LESSONS.md</code> pre-flight auto-load (the standing OPEN fix, rows 1/22/26) so the next run inherits the last correction; <code>alloro-harvest</code> at session end, <em>forced by the Stop hook</em>, routes learnings to homes as committed changes. Done = the <code>caught by</code> ratio trends toward gates; if it does not, the system is not working and this spec failed.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Receipts (grounded this session)</h3>
+      <ul>
+        <li><code>~/.claude/skills/LESSONS.md</code> rows 22–29 — the pattern with receipts, incl. the <code>caught by</code> metric.</li>
+        <li>Shipped this session: NOW block atop <code>MEMORY.md</code>; five stale front doors retired to it; warn-only Stop hook in <code>~/code/alloro/.claude/settings.local.json</code> (gitignored); gate-1 C1 fix pushed to PR #183; registry reconciled to one file.</li>
+      </ul>
+      <h3>Reference analogs (the gate pattern already exists — extend, don't invent)</h3>
+      <ul>
+        <li><code>~/code/alloro/.claude/settings.local.json</code> SessionStart hook (injects <code>canon-grounding.md</code>) — the read-side injection pattern to extend with a freshness check.</li>
+        <li><code>~/.claude/settings.json</code> — <code>ground-gate.py</code>, <code>funnel-gate.py</code> (PreToolUse), <code>receipt-gate.py</code>, <code>prove-gate.py</code> (Stop): the existing enforcing-hook pattern.</li>
+        <li><code>scripts/pr-log.sh</code> — the generated-can't-rot pattern (reads GitHub/git/migrations); its <code>--check</code> is CI-able.</li>
+        <li>CI PR #174 (drafted) — the home for the class-guard + parity gates.</li>
+      </ul>
+      <h3>Honest limits (do not pretend-solve)</h3>
+      <ul>
+        <li>The <strong>conversational-assertion class</strong> (a message-text claim of world-state, no tool-write) is not deterministically hook-catchable (row 22). It stays honestly advisory — logged, not pretended solved.</li>
+        <li>The seam/connection map cannot be fully generated (external <code>website-renderer</code> repo; intent-level judgments).</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div><h3>Must</h3><ul>
+          <li>Every element is generation, a hook, a gate, or a step — <strong>never a new advisory rule</strong> (the weakest, accreting form).</li>
+          <li>Land one gate all the way + prove it on a real case (a mutation receipt or a real defect caught) before the next.</li>
+          <li>Warn-only before any hard/blocking gate; the blocking version ships only after a test proves it cannot wrongly block a session.</li>
+          <li>One source of each kind — one registry, one front door. Disambiguate <code>alloro-aar</code>'s "LESSONS.md in this repo" to an exact path so no future twin.</li>
+        </ul></div>
+        <div><h3>Must not</h3><ul>
+          <li>Do not author the build from a deep-context tail — a fresh, short-context session builds; Corey stakes.</li>
+          <li>Do not add another "read me first" / advisory doc. Delete the duplicate advisory rules written on 2026-07-16 (row 26 delete-first), don't re-point at them.</li>
+          <li>Do not claim the seam map is "generated." Do not block sessions with an untested hook.</li>
+          <li>Do not twin any source (this spec exists because the author twinned the registry today).</li>
+        </ul></div>
+      </div>
+      <h3>Out of scope</h3>
+      <ul>
+        <li>The conversational-assertion residual (stays advisory). The two canon escalations (Corey stakes). The destructive get-found worktree cleanup (a fresh session, per its own package).</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 3 — touches every session's config; a wrong blocking hook could lock sessions out.</p>
+      <h3>Risks + mitigations</h3>
+      <ul>
+        <li><strong>The meta-process trap.</strong> A prior draft this session was a fancier repeat of the 6/15 approved-never-built fix; an adversary killed it. <strong>Mitigation:</strong> every element must be a gate/generation/step or it is cut; the plan explicitly deletes duplicate advisory rules rather than adding more.</li>
+        <li><strong>Blocking hook locks sessions.</strong> <strong>Mitigation:</strong> warn-only first (shipped); hard gate only after a test proves it can't wrongly block.</li>
+        <li><strong>Over-engineering — all gates at once.</strong> <strong>Mitigation:</strong> ship the 2–3 highest-leverage gates first (parity, honesty-scan, mutation-receipt), each proven, not the whole set.</li>
+        <li><strong>Un-generatable seam map claimed as generated.</strong> <strong>Mitigation:</strong> commit-stamp + freshness flag, never "generated."</li>
+      </ul>
+      <p><strong>Blast radius:</strong> every Alloro session (hooks in <code>settings.local.json</code>); CI on every PR (PR #174); the seat skills (per-seat pre-flight). All read-only/warn until each hard gate is individually tested + staked.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li>The author is the deep-context tail this system exists to protect against — so this spec is a <strong>draft to be refuted by a Fable adversary</strong>, not a self-approved plan. If the adversary finds it is (a) another advisory layer, (b) a repeat of a landed-and-failed approach, or (c) buildable more simply, cut to the simpler thing.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <article class="task-card"><h3>T0: Single front door + write-side warn-hook + one registry — DONE</h3>
+        <dl><div><dt>Do</dt><dd>NOW block atop <code>MEMORY.md</code>; stale doors retired; warn-only Stop hook; registry reconciled to one file.</dd></div><div><dt>Verify</dt><dd>Shipped + validated this session (JSON valid, hooks preserved, one <code>LESSONS.md</code>).</dd></div></dl></article>
+      <article class="task-card"><h3>T1: SessionStart freshness check</h3>
+        <dl><div><dt>Do</dt><dd>Extend the existing SessionStart hook: warn if a NOW-named live doc is older than NOW's last-change date, or <code>PR-LOG.md</code> is stale vs git HEAD.</dd></div><div><dt>Verify</dt><dd>Fires on session start; warns correctly on a deliberately-stale fixture; can't error/block.</dd></div></dl></article>
+      <article class="task-card"><h3>T2: Hard Stop gate (re-point + harvest) — TESTED</h3>
+        <dl><div><dt>Do</dt><dd>Block session-end if the session shipped/changed state but NOW's last-change wasn't updated. Test it can never wrongly block before enabling.</dd></div><div><dt>Depends on</dt><dd>T0. Corey stakes.</dd></div><div><dt>Verify</dt><dd>Blocks the shipped-but-not-repointed case; passes the clean case; proven not to false-block.</dd></div></dl></article>
+      <article class="task-card"><h3>T3: Verification gates in CI (PR #174)</h3>
+        <dl><div><dt>Do</dt><dd>Spec-code parity gate; class-guard tests (row 28 BaseModel/router shape); no-"fixed"-without-a-mutation-receipt.</dd></div><div><dt>Verify</dt><dd>Each proven on a real case: a stale spec fails parity; a mutation makes a "green" fail.</dd></div></dl></article>
+      <article class="task-card"><h3>T4: Honesty-scan gate before ready-for-Dave</h3>
+        <dl><div><dt>Do</dt><dd>Wire <code>alloro-honesty-scan</code> as a pre-PR gate: no fabricated/placeholder number reaches a customer surface.</dd></div><div><dt>Verify</dt><dd>Catches a planted placeholder; passes a clean surface.</dd></div></dl></article>
+      <article class="task-card"><h3>T5: Per-seat <code>Read LESSONS.md</code> pre-flight + disambiguate the aar path</h3>
+        <dl><div><dt>Do</dt><dd>Add a pre-flight <code>Read LESSONS.md</code> line to the seat skills (rows 1/22/26 standing fix); fix <code>alloro-aar</code>'s "in this repo" to the exact path so no future twin.</dd></div><div><dt>Verify</dt><dd>One real run inherits a tagged lesson; a fresh aar run writes to the one registry.</dd></div></dl></article>
+      <article class="task-card"><h3>T6: Delete the duplicate advisory rules (delete-first)</h3>
+        <dl><div><dt>Do</dt><dd>Remove the ~12 advisory vigilance rules written 2026-07-16 that duplicate DOCTRINE (row 26), rather than re-pointing at them.</dd></div><div><dt>Verify</dt><dd>Duplicates gone; DOCTRINE is the single home.</dd></div></dl></article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled> The <code>caught by</code> ratio trends human → gate over the next review batches (the only real measure).</li>
+        <li><input type="checkbox" disabled> Each gate landed AND proven on a real case (a mutation receipt, or a real defect it caught) — not merely written.</li>
+        <li><input type="checkbox" disabled> One registry, no twins; the per-seat <code>Read LESSONS.md</code> auto-load proven on one live run.</li>
+        <li><input type="checkbox" disabled> No new advisory rule added; the 2026-07-16 duplicates deleted.</li>
+        <li><input type="checkbox" disabled> Every hard/blocking gate individually tested (cannot false-block) + Corey-staked before enabling.</li>
+        <li><input type="checkbox" disabled> Built by a fresh short-context session — not the author of this spec.</li>
+        <li><input type="checkbox" checked disabled> <strong>(Rev 3)</strong> Spec-status↔PR-state parity gate (T3 slice) shipped as PR #189 — diff-based, proven on real PRs (#180 fire · #179/#186/#190 pass) + CI green on #189; advisory pending promotion.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="task-card"><h3>Rev 1 - 2026-07-19</h3>
+        <p><strong>Change:</strong> Spec created — the handoff-enforcement system distilled from LESSONS rows 22–29 and this session's work.</p>
+        <p><strong>Reason:</strong> Corey asked for a plan/system based on everything known, to be evaluated by an unbiased Fable adversary before it is trusted.</p>
+        <p><strong>Updated Done criteria:</strong> status stays "Draft — Fable adversary pending" until the adversary pass runs and its findings are folded in or answered.</p>
+      </article>
+      <article class="task-card"><h3>Rev 2 - 2026-07-19</h3>
+        <p><strong>Change:</strong> Fable adversary (different model) refuted the spec; status -> Needs Revision. Findings folded in: (1) the "or a step" clause readmitted advisory rules — honesty-scan, mutation-receipt (forgeable, per <code>prove-gate.py</code>), sandbox-acceptance, and the framing-adversary are LLM/human practices, NOT deterministic gates; reclassify as practices or cut. (2) The <code>caught by</code> metric is self-reported and asymmetric (gate fires auto-log; human catches only if <code>alloro-aar</code> fires, which "did not fire once" on the worst day) — it can only "improve"; fix = auto-log gate fires AND count human catches via the reviewer, report both counts, never the ratio alone. (3) T5's "Read LESSONS.md" line IS an advisory rule (violates Must #1), OPEN 4 days, no forcing function, plus a ~30KB context tax -> replace with a generated per-seat digest. (4) The shipped Stop hook was INERT (bare <code>echo</code> never reaches the model) — a false "shipped" claim; corrected to <code>systemMessage</code>, but self-enforcement (<code>decision:block</code>) needs a tested build. (5) Layers 1–2 sit inside the meta-process ban; only Layer 3 (product CI gates) escapes it — the center of mass is inverted. (6) Layer 1's "single source, generated" heading overclaims (seam map not generatable; NOW fans to 4 sources, 3 hand-maintained).</p>
+        <p><strong>Reason:</strong> Adversary QA — the deterministic core is ~2 wirings that mostly already exist; the rest is banned choreography or LLM-steps-relabeled-as-gates, measured by an unfalsifiable metric.</p>
+        <p><strong>Updated Done criteria:</strong> The MVP that actually moves the metric, per the adversary: <strong>land PR #174 with 3 deterministic checks</strong> — the 2 already-built class guards (row 28), <code>pr-log.sh --check</code>, and a ~50-line spec-status↔PR-state parity script. Each is deterministic, exists or is a day's work, runs on every PR without a session's cooperation, and targets a class a human caught this week. Build by a fresh session. The 3-layer system is descoped to what survives: T1 (freshness warn), T6 (delete the duplicate advisory rules), and the honest-limits section.</p>
+      </article>
+      <article class="task-card"><h3>Rev 3 - 2026-07-19</h3>
+        <p><strong>Change:</strong> Executed the first deterministic verification check from T3 — the spec-status↔PR-state parity gate — and shipped it as PR #189 to dev/dave. Deviation from Rev 2's "land PR #174": #174's branch was 152 commits behind dev/dave, so a clean rebase was not viable; its read-only trust boundary was lifted onto a fresh minimal workflow instead. Two false-positive fix rounds during execution: (1) day-one FP — the first version mapped a PR to a plan by any <code>plans/&lt;folder&gt;/</code> path and fired on the spec's current on-disk pill, hard-blocking an open PR that merely brushed a finished plan folder (reproduced on real PR #179); (2) fix v1 (require the PR to touch spec.html) still fired on a non-status edit of an already-Completed spec. Final design is diff-based: the gate fires only when the PR's OWN diff ADDS a done-word status pill (Completed/Deployed/Done) to a spec.html — a brush, a non-done status, or a Rev-append to a Completed spec all pass; it scans every spec.html in the diff and reads nothing from the checkout. Proven on real PRs: #180 (sets Completed while open) → exit 1; #179 brush → exit 0; #186 In Progress → exit 0; throwaway fixture PR #190 (Rev-append on a Completed spec; closed + branches deleted after) → exit 0. CI green on #189. Ships ADVISORY (<code>continue-on-error: true</code>) to bank clean real-PR runs before promotion to required (promote-when-proven, #174). The second CI step <code>pr-log.sh --check</code> is guarded until #181 lands it on dev/dave. Acceptance artifact (<code>test.html</code> + <code>test-results.json</code>) added, rolling up to Passed.</p>
+        <p><strong>Reason:</strong> Execution deviation: build + two false-positive fix rounds during execution of the T3 parity-gate slice; recorded per the append-only Rev convention.</p>
+        <p><strong>Updated Done criteria:</strong> Adds the parity-gate line to Done (checked). Still OPEN: the broader 3-layer system (T1, T2, T4, T5, T6) and the other two T3 checks (class-guards — one already exists per LESSONS row 28; the mutation-receipt gate). Overall status → In Progress (one of three CI checks landed, advisory).</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>
