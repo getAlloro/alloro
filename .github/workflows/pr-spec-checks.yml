@@ -42,8 +42,14 @@ jobs:
           # No step pushes or writes, so the checkout token should not linger in .git/config.
           persist-credentials: false
 
-      # ---- HARD FAIL: a "done" spec on an unlanded PR ----
+      # ---- ADVISORY (ratchet-in): a "done" spec on an unlanded PR ----
+      # continue-on-error keeps this reporting (the step still annotates the failing case) without
+      # failing the run or blocking the PR. It is advisory because the script has one documented
+      # residual: a PR that edits an already-"Completed" spec for a non-status reason can still fire.
+      # Promote to required (delete this continue-on-error line) once that residual is closed AND the
+      # step has run clean on a few real PRs -- the exact promote-when-proven pattern PR #174 states.
       - name: Spec-status ↔ PR-state parity
+        continue-on-error: true
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: bash scripts/check-spec-parity.sh
