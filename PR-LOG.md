@@ -9,7 +9,7 @@ the migration source for the enable state.
 > no PR and an eighth duplicate spec got written. **A typed ledger rots the day after it's typed.**
 > This one can't — it's regenerated from the source.
 
-`origin/dev/dave` @ `4cdb0eaf` · 49 feature PRs (promotion PRs excluded) · showing the most recent 60
+`origin/dev/dave` @ `4cdb0eafa` · 49 feature PRs (promotion PRs excluded) · showing the most recent 60
 
 ## ⛔ Merged but DARK — landed, and doing nothing
 
@@ -27,6 +27,11 @@ the other 60%."* — **this section is the 60%, and nothing else tracks it.**
 
 | PR | What it is | Where it lives | Plan | Does it DO anything? |
 |---|---|---|---|---|
+| [#187](https://github.com/getAlloro/alloro/pull/187) | feat(gbp): name/address/phone consistency read endpoint | `claude/seam-nap-enable` | — | ✏️ draft |
+| [#186](https://github.com/getAlloro/alloro/pull/186) | feat(ranking): owner-vocabulary ranking card + honesty guards | `claude/ranking-owner-surface` | `plans/07182026-ranking-owner-surface` | ✏️ draft |
+| [#185](https://github.com/getAlloro/alloro/pull/185) | feat(funnel): surface a published profile-fix on the owner … | `claude/seam-completeness-to-owner` | `plans/07152026-journey-insights-alloro-actions` | ✏️ draft |
+| [#184](https://github.com/getAlloro/alloro/pull/184) | feat(gbp): completeness gap -> owner-approved profile-fix d… | `claude/seam-detect-to-writeback-invoke` | `plans/07182026-gbp-completeness-detect-to-fix` | ✏️ draft |
+| [#183](https://github.com/getAlloro/alloro/pull/183) | feat(patient-journey): Get Found impressions = whole-practi… | `claude/gate1-impressions` | `plans/07172026-gate1-impressions-search-maps` | ⏳ open — not landed |
 | [#182](https://github.com/getAlloro/alloro/pull/182) | fix(security): rate-limit POST /api/audit/start — the one p… | `claude/audit-start-rate-limit` | — | ⏳ open — not landed |
 | [#181](https://github.com/getAlloro/alloro/pull/181) | docs(pr-log): a generated ledger — what every PR is, where … | `claude/pr-log-and-template` | — | ⏳ open — not landed |
 | [#180](https://github.com/getAlloro/alloro/pull/180) | feat: add isolated test worktree adapter | `codex/isolated-test-worktree-adapter` | `plans/07172026-isolated-test-worktree-adapter` | ✏️ draft |
@@ -74,9 +79,6 @@ the other 60%."* — **this section is the 60%, and nothing else tracks it.**
 | [#134](https://github.com/getAlloro/alloro/pull/134) | Refactor | `dev/dave` | `plans/06142026-alloro-conventions-skill-improvements` | ✅ merged |
 | [#132](https://github.com/getAlloro/alloro/pull/132) | Dave/website editor | `dave/website-editor` | `plans/06112026-website-editor-direct-editing-and-versioning` | ✅ merged |
 | [#131](https://github.com/getAlloro/alloro/pull/131) | feat: website editor — direct editing, undo/redo, manual sa… | `dave/website-editor` | `plans/06112026-website-editor-direct-editing-and-versioning` | ✅ merged |
-| [#126](https://github.com/getAlloro/alloro/pull/126) | fix: inline website header phone CTAs | `dev/dave` | `plans/04212026-no-ticket-dental-seo-template-visual-refresh` | ✅ merged |
-| [#125](https://github.com/getAlloro/alloro/pull/125) | feat: add website header phone CTAs | `dev/dave` | `plans/04212026-no-ticket-dental-seo-template-visual-refresh` | ✅ merged |
-| [#124](https://github.com/getAlloro/alloro/pull/124) | feat: Clarity integration installation validation + complet… | `dev/dave` | `plans/06052026-clarity-integration-validation` | ✅ merged |
 
 ## ❌ Closed without landing
 
@@ -87,5 +89,3 @@ thing may already be written.
 |---|---|---|---|---|
 | [#146](https://github.com/getAlloro/alloro/pull/146) | Inversion engine, build handoff for Dave (docs + mission + … | `claude/inversion-engine-handoff-docs` | `plans/inversion-engine-handoff` | ❌ closed, never landed |
 | [#129](https://github.com/getAlloro/alloro/pull/129) | Specialty-filter the audit competitor cohort (Oz-moment acc… | `sandbox-audit-specialty-filter` | `plans/06072026-no-ticket-audit-competitor-specialty-filter` | ❌ closed, never landed |
-| [#128](https://github.com/getAlloro/alloro/pull/128) | Rate-limit /api/audit/start (stop uncapped spend) | `sandbox-audit-start-rate-limit` | `plans/06072026-no-ticket-audit-start-rate-limit` | ❌ closed, never landed |
-| [#127](https://github.com/getAlloro/alloro/pull/127) | Default competitor comparison sort: review count -> maps po… | `sandbox-competitor-default-sort` | `plans/06062026-no-ticket-competitor-comparison-default-sort` | ❌ closed, never landed |
