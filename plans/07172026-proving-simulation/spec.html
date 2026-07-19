@@ -64,14 +64,14 @@
     <header class="spec-hero">
       <div class="hero-topline">
         <p class="eyebrow">Alloro Plan Spec</p>
-        <span class="status-pill status-pending">Pending Execution</span>
+        <span class="status-pill status-pending">In Progress</span>
       </div>
       <h1>Proving Simulation &amp; Attributed-Lift Layer (E2)</h1>
       <p style="max-width:820px;color:var(--muted);margin-bottom:20px;">
         Honestly measure whether an action Alloro took moved a funnel metric — reporting <strong>direction and confidence, never a promised number</strong> — and prove the whole recorded-action &rarr; measured &rarr; surfaced chain survives a simulated month before it ever speaks to a customer.
       </p>
       <dl class="meta-grid">
-        <div class="status-card"><dt>Status</dt><dd>Pending Execution</dd></div>
+        <div class="status-card"><dt>Status</dt><dd>In Progress</dd></div>
         <div><dt>Plan Folder</dt><dd>plans/07172026-proving-simulation</dd></div>
         <div><dt>Size</dt><dd>Large (spec only)</dd></div>
         <div><dt>Risk</dt><dd>Level 3 (honesty-critical)</dd></div>
@@ -445,7 +445,34 @@
         <li><input type="checkbox" disabled> <code>npm run check:conventions --strict</code> — no new §-violations.</li>
         <li><input type="checkbox" disabled> Layer 1 vitest over S1–S7 passes; Layer 2 <code>test-results.json</code> rolls up to Passed.</li>
         <li><input type="checkbox" disabled> No fabricated causal number reachable in any output path.</li>
+        <li><input type="checkbox" disabled> <strong>Uncertainty is count-based (binomial SE); abstain is MDE-gated — verified silent, never dishonest, at ~30 impressions/day (the adversary's real-scale case).</strong></li>
+        <li><input type="checkbox" disabled> <strong>BLOCKER (§20.5): thresholds calibrated against real dev-DB GSC series — NOT YET DONE. The customer surface stays dark (default-off) until this is checked.</strong></li>
       </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-07-18</h3>
+        <p><strong>Change:</strong> Executed the honesty core — <strong>T3</strong> (pure measurement util <code>src/controllers/patient-journey/feature-utils/attributionMath.ts</code>: DiD primary + ITS cross-check + four-rung verdict + sufficiency floors, no magnitude field) and <strong>T5 Layer&nbsp;1</strong> (the S1–S7 month-simulation vitest, <code>src/__tests__/attribution.month-simulation.test.ts</code>). Config added to <code>src/config/metricActions.ts</code> (<code>ATTRIBUTION_FLOORS</code>, <code>ATTRIBUTION_RUNG</code>). Built on the spec's recommended decisions: D2=C (DiD headline, ITS cross-check, conflict → no detectable change), D3 floors (14 pre / 7 post / 100 impressions / 2 unsettled), D4 transparent linear-fit estimator (no new dependency), D5 ordinal ladder only. All 10 tests pass; <code>tsc</code> clean; a fresh cross-model adversary pass on the math + fixtures is running. Build-and-hold on <code>claude/proving-simulation-spec</code>.</p>
+        <p><strong>Reason:</strong> Execution deviation: the spec was T0 (spec-only); this begins execution with the no-block slice — the pure math + the fake-month harness need neither the dev DB, a schema decision, nor Dave, and they are the DoD's "survives a fake-month simulation" line. The DB-wiring tasks (T1 treated-set capture + its D1/D6 schema decision, T2 GscDataModel read, T4 journey wiring, T5 Layer&nbsp;2) remain the next bite.</p>
+        <p><strong>Updated Done criteria:</strong> T3 done criteria met (Layer&nbsp;1 vitest over S1–S7 passes). T1/T2/T4/T5-Layer&nbsp;2 still open; the future-execution Done checklist stands.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 2 - 2026-07-18</h3>
+        <p><strong>Change:</strong> A fresh cross-model adversary <strong>broke the Rev&nbsp;1 math and the "conservative floors" plan</strong>, so the design is corrected before any commit (the Rev&nbsp;1 v1 math is superseded, never shipped). Executed proof at real scale (~30 impressions/day): a chance lucky run returned <code>trending_up</code> ≈ 1 action in 5 — a fabricated lift. Root cause (<code>attributionMath.ts:183-187</code>): the noise band was the <em>empirical daily-CTR std</em> pooled around one shared mean, which <em>shrinks</em> as data thins while true sampling noise <em>grows</em> — the band moved inverse to honest. Corrected design (supersedes D2/D4 emphasis, refines D1/D3):</p>
+        <ul>
+          <li><strong>Uncertainty from counts, not the observed series' variance</strong> — binomial standard error <code>√(p(1−p)/N)</code> on the pooled click/impression counts, so the band <em>self-widens</em> as volume thins. A wrong scale-guess can then only widen abstain — it fails silent, never dishonest.</li>
+          <li><strong>Abstain is endogenous (MDE-gated), not a floor</strong> — compute the minimum detectable effect from actual window volumes; if it exceeds a materiality cap, the rung is <code>not_enough_data</code> <em>before</em> any direction logic. Distinguish "we measured, nothing moved" (<code>no_detectable_change</code>, a real null with power) from "we were blind" (<code>not_enough_data</code>) — never report a fabricated measured-null.</li>
+          <li><strong>DiD demoted from "primary" to opportunistic-behind-a-hard-gate</strong> (minimum control impressions + coverage-stability + group-centered variance). Top-N JSONB control membership churns daily (selection bias, not missingness), so ITS/abstain is the honest default; DiD earns primacy only when real dev data shows the gate passes.</li>
+          <li><strong>Missing ≠ 0</strong> — a page dropping out of GSC top-N is an "unknown day" (reduces coverage → widens MDE → abstain), never a zero-CTR collapse (mirrors <code>funnelMath.ts</code>).</li>
+          <li><strong>Windows derived from actual coverage dates</strong> — the new-business cold-start is then automatic (no pre-coverage → <code>not_enough_data</code>, structural), not a forgettable special branch. Scale-free formulas, not constants re-tuned to "hundreds."</li>
+          <li><strong>Default-OFF / dark</strong> — the journey-card wiring stays behind a default-off flag; no verdict reaches a customer until calibrated against real dev-DB GSC series.</li>
+          <li><strong>Fixtures labeled <code>SYNTHETIC</code></strong> — passing proves verdict-logic shape, not honesty at production scale; add the adversary's real-scale + S8–S12 regression cases.</li>
+        </ul>
+        <p><strong>Reason:</strong> User QA + adversary (AGREE-WITH-CONDITIONS): "build now, calibrate later" is honest only if nothing speaks until later, and floor-based abstain fabricates at real scale. Grounding: from this machine the real data is unreachable (local <code>.env</code> = sandbox, 10 projects, no <code>gsc_data</code> table; dev SSH alias unresolved), so calibration must wait for dev access — which is exactly why the surface must stay dark.</p>
+        <p><strong>Updated Done criteria:</strong> adds a hard finalize blocker — "thresholds calibrated against real dev-DB GSC series" must be checked before <code>-d</code> (§20.5), and the customer surface stays dark until it is.</p>
+      </article>
     </section>
   </main>
 </body>
