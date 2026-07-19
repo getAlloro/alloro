@@ -6,7 +6,7 @@ import { useFormSubmissionsTimeseries } from "../../../hooks/queries/useFormSubm
 import { monthSortValue } from "../../../utils/timeframe";
 import {
   referralStatus,
-  localRankStatus,
+  rankTone,
   reviewTone,
   formSubsTone,
 } from "./statusRules";
@@ -28,7 +28,7 @@ export function useStageTones(): StageTones {
   const keyData = usePmsKeyData(orgId, locationId);
   const timeseries = useFormSubmissionsTimeseries("12m");
 
-  const gbp = metrics.data?.gbp;
+  const ranking = metrics.data?.ranking;
   const reviews = metrics.data?.reviews;
 
   const sortedMonths = [...(keyData.data?.months ?? [])].sort(
@@ -36,10 +36,12 @@ export function useStageTones(): StageTones {
   );
   const thisRef = sortedMonths.at(-1)?.totalReferrals ?? null;
   const priorRef = sortedMonths.at(-2)?.totalReferrals ?? null;
-  const thisMonthSubs = timeseries.data?.at(-1)?.total ?? null;
+  // Verified (real raised hands), not total — total includes flagged spam/bots,
+  // which would make the "bookable" stage tone reflect spam rather than reality.
+  const thisMonthSubs = timeseries.data?.at(-1)?.verified ?? null;
 
   return {
-    findable: localRankStatus(gbp?.days_since_last_post ?? null).tone,
+    findable: rankTone(ranking?.position ?? null),
     choosable: reviewTone(reviews?.current_rating ?? null),
     bookable: formSubsTone(thisMonthSubs),
     memorable: referralStatus(thisRef, priorRef).tone,

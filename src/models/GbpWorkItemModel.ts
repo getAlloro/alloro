@@ -1,9 +1,17 @@
+import { Knex } from "knex";
 import { BaseModel, QueryContext } from "./BaseModel";
 import { db } from "../database/connection";
 
 const MAX_WORK_ITEM_LIST_LIMIT = 500;
 
-export type GbpContentType = "review_reply" | "local_post";
+export type GbpContentType = "review_reply" | "local_post" | "business_info";
+
+/** Explicit outcome of claiming a business_info revert — see claimBusinessInfoRevert. */
+export type GbpRevertClaimState =
+  | "claimed"
+  | "revert_in_progress"
+  | "already_reverted"
+  | "not_revertable";
 export type GbpSafetyStatus = "safe" | "needs_review" | "blocked";
 export type GbpWorkItemStatus =
   | "draft"
@@ -25,6 +33,7 @@ export interface IGbpWorkItem {
   approved_content: string | null;
   published_content: string | null;
   local_post_payload: Record<string, unknown> | null;
+  business_info_payload: Record<string, unknown> | null;
   featured_image_url: string | null;
   google_resource_name: string | null;
   google_response: Record<string, unknown> | null;
@@ -65,6 +74,7 @@ export class GbpWorkItemModel extends BaseModel {
   protected static tableName = "gbp_work_items";
   protected static jsonFields = [
     "local_post_payload",
+    "business_info_payload",
     "google_response",
     "safety_reason_codes",
     "safety_reasons",
@@ -423,6 +433,57 @@ export class GbpWorkItemModel extends BaseModel {
     });
   }
 
+  static async markBusinessInfoDeploying(
+    id: string,
+    userId: number | null,
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.table(trx)
+      .where({ id, status: "approved", content_type: "business_info" })
+      .update({
+        status: "deploying",
+        published_by_user_id: userId,
+        metadata: (trx || db).raw(
+          `metadata || '{"deployQueueState":"pending"}'::jsonb`
+        ),
+        last_error_code: null,
+        last_error_message: null,
+        updated_at: new Date(),
+      });
+  }
+
+  static async markBusinessInfoDeployQueued(
+    id: string,
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.table(trx)
+      .where({ id, status: "deploying", content_type: "business_info" })
+      .update({
+        metadata: (trx || db).raw(
+          `metadata || '{"deployQueueState":"queued"}'::jsonb`
+        ),
+        updated_at: new Date(),
+      });
+  }
+
+  static async markBusinessInfoProviderStateUnknown(
+    id: string,
+    attemptId: string,
+    trx?: QueryContext
+  ): Promise<number> {
+    const providerState = JSON.stringify({
+      providerStateUnknown: true,
+      providerStateUnknownAt: new Date().toISOString(),
+      providerStateUnknownAttemptId: attemptId,
+    });
+    return this.table(trx)
+      .where({ id, status: "deploying", content_type: "business_info" })
+      .update({
+        metadata: (trx || db).raw("metadata || ?::jsonb", [providerState]),
+        updated_at: new Date(),
+      });
+  }
+
   static async markPublished(
     id: string,
     data: {
@@ -434,17 +495,22 @@ export class GbpWorkItemModel extends BaseModel {
   ): Promise<number> {
     return this.table(trx)
       .where({ id, status: "deploying" })
-      .update(this.serializeJsonFields({
-      status: "published",
-      published_content: data.publishedContent,
-      google_resource_name: data.googleResourceName,
-      google_response: data.googleResponse,
-      published_at: new Date(),
-      last_error_code: null,
-      last_error_message: null,
-      next_retry_at: null,
-      updated_at: new Date(),
-    }));
+      .update({
+        ...this.serializeJsonFields({
+          status: "published",
+          published_content: data.publishedContent,
+          google_resource_name: data.googleResourceName,
+          google_response: data.googleResponse,
+          published_at: new Date(),
+          last_error_code: null,
+          last_error_message: null,
+          next_retry_at: null,
+          updated_at: new Date(),
+        }),
+        metadata: (trx || db).raw(
+          "metadata - ARRAY['providerStateUnknown','providerStateUnknownAt','providerStateUnknownAttemptId']::text[]"
+        ),
+      });
   }
 
   static async syncPublishedLocalPost(
@@ -508,5 +574,110 @@ export class GbpWorkItemModel extends BaseModel {
       retry_count: (trx || db).raw("retry_count + 1"),
       updated_at: new Date(),
     });
+  }
+
+  /**
+   * Reject a business_info work item only while it is still pending — never a
+   * published or deploying one (that would strand its rollback snapshot or race the
+   * write). Returns 0 if the guard rejects the transition.
+   */
+  static async rejectBusinessInfoIfPending(
+    id: string,
+    userId: number | null,
+    reason: string | null,
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.table(trx)
+      .where({ id, content_type: "business_info" })
+      .whereIn("status", ["draft", "awaiting_approval", "approved"])
+      .update(this.serializeJsonFields({
+        status: "rejected",
+        rejected_by_user_id: userId,
+        rejected_at: new Date(),
+        last_error_code: reason ? "REJECTED" : null,
+        last_error_message: reason,
+        updated_at: new Date(),
+      }));
+  }
+
+  /**
+   * Atomically claim a published business_info item for revert (single-flight), and
+   * report WHY when the claim is refused. The refusal reasons are distinct facts and
+   * must not be collapsed into one signal — "a revert is running right now" and "the
+   * revert already finished" mean opposite things to the owner reading the result.
+   *
+   * - `claimed` — this caller owns the revert and must enqueue exactly one job.
+   * - `revert_in_progress` — another revert holds the claim; do not enqueue a second.
+   * - `already_reverted` — the rollback already landed on Google; nothing to do.
+   * - `not_revertable` — the item is missing or is not in a state that can be reverted.
+   *
+   * Runs SELECT ... FOR UPDATE + UPDATE inside a model-owned transaction (§7.4), so the
+   * single-flight guarantee is preserved: two concurrent claims serialize on the row
+   * lock and exactly one comes away `claimed`.
+   */
+  static async claimBusinessInfoRevert(
+    id: string,
+    trx?: QueryContext
+  ): Promise<GbpRevertClaimState> {
+    const claim = async (query: QueryContext): Promise<GbpRevertClaimState> => {
+      const row = await this.table(query)
+        .where({ id, content_type: "business_info" })
+        .forUpdate()
+        .first();
+      if (!row) return "not_revertable";
+
+      const metadata = (this.deserializeJsonFields(row).metadata || {}) as Record<string, unknown>;
+      if (metadata.reverted === true) return "already_reverted";
+      if (metadata.revertPending === true) return "revert_in_progress";
+      if (row.status !== "published") return "not_revertable";
+
+      await this.table(query)
+        .where({ id })
+        .update({
+          metadata: (query as Knex).raw(
+            `metadata || '{"revertPending":true,"revertQueueState":"pending"}'::jsonb`
+          ),
+          updated_at: new Date(),
+        });
+      return "claimed";
+    };
+
+    if (trx) return claim(trx);
+    return this.transaction(claim);
+  }
+
+  /**
+   * Release a revert claim that never produced a queue job (the compensating
+   * write for an enqueue failure). Guarded so a completed revert is never
+   * un-marked: only the pending flag is cleared, and only while not reverted.
+   */
+  static async releaseBusinessInfoRevertClaim(
+    id: string,
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.table(trx)
+      .where({ id, content_type: "business_info" })
+      .whereRaw("COALESCE(metadata->>'reverted','false') <> 'true'")
+      .update({
+        metadata: (trx || db).raw(
+          `metadata || '{"revertPending":false,"revertQueueState":"failed"}'::jsonb`
+        ),
+        updated_at: new Date(),
+      });
+  }
+
+  static async markBusinessInfoRevertQueued(
+    id: string,
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.table(trx)
+      .where({ id, status: "published", content_type: "business_info" })
+      .whereRaw("COALESCE(metadata->>'revertPending','false') = 'true'")
+      .update({
+        metadata: (trx || db).raw(
+          `metadata || '{"revertQueueState":"queued"}'::jsonb`
+        ),
+        updated_at: new Date(),
+      });
   }
 }

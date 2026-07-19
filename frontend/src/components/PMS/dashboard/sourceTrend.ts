@@ -5,7 +5,8 @@ import { TONE_COLOR, type StatusTone } from "../../dashboard/focus/statusRules";
  * sourceTrend — derive a per-source ▲/▼/— arrow for the Top Sources list by
  * matching each PMS source name against the Referral-Engine matrices'
  * `trend_label`. Name matching is normalized (trim + lowercase); unmatched
- * sources fall back to a neutral "—".
+ * sources fall back to an UNKNOWN "—" (no data), which is not the same as a
+ * measured-flat "—".
  *
  * Spec: plans/06102026-referrals-hub-simplification/spec.html (T3)
  */
@@ -16,7 +17,16 @@ export interface SourceTrend {
   color: string;
 }
 
-const NEUTRAL: SourceTrend = { arrow: "—", tone: "neutral", color: TONE_COLOR.neutral };
+/**
+ * Both render "—" in stone, but they are different facts and the tone must say
+ * so (UNKNOWN_IS_NOT_FINE in statusRules.ts): UNKNOWN = this source has no
+ * trend data at all; FLAT = the matrix gave us a trend we simply don't call
+ * good or bad. Identical on screen today, because nothing feeds these tones
+ * into a health verdict yet — which is exactly the state rank was in before it
+ * started telling #10 practices they were healthy.
+ */
+const UNKNOWN: SourceTrend = { arrow: "—", tone: "unknown", color: TONE_COLOR.unknown };
+const FLAT: SourceTrend = { arrow: "—", tone: "neutral", color: TONE_COLOR.neutral };
 
 function norm(name: string): string {
   return name.trim().toLowerCase();
@@ -31,7 +41,7 @@ function fromLabel(label: string | undefined): SourceTrend {
     case "dormant":
       return { arrow: "▼", tone: "warn", color: TONE_COLOR.warn };
     default:
-      return NEUTRAL;
+      return label ? FLAT : UNKNOWN;
   }
 }
 
@@ -55,7 +65,7 @@ export function buildSourceTrendLookup(
   }
 
   return (sourceName: string): SourceTrend =>
-    sourceName ? fromLabel(byName.get(norm(sourceName))) : NEUTRAL;
+    sourceName ? fromLabel(byName.get(norm(sourceName))) : UNKNOWN;
 }
 
 /**

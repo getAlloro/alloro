@@ -1,8 +1,14 @@
+import logger from "../../lib/logger";
 import {
   AiSeoAuditTargetModel,
   IAiSeoAuditTarget,
 } from "../../models/website-builder/AiSeoAuditTargetModel";
 import { collectExternalEntitySources } from "./externalEntitySearchService";
+import {
+  mapAiReadyGbpToCompletenessInput,
+  type GbpCompletenessInput,
+} from "./gbpCompletenessScoring";
+import { runGetFoundChecker } from "./getFoundChecker";
 import {
   AiSeoAuditDetail,
   getAuditRunDetail,
@@ -92,6 +98,7 @@ export async function executeTargets(
       await recordFailedTarget(runId, entry.target, entry.error);
       continue;
     }
+    runGetFoundAdvisory(entry.snapshot, entry.target, organizationContext);
     const output = scoreAuditTarget({
       snapshot: entry.snapshot,
       externalSources,
@@ -139,6 +146,63 @@ export async function executeTargets(
       hard_caps: dedupeHardCaps(hardCaps),
     },
   };
+}
+
+/**
+ * Slice 1a get-found checker — the production call site for the read-only
+ * advisory analysis and its observability hook. It runs on every hosted page
+ * the audit already fetched, so it costs no extra request.
+ *
+ * Deliberately bounded to what Slice 1a owns:
+ *  - It PERSISTS NOTHING and does not affect the audit score. Routing these
+ *    recommendations into the human-approved rail is Slice 1b.
+ *  - `gbpIdentity` is omitted, so the GBP<->page consistency flag is skipped.
+ *    The audit's canonicalIdentity comes from the website project, NOT from a
+ *    GBP profile; passing it here would label a project<->page comparison as a
+ *    GBP one. Supplying a real GBP identity lands with Slice 1b.
+ *  - No candidate copy exists in a read-only audit, so the honesty gate reports
+ *    0 checked. It gates generated copy in Slice 1b.
+ *
+ * Guarded: an advisory lint must never fail a real audit run.
+ */
+function runGetFoundAdvisory(
+  snapshot: UrlAuditSnapshot,
+  target: IAiSeoAuditTarget,
+  organizationContext: OrganizationAuditContext | null,
+): void {
+  try {
+    const gbpCompleteness = resolveTargetGbpCompleteness(
+      target.location_id,
+      organizationContext,
+    );
+    runGetFoundChecker({
+      url: snapshot.finalUrl,
+      html: snapshot.html,
+      ...(gbpCompleteness ? { gbpCompleteness } : {}),
+    });
+  } catch (error) {
+    logger.warn(
+      {
+        checker: "get-found",
+        url: snapshot.finalUrl,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      "[get-found] advisory checker failed; audit run continues",
+    );
+  }
+}
+
+function resolveTargetGbpCompleteness(
+  locationId: number | null,
+  organizationContext: OrganizationAuditContext | null,
+): GbpCompletenessInput | null {
+  if (!organizationContext) return null;
+  const location = locationId === null
+    ? organizationContext.locations.length === 1
+      ? organizationContext.locations[0]
+      : null
+    : organizationContext.locations.find((candidate) => candidate.id === locationId) ?? null;
+  return mapAiReadyGbpToCompletenessInput(location?.gbpData);
 }
 
 function pickBaselineIdentity(

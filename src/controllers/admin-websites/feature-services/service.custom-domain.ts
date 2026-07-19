@@ -174,8 +174,13 @@ export async function verifyDomain(
     // Immediately update the CORS cache so the new domain is allowed
     refreshCustomDomainCache();
 
-    // Provision Rybbit analytics site (non-blocking)
-    provisionRybbitSite(projectId, project.custom_domain).catch(() => {});
+    // Provision Rybbit analytics site without blocking domain verification.
+    void provisionRybbitSite(projectId, project.custom_domain).catch((error) => {
+      logger.error(
+        { err: error, projectId },
+        "[Custom Domain] Rybbit provisioning failed after verification",
+      );
+    });
   }
 
   return {

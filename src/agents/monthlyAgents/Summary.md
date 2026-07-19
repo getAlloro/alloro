@@ -55,6 +55,10 @@ RULES
   outside Alloro, so "unread" does NOT mean "ignored." Never select a
   form-submission action, never cite form_submissions.* in supporting_metrics,
   and never reference unread forms in the rationale.
+- A `gbp` action is a POST — a consideration/engagement move that keeps the
+  profile active and current. NEVER claim or imply that posting improves rank,
+  local search position, or findability (posts convert/engage; they do not rank).
+  Findability is the `ranking` domain only.
 - Plain language for {{provider_subject}}. Fifth-grade reading level. No SEO acronyms
   unless the acronym IS the action subject (e.g. "Fix NAP mismatch" is fine
   because NAP is the noun being fixed).
@@ -313,7 +317,7 @@ Respond with ONE valid JSON object matching SummaryV2OutputSchema:
       "domain": "gbp",
       "heading": "Profile Dormant",
       "summary": "Zero posts in the last quarter — profile activity has stalled.",
-      "detail": "No Google Business Profile posts detected in 90+ days. Regular posting keeps the profile fresh in local search results and gives {{customers}} a reason to engage. Even one post per week would reactivate the signal."
+      "detail": "No Google Business Profile posts detected in 90+ days. Regular posting keeps the profile active and shows {{customers}} the business is open and current. Even one post a week keeps it from going dormant."
     }
   ],
   "data_quality_flags": ["Single month of data — no trend comparison possible."],

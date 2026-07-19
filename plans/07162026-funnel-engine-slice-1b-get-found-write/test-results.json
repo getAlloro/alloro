@@ -1,0 +1,200 @@
+{
+  "plan": "plans/07162026-funnel-engine-slice-1b-get-found-write",
+  "generatedAt": "2026-07-17",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "T1",
+      "title": "The schema handler merges schema_json into the draft's existing seo_data",
+      "surface": "api",
+      "precondition": "Run the Slice 1b tests with PageModel and the recommendation model mocked.",
+      "steps": [
+        "Execute an approved page_seo_schema recommendation against a draft whose seo_data already carries meta_title.",
+        "Inspect the seo_data written to the draft."
+      ],
+      "expected": "schema_json is written as a non-empty array and the pre-existing seo_data keys survive (no clobber).",
+      "status": "pass",
+      "evidence": "Historical non-vacuity proof is preserved below. Final exact-head revalidation passed 4 focused files / 119 tests and 68 full-suite files / 1,291 tests, exit 0; see T12.",
+      "notes": "The write lands on the batch's pinned draft, which the batch auto-publishes as one reversible page version.",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "The honesty gate blocks a claim regardless of the KEY it sits under",
+      "surface": "api",
+      "precondition": "Run the Slice 1b tests with claim text on descriptive, non-enumerated, nested, identifier, and every structural key.",
+      "steps": [
+        "Execute the recommendation with a rank-claiming description.",
+        "Execute with a rank claim on serviceType, on an unenumerated award key, and on a nested makesOffer.description.",
+        "Execute with a claim sentence parked under EACH structural key in turn: @context, @id, @type, identifier, url, sameAs, image, logo, telephone, faxNumber, email (the literals live in the test file, per the public-repo rule).",
+        "Execute with that claim smuggled inside a sameAs ARRAY member.",
+        "Execute with an honest serviceType, a claim-like URL, and a full honest LocalBusiness schema.",
+        "Inspect the recommendation status and whether the page was written."
+      ],
+      "expected": "Every claim-bearing case fails the recommendation and PageModel.updateSeoDataById is never called; the honest cases still execute.",
+      "status": "pass",
+      "evidence": "The final exact-head 4-file focused run passed 119/119 and the 68-file full suite passed 1,291/1,291; see T12. Non-vacuity was previously proven by reverting the handler to the key-denylist head: 15 cases fail (15 failed / 36 passed of 51), while the must-still-publish guards pass in both states.",
+      "notes": "Rewritten in round 3. The exclusion axis is now the VALUE, never the key. The round-2 gate skipped a denylist of structural KEYS without looking at the value, so a claim sentence parked under a structural key, and a claim inside sameAs, both returned ZERO violations — the key name is caller-supplied input (§5.2), so trusting it let any claim ride inside it. A value is now skipped only when it is actually structural for its key: a whole-value URL/mailto:/tel:/urn: under any key, a schema.org type token for @type/@context, a fragment or blank-node ref for @id, a phone shape for telephone/faxNumber, an addr-spec for email. Unknown key => scanned; known key with a non-structural value => scanned. Both directions fail CLOSED. `identifier` is deliberately absent from the shape table: a real identifier ('NPI-1234567890') trips no claim pattern, so scanning it is free.",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "schema_json must be a non-empty array in which EVERY member is a JSON-LD object",
+      "surface": "api",
+      "precondition": "Run the Slice 1b tests with a bare object, an empty array, and arrays carrying non-object members.",
+      "steps": [
+        "Execute the recommendation with schema_json as a bare object.",
+        "Execute it with an empty array.",
+        "Execute it with [null], ['text'], [123], [true], a nested array member, and a valid object followed by a null and by a scalar.",
+        "Execute it with an array of several valid JSON-LD objects."
+      ],
+      "expected": "Every malformed case fails the recommendation with a typed reason and performs no write; the all-objects array still executes.",
+      "status": "pass",
+      "evidence": "src/__tests__/get-found-write.test.ts passed the array-shape cases plus the 'schema_json member validation' suite (8 malformed shapes + 1 valid multi-entry). Re-verified as REAL regression tests at this head: restoring the old length-only check fails exactly the 7 member cases (7 failed / 44 passed of 51).",
+      "notes": "Strengthened after the second-round review. The old check required only a non-empty array, so [null], ['text'], scalar members, and nested arrays passed and were published. Consumers dereference each entry as an object, so a null/scalar member crashes the schema scorer downstream (§5.2 — never trust client input). Every member is now required to be a non-null, non-array object.",
+      "waiver": ""
+    },
+    {
+      "id": "T4",
+      "title": "The row builder produces a PENDING, human-gated recommendation of the new type",
+      "surface": "api",
+      "precondition": "Build a recommendation row from an owner-approved schema array.",
+      "steps": [
+        "Build the row.",
+        "Inspect its target_type, target_meta, and status."
+      ],
+      "expected": "target_type is page_seo_schema, target_meta carries the schema array, and no status is set, so the DB default 'pending' applies and a human must approve before executeBatch runs it.",
+      "status": "pass",
+      "evidence": "src/__tests__/get-found-write.test.ts passed the row-contract case.",
+      "notes": "CONTRACT ONLY. queueSeoSchemaRecommendation has no production caller (see T10), so this proves the row shape, not a live capability.",
+      "waiver": ""
+    },
+    {
+      "id": "T5",
+      "title": "A failed publish marks the batch FAILED instead of completing it",
+      "surface": "api",
+      "precondition": "Run executeBatch with publishPage mocked to return a typed error, and again to throw.",
+      "steps": [
+        "Execute a batch whose approved recommendation writes to a page draft.",
+        "Make publishPage return an error object on one run and reject on the other.",
+        "Inspect the terminal batch status and summary."
+      ],
+      "expected": "The batch terminates 'failed' (not 'completed') on both the returned-error and thrown-error paths, and the summary names the unpublished path and the reason.",
+      "status": "pass",
+      "evidence": "src/__tests__/ai-command-publish-failure.test.ts passed 3/3. Verified non-vacuous: against the pre-fix code the two failure cases fail with \"expected 'completed' to be 'failed'\".",
+      "notes": "Article 3.2. The previous loop logged the publishPage error via logger.warn and continued to 'completed'.",
+      "waiver": ""
+    },
+    {
+      "id": "T6",
+      "title": "Recommendations whose page did not publish are downgraded from executed to failed",
+      "surface": "api",
+      "precondition": "Run executeBatch with a page_seo_schema recommendation and a failing publishPage.",
+      "steps": [
+        "Execute the batch.",
+        "Inspect the recommendation's status and stored execution_result."
+      ],
+      "expected": "The recommendation is failed with published:false and a reason naming the unpublished draft, so batch stats never claim a change is live while it sits on a draft.",
+      "status": "pass",
+      "evidence": "src/__tests__/ai-command-publish-failure.test.ts passed the downgrade assertions.",
+      "notes": "Scoped to page_section and page_seo_schema, the types whose write lands on a batch-published draft.",
+      "waiver": ""
+    },
+    {
+      "id": "T7",
+      "title": "A fully successful batch still completes and downgrades nothing",
+      "surface": "api",
+      "precondition": "Run executeBatch with publishPage succeeding.",
+      "steps": [
+        "Execute the batch with every page publishing.",
+        "Inspect the batch status and recommendation updates."
+      ],
+      "expected": "The batch completes with the unmodified summary and no recommendation is downgraded, so the fix does not fail healthy batches.",
+      "status": "pass",
+      "evidence": "src/__tests__/ai-command-publish-failure.test.ts passed the happy-path case (it also passes against pre-fix code, as expected for a no-regression guard).",
+      "notes": "Guards against the fix over-failing.",
+      "waiver": ""
+    },
+    {
+      "id": "T8",
+      "title": "The approved schema is confirmed live before it counts as a success",
+      "surface": "api",
+      "precondition": "Run verifyBatchEdits over an executed page_seo_schema recommendation.",
+      "steps": [
+        "Re-read the published page's seo_data.schema_json.",
+        "Compare it against the approved array."
+      ],
+      "expected": "When the published schema contains the approved entry the recommendation verifies; extra published keys are tolerated and array order is ignored.",
+      "status": "pass",
+      "evidence": "src/__tests__/get-found-write.test.ts passed the containment-helper and verify cases.",
+      "notes": "page_seo_schema was previously excluded from VERIFIABLE_TARGET_TYPES entirely, so the write was never checked against the live page.",
+      "waiver": ""
+    },
+    {
+      "id": "T9",
+      "title": "A schema write that did not reach the live page is failed, not reported as success",
+      "surface": "api",
+      "precondition": "Run verifyBatchEdits against a stale published schema, a missing published row, and an unreadable read.",
+      "steps": [
+        "Publish a page whose schema_json lacks the approved entry.",
+        "Remove the published row entirely.",
+        "Make the published read reject."
+      ],
+      "expected": "All three downgrade the recommendation to failed with a verify_reason; an unreadable live page fails rather than defaulting to success.",
+      "status": "pass",
+      "evidence": "src/__tests__/get-found-write.test.ts passed all three downgrade cases.",
+      "notes": "Deliberately stricter than the HTML token heuristic: the approved schema is exact JSON, so presence is decidable. A false failure costs one idempotent re-run; a false success would claim structured data is live when it is not.",
+      "waiver": ""
+    },
+    {
+      "id": "T11",
+      "title": "The identity carve-out is bounded by NAME shape, not by the key alone",
+      "surface": "api",
+      "precondition": "Run the Slice 1b tests with real practice names and with claim sentences parked under identity keys.",
+      "steps": [
+        "Execute with name 'Pain-Free Dental Studio' and legalName 'Cure Dental Group'.",
+        "Execute with name 'Rank #1 Dental Implants'.",
+        "Execute with an outcome SENTENCE under name/alternateName, and with an outcome claim addressed to the reader.",
+        "Execute the six guarantee-carrying identity fixtures from the adversary round (the literals live in the test file, per the public-repo rule)."
+      ],
+      "expected": "The two real names publish; the rank claim, the three outcome sentences, and all six guarantee fixtures fail the recommendation and write nothing.",
+      "status": "pass",
+      "evidence": "The final exact-head 4-file focused run passed 119/119 and the 68-file full suite passed 1,291/1,291; see T12. This class was previously proven non-vacuous twice: against the round-2 handler the three outcome-sentence cases fail; reverting only the promise rule fails exactly the six guarantee cases (6 failed | 51 passed of 57). The two must-publish guards pass in every state.",
+      "notes": "Found by the round-3 class sweep, then WIDENED by an adversary run against that fix. Two defects, same axis. (1) The round-2 carve-out softened the medical/outcome code on the KEY alone, so a claim SENTENCE under an identity key published. Fixed by requiring the value to be name-shaped (no first/second-person pronoun, <=6 words). (2) Name-shape alone proved too wide: a short, pronoun-free value carrying a guarantee still published, and the carve-out could become the weakest link — when a claim reaches the gate with only the medical/outcome code surviving, softening it publishes the whole value. Fixed by never softening a PROMISE: the outcome family mixes DESCRIPTORS a practice may genuinely be named for (pain-free, cure, permanent results) with a GUARANTEE, a commitment Alloro cannot back (Value #6) wherever it sits. A business cannot name its way into a guarantee, and the carve-out must never be the last thing standing between a promise and a live page.",
+      "waiver": "RESIDUAL, bounded and deliberate: a short, pronoun-free, guarantee-free DESCRIPTOR name still publishes — 'Permanent Results Dental' and 'Free Medical Advice Clinic LLC' pass. They are textually indistinguishable from 'Pain-Free Dental Studio', which the review requires to publish, so no textual rule separates them. The principled closure is checking `name` against the owner's real registered business name via the GBP identity source — already a deferred dependency of the producer (T10) — rather than guessing from shape. Human approval remains the second line."
+    },
+    {
+      "id": "T10",
+      "title": "NOT PROVEN: no production path creates a page_seo_schema recommendation",
+      "surface": "api",
+      "precondition": "Static reference check across src/ plus the final stacked #158 dependency state included in this exact #159 head.",
+      "steps": [
+        "Grep for callers of queueSeoSchemaRecommendation.",
+        "Grep for callers of the upstream Slice 1a runGetFoundChecker at the base branch head.",
+        "Read that call site to see whether the returned findings are persisted."
+      ],
+      "expected": "A production caller turns a get-found analysis result into a pending recommendation.",
+      "status": "fail",
+      "evidence": "queueSeoSchemaRecommendation is referenced only by its own definition (service.get-found-write.ts) and get-found-write.test.ts. runGetFoundChecker DOES have an application caller at the base branch head: auditTargetExecutionService.ts:166, inside runGetFoundAdvisory, which the audit run invokes for every hosted page it already fetched. That call discards the return value (it is never assigned) and persists nothing.",
+      "notes": "Corrected after the second-round review: the earlier evidence claimed Slice 1a's checker had no application caller. That is stale against the base branch's current head. The accurate blocker is narrower: the checker RUNS in production but as a read-only advisory whose findings are discarded and never persisted (Slice 1a deliberately owns analysis, not routing), so no analysis result survives an audit run to turn into a recommendation. Closing the gap needs the deferred pieces: persisting the checker's findings, a GBP identity source, and a get-found batch type with its approval UI. The execute half IS production-wired: executeBatch dispatches page_seo_schema to the handler, reachable from POST /:id/ai-command/:batchId/execute.",
+      "waiver": "Contract narrowed instead of faked. service.get-found-write.ts states that Slice 1b ships the execute half plus the row contract, that queueSeoSchemaRecommendation has no production caller, and that the type is inert until a producer lands. The reviewer explicitly allowed 'add a real production path, OR honestly narrow the stated contract' and accepted this narrowing; the gap stays recorded here rather than reading as shipped."
+    },
+    {
+      "id": "T12",
+      "title": "Final exact-head stack integration and verification receipt",
+      "surface": "cli",
+      "precondition": "Run every command independently in the exact PR #159 worktree so a later command cannot mask an earlier exit code.",
+      "steps": [
+        "Run the four focused #158/#159 contract and integration test files.",
+        "Run the complete backend test suite.",
+        "Run npx tsc --noEmit and npm run check:conventions -- --strict.",
+        "Run ESLint, dependency-cruiser, changed-file ESLint, and git diff checks."
+      ],
+      "expected": "The final stacked head passes the modifier hard-gate regression, Slice 1b atomicity and failure-path tests, the complete suite, TypeScript, strict conventions, lint, dependency, and diff gates.",
+      "status": "pass",
+      "evidence": "Final exact-head evidence: focused 4 files / 119 tests, exit 0; full 68 files / 1,291 tests, exit 0; npx tsc --noEmit exit 0; npm run check:conventions -- --strict exit 0 with 0 clear structural violations; ESLint exit 0 with 0 errors and 2,385 existing warnings; dependency-cruiser exit 0 with 0 errors and 38 advisory warnings; changed-file ESLint and git diff checks exit 0. The modifier hard-gate regression failed against the prior #158 behavior before passing on the final dependency state. Persistence proof uses the mocked model transaction seam; this PR has no migration.",
+      "notes": "Canonical rollup is Passed: T1-T9, T11, and T12 pass; T10 remains fail with a written contract-narrowing waiver. The GBP identity snapshot and a production recommendation producer remain activation/precondition work, not acceptance claims in this PR.",
+      "waiver": ""
+    }
+  ]
+}

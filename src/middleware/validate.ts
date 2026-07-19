@@ -179,4 +179,109 @@ export function validate(
   };
 }
 
+/**
+ * SANITIZE — the third posture, and the one a public lead-capture endpoint needs.
+ *
+ * `validate` offers a binary neither half of which fits a public form: "warn"
+ * lets an out-of-contract value through to the controller (a bound that logs is
+ * not a bound), and "enforce" answers 400 — which on a lead-capture route means
+ * the practice LOSES a real patient inquiry because a marketing tool appended a
+ * long tracking parameter. Rejecting the asset to protect a note about the asset
+ * is the wrong trade, always.
+ *
+ * `sanitize` takes the third option: bound the field, keep the request. On a
+ * miss the offending key is DELETED from the request part and the request
+ * proceeds. Downstream code then reads either an in-contract value or nothing at
+ * all — which is what §11.2's "once data reaches the controller, it is trusted"
+ * actually requires.
+ *
+ * FAIL-CLOSED ON THE FIELD, FAIL-OPEN ON THE REQUEST. If the schema somehow
+ * fails as a whole (it should not — pass a total schema), every listed key is
+ * dropped rather than passed through: the metadata is lost, never the
+ * submission. Pair it with a total schema (each field `.catch(undefined)`) so
+ * one bad field cannot drop its healthy siblings.
+ *
+ * MOUNT IT INDEPENDENTLY. This is deliberately its OWN middleware rather than a
+ * mode of `validate`, because a route's main schema can fail for an unrelated
+ * reason (an over-long `hostname`, say) — and if the sanitize rode along inside
+ * that parse, that unrelated failure would silently switch the sanitizing off.
+ * A guard whose operation depends on the rest of the body being clean is the
+ * kind of guard that guards nothing.
+ *
+ * Mutates the target IN PLACE so sibling keys (honeypot/timing fields, arbitrary
+ * form keys) survive untouched.
+ *
+ * @param schema  a TOTAL schema for the subset (never rejects; see above).
+ * @param keys    the exact keys to rewrite. Listed explicitly, not inferred.
+ * @param options target (default "body").
+ */
+export function sanitize(
+  schema: ZodType,
+  keys: readonly string[],
+  options: { target?: ValidationTarget } = {},
+): (req: Request, res: Response, next: NextFunction) => void {
+  const target: ValidationTarget = options.target ?? "body";
+
+  return function sanitizeRequest(
+    req: Request,
+    _res: Response,
+    next: NextFunction
+  ): void {
+    const part = (req as unknown as Record<string, unknown>)[target] as
+      | Record<string, unknown>
+      | undefined;
+
+    // Nothing to sanitize (no body parsed, or a non-object body).
+    if (!part || typeof part !== "object") {
+      next();
+      return;
+    }
+
+    // A total schema always succeeds. If it somehow throws or fails, `parsed`
+    // stays empty and EVERY listed key is dropped below — the metadata is lost,
+    // never the submission. Fail-closed on the field, fail-open on the request.
+    let parsed: Record<string, unknown> = {};
+    try {
+      const result = schema.safeParse(part);
+      if (result.success) {
+        parsed = result.data as Record<string, unknown>;
+      }
+    } catch (err) {
+      logger.error(
+        { err, method: req.method, route: req.originalUrl, target },
+        "[VALIDATION] Internal sanitize error — dropping the guarded fields",
+      );
+    }
+
+    const dropped: string[] = [];
+    for (const key of keys) {
+      const value = parsed[key];
+      if (value === undefined) {
+        if (part[key] !== undefined) {
+          delete part[key];
+          dropped.push(key);
+        }
+        continue;
+      }
+      part[key] = value;
+    }
+
+    if (dropped.length) {
+      // Redaction-safe: field names only, never the offending values (§5.3) —
+      // a utm_source can carry patient PII.
+      logger.warn(
+        {
+          method: req.method,
+          route: req.originalUrl,
+          target,
+          fields: dropped,
+        },
+        "[VALIDATION] Dropped out-of-contract field(s) (sanitize)",
+      );
+    }
+
+    next();
+  };
+}
+
 export default validate;

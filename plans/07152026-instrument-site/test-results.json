@@ -1,0 +1,40 @@
+{
+  "plan": "plans/07152026-instrument-site",
+  "generatedAt": "2026-07-17",
+  "status": "Passed",
+  "notes": "Layer 2 reflects the mounted POST route instead of claiming the feature has no behavioral surface. T1 and T2 were not run against a branch server because this repository has no isolated test-worktree adapter; both carry Dave's explicit owner-directed merge waiver and remain recorded as failures, not passes. Layer 1 evidence at the exact pre-commit worktree state: focused Rybbit service + mounted-route tests passed 27/27 across 2 files; the full backend suite passed 1,246/1,246 across 68 files; TypeScript and strict conventions exited 0 with 0 clear structural violations. Renderer injection, the no-PII/cookieless audit, the privacy-policy decision, and a live preview observation remain mandatory activation preconditions; the merge waiver does not enable the feature or waive those activation gates.",
+  "items": [
+    {
+      "id": "T1",
+      "title": "Disabled preview provisioning returns the canonical route response",
+      "surface": "api",
+      "precondition": "Run this branch in a safe environment with PREVIEW_ANALYTICS_ENABLED absent or not equal to the exact string true, and authenticate as a super-admin.",
+      "steps": [
+        "POST /api/admin/websites/{projectId}/integrations/rybbit/preview with the super-admin bearer token.",
+        "Capture the HTTP status and JSON body.",
+        "Confirm the selected project and its Rybbit integration state are unchanged."
+      ],
+      "expected": "HTTP 200 with { success:true, data:{ enabled:false, provisioned:false, reason:\"gate_disabled\" } }; no provider site is created and no local Rybbit site id/integration is written.",
+      "status": "fail",
+      "evidence": "Not run against a branch server. The mounted-route Supertest coverage passed at the exact reviewed head, and the feature remains disabled by default.",
+      "notes": "Layer 1 route coverage passes through the real Express router and middleware stack. The running-app check was not performed and is accepted only through the written merge waiver.",
+      "waiver": "Owner-directed merge waiver recorded 2026-07-17. After the missing safe-runtime T1/T2 checks were stated explicitly, Dave instructed the remaining PRs to be fixed and merged. This accepts the missing running-app receipt for merge only; it does not claim the route was exercised live or waive any activation precondition."
+    },
+    {
+      "id": "T2",
+      "title": "Preview provisioning route enforces authentication and super-admin access",
+      "surface": "api",
+      "precondition": "Run this branch in a safe environment with one valid non-super-admin token available.",
+      "steps": [
+        "POST /api/admin/websites/{projectId}/integrations/rybbit/preview with no Authorization header.",
+        "Repeat with a valid non-super-admin bearer token.",
+        "Confirm neither rejected request changes project or integration state."
+      ],
+      "expected": "The unauthenticated request returns HTTP 401; the authenticated non-super-admin request returns HTTP 403; neither reaches provisioning.",
+      "status": "fail",
+      "evidence": "Not run against a branch server. The focused Supertest suite proves unauthenticated and non-super-admin rejection through the mounted middleware stack.",
+      "notes": "The focused Supertest suite proves the middleware order in-process. No running branch endpoint was called; the missing Layer 2 receipt is accepted only through the written merge waiver.",
+      "waiver": "Owner-directed merge waiver recorded 2026-07-17. After the missing safe-runtime T1/T2 checks were stated explicitly, Dave instructed the remaining PRs to be fixed and merged. This accepts the missing running-app receipt for merge only; it does not claim the route was exercised live or waive any activation precondition."
+    }
+  ]
+}

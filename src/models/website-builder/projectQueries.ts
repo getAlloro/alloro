@@ -357,6 +357,51 @@ export function findRybbitSiteIdByIdQuery(
     .first();
 }
 
+export function findRybbitSiteIdByIdForUpdateQuery(
+  projectId: string,
+  trx: QueryContext,
+): Promise<{ rybbit_site_id: string | null } | undefined> {
+  return table(trx)
+    .select("rybbit_site_id")
+    .where("id", projectId)
+    .forUpdate()
+    .first();
+}
+
+export function findPreviewProvisioningContextByIdQuery(
+  projectId: string,
+  trx?: QueryContext,
+): Promise<
+  | {
+      id: string;
+      hostname: string | null;
+      generated_hostname: string | null;
+      custom_domain: string | null;
+      status: string | null;
+      archived_at: Date | null;
+      org_archived_at: Date | null;
+    }
+  | undefined
+> {
+  return table(trx)
+    .leftJoin(
+      "organizations as o",
+      "website_builder.projects.organization_id",
+      "o.id",
+    )
+    .select(
+      "website_builder.projects.id",
+      "website_builder.projects.hostname",
+      "website_builder.projects.generated_hostname",
+      "website_builder.projects.custom_domain",
+      "website_builder.projects.status",
+      "website_builder.projects.archived_at",
+      "o.archived_at as org_archived_at",
+    )
+    .where("website_builder.projects.id", projectId)
+    .first();
+}
+
 export function findByHostnameOrDomainQuery(
   host: string,
   trx?: QueryContext,

@@ -405,7 +405,7 @@ export function RankingsDashboard({
                 priority: 2,
                 title: "Post more Google updates",
                 description:
-                  "Increase posting frequency to improve Google profile activity score",
+                  "Post weekly so patients comparing practices see an active, cared-for profile",
               },
             ],
           },

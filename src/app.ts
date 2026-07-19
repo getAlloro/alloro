@@ -82,8 +82,20 @@ import appTelemetryRoutes from "./routes/appTelemetry";
 import { billingGateMiddleware } from "./middleware/billingGate";
 import { requireAuthUnlessPublic } from "./middleware/publicRoutes";
 import { isAllowedCustomDomain } from "./middleware/corsCustomDomains";
+import {
+  contactRequestBodyParser,
+  contactSubmissionLimiter,
+  continueToWebsiteContactRouter,
+  handleContactRequestBodyError,
+} from "./middleware/websiteContactProtection";
+
+// Production Apache proxies to PM2 over the same host. Trust only that loopback
+// hop: Express then uses Apache's right-most X-Forwarded-For value as req.ip and
+// ignores caller-supplied addresses farther left in the chain.
+const TRUSTED_REVERSE_PROXY_SUBNET = "loopback";
 
 const app = express();
+app.set("trust proxy", TRUSTED_REVERSE_PROXY_SUBNET);
 const isProd = process.env.NODE_ENV === "production";
 const router = Router();
 
@@ -175,6 +187,17 @@ app.use((req, res, next) => {
 
 // Stripe webhook needs raw body for signature verification — mount BEFORE JSON parser
 app.use("/api/billing/webhook", expressRaw({ type: "application/json" }));
+
+// The public contact form is small JSON. Rate-limit it and parse it with a
+// dedicated 256 KiB ceiling BEFORE the app-wide 50 MB parser used by PMS data.
+// Once parsed here, Express's later JSON parser leaves the body untouched.
+app.post(
+  "/api/websites/contact",
+  contactSubmissionLimiter,
+  contactRequestBodyParser,
+  handleContactRequestBodyError,
+  continueToWebsiteContactRouter,
+);
 
 // Add JSON body parser middleware with increased limit for large PMS data
 app.use(express.json({ limit: "50mb" }));

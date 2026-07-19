@@ -112,6 +112,7 @@ Both deploy workflows build backend and frontend, upload a bundle to `/var/www/s
 - Local `.env` should point at the dev database by default.
 - If production database values are kept in local `.env` for reference, keep them commented out.
 - Do not commit `.env`.
+- **This repo (`getAlloro/alloro`) is public.** Before pushing or commenting, sanitize outward-facing content: keep concrete security-vulnerability mechanics (exploit strings, "PII leak" framing) and internal strategy codenames out of commit messages, PR titles/bodies, comments, and any committed spec — describe the *defense*, not the attack. Sanitize *before* pushing; do not rely on a classifier catching it. Synthetic strings inside test files are fine.
 
 ## Database And Migration Safety
 

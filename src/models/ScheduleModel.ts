@@ -22,6 +22,7 @@ export interface ISchedule {
 export interface IScheduleRun {
   id: number;
   schedule_id: number;
+  logical_run_key: string | null;
   status: "running" | "completed" | "failed";
   started_at: Date;
   completed_at: Date | null;
@@ -29,6 +30,41 @@ export interface IScheduleRun {
   summary: Record<string, unknown> | null;
   error: string | null;
   created_at: Date;
+}
+
+export interface ScheduleExecutionLock {
+  release(): Promise<void>;
+}
+
+interface AdvisoryLockResult {
+  rows: Array<{ acquired: boolean }>;
+}
+
+interface DisposableKnexConnection {
+  __knex__disposed?: unknown;
+}
+
+const SCHEDULE_EXECUTION_LOCK_NAMESPACE = 1095519311;
+
+async function retireExecutionLockConnection(
+  connection: DisposableKnexConnection,
+  reason: unknown,
+): Promise<void> {
+  // Knex/Tarn accounts for a checked-out resource only through release().
+  // Closing the pg socket alone leaves the resource in Tarn's used list.
+  // Marking it disposed makes Knex reject/destroy it if the released resource
+  // is considered for another acquisition.
+  connection.__knex__disposed = reason;
+
+  let destroyError: unknown;
+  try {
+    await db.client.destroyRawConnection(connection);
+  } catch (error) {
+    destroyError = error;
+  }
+
+  await db.client.releaseConnection(connection);
+  if (destroyError) throw destroyError;
 }
 
 // ── Schedules ───────────────────────────────────────────────────────
@@ -43,6 +79,13 @@ export class ScheduleModel extends BaseModel {
 
   static async findById(id: number, trx?: QueryContext): Promise<ISchedule | undefined> {
     return super.findById(id, trx);
+  }
+
+  static async findByIdForUpdate(
+    id: number,
+    trx: QueryContext,
+  ): Promise<ISchedule | undefined> {
+    return this.table(trx).where({ id }).forUpdate().first();
   }
 
   static async findByAgentKey(agentKey: string, trx?: QueryContext): Promise<ISchedule | undefined> {
@@ -111,6 +154,205 @@ export class ScheduleRunModel {
       })
       .returning("*");
     return run;
+  }
+
+  static async findRunByLogicalKey(
+    scheduleId: number,
+    logicalRunKey: string,
+    trx?: QueryContext,
+  ): Promise<IScheduleRun | undefined> {
+    return this.table(trx)
+      .where({
+        schedule_id: scheduleId,
+        logical_run_key: logicalRunKey,
+      })
+      .first();
+  }
+
+  static async createOrFindRunForLogicalJob(
+    scheduleId: number,
+    logicalRunKey: string,
+    trx?: QueryContext,
+  ): Promise<IScheduleRun> {
+    const [created] = await this.table(trx)
+      .insert({
+        schedule_id: scheduleId,
+        logical_run_key: logicalRunKey,
+        status: "running",
+        started_at: new Date(),
+        created_at: new Date(),
+      })
+      .onConflict(["schedule_id", "logical_run_key"])
+      .ignore()
+      .returning("*");
+    if (created) return created;
+
+    const existing = await this.findRunByLogicalKey(
+      scheduleId,
+      logicalRunKey,
+      trx,
+    );
+    if (!existing) {
+      throw new Error(
+        `Could not create or recover logical schedule run ${logicalRunKey}.`
+      );
+    }
+    return existing;
+  }
+
+  /**
+   * Serialize active-run acquisition on the parent schedule row.
+   *
+   * The row lock closes the check-then-insert race between two workers carrying
+   * different logical keys for the same schedule. The logical-key uniqueness
+   * constraint still owns same-job recovery; this lock owns cross-job
+   * exclusion.
+   */
+  static async acquireRunForLogicalJob(
+    scheduleId: number,
+    logicalRunKey: string,
+  ): Promise<IScheduleRun | undefined> {
+    return ScheduleModel.transaction(async (trx) => {
+      const schedule = await ScheduleModel.findByIdForUpdate(scheduleId, trx);
+      if (!schedule) {
+        throw new Error(`Schedule ${scheduleId} not found while acquiring a run.`);
+      }
+
+      const existing = await this.findRunByLogicalKey(
+        scheduleId,
+        logicalRunKey,
+        trx,
+      );
+      if (existing) return existing;
+
+      if (await this.hasActiveRun(scheduleId, trx)) return undefined;
+
+      return this.createOrFindRunForLogicalJob(
+        scheduleId,
+        logicalRunKey,
+        trx,
+      );
+    });
+  }
+
+  /**
+   * Own one schedule's execution for the full handler lifetime.
+   *
+   * A PostgreSQL session advisory lock closes the gap left by a transaction
+   * row lock: the row lock protects check + insert, but releases before paid
+   * work starts. Keeping this dedicated connection checked out until release
+   * prevents scheduled/scheduled, manual/manual, and scheduled/manual overlap.
+   * PostgreSQL releases the lock automatically if the process or connection
+   * dies, so a BullMQ redelivery can recover without a permanent lease row.
+   */
+  static async acquireExecutionLock(
+    scheduleId: number,
+  ): Promise<ScheduleExecutionLock | undefined> {
+    const connection =
+      await db.client.acquireConnection() as DisposableKnexConnection;
+
+    try {
+      const result = await db
+        .raw<AdvisoryLockResult>(
+          "SELECT pg_try_advisory_lock(?, ?) AS acquired",
+          [SCHEDULE_EXECUTION_LOCK_NAMESPACE, scheduleId],
+        )
+        .connection(connection);
+
+      if (!result.rows[0]?.acquired) {
+        await db.client.releaseConnection(connection);
+        return undefined;
+      }
+    } catch (error) {
+      await retireExecutionLockConnection(connection, error).catch(
+        () => undefined,
+      );
+      throw error;
+    }
+
+    let released = false;
+    return {
+      release: async (): Promise<void> => {
+        if (released) return;
+        released = true;
+
+        try {
+          const result = await db
+            .raw<AdvisoryLockResult>(
+              "SELECT pg_advisory_unlock(?, ?) AS acquired",
+              [SCHEDULE_EXECUTION_LOCK_NAMESPACE, scheduleId],
+            )
+            .connection(connection);
+          if (!result.rows[0]?.acquired) {
+            throw new Error(
+              `PostgreSQL did not release the execution lock for schedule ${scheduleId}.`,
+            );
+          }
+          await db.client.releaseConnection(connection);
+        } catch (error) {
+          // Close the session to release any uncertain advisory lock, then
+          // release the disposed resource through Knex's pool accounting.
+          await retireExecutionLockConnection(connection, error).catch(
+            () => undefined,
+          );
+          throw error;
+        }
+      },
+    };
+  }
+
+  static async claimLogicalRunKey(
+    runId: number,
+    scheduleId: number,
+    logicalRunKey: string,
+    trx?: QueryContext,
+  ): Promise<IScheduleRun> {
+    const [run] = await this.table(trx)
+      .where({ id: runId, schedule_id: scheduleId })
+      .where((query) => {
+        query
+          .whereNull("logical_run_key")
+          .orWhere("logical_run_key", logicalRunKey);
+      })
+      .update({ logical_run_key: logicalRunKey })
+      .returning("*");
+    if (!run) {
+      throw new Error(
+        `Schedule run ${runId} is not claimable by logical job ${logicalRunKey}.`
+      );
+    }
+    return run;
+  }
+
+  static async findRunByIdForSchedule(
+    runId: number,
+    scheduleId: number,
+    trx?: QueryContext,
+  ): Promise<IScheduleRun | undefined> {
+    return this.table(trx)
+      .where({ id: runId, schedule_id: scheduleId })
+      .first();
+  }
+
+  static async resumeRun(
+    runId: number,
+    scheduleId: number,
+    trx?: QueryContext,
+  ): Promise<void> {
+    const updated = await this.table(trx)
+      .where({ id: runId, schedule_id: scheduleId, status: "failed" })
+      .update({
+        status: "running",
+        completed_at: null,
+        duration_ms: null,
+        summary: null,
+        error: null,
+      });
+    if (updated !== 1) {
+      throw new Error(
+        `Could not resume schedule run ${runId} for schedule ${scheduleId}.`
+      );
+    }
   }
 
   static async completeRun(

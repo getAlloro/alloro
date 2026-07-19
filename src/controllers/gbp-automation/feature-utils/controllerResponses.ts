@@ -74,6 +74,9 @@ export function settingsPayload(body: Record<string, unknown>) {
       typeof body.local_post_generation_enabled === "boolean"
         ? body.local_post_generation_enabled
         : undefined,
+    // business_info_writeback_enabled is intentionally NOT client-toggleable: A6 writes
+    // to a customer's live Google presence, so the master switch is enabled per account
+    // by Alloro/Dave (DB/admin), not by any authenticated org member via this endpoint.
     next_post_generation_at:
       typeof body.next_post_generation_at === "string"
         ? new Date(body.next_post_generation_at)

@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Funnel Engine — Slice 1b: Get-Found Write Path</title>
+<style>
+  :root{
+    --bg:#ffffff; --ink:#111214; --muted:#5b5e63; --line:#e3e4e7; --card:#fafafa;
+    --good:#1f7a3d; --warn:#8a6d1e; --stop:#9a2b25; --chip:#f0f0f1;
+    --mono:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{--bg:#131417;--ink:#ecedef;--muted:#a2a5ab;--line:#2a2c31;--card:#1a1c20;--chip:#22242a;}
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.55;font-size:16px;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:860px;margin:0 auto;padding:0 24px 96px}
+  .hero{min-height:56vh;display:flex;flex-direction:column;justify-content:center;padding:64px 0 40px;border-bottom:1px solid var(--line)}
+  .pill{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--chip);width:max-content}
+  .pill .dot{width:8px;height:8px;border-radius:50%;background:var(--warn)}
+  h1{font-size:38px;line-height:1.12;letter-spacing:-.02em;margin:20px 0 10px;text-wrap:balance}
+  .sub{font-size:18px;color:var(--muted);max-width:60ch}
+  .meta{margin-top:26px;font-size:13px;color:var(--muted);font-family:var(--mono)}
+  .meta b{color:var(--ink);font-weight:600}
+  section{padding:40px 0;border-bottom:1px solid var(--line)}
+  h2{font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0 0 18px;font-weight:700}
+  h3{font-size:19px;margin:26px 0 8px;letter-spacing:-.01em}
+  .slice{font-family:var(--mono);font-size:12px;font-weight:700;color:var(--ink);background:var(--chip);border:1px solid var(--line);border-radius:6px;padding:2px 8px;margin-right:8px}
+  p{margin:0 0 14px}
+  ul{margin:0 0 14px;padding-left:22px}
+  li{margin:6px 0}
+  strong{font-weight:650}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin:14px 0}
+  code{font-family:var(--mono);font-size:.86em;background:var(--chip);padding:1px 6px;border-radius:5px}
+  .art{display:inline-block;font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.04em;padding:2px 7px;border-radius:5px;border:1px solid var(--line);background:var(--chip);vertical-align:middle}
+  .guard{border-left:3px solid var(--stop);padding:10px 0 10px 16px;margin:14px 0}
+  .guard b{color:var(--stop)}
+  .reuse{border-left:3px solid var(--good);padding:10px 0 10px 16px;margin:14px 0}
+  .reuse b{color:var(--good)}
+  ol.tasks{counter-reset:t;list-style:none;padding-left:0}
+  ol.tasks>li{counter-increment:t;position:relative;padding:14px 0 14px 44px;border-top:1px solid var(--line)}
+  ol.tasks>li:before{content:counter(t);position:absolute;left:0;top:12px;width:28px;height:28px;border:1px solid var(--line);border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:13px;font-weight:700}
+  .done li{list-style:none}
+  .done li:before{content:"\2611\00a0\00a0";font-family:var(--mono);color:var(--good)}
+  .done li.open:before{content:"\2610\00a0\00a0";color:var(--muted)}
+  .rev h3{font-family:var(--mono);font-size:14px;margin:18px 0 6px}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:14px}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+  td code{font-size:.82em}
+  a{color:var(--ink)}
+  @media(max-width:560px){h1{font-size:30px}.hero{min-height:auto;padding:44px 0 28px}table{display:block;overflow-x:auto}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <span class="pill"><span class="dot"></span>Completed &middot; Exact-head receipt reconciled &middot; PR #159 &middot; Rev 4</span>
+    <h1>Slice 1b — Get-Found Write Path</h1>
+    <p class="sub">Write an owner-approved schema.org JSON-LD array to a hosted page's <code>seo_data.schema_json</code> through the edit-and-publish rail that already ships — gated by an honesty check that no rank, placement, or visibility claim can pass, and by a human approval that already exists.</p>
+    <div class="meta">
+      <div><b>Plan:</b> 07162026-funnel-engine-slice-1b-get-found-write &nbsp;&middot;&nbsp; <b>Parent:</b> plans/07142026-alloro-funnel-engine (Slice 1)</div>
+      <div><b>Branch:</b> claude/slice-1b-get-found-write &nbsp;&rarr;&nbsp; <b>base:</b> claude/slice-1a-get-found (PR #158) &nbsp;&middot;&nbsp; <b>stacked</b></div>
+      <div><b>Artifacts:</b> spec.html (this) &middot; test.html &middot; test-results.json <span class="art">&sect;20.5</span></div>
+    </div>
+  </header>
+
+  <section>
+    <h2>Why</h2>
+    <p>Slice 1a can tell a hosted practice page that its structured data is incomplete, but it cannot fix it. 1a is read-only by design: it analyses and emits an advisory, and nothing it finds ever reaches the page. Without a write path the get-found lever produces a report nobody acts on.</p>
+    <p>1b closes that half: it turns an owner-approved schema into a real edit on a real page, and it does so through the rail that already exists — a human approves each recommendation, publish auto-follows on approval, and the change lands as one reversible page version. <strong>No new autonomy is introduced.</strong></p>
+    <p>The lever is <strong>directional</strong>, not bedrock: complete structured data improves crawl <em>eligibility</em>, and Alloro must never let that harden into a placement promise. That is why the honesty gate is not a nice-to-have here — it is the constraint that lets the write path exist at all (Value #6).</p>
+  </section>
+
+  <section>
+    <h2>What — in scope</h2>
+    <div class="reuse">
+      <p><b>Reuse first.</b> 1b adds one handler and one target type. It builds no new rail:</p>
+      <ul>
+        <li><b>Edit-and-publish rail</b> — <code>service.ai-command-execute.ts</code> already executes only <em>approved</em> recommendations, pins a draft per batch, and auto-publishes. 1b registers a new <code>target_type</code> in it; it does not fork it.</li>
+        <li><b>Version-reversibility</b> — rides the same mechanics as the shipping <code>page_section</code> handler. Publishing retires the prior row (with its prior <code>seo_data</code>) as restorable history; <code>restoreVersionQuery</code> already carries <code>seo_data</code> back. <b>No new rollback code.</b></li>
+        <li><b>Honesty gate</b> — consumes the neutral <code>GeneratedCopySafetyService</code> that Slice 1a extracted to <code>src/services/content-safety/</code>. 1b adds the schema-specific <em>selection</em> of what to scan, not a second pattern set.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>The write handler</h3>
+      <ul>
+        <li><strong>New <code>page_seo_schema</code> target type</strong> + execute handler writing <code>seo_data.schema_json</code> via <code>PageModel.updateSeoDataById</code>. It is the only one of the 13 target types that touches <code>seo_data</code>; the rest edit HTML or structure.</li>
+        <li><strong>Strict shape validation</strong> <span class="art">&sect;5.2</span> — <code>schema_json</code> must be a non-empty array in which every member is a non-null, non-array object. The whole codebase reads it as an array of JSON-LD objects and dereferences each entry; a bare object, an empty array, or a scalar/null member fails the recommendation and writes nothing.</li>
+        <li><strong>Honesty gate before the write</strong> — every claim-bearing free-text value is scanned; any rank/placement/visibility/will-rank/outcome claim fails the recommendation and writes nothing.</li>
+        <li><strong>No-clobber merge</strong> — the write merges into whatever <code>seo_data</code> the draft already held.</li>
+        <li><strong>Live verification</strong> — after publish, the approved array is confirmed present in the published page's <code>seo_data.schema_json</code>; anything short of proof-of-presence fails the recommendation rather than reporting success.</li>
+        <li><strong>Batch honesty</strong> <span class="art">&sect;3.2</span> — a batch whose page failed to publish terminates <code>failed</code>, and its recommendations are downgraded <code>executed&rarr;failed</code>, so stats never claim a change is live while it sits on a draft.</li>
+      </ul>
+    </div>
+    <h2 style="margin-top:34px">What — explicitly NOT in 1b</h2>
+    <ul>
+      <li><strong>The producer.</strong> Nothing in the application creates a <code>page_seo_schema</code> row. 1b ships the <b>execute half</b> plus the row <b>contract</b>; <code>queueSeoSchemaRecommendation</code> has no production caller, so the type is inert until a producer lands. This is stated in the module header and recorded as a failing item (T10) rather than faked.</li>
+      <li><strong>The live dogfood.</strong> Running one real hosted page through the rail needs a live page and a human approval — a runtime step, not a code step. Deferred with the producer.</li>
+      <li><strong>Any GBP write.</strong> Slice 1's GBP touch stays read-only.</li>
+      <li><strong>Approval-queue UI.</strong> 1b adds a summary icon for the new type only; no new admin surface, so no <code>alloro-docs</code> parity item is triggered (see Constraints).</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Context</h2>
+    <p><strong>Parent spec:</strong> <code>plans/07142026-alloro-funnel-engine/spec.html</code> &sect;1b. This folder is the execution-level spec for that slice's second PR.</p>
+    <p><strong>Reference analog</strong> <span class="art">&sect;6.1</span> — <code>src/controllers/gbp-automation/</code>. 1b follows the same shape in <code>src/controllers/admin-websites/</code>: domain logic under <code>feature-services/</code>, shared helpers under <code>feature-utils/</code> <span class="art">&sect;6.3</span>.</p>
+    <table>
+      <thead><tr><th>Article</th><th>Where it binds in 1b</th></tr></thead>
+      <tbody>
+        <tr><td><span class="art">&sect;5.2</span> Never trust client input</td><td>The load-bearing Article. <code>target_meta.schema_json</code> is caller-supplied: its array shape, every member's type, <b>and every key name in it</b> are input, not fact. The honesty gate and the shape validator both fail CLOSED on it.</td></tr>
+        <tr><td><span class="art">&sect;7.1</span> The chain is strict</td><td>The handler consumes the neutral <code>services/content-safety/GeneratedCopySafetyService</code>, never <code>controllers/gbp-automation/</code>'s service. A service under one controller domain may not be imported by another.</td></tr>
+        <tr><td><span class="art">&sect;3.2</span> Never swallow errors</td><td>A failed publish fails the batch; an unreadable live page fails the recommendation. No error path resolves to a silent success.</td></tr>
+        <tr><td><span class="art">&sect;2.4</span> File-size tiers</td><td>The schema handler lives in its own file so the structural-handlers module stays under the ceiling.</td></tr>
+        <tr><td><span class="art">&sect;6.2</span> Every file has a home</td><td>Schema-write logic sits in <code>feature-services/</code>; the verify pass in <code>feature-utils/</code>; shared safety in <code>src/services/</code>.</td></tr>
+        <tr><td><span class="art">&sect;20.5</span> Acceptance artifact</td><td>This spec + <code>test.html</code> + <code>test-results.json</code>.</td></tr>
+      </tbody>
+    </table>
+    <p><strong>Existing infrastructure touched:</strong> <code>service.ai-command-execute.ts</code> (dispatch + auto-publish), <code>util.ai-command-verify.ts</code> (post-publish verification), <code>util.ai-command-summary.ts</code> (icon), <code>PageModel.updateSeoDataById</code>, <code>AiCommandRecommendationModel</code>.</p>
+  </section>
+
+  <section>
+    <h2>Constraints</h2>
+    <div class="guard">
+      <p><b>Honesty (Value #6) — the gate excludes on the VALUE, never on the key.</b> A key name is caller-supplied input <span class="art">&sect;5.2</span>, so a gate that trusts one lets any claim ride inside it: <code>{"url": "&lt;claim sentence&gt;"}</code> is claim text, not a URL. A value is skipped only when it is <em>actually</em> structural for the key it sits under — a whole-value URL/<code>mailto:</code>/<code>tel:</code>/<code>urn:</code> under any key, a type token for <code>@type</code>/<code>@context</code>, a fragment or blank-node ref for <code>@id</code>, a phone shape for <code>telephone</code>/<code>faxNumber</code>, an addr-spec for <code>email</code>. <b>Unknown key &rArr; scanned. Known key with a non-structural value &rArr; scanned.</b> Both directions fail closed.</p>
+    </div>
+    <div class="guard">
+      <p><b>The identity carve-out is value-shaped too.</b> A practice genuinely named "Pain-Free Dental Studio" is stating its name, not making a claim, so a medical/outcome-only match does not block it. That softening applies <em>only</em> to a value that is genuinely name-shaped (no first/second-person pronoun, at most six words) — otherwise the same defect returns one level down and <code>name: "We cure gum disease permanently"</code> publishes. Prose wearing a name's key is judged as prose. The rank/placement/visibility/will-rank families are <b>never</b> softened, so <code>name: "Rank #1 Dental Implants"</code> still blocks.</p>
+    </div>
+    <div class="guard">
+      <p><b>A PROMISE is never softened, wherever it sits.</b> The outcome family mixes two different things: DESCRIPTORS a practice may genuinely be named for (<code>pain-free</code>, <code>cure</code>, <code>permanent results</code>) and a GUARANTEE, which is a commitment Alloro cannot back (Value #6). A business cannot name its way into a guarantee, so the carve-out never covers one. This also stops the carve-out becoming the weakest link: when a claim reaches the gate with only the medical/outcome code surviving, softening that code would publish the whole value, so the carve-out must never be the last thing standing between a promise and a live page.</p>
+      <p><b>Residual, bounded and deliberate:</b> a short, pronoun-free, guarantee-free <em>descriptor</em> name still publishes — <code>"Permanent Results Dental"</code> passes, and is textually indistinguishable from <code>"Pain-Free Dental Studio"</code>, which must publish. No textual rule separates them. The principled closure is checking <code>name</code> against the owner's real registered business name via the GBP identity source — already a deferred dependency of the producer — not a cleverer regex.</p>
+    </div>
+    <ul>
+      <li><strong>Owner-approval preserved:</strong> rows are created <code>pending</code> (table default — the builder sets no status); a human approves each before <code>executeBatch</code> runs it; publish auto-follows on approval (existing behavior). No new autonomy.</li>
+      <li><strong>Schema truthfulness:</strong> only claims the practice genuinely holds. The handler re-checks owner-approved input through the gate before writing — approval is not trust.</li>
+      <li><strong>Reversibility without new code:</strong> the write must land on the batch's pinned draft so publish retires the prior version as restorable history. A direct write to the published row would break this.</li>
+      <li><strong>Strictness asymmetry is deliberate:</strong> HTML edits verify loosely (LLM-authored, fuzzily comparable — a false "executed" beats a false "failed"); the schema verifies strictly (exact JSON, presence is decidable — a false "failed" costs one idempotent re-run, a false "executed" would claim structured data is live when it is not).</li>
+      <li><strong>Docs parity:</strong> 1b adds no admin control, label, or page copy — only a summary icon for the new recommendation type on an existing surface. No <code>alloro-docs</code> update is required; the parity item arrives with the approval UI that the deferred producer needs.</li>
+      <li><strong>Public repo:</strong> probe/claim strings live in test files only.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Risk</h2>
+    <ul>
+      <li><strong>A claim reaching a live page is the only unrecoverable-reputation risk here.</strong> Mitigation: the gate scans by default and fails closed on both axes (unknown key, non-structural value); regressions cover every excluded key, not only the ones a reviewer happened to name. <em>Residual:</em> the gate is pattern-based, so a novel phrasing outside the pattern set still passes — the human approval remains the second line, and the patterns are shared with GBP so improvements compound.</li>
+      <li><strong>Over-blocking honest schema</strong> would make the write path useless. Mitigation: whole-value URLs stay structural under any key (a practice's own <code>painfreedental.com</code> link must not trip <code>pain-free</code>), the identity carve-out protects real names, and a full honest <code>LocalBusiness</code> fixture is a standing no-false-positive guard.</li>
+      <li><strong>Inert type read as shipped.</strong> The contract can be mistaken for a live capability. Mitigation: the module header, T10, and this spec all state that no producer exists.</li>
+      <li><strong>Stacked-PR drift.</strong> 1b depends on #158's neutral safety service; #158's head moves. Mitigation: 1b imports the neutral service by its stable path and does not vendor a copy.</li>
+      <li><strong>Malformed schema crashing a consumer.</strong> Mitigation: every member is validated as a JSON-LD object before the write.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Tasks</h2>
+    <ol class="tasks">
+      <li><strong>New <code>page_seo_schema</code> target type + execute handler</strong> — write <code>seo_data.schema_json</code> via <code>PageModel.updateSeoDataById</code> onto the batch's pinned draft; merge, never clobber; own file for <span class="art">&sect;2.4</span>.</li>
+      <li><strong>Strict shape validation</strong> <span class="art">&sect;5.2</span> — non-empty array, every member a non-null non-array object; otherwise fail the recommendation and write nothing.</li>
+      <li><strong>Honesty gate on the VALUE axis</strong> — scan every claim-bearing string by default; skip only values that are actually structural for their key; bound the identity carve-out to name-shaped values. <em>(Rev 1 — round 3)</em></li>
+      <li><strong>Row contract</strong> — <code>buildSeoSchemaRecommendationRow</code> / <code>queueSeoSchemaRecommendation</code> produce a PENDING row carrying the schema array. Contract only; no production caller.</li>
+      <li><strong>Batch-failure honesty</strong> <span class="art">&sect;3.2</span> — never complete a batch after a failed publish; downgrade its recommendations <code>executed&rarr;failed</code>.</li>
+      <li><strong>Post-publish verification</strong> — confirm the approved array is live in the published <code>seo_data.schema_json</code>; fail on absence, on no published row, and on an unreadable read.</li>
+      <li><strong>Acceptance artifacts</strong> <span class="art">&sect;20.5</span> — this spec, <code>test.html</code>, <code>test-results.json</code>.</li>
+      <li><strong>(Rev 4) Exact-head receipt reconciliation</strong> — preserve the PR-specific contract while recording the final focused <strong>119-test</strong> and full <strong>1,291-test</strong> results, TypeScript, lint, dependency, and strict-convention gates at the reviewed head. Keep the deferred producer as a written, waived contract boundary rather than converting it into a pass.</li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>Done</h2>
+    <ul class="done">
+      <li>The <code>page_seo_schema</code> handler writes <code>seo_data.schema_json</code> as an array, merged into existing <code>seo_data</code>, on the batch's pinned draft — version-reversible with no new rollback code.</li>
+      <li><code>schema_json</code> that is not a non-empty array of JSON-LD objects fails the recommendation and writes nothing.</li>
+      <li>The honesty gate blocks a rank/placement/visibility/outcome claim <b>under any key</b> — including every structural key (<code>@context</code>, <code>@id</code>, <code>@type</code>, <code>identifier</code>, <code>url</code>, <code>sameAs</code>, <code>image</code>, <code>logo</code>, <code>telephone</code>, <code>faxNumber</code>, <code>email</code>) and inside an array member — and writes nothing.</li>
+      <li>A full honest <code>LocalBusiness</code> schema still publishes; a real practice name ("Pain-Free Dental Studio") publishes; <code>name: "Rank #1 Dental Implants"</code> and <code>name: "We cure gum disease permanently"</code> both block. All four directions are test-proven.</li>
+      <li>Rows are created <code>pending</code>; a human approves each before execution; no new autonomy.</li>
+      <li>A batch whose page did not publish terminates <code>failed</code> and downgrades its recommendations; a healthy batch still completes.</li>
+      <li>An approved schema that did not reach the live page is failed, not reported as a success.</li>
+      <li><code>npx tsc --noEmit</code>, <code>npx vitest run</code>, and <code>npm run check:conventions -- --strict</code> all exit 0, with 0 clear structural violations.</li>
+      <li><strong>(Rev 4)</strong> The exact-head receipt records 4 focused files / 119 tests and 68 full-suite files / 1,291 tests, all passing, with TypeScript and strict conventions at exit 0; the receipt rolls up canonically to <strong>Passed</strong> only because T10's intentionally narrowed producer contract carries its explicit written waiver.</li>
+      <li class="open"><strong>Deferred with the producer:</strong> a production path that creates a <code>page_seo_schema</code> recommendation (T10), and the live dogfood on one real hosted page — both need runtime pieces outside this PR.</li>
+    </ul>
+  </section>
+
+  <section id="revision-log">
+    <h2>Revision Log</h2>
+    <article class="rev">
+      <h3>Rev 1 &mdash; 2026-07-16</h3>
+      <p><strong>Change:</strong> Initial 1b spec, <b>backfilled at round 3</b> — the folder shipped <code>test.html</code> + <code>test-results.json</code> with no plan source-of-truth. It consolidates the trail already in the branch rather than inventing one: <b>round 1</b> (<code>197318ed</code>, <code>c6a78184</code>) built the write path, then corrected <code>schema_json</code> to an array and stopped claim-scanning identity fields; <b>round 2</b> (<code>ce7cba4f</code>, <code>593a66b4</code>) stopped a batch completing after a failed publish <span class="art">&sect;3.2</span>, required every array member to be a JSON-LD object <span class="art">&sect;5.2</span>, and replaced the honesty gate's allowlist of six descriptive keys with scan-by-default; <code>f7166e37</code> repointed the gate at the neutral <code>GeneratedCopySafetyService</code> <span class="art">&sect;7.1</span>. <b>Round 3</b> (this rev) fixes the defect CLASS the round-2 gate still carried: exclusion keyed on the KEY NAME, which is caller-supplied input. The gate now excludes on the <b>value</b> — skipping only values that are actually structural for their key — and the same fix is applied to the identity carve-out, which softened outcome claims on the key alone and so published <code>name: "We cure gum disease permanently"</code>. That second instance was found by sweeping the class, not named in review.</p>
+      <p><strong>Reason:</strong> Round-3 review of PR #159: (1) the honesty gate skipped structural keys regardless of value, proven live by an adversary — <code>{"url": "&lt;claim&gt;"}</code> and a claim inside <code>sameAs</code> both returned zero violations; (2) missing <code>spec.html</code>, the same class Dave raised on #158 round 2; (3) a stale PR body carrying a formally withdrawn claim; (4) a <code>surface</code>-vocabulary sweep. Plus the AGENTS.md rule that every plan folder carries a self-contained <code>spec.html</code>.</p>
+      <p><strong>Updated Done criteria:</strong> (a) a claim is blocked under EVERY structural key and inside an array member — one regression per key, proven non-vacuous by reverting (15 fail on the old handler); (b) the identity carve-out applies only to name-shaped values — a real practice name still publishes while a claim sentence under <code>name</code>/<code>alternateName</code> blocks; (c) a full honest <code>LocalBusiness</code> schema publishes unblocked (standing no-false-positive guard); (d) this <code>spec.html</code> exists alongside <code>test.html</code> + <code>test-results.json</code> <span class="art">&sect;20.5</span>.</p>
+    </article>
+    <article class="rev">
+      <h3>Rev 2 &mdash; 2026-07-16</h3>
+      <p><strong>Change:</strong> <b>A promise is never softened, wherever it sits.</b> An adversary run against Rev 1's fix showed the name-shape rule alone was too wide: a short, pronoun-free value carrying a <em>guarantee</em> was treated as a name and published. It also showed the carve-out could become the weakest link — when a claim of another family reaches the gate with only the medical/outcome code surviving, softening that code publishes the whole value, so the carve-out must never be the last thing standing between a promise and a live page. Root cause: the outcome family mixes DESCRIPTORS a practice may genuinely be named for with a GUARANTEE, which is never an honest descriptor. The carve-out now excludes any <code>guarantee</code>/<code>guaranteed</code>/<code>guarantees</code>/<code>guaranteeing</code> value. Six regression fixtures added (they live in the test file), proven non-vacuous by reverting only the promise rule (6 fail). The required carve-out is untouched: <code>"Pain-Free Dental Studio"</code> and <code>"Cure Dental Group"</code> still publish.</p>
+      <p><strong>Reason:</strong> Adversarial refutation of Rev 1 before standing behind it — the reviewer's own method, after two rounds were closed on named examples rather than the class.</p>
+      <p><strong>Updated Done criteria:</strong> (a) a guarantee under an identity key blocks, including when it is the only surviving reason code after a rank claim is hyphenated past the rank patterns; (b) a short, pronoun-free, guarantee-free descriptor name still publishes — recorded as a bounded residual whose principled closure is the deferred GBP identity source, not a wider regex.</p>
+    </article>
+    <article class="rev">
+      <h3>Rev 3 &mdash; 2026-07-16 &mdash; UPSTREAM FINDINGS ROUTED (no code change here)</h3>
+      <p><strong>Change:</strong> None to 1b. The same adversary run surfaced coverage gaps in the <em>shared</em> safety service (<code>src/services/content-safety/GeneratedCopySafetyService.ts</code>), which belongs to Slice 1a / PR&nbsp;#158 — this PR's base — not to 1b. They fall into four groups: pattern-coverage gaps in the rank/placement family, negation-scope handling, input normalization, and over-blocking of honest disclaimers. <b>Details are deliberately not written down here.</b> This repo is public and those gaps are unpatched at the time of writing, so the specifics were routed to the reviewer out-of-band for #158 to close rather than published as a recipe. Nothing about them is fixed, or claimed to be fixed, in 1b.</p>
+      <p><strong>Reason:</strong> Ownership, not difficulty — #158's head is moving and another agent is actively working that file; editing it from this branch would collide, and this PR was told not to merge #158 in. Recorded because 1b's honesty gate is only ever as strong as the shared service it calls, so a reviewer of 1b needs to know the dependency exists.</p>
+      <p><strong>Updated Done criteria:</strong> none for 1b. These are #158's to close; 1b's honesty Done criteria are contingent on them.</p>
+    </article>
+    <article class="rev">
+      <h3>Rev 4 &mdash; 2026-07-17</h3>
+      <p><strong>Change:</strong> Reconciled only this PR-specific spec and acceptance receipt at the exact reviewed #159 head; no application or shared parent-plan file changed. The receipt now carries the final stack-aware proof: focused 4 files / <strong>119 tests</strong>, full 68 files / <strong>1,291 tests</strong>, TypeScript exit 0, strict conventions exit 0 with 0 clear structural violations, ESLint exit 0 with 0 errors, dependency-cruiser exit 0 with 0 errors, and changed-file lint/diff checks at exit 0. The modifier hard-gate regression was proven against the prior #158 behavior before passing on the final dependency state.</p>
+      <p><strong>Reason:</strong> Review remediation: the implementation was merge-ready, but this PR's own artifact still described earlier 57/563 runs and did not state the exact final stacked-branch proof. Acceptance evidence must identify the code state it actually validates <span class="art">&sect;20.5</span>.</p>
+      <p><strong>Updated Done criteria:</strong> final exact-head 119/1,291 evidence is present in <code>test-results.json</code>; T10 remains an explicit failed item with its written contract-narrowing waiver; the canonical rollup is <strong>Passed</strong> because every other item passes and the only failed item is waived. The deferred producer, live dogfood, and GBP identity snapshot remain outside this PR and are not represented as completed.</p>
+    </article>
+  </section>
+
+</div>
+</body>
+</html>

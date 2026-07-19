@@ -57,6 +57,19 @@ function assertGoogleLocalPostName(value: string): void {
   }
 }
 
+function assertGoogleBusinessInfoName(value: string): void {
+  // Business Information API v1 addresses the location as `locations/{locationId}`
+  // (see getLocationProfileForRanking) — NOT the v4 accounts/*/locations/* form.
+  // Restrict the id to path-safe characters (no /, ?, #, or whitespace).
+  if (!/^locations\/[A-Za-z0-9_-]+$/.test(value)) {
+    throw new GbpAutomationError(
+      "GBP_GOOGLE_BAD_REQUEST",
+      "Google rejected this request. Review the content and try again.",
+      { operation: "validate_business_info_resource", transient: false }
+    );
+  }
+}
+
 function assertLocalPostSummary(summary: string): void {
   if (summary.length > 1500) {
     throw new GbpAutomationError(
@@ -205,6 +218,44 @@ export async function updateGbpLocalPost(
     return data || {};
   } catch (error) {
     throw classifyGoogleApiError(error, "update_local_post");
+  }
+}
+
+/**
+ * A6 — patch a location's Business Profile info (categories, hours, phone, website,
+ * name, description) via the Business Information API v1. The mirror of the
+ * getLocationProfileForRanking read: same host + resource, PATCH with an updateMask.
+ * The caller is responsible for the owner-approval gate; this fn only issues the write.
+ */
+export async function patchGbpBusinessInformation(
+  auth: unknown,
+  locationName: string,
+  patch: Record<string, unknown>,
+  updateMask: string[]
+): Promise<Record<string, unknown>> {
+  assertGoogleBusinessInfoName(locationName);
+  if (updateMask.length === 0) {
+    throw new GbpAutomationError(
+      "GBP_GOOGLE_BAD_REQUEST",
+      "Google rejected this request. Review the content and try again.",
+      { operation: "validate_business_info_update_mask", transient: false }
+    );
+  }
+
+  const headers = await buildAuthHeaders(auth);
+  try {
+    const { data } = await axios.patch(
+      `https://mybusinessbusinessinformation.googleapis.com/v1/${locationName}`,
+      patch,
+      {
+        params: { updateMask: updateMask.join(",") },
+        headers,
+      }
+    );
+
+    return data || {};
+  } catch (error) {
+    throw classifyGoogleApiError(error, "patch_business_information");
   }
 }
 

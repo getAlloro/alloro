@@ -71,6 +71,11 @@ router.post(
   integrationsController.createRybbitIntegration,
 );
 router.post(
+  "/:id/integrations/rybbit/preview",
+  ...adminGscAuth,
+  integrationsController.provisionRybbitPreview,
+);
+router.post(
   "/:id/integrations/rybbit/legacy-snippets/disable",
   ...adminGscAuth,
   integrationsController.disableRybbitLegacySnippets,

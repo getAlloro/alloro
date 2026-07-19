@@ -1,4 +1,5 @@
 import { Job } from "bullmq";
+import { GbpBusinessInfoDeploymentService } from "../../controllers/gbp-automation/feature-services/GbpBusinessInfoDeploymentService";
 import { GbpLocalPostDeploymentService } from "../../controllers/gbp-automation/feature-services/GbpLocalPostDeploymentService";
 import { GbpLocalPostDraftService } from "../../controllers/gbp-automation/feature-services/GbpLocalPostDraftService";
 import { GbpLocalPostScheduleService } from "../../controllers/gbp-automation/feature-services/GbpLocalPostScheduleService";
@@ -33,6 +34,21 @@ export async function processGbpAutomationJob(
     await GbpLocalPostDeploymentService.deployNow(job.data.workItemId, job.data.userId || null, {
       isFinalAttempt: job.attemptsMade + 1 >= maxAttempts,
     });
+    return;
+  }
+
+  if (job.name === "deploy-business-info") {
+    if (!job.data.workItemId) throw new Error("Missing workItemId for GBP business-info deploy.");
+    await GbpBusinessInfoDeploymentService.deployNow(job.data.workItemId, job.data.userId || null, {
+      isFinalAttempt: job.attemptsMade + 1 >= maxAttempts,
+      isRetryAttempt: job.attemptsMade > 0,
+    });
+    return;
+  }
+
+  if (job.name === "revert-business-info") {
+    if (!job.data.workItemId) throw new Error("Missing workItemId for GBP business-info revert.");
+    await GbpBusinessInfoDeploymentService.revertNow(job.data.workItemId, job.data.userId || null);
     return;
   }
 
