@@ -2,6 +2,26 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.170] - July 2026
+
+### First deterministic PR check — spec-status vs PR-state parity
+
+A model-free CI check now runs on every pull request into `dev/dave`: it fails when a plan's `spec.html` declares the work finished (a `Completed`/`Deployed`/`Done` status pill) while the PR carrying it has not merged — the exact contradiction a human caught by eye on PRs #185/#186. It is deterministic (a plain script and a non-zero exit, no model) and diff-based: it fires only when the PR's own diff *adds* a done-word pill to a `spec.html`, so a PR that merely brushes a finished plan folder, sets a non-done status, or appends a Rev entry to an already-`Completed` spec does not fire. Built on `plans/07192026-handoff-enforcement-system` (the T3 verification-gate slice). Proven on real PRs — #180 (sets a spec to `Completed` while open) fails; #179, #186, and a throwaway fixture #190 pass — with the workflow running green on PR #189. Carried by open PR #189; it runs **advisory** (`continue-on-error`) to bank a few clean real-PR runs before promotion to a required check, and it is not yet merged to `dev/dave`.
+
+**Key Changes:**
+- **Deterministic parity gate.** `scripts/check-spec-parity.sh` reads a PR's diff and state from `gh`; if the diff adds a done-word status pill to any `spec.html` and the PR is not merged, it exits 1. No LLM, nothing read from the checkout.
+- **Diff-based, false-positive-free.** Keys on the pill the PR *sets* (an added line), not the spec's current on-disk state, so brushes, non-done statuses, and non-status edits of a `Completed` spec all pass. Scans every `spec.html` in the diff, so a PR finishing two plans is covered.
+- **Minimal read-only workflow.** `.github/workflows/pr-spec-checks.yml` runs on `pull_request` to `dev/dave` with a `contents: read` + `pull-requests: read` token, `pull_request` (not `pull_request_target`) so fork PRs carry no secrets, and `persist-credentials: false` — the trust boundary lifted from PR #174.
+- **Second check, guarded.** The workflow also runs `scripts/pr-log.sh --check` (PR-LOG freshness), a loud no-op until that script lands on `dev/dave` via PR #181, after which it arms itself.
+- **Advisory ratchet-in.** The parity step is `continue-on-error` for now; promotion to a required check follows once it has run clean on a few real PRs.
+- **Acceptance recorded.** `plans/07192026-handoff-enforcement-system` carries Rev 3, `test.html`, and `test-results.json` (rolls up to Passed) with the real-PR and CI evidence.
+- **Docs parity.** Internal CI tooling with no dashboard or customer-facing surface, so no Alloro Docs update was required.
+
+**Commits:**
+- `scripts/check-spec-parity.sh` — the deterministic diff-based parity gate.
+- `.github/workflows/pr-spec-checks.yml` — minimal read-only PR workflow (parity check + guarded PR-LOG freshness check).
+- `plans/07192026-handoff-enforcement-system/` — spec Rev 3, `test.html`, and `test-results.json` recording the acceptance evidence.
+
 ## [0.0.169] - July 2026
 
 ### Project Board comments add images and targeted alerts
