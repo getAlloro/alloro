@@ -14,13 +14,20 @@
 #     the first `plans/<folder>/` path a PR touches names its plan).
 # If the pill claims "done" (Completed / Deployed) and the PR is not MERGED -> exit 1.
 #
+# It fires ONLY when the PR actually modifies that plan's spec.html -- the PR is then asserting
+# the status. A PR that merely brushes the plan folder (a test-results.json update, a docs tweak,
+# a sibling Rev) is not claiming the "Completed" and is left alone (the day-one false positive
+# reproduced on PR #179). Residual, left as a known limit: a PR that edits an already-"Completed"
+# spec for a non-status reason still fires -- see the note at the bottom of this file.
+#
 # USAGE
 #   scripts/check-spec-parity.sh 186          # explicit PR number
 #   PR_NUMBER=186 scripts/check-spec-parity.sh
 #   In CI: PR_NUMBER=${{ github.event.pull_request.number }} scripts/check-spec-parity.sh
 #
 # EXIT CODES
-#   0  consistent, or nothing to check (PR touches no plan, or the spec isn't in the checkout)
+#   0  consistent, or nothing to check (PR touches no plan, does not modify the spec, or the
+#      spec isn't in the checkout)
 #   1  contradiction — a "done" spec on an unlanded PR (the #185/#186 class)
 #   2  usage / infrastructure error (no PR number, gh missing, gh call failed)
 #
@@ -33,13 +40,13 @@ PR="${1:-${PR_NUMBER:-}}"
 
 command -v gh >/dev/null 2>&1 || { echo "check-spec-parity: gh not found — install it or run 'gh auth login'" >&2; exit 2; }
 
-# One read of GitHub gives both the PR's real state and its file list.
+# The PR's real state, and its file list (fetched once, reused for the mapping and the touch check).
 state="$(gh pr view "$PR" --json state --jq '.state' 2>/dev/null)" \
   || { echo "check-spec-parity: gh pr view $PR failed (auth? PR exists?)" >&2; exit 2; }
+files="$(gh pr view "$PR" --json files --jq '.files[].path' 2>/dev/null)"
 
 # plan_of(): the first plans/<folder>/ path in the PR's file list names its plan folder.
-plan="$(gh pr view "$PR" --json files \
-        --jq '[.files[].path | capture("^(?<p>plans/[^/]+)/").p][0] // ""' 2>/dev/null)"
+plan="$(printf '%s\n' "$files" | sed -nE 's#^(plans/[^/]+)/.*#\1#p' | head -1)"
 
 if [ -z "$plan" ]; then
   echo "check-spec-parity: PR #$PR touches no plans/ folder — nothing to check."
@@ -47,6 +54,16 @@ if [ -z "$plan" ]; then
 fi
 
 spec="$plan/spec.html"
+
+# The PR must actually MODIFY this spec to be asserting its status. A PR that merely brushes the
+# plan folder — a test-results.json update, a docs-parity tweak, a sibling Rev — is not claiming
+# the spec's "Completed"; that status came from prior landed work. Gating those was the day-one
+# false positive (reproduced on PR #179). Only check specs this PR itself touches.
+if ! printf '%s\n' "$files" | grep -Fxq "$spec"; then
+  echo "check-spec-parity: PR #$PR does not modify $spec — not asserting its status. Nothing to check."
+  exit 0
+fi
+
 if [ ! -f "$spec" ]; then
   echo "check-spec-parity: PR #$PR names $plan but $spec is not in this checkout — skipping."
   exit 0
@@ -76,3 +93,11 @@ esac
 
 echo "check-spec-parity: OK — $spec status \"$pill\" is consistent with PR #$PR state $state."
 exit 0
+
+# KNOWN LIMITS (deterministic, no LLM; documented rather than silently expanded)
+#   1. A PR that edits an already-"Completed" spec for a non-status reason (e.g. appends a Rev
+#      entry) still fires, because this gate keys on the pill's current value, not on whether the
+#      PR's diff changed it. The precise fix is to fire only when the PR's diff to spec.html sets
+#      the pill to a done-word; deferred because no current open PR exercises that path to prove it.
+#   2. Only the FIRST plans/<folder> a PR touches is checked. A PR that finishes two plans at once
+#      is under-covered. Rare; left until a real case appears.
