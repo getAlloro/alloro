@@ -1,91 +1,132 @@
-import { Response } from "express";
-import { RBACRequest } from "../../middleware/rbac";
-import { buildProofReceipt } from "../../services/proofReceiptService";
-import logger from "../../lib/logger";
-
 /**
  * GET /api/proof-receipt
  *
- * The owner-facing "here's what Alloro did for you" receipt (Tier 1) for the
- * calendar month (1st-of-month UTC → now). Thin HTTP wrapper around
- * `buildProofReceipt`. Mirrors DashboardController.getMetrics — org + optional
- * location scope; auth is the standard middleware applied at the route.
+ * The owner-facing "here is what Alloro did for you" receipt (Tier 1) for the
+ * calendar month (1st-of-month UTC -> now). Thin HTTP wrapper (§7.3): it reads
+ * server context, delegates to ProofReceiptService, and shapes the response.
+ * No business logic, no database access.
  *
- * Query params:
- *   - organization_id (required, int) — must match the caller's own org; a
- *     mismatch is rejected 403 (the read is always scoped to the verified
- *     tenant, never to an org id the caller merely names).
- *   - location_id (optional, int) — scope to one office; omit for the whole
- *     org (each item is location-tagged either way, so a multi-location
- *     practice's feed is never blended without attribution).
+ * TENANT SCOPE (§5.5, §11.7). The organization is taken from
+ * `req.organizationId`, which rbacMiddleware resolves from the caller's own
+ * memberships. There is no request field with which a caller can name a
+ * different organization, and the route schema rejects unknown keys, so an
+ * `organization_id` parameter is a 400 rather than something to be ignored.
+ * `accessibleLocationIds` travels all the way into the model query as a
+ * required argument, so the whole-org path is bounded by the caller's grants
+ * rather than by the organization alone.
  *
- * Response: { success: true, data: ProofReceipt }
+ * Query params (validated at the route by proofReceiptQuerySchema):
+ *   - locationId (optional, int) — narrow to one office. Camel case, because
+ *     that is the spelling the shared location-scope middleware reads. Omit
+ *     for every accessible location; each item is location-tagged either way,
+ *     so a multi-location practice's feed is never blended without attribution.
+ *   - page, limit (optional, int) — §11.6 pagination.
+ *
+ * (See plans/07202026-pr-merge-remediation/pr-177-proof-receipt.spec.html)
  */
-export async function getProofReceipt(req: RBACRequest, res: Response) {
+
+import { Request, Response } from "express";
+import { LocationScopedRequest } from "../../middleware/rbac";
+import { ProofReceiptService } from "./feature-services/ProofReceiptService";
+import { ProofReceiptError } from "./feature-utils/ProofReceiptError";
+import {
+  handleProofReceiptError,
+  ok,
+} from "./feature-utils/controllerResponses";
+import { parseProofReceiptPagination } from "./feature-utils/proofReceiptPagination";
+
+const PROOF_RECEIPT_ROUTE = "GET /api/proof-receipt";
+
+interface ProofReceiptContext {
+  organizationId: number;
+  accessibleLocationIds: number[];
+  locationId?: number;
+}
+
+/**
+ * §5.5 — tenant derived from server context only.
+ *
+ * The location check here is deliberate defence in depth. The shared
+ * location-scope middleware already rejects a location the caller cannot see,
+ * but that middleware is shared and its parameter handling has changed over
+ * time; re-checking against `accessibleLocationIds` in the domain means this
+ * endpoint fails closed on its own terms rather than depending on the exact
+ * behavior of a middleware it does not own.
+ */
+function getProofReceiptContext(req: Request): ProofReceiptContext {
+  const scoped = req as LocationScopedRequest;
+  const { organizationId, locationId, accessibleLocationIds } = scoped;
+
+  if (!organizationId) {
+    throw new ProofReceiptError(
+      "PROOF_RECEIPT_CONTEXT_MISSING",
+      "Organization context is required."
+    );
+  }
+  if (!accessibleLocationIds) {
+    throw new ProofReceiptError(
+      "PROOF_RECEIPT_LOCATION_SCOPE_UNAVAILABLE",
+      "Location access could not be verified."
+    );
+  }
+  if (
+    typeof locationId === "number" &&
+    !accessibleLocationIds.includes(locationId)
+  ) {
+    throw new ProofReceiptError(
+      "PROOF_RECEIPT_LOCATION_ACCESS_DENIED",
+      "No access to this location."
+    );
+  }
+
+  return {
+    organizationId,
+    accessibleLocationIds,
+    locationId: typeof locationId === "number" ? locationId : undefined,
+  };
+}
+
+/** Calendar month: 1st-of-month UTC through now. */
+function getCurrentMonthRange(now = new Date()): { since: Date; until: Date } {
+  return {
+    since: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)),
+    until: now,
+  };
+}
+
+export async function getProofReceipt(
+  req: Request,
+  res: Response
+): Promise<Response> {
+  const scoped = req as LocationScopedRequest;
   try {
-    // The caller's VERIFIED org, resolved from the JWT by rbacMiddleware — the
-    // only trustworthy tenant key. Never read tenant identity from the query
-    // (that would let any authenticated user read another org's receipt).
-    // Mirrors SettingsController's `req.organizationId!` scoping.
-    const callerOrganizationId = req.organizationId;
-    if (!callerOrganizationId) {
-      return res.status(403).json({
-        success: false,
-        error: "No organization access for this user",
-      });
-    }
+    const context = getProofReceiptContext(req);
+    const { since, until } = getCurrentMonthRange();
 
-    const organizationId = parseInt(String(req.query.organization_id), 10);
-
-    if (!organizationId || isNaN(organizationId)) {
-      return res.status(400).json({
-        success: false,
-        error: "Missing or invalid organization_id parameter",
-      });
-    }
-
-    // Defense in depth: a caller may only pull its own org's receipt.
-    if (organizationId !== callerOrganizationId) {
-      return res.status(403).json({
-        success: false,
-        error: "No access to this organization",
-      });
-    }
-
-    // Optional single-office scope for multi-location practices. Omitted = the
-    // whole org (each item carries its location_id regardless).
-    const locationIdRaw = req.query.location_id;
-    const locationId =
-      locationIdRaw != null && String(locationIdRaw).trim() !== ""
-        ? parseInt(String(locationIdRaw), 10)
-        : undefined;
-    if (locationId !== undefined && isNaN(locationId)) {
-      return res.status(400).json({
-        success: false,
-        error: "Invalid location_id parameter",
-      });
-    }
-
-    // Calendar-month range: 1st-of-month (UTC) through now.
-    const now = new Date();
-    const since = new Date(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)
+    // Express 5: req.query is a read-only getter, so validate()'s write-back of
+    // coerced values is a no-op. Parse the raw strings here.
+    const { page, limit } = parseProofReceiptPagination(
+      req.query.page,
+      req.query.limit
     );
 
-    const receipt = await buildProofReceipt(
-      callerOrganizationId,
+    const receipt = await ProofReceiptService.getReceipt({
+      organizationId: context.organizationId,
+      accessibleLocationIds: context.accessibleLocationIds,
+      locationId: context.locationId,
       since,
-      now,
-      locationId
-    );
+      until,
+      page,
+      limit,
+    });
 
-    return res.json({ success: true, data: receipt });
+    return ok(res, receipt);
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    logger.error({ err: message }, "Error in /proof-receipt:");
-    return res.status(500).json({
-      success: false,
-      error: `Failed to build proof receipt: ${message}`,
+    return handleProofReceiptError(res, error, {
+      route: PROOF_RECEIPT_ROUTE,
+      userId: scoped.userId ?? null,
+      organizationId: scoped.organizationId ?? null,
+      locationId: scoped.locationId ?? null,
     });
   }
 }
