@@ -19,6 +19,13 @@ the visual is `the-map.html`. This supersedes the "order we go in" feature list 
 ## How to use it — the discipline
 - **One gate at a time, one item at a time.** Move on only when the item is done — the same
   checklist, in the same order, every time.
+- **Declare your square before you work; never fill a blocked square with adjacent work.** State
+  which item above you're on before touching anything — if you can't name one, that's drift
+  starting. If the current square is **blocked** (waiting on a merge, real data, or another
+  person), the move is to **attack the blocker**, not to build something else. Building ahead of
+  landing is the leak; "blocked" is not permission to pivot. Line-holder's check, in plain words:
+  *is the goal built or un-built? is this landing what's built, or building ahead? is this the
+  goal, or filling blocked time?*
 - **Three phases, in order:** 1) **Identify** every item (this list) → 2) **Perfect** each
   (its best version + how you check it) → 3) **Test** and iterate. Never perfect or test
   before the list is complete.
