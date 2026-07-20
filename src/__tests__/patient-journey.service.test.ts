@@ -127,8 +127,8 @@ const FULL_PMS: PmsRead = {
 };
 const FULL_RANK: RankRead = {
   position: 2,
-  totalCompetitors: 9,
   available: true,
+  notInTop20: false,
 };
 const FULL_REVIEWS: ReviewsRead = {
   rating: 4.8,
@@ -194,8 +194,8 @@ describe("assemblePatientJourney — contract shape", () => {
     expect(result.stages.find((s) => s.key === "patients")).toBeUndefined();
     expect(result.context.rank).toEqual({
       position: 2,
-      totalCompetitors: 9,
       available: true,
+      notInTop20: false,
     });
     expect(result.context.reviews).toMatchObject({
       rating: 4.8,

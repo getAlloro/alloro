@@ -132,8 +132,8 @@ export interface PatientJourneyRevenue {
 
 export interface PatientJourneyRankContext {
   position: number | null;
-  totalCompetitors: number | null;
   available: boolean;
+  notInTop20: boolean;
 }
 
 export interface MemorableCard {

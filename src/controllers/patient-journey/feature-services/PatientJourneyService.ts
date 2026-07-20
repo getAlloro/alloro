@@ -311,8 +311,8 @@ export async function assemblePatientJourney(
     context: {
       rank: {
         position: rank.position,
-        totalCompetitors: rank.totalCompetitors,
         available: rank.available,
+        notInTop20: rank.notInTop20,
       },
       reviews: {
         rating: reviews.rating,

@@ -582,32 +582,46 @@ export async function readPms(organizationId: number, locationId: number): Promi
 
 export interface RankRead {
   position: number | null;
-  totalCompetitors: number | null;
   available: boolean;
+  /** Ran a completed ranking but placed outside the local Maps top-20 (null
+   *  search_position). NOT "never ran": the card must not say "run a ranking". */
+  notInTop20: boolean;
 }
 
-/** Latest completed local-rank position + competitor count for the location. */
+/**
+ * Latest completed local-rank position for the location.
+ *
+ * No competitor denominator is carried: `total_competitors` is the
+ * Practice-Health CURATED set and does not share a universe with the SerpApi
+ * Maps `search_position` below, so the two must never pair into "#N of M".
+ */
 export async function readRank(organizationId: number, locationId: number): Promise<RankRead> {
   try {
     const row = await PracticeRankingModel.findLatestCompletedRankingMetrics(
       organizationId,
       locationId
     );
-    if (!row) return { position: null, totalCompetitors: null, available: false };
+    if (!row) return { position: null, available: false, notInTop20: false };
     // Read the real SerpApi Maps position (`search_position`), NOT the
     // Practice-Health `rank_position` (which defaults to a fabricated #1 when
     // the practice isn't matched among competitors). Null = SerpApi miss →
     // stay unavailable ("estimate pending"), never a fabricated number.
     const position = row.search_position ?? null;
-    const totalCompetitors = row.total_competitors ?? null;
+    // notInTop20 is TRUE only when SerpApi CONFIRMS the practice ranked below the
+    // local Maps top-20 (search_status "not_in_top_20"). A null position from a
+    // lookup failure (api_error / bias_unavailable) means "couldn't measure", NOT
+    // "outside top 20", so it falls through to available:false / "Rank not
+    // available yet" (matching the rest of the app + Fix-1's intent), never a
+    // fabricated negative claim. Requires search_status in the model select above.
+    const notInTop20 = row.search_status === "not_in_top_20";
     return {
       position,
-      totalCompetitors,
       available: position !== null,
+      notInTop20,
     };
   } catch (err) {
     logger.warn({ err, organizationId, locationId }, "[patient-journey] rank read failed");
-    return { position: null, totalCompetitors: null, available: false };
+    return { position: null, available: false, notInTop20: false };
   }
 }
 
