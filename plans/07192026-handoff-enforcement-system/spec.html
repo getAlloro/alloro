@@ -153,7 +153,7 @@
         <li><input type="checkbox" checked disabled> <strong>(Rev 3)</strong> Spec-status↔PR-state parity gate (T3 slice) shipped as PR #189 — diff-based, proven on real PRs (#180 fire · #179/#186/#190 pass) + CI green on #189; advisory pending promotion.</li>
         <li><input type="checkbox" checked disabled> <strong>(Rev 4)</strong> Gate remediated to artifact self-consistency (owner decision D1, Option A): reads both status surfaces from the file, fails closed (exit 3 unparseable / exit 2 infrastructure), drops <code>gh</code> and the <code>pull-requests: read</code> scope, and the armed <code>pr-log.sh</code> step is deleted (<code>grep -c pr-log</code> → 0).</li>
         <li><input type="checkbox" checked disabled> <strong>(Rev 4)</strong> The gate is <em>proven to block</em>: exit 1 on a §20.5 breach and on a pill/card disagreement, exit 3 on an unparseable touched spec, exit 0 on a brush — all against real repository diffs, recorded verbatim in <code>test-results.json</code> (T2–T5). 22-case offline fixture suite passes.</li>
-        <li><input type="checkbox" disabled> <strong>(Rev 4)</strong> Real CI run green after the rewrite (<code>test-results.json</code> item T10) — pending the push.</li>
+        <li><input type="checkbox" checked disabled> <strong>(Rev 4)</strong> Real CI run green after the rewrite — Actions run <code>29769554597</code> on head <code>735169c27</code>, conclusion <code>success</code>, with the parity step logging a real verdict on a touched spec rather than the previous "nothing to assert" no-op line (<code>test-results.json</code> item T10).</li>
       </ul>
     </section>
 

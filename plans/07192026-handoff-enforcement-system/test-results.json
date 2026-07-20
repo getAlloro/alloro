@@ -1,7 +1,7 @@
 {
   "plan": "plans/07192026-handoff-enforcement-system",
   "generatedAt": "2026-07-21",
-  "status": "In Progress",
+  "status": "Passed",
   "note": "Layer-2 acceptance for the spec self-consistency gate — the T3 slice shipped as PR #189. The behavioral surface is the CI check itself, so each item is a deterministic script run. Rev 4 (2026-07-21) replaced the PR-state coupling with artifact self-consistency (owner decision D1, Option A), which retired items T1-T4 and T6: they asserted a rule the gate no longer carries. The new items exercise the paths that actually block. Every item below is reproducible offline from a clean checkout — no gh, no network, no live PR.",
   "items": [
     {
@@ -9,7 +9,9 @@
       "title": "Fixture suite passes — 22 named cases covering every ledger defect and both must-not-fire classes",
       "surface": "cli",
       "precondition": "Clean checkout of claude/ci-spec-parity-gate; python3 available. No repo state or network needed.",
-      "steps": ["1. bash scripts/check-spec-parity.sh --self-test"],
+      "steps": [
+        "1. bash scripts/check-spec-parity.sh --self-test"
+      ],
       "expected": "exit 0; every case prints PASS; the summary reads '22 passed, 0 failed, 22 cases'",
       "status": "pass",
       "evidence": "22 passed, 0 failed, 22 cases; exit 0. Cases include pill-completed-card-pending, card-only-completed, trailing-text-completed-17-of-17, single-quoted-class, class-reordered, pill-wrapped-across-lines, diff-header-collision, nested-dot-span-template-b, template-b-meta-pills-not-mistaken-for-status, and the two false-positive classes reindent-only-completed-pill and class-swap-pending-to-completed-text-unchanged (both exit 0).",
@@ -36,7 +38,10 @@
       "title": "Gate BLOCKS — pill and status card disagree",
       "surface": "cli",
       "precondition": "Head commit flips the hero pill to 'Blocked' and leaves the status card reading 'In Progress'.",
-      "steps": ["1. Commit the one-surface edit on a throwaway branch", "2. bash scripts/check-spec-parity.sh --base <base-sha> --head HEAD"],
+      "steps": [
+        "1. Commit the one-surface edit on a throwaway branch",
+        "2. bash scripts/check-spec-parity.sh --base <base-sha> --head HEAD"
+      ],
       "expected": "exit 1, naming the file and BOTH extracted values (§3.3)",
       "status": "pass",
       "evidence": "Observed exit 1. Output: \"FINDING plans/07192026-handoff-enforcement-system/spec.html — hero pill says 'blocked' but the status card says 'in progress' — AGENTS.md requires both to be updated together.\" This is finding 5: the previous script read only the pill and passed this diff clean.",
@@ -48,7 +53,10 @@
       "title": "Gate FAILS CLOSED — a touched spec with no extractable status exits 3, not 0",
       "surface": "cli",
       "precondition": "Head commit removes the status pill and the status card from a touched spec.html.",
-      "steps": ["1. Strip both status surfaces on a throwaway branch and commit", "2. bash scripts/check-spec-parity.sh --base <base-sha> --head HEAD"],
+      "steps": [
+        "1. Strip both status surfaces on a throwaway branch and commit",
+        "2. bash scripts/check-spec-parity.sh --base <base-sha> --head HEAD"
+      ],
       "expected": "exit 3; names the file and the surfaces searched; never prints 'nothing to assert'",
       "status": "pass",
       "evidence": "Observed exit 3. Output: \"FAIL-CLOSED plans/07192026-handoff-enforcement-system/spec.html — no status found. Searched: <span class=\\\"status-pill\\\">, <span class=\\\"pill\\\">, and the status-card <dd>.\" This is finding 8: the previous script returned exit 0 with a reassuring message on any parse failure.",
@@ -60,7 +68,10 @@
       "title": "Gate does NOT fire on a brush — spec edited, status untouched",
       "surface": "cli",
       "precondition": "Head commit edits a spec.html body without changing either status surface.",
-      "steps": ["1. Append an unrelated comment to the spec on a throwaway branch and commit", "2. bash scripts/check-spec-parity.sh --base <base-sha> --head HEAD"],
+      "steps": [
+        "1. Append an unrelated comment to the spec on a throwaway branch and commit",
+        "2. bash scripts/check-spec-parity.sh --base <base-sha> --head HEAD"
+      ],
       "expected": "exit 0 — '1 spec.html checked, all self-consistent'",
       "status": "pass",
       "evidence": "Observed exit 0: \"check-spec-parity: 1 spec.html checked, all self-consistent.\" Covers the false-positive class of finding 7 on a real diff rather than a fixture.",
@@ -89,7 +100,9 @@
       "title": "Corpus sweep — every spec.html in the repo is self-consistent",
       "surface": "cli",
       "precondition": "Full checkout.",
-      "steps": ["1. bash scripts/check-spec-parity.sh --scan-corpus"],
+      "steps": [
+        "1. bash scripts/check-spec-parity.sh --scan-corpus"
+      ],
       "expected": "exit 0; zero findings; off-vocabulary statuses reported as advisory warnings only",
       "status": "pass",
       "evidence": "123 spec.html checked, exit 0, zero pill/card disagreements, zero fail-closed files. Nine advisory warnings across five specs: 'implemented' x2 specs, 'superseded', 'deployed to dev', 'completed locally'. The spec's predicted '4 files where pill and card disagree' is not reproducible — with head-token normalization the corpus has none.",
@@ -101,7 +114,9 @@
       "title": "The gate passes on its own originating spec",
       "surface": "cli",
       "precondition": "This plan folder as shipped by PR #189.",
-      "steps": ["1. bash scripts/check-spec-parity.sh --files plans/07192026-handoff-enforcement-system/spec.html"],
+      "steps": [
+        "1. bash scripts/check-spec-parity.sh --files plans/07192026-handoff-enforcement-system/spec.html"
+      ],
       "expected": "exit 0",
       "status": "pass",
       "evidence": "exit 0 — '1 spec.html checked, all self-consistent.' Pill and status card both read 'In Progress'.",
@@ -113,7 +128,9 @@
       "title": "The armed PR-LOG step is gone from this workflow",
       "surface": "cli",
       "precondition": "Remediated .github/workflows/pr-spec-checks.yml.",
-      "steps": ["1. grep -c 'pr-log' .github/workflows/pr-spec-checks.yml"],
+      "steps": [
+        "1. grep -c 'pr-log' .github/workflows/pr-spec-checks.yml"
+      ],
       "expected": "0",
       "status": "pass",
       "evidence": "grep -c returned 0. The step that would have become a hard blocking gate on every PR the moment scripts/pr-log.sh landed from PR #181 no longer exists in this workflow.",
@@ -125,11 +142,14 @@
       "title": "Workflow runs on real CI after the rewrite",
       "surface": "ci",
       "precondition": "Remediated workflow pushed to claude/ci-spec-parity-gate; pull_request -> dev/dave.",
-      "steps": ["1. Push the branch", "2. Read the 'PR Spec Checks' run on PR #189"],
+      "steps": [
+        "1. Push the branch",
+        "2. Read the 'PR Spec Checks' run on PR #189"
+      ],
       "expected": "run conclusion success; the checkout fetches base and head; the parity step logs a real verdict rather than a nothing-to-assert line",
-      "status": "pending",
-      "evidence": "",
-      "notes": "Cannot be filled until the branch is pushed and the run completes. Left pending deliberately rather than marked pass — the previous artifact's equivalent item recorded a no-op path as evidence of coverage, which is the vacuous-green class this remediation exists to remove.",
+      "status": "pass",
+      "evidence": "GitHub Actions run 29769554597 on head 735169c27, event pull_request, conclusion success. The 'Fetch the two commits the check compares' step resolved BASE_SHA 4cdb0eafa and HEAD_SHA 735169c27 at --depth=1. The parity step logged 'check-spec-parity: 1 spec.html checked, all self-consistent.' — a real verdict on a real touched spec, not the previous 'sets no spec.html to a done status — nothing to assert' no-op line.",
+      "notes": "This is the distinction finding 10 turned on: the earlier run banked green from a branch the gate never exercised. Here the parity step parsed a touched spec and reported on it.",
       "waiver": ""
     }
   ]
