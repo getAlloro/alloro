@@ -51,11 +51,12 @@ export function PatientJourneyContextCards({
 }: PatientJourneyContextCardsProps) {
   const { rank, reviews } = context;
 
+  // No competitor denominator is rendered: the curated competitor set does not
+  // share a universe with the SerpApi Maps position, so "#N of M" would pair two
+  // different scales. The rank context carries no denominator to pair with.
   const rankStat =
     rank.available && rank.position !== null
-      ? rank.totalCompetitors !== null
-        ? `#${rank.position} of ${rank.totalCompetitors} locally`
-        : `#${rank.position} locally`
+      ? `#${rank.position} locally`
       : rank.notInTop20
         ? "Not in the local top 20 yet"
         : "Rank not available yet";

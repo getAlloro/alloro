@@ -127,7 +127,6 @@ const FULL_PMS: PmsRead = {
 };
 const FULL_RANK: RankRead = {
   position: 2,
-  totalCompetitors: 9,
   available: true,
   notInTop20: false,
 };
@@ -195,7 +194,6 @@ describe("assemblePatientJourney — contract shape", () => {
     expect(result.stages.find((s) => s.key === "patients")).toBeUndefined();
     expect(result.context.rank).toEqual({
       position: 2,
-      totalCompetitors: 9,
       available: true,
       notInTop20: false,
     });

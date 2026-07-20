@@ -582,32 +582,31 @@ export async function readPms(organizationId: number, locationId: number): Promi
 
 export interface RankRead {
   position: number | null;
-  totalCompetitors: number | null;
   available: boolean;
   /** Ran a completed ranking but placed outside the local Maps top-20 (null
    *  search_position). NOT "never ran": the card must not say "run a ranking". */
   notInTop20: boolean;
 }
 
-/** Latest completed local-rank position + competitor count for the location. */
+/**
+ * Latest completed local-rank position for the location.
+ *
+ * No competitor denominator is carried: `total_competitors` is the
+ * Practice-Health CURATED set and does not share a universe with the SerpApi
+ * Maps `search_position` below, so the two must never pair into "#N of M".
+ */
 export async function readRank(organizationId: number, locationId: number): Promise<RankRead> {
   try {
     const row = await PracticeRankingModel.findLatestCompletedRankingMetrics(
       organizationId,
       locationId
     );
-    if (!row) return { position: null, totalCompetitors: null, available: false, notInTop20: false };
+    if (!row) return { position: null, available: false, notInTop20: false };
     // Read the real SerpApi Maps position (`search_position`), NOT the
     // Practice-Health `rank_position` (which defaults to a fabricated #1 when
     // the practice isn't matched among competitors). Null = SerpApi miss →
     // stay unavailable ("estimate pending"), never a fabricated number.
     const position = row.search_position ?? null;
-    // `total_competitors` is the Practice-Health CURATED competitor set; it does
-    // NOT pair with the SerpApi Maps `search_position` above (two different
-    // universes: "#15 in Maps" over "of 5 curated" renders the incoherent
-    // "#15 of 5 locally"). We have no SerpApi Maps-universe total, so omit the
-    // denominator; the card renders an honest "#N locally" with no mismatched "of M".
-    const totalCompetitors = null;
     // notInTop20 is TRUE only when SerpApi CONFIRMS the practice ranked below the
     // local Maps top-20 (search_status "not_in_top_20"). A null position from a
     // lookup failure (api_error / bias_unavailable) means "couldn't measure", NOT
@@ -617,13 +616,12 @@ export async function readRank(organizationId: number, locationId: number): Prom
     const notInTop20 = row.search_status === "not_in_top_20";
     return {
       position,
-      totalCompetitors,
       available: position !== null,
       notInTop20,
     };
   } catch (err) {
     logger.warn({ err, organizationId, locationId }, "[patient-journey] rank read failed");
-    return { position: null, totalCompetitors: null, available: false, notInTop20: false };
+    return { position: null, available: false, notInTop20: false };
   }
 }
 
