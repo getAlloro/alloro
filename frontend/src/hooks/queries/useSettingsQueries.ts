@@ -40,7 +40,9 @@ export function useSettingsScopes() {
 export function usePmsStatus(orgId: number | undefined) {
   return useQuery<PmsKeyDataResponse>({
     queryKey: QUERY_KEYS.settings.pmsStatus(orgId!),
-    queryFn: () => fetchPmsKeyData(orgId!),
+    // No arguments: the org comes from the JWT and this status card applies no
+    // location filter. Previously called as fetchPmsKeyData(orgId!).
+    queryFn: () => fetchPmsKeyData(),
     enabled: !!orgId,
     initialData: () =>
       queryClient.getQueryData<PmsKeyDataResponse>(

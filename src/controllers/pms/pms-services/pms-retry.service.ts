@@ -6,6 +6,7 @@ import { GoogleDataStoreModel } from "../../../models/GoogleDataStoreModel";
 import { NotificationModel } from "../../../models/NotificationModel";
 import { GoogleConnectionModel } from "../../../models/GoogleConnectionModel";
 import { OrganizationLifecycleService } from "../../../services/OrganizationLifecycleService";
+import { serviceTokenHeader } from "../../../config/serviceToken";
 import {
   resetToStep,
   updateAutomationStatus,
@@ -153,7 +154,8 @@ async function triggerMonthlyAgents(
       force: true,
       pmsJobId: jobId,
       locationId,
-    }
+    },
+    { headers: serviceTokenHeader() }
   );
 }
 

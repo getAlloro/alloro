@@ -15,10 +15,12 @@ import {
 } from "../../api/notifications";
 import {
   fetchPmsJobs,
-  fetchPmsKeyData,
   type PmsJob,
   type PmsKeyDataResponse,
 } from "../../api/pms";
+// Cross-organization read — super-admin only. The client-side fetchPmsKeyData
+// no longer accepts an organization (§5.5).
+import { fetchAdminPmsKeyData } from "../../api/admin-pms";
 import { fetchAgentOutputs } from "../../api/agentOutputs";
 import type { AgentOutput, AgentOutputType } from "../../types/agentOutputs";
 
@@ -152,7 +154,7 @@ export function useAdminOrgPms(
           location_id: locationId || undefined,
           page,
         }),
-        fetchPmsKeyData(organizationId, locationId || undefined),
+        fetchAdminPmsKeyData(organizationId, locationId || undefined),
       ]);
 
       return {

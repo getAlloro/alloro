@@ -55,6 +55,7 @@ import adminSettingsRoutes from "./routes/admin/settings";
 import adminSchedulesRoutes from "./routes/admin/schedules";
 import adminLeadgenRoutes from "./routes/admin/leadgenSubmissions";
 import adminPmsPipelineRoutes from "./routes/admin/pmsPipeline";
+import adminPmsRoutes from "./routes/admin/pms";
 import adminSupportRoutes from "./routes/admin/support";
 import adminGbpAutomationRoutes from "./routes/admin/gbpAutomation";
 import adminReceiptsReportRoutes from "./routes/admin/receiptsReport";
@@ -81,6 +82,8 @@ import billingRoutes from "./routes/billing";
 import appTelemetryRoutes from "./routes/appTelemetry";
 import { billingGateMiddleware } from "./middleware/billingGate";
 import { requireAuthUnlessPublic } from "./middleware/publicRoutes";
+import { serviceTokenMiddleware } from "./middleware/serviceToken";
+import { assertServiceTokenConfig } from "./config/serviceToken";
 import { isAllowedCustomDomain } from "./middleware/corsCustomDomains";
 import {
   contactRequestBodyParser,
@@ -93,6 +96,10 @@ import {
 // hop: Express then uses Apache's right-most X-Forwarded-For value as req.ip and
 // ignores caller-supplied addresses farther left in the chain.
 const TRUSTED_REVERSE_PROXY_SUBNET = "loopback";
+
+// Fail fast rather than discovering a half-configured rollout on the first
+// webhook of the night (§5.6).
+assertServiceTokenConfig();
 
 const app = express();
 app.set("trust proxy", TRUSTED_REVERSE_PROXY_SUBNET);
@@ -231,7 +238,10 @@ app.use(router);
 app.use("/api/gbp", gbpRoutes);
 app.use("/api/gbp-automation", gbpAutomationRoutes);
 app.use("/api/patient-journey", patientJourneyRoutes);
-app.use("/api/clarity", clarityRoutes);
+// Machine-called prefixes: service token in observation mode until the rollout
+// reaches stage 2 (config/serviceToken.ts). Nothing is rejected yet — un-tokened
+// calls are logged so T6 can prove the caller set is empty before enforcing.
+app.use("/api/clarity", serviceTokenMiddleware, clarityRoutes);
 // Google SSO admin login (plans/07052026-google-sso-admin-and-user-login).
 // MUST be mounted BEFORE /api/auth (authRoutes): the GBP router also defines a
 // vestigial `/google/callback` (routes/auth.ts:17) that would otherwise swallow
@@ -246,7 +256,7 @@ app.use("/api/pm", pmRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/onboarding", onboardingRoutes);
 app.use("/api/rag", ragRoutes);
-app.use("/api/agents", agentRoutes);
+app.use("/api/agents", serviceTokenMiddleware, agentRoutes);
 app.use("/api/notifications", notificationsRoutes);
 app.use("/api/admin/app-logs", appLogsRoutes);
 app.use("/api/settings", settingsRoutes);
@@ -259,6 +269,9 @@ app.use("/api/admin/settings", adminSettingsRoutes);
 app.use("/api/admin/schedules", adminSchedulesRoutes);
 app.use("/api/admin/leadgen-submissions", adminLeadgenRoutes);
 app.use("/api/admin/pms-jobs", adminPmsPipelineRoutes);
+// Cross-organization PMS reads for the admin Org PMS tab. Distinct from the
+// client /api/pms mount, which derives its tenant from server context (§5.5).
+app.use("/api/admin/pms", adminPmsRoutes);
 app.use("/api/admin/support", adminSupportRoutes);
 app.use("/api/admin/gbp-automation", adminGbpAutomationRoutes);
 app.use("/api/admin/receipts-report", adminReceiptsReportRoutes);

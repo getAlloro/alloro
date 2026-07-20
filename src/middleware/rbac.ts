@@ -20,6 +20,7 @@ export interface LocationScopedRequest extends RBACRequest {
 
 export type LocationScopeFailureCode =
   | "LOCATION_ACCESS_DENIED"
+  | "LOCATION_ID_INVALID"
   | "LOCATION_SCOPE_UNAVAILABLE";
 
 export type LocationScopeFailureResponder = (
@@ -168,11 +169,28 @@ export function createLocationScopeMiddleware(
         }
       }
 
-      // If a specific locationId is requested, validate access
-      const requestedLocationId =
+      // If a specific location is requested, validate access.
+      //
+      // Both spellings are accepted deliberately. This middleware historically
+      // read only the camelCase `locationId`, while several endpoints (PMS key
+      // data among them) send `location_id`. On those routes requestedLocationId
+      // resolved to undefined, so the LOCATION_ACCESS_DENIED branch below could
+      // never run — mounting the middleware looked like protection and applied
+      // none (§5.5).
+      // Query and params are held to a stricter standard than the body. Read
+      // routes carry no validation schema, so nothing else would catch a
+      // malformed value there. A body value belongs to the route's schema,
+      // which owns body shape (§11.2) and runs after this router-level
+      // middleware — rejecting it here would preempt VALIDATION_ERROR with a
+      // less specific failure.
+      const scopeParam =
         (req.query.locationId as string) ||
+        (req.query.location_id as string) ||
         (req.params.locationId as string) ||
-        req.body?.locationId;
+        (req.params.location_id as string);
+
+      const requestedLocationId =
+        scopeParam || req.body?.locationId || req.body?.location_id;
 
       if (
         requestedLocationId !== undefined &&
@@ -180,15 +198,38 @@ export function createLocationScopeMiddleware(
         requestedLocationId !== ""
       ) {
         const locId = parseInt(requestedLocationId, 10);
-        if (!isNaN(locId) && !req.accessibleLocationIds.includes(locId)) {
+
+        // A malformed identifier must not be ignored. This branch previously
+        // set req.locationId to null, which reads as "no location filter"
+        // downstream — so a garbled value silently widened the request to every
+        // location in the organization instead of failing.
+        if (isNaN(locId)) {
+          if (scopeParam) {
+            return respondToFailure(
+              res,
+              400,
+              "LOCATION_ID_INVALID",
+              "Invalid location identifier"
+            );
+          }
+
+          // Body-sourced and malformed: leave req.locationId unset and let the
+          // route's schema reject it. Logged because a body route with no
+          // schema would reach its controller unscoped.
+          logger.warn(
+            { path: req.path, userId: req.userId },
+            "[RBAC] Malformed locationId in request body — deferring to route validation"
+          );
+        } else if (!req.accessibleLocationIds.includes(locId)) {
           return respondToFailure(
             res,
             403,
             "LOCATION_ACCESS_DENIED",
             "No access to this location"
           );
+        } else {
+          req.locationId = locId;
         }
-        req.locationId = isNaN(locId) ? null : locId;
       }
 
       next();

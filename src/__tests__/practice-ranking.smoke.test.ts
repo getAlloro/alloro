@@ -4,9 +4,11 @@
  * Target: GET /api/practice-ranking/latest (client dashboard).
  *
  * Note: /api/practice-ranking is on the PUBLIC allowlist (client + admin mounts
- * share the prefix; trigger/status routes are externally triggered), so a
- * missing token does NOT 401 here. The auth-boundary assertion for this domain
- * is therefore the validation 400 (missing required param — needs no DB).
+ * share the prefix; trigger/status routes are externally triggered). The
+ * dashboard-facing routes now declare authenticateToken + rbacMiddleware
+ * themselves, which is authoritative regardless of the allowlist — so these
+ * requests carry a token. The no-token case is asserted separately in
+ * auth.practice-ranking.test.ts.
  *
  * MOCK-BLOCKED at the models/ seam: getLatestRankings queries
  * `db("practice_rankings")` directly (no model layer). The happy path mocks the
@@ -26,6 +28,7 @@ import { mockDb, setTableResult, resetTableResults } from "./helpers/db";
 vi.mock("../database/connection", () => mockDb());
 
 import { app } from "./helpers/app";
+import { authHeader } from "./helpers/auth";
 
 const latestShape = z.object({
   success: z.literal(true),
@@ -46,11 +49,21 @@ const errorShape = z.object({
 beforeEach(() => {
   vi.clearAllMocks();
   resetTableResults();
+
+  // rbacMiddleware now runs on these routes and resolves membership.
+  setTableResult("organization_users", {
+    id: 1,
+    user_id: 1,
+    organization_id: 7,
+    role: "admin",
+  });
 });
 
 describe("GET /api/practice-ranking/latest", () => {
   it("returns 400 + error shape when googleAccountId is missing", async () => {
-    const res = await request(app).get("/api/practice-ranking/latest");
+    const res = await request(app)
+      .get("/api/practice-ranking/latest")
+      .set(authHeader());
 
     expect(res.status).toBe(400);
     expect(() => errorShape.parse(res.body)).not.toThrow();
@@ -73,7 +86,8 @@ describe("GET /api/practice-ranking/latest", () => {
 
     const res = await request(app)
       .get("/api/practice-ranking/latest")
-      .query({ googleAccountId: 7 });
+      .query({ googleAccountId: 7 })
+      .set(authHeader());
 
     expect(res.status).toBe(200);
     expect(() => latestShape.parse(res.body)).not.toThrow();

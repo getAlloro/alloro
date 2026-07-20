@@ -89,7 +89,7 @@ export function usePmsVisualPillars({
       }
 
       try {
-        const response = await fetchPmsKeyData(organizationId, locationId);
+        const response = await fetchPmsKeyData({ locationId });
 
         if (!isMountedRef.current) {
           return;
