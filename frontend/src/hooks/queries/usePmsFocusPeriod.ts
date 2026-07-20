@@ -10,10 +10,10 @@ import {
 type PmsKeyData = NonNullable<PmsKeyDataResponse["data"]>;
 
 async function fetchPmsFocusKeyData(
-  orgId: number,
   locationId: number | null,
 ): Promise<PmsKeyData | null> {
-  const response = await fetchPmsKeyData(orgId, locationId);
+  // orgId is no longer sent — the server derives the tenant from the JWT (§5.5).
+  const response = await fetchPmsKeyData({ locationId });
   if (!response?.success || !response.data) return null;
   return response.data;
 }
@@ -32,7 +32,7 @@ export function usePmsFocusPeriod(
 } {
   const query = useQuery<PmsKeyData | null>({
     queryKey: QUERY_KEYS.pmsFocusPeriod(orgId, locationId),
-    queryFn: () => fetchPmsFocusKeyData(orgId!, locationId),
+    queryFn: () => fetchPmsFocusKeyData(locationId),
     enabled: !!orgId,
     staleTime: 5 * 60 * 1000,
   });

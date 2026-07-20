@@ -15,10 +15,12 @@ import { fetchPmsKeyData, type PmsKeyDataResponse } from "../../api/pms";
 export type PmsKeyData = NonNullable<PmsKeyDataResponse["data"]>;
 
 async function fetchPmsKeyDataInner(
-  orgId: number | null,
   locationId: number | null,
 ): Promise<PmsKeyData | null> {
-  const response = await fetchPmsKeyData(orgId ?? undefined, locationId);
+  // orgId is no longer sent — the server derives the tenant from the JWT. It is
+  // still part of the queryKey below so the cache stays keyed per organization
+  // across an admin identity switch.
+  const response = await fetchPmsKeyData({ locationId });
   if (!response?.success || !response.data) {
     if (response?.error || response?.message) {
       throw new Error(
@@ -33,7 +35,7 @@ async function fetchPmsKeyDataInner(
 export function usePmsKeyData(orgId: number | null, locationId: number | null) {
   return useQuery<PmsKeyData | null>({
     queryKey: ["pmsKeyData", orgId, locationId],
-    queryFn: () => fetchPmsKeyDataInner(orgId, locationId),
+    queryFn: () => fetchPmsKeyDataInner(locationId),
     enabled: !!orgId && locationId != null,
     staleTime: 5 * 60 * 1000,
   });
