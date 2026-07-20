@@ -11,7 +11,7 @@ import {
   ActionBannerShell,
 } from "../ActionBanner";
 import { formatGeneratedCopyForOrg } from "../../../utils/generatedCopy";
-import { DOMAIN_TO_STAGE, STAGE_LABEL, buildHealthVerdict } from "./verdict";
+import { STAGE_LABEL, buildHealthVerdict, resolveActionStage } from "./verdict";
 import { useStageTones } from "./useStageTones";
 
 /**
@@ -66,10 +66,11 @@ export function OneThingBanner() {
     );
   }
 
-  // FIX 3: the eyebrow names the ACTION's journey stage — the card's authored
-  // `stage` field first, DOMAIN_TO_STAGE as the fallback — so the single move is
-  // visibly stage-anchored and agrees with the verdict on one screen.
-  const actionStage = action.stage ?? DOMAIN_TO_STAGE[action.domain] ?? null;
+  // FIX 3: the eyebrow names the ACTION's journey stage, DERIVED from the
+  // action's domain — never the LLM-authored `stage` field, which could label a
+  // GBP post "findable" and quietly undo the post-does-not-rank rule. See
+  // resolveActionStage.
+  const actionStage = resolveActionStage(action);
   const eyebrow = actionStage
     ? `This month · ${STAGE_LABEL[actionStage]} · 1 thing that matters`
     : "This month · 1 thing that matters";

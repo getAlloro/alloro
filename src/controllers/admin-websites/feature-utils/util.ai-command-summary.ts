@@ -17,6 +17,7 @@ export function getStructuralIcon(targetType: string): string {
     case "create_menu": case "update_menu": return "📋";
     case "update_post_meta": return "📝";
     case "update_page_path": return "📄";
+    case "page_seo_schema": return "🧩";
     default: return "✅";
   }
 }

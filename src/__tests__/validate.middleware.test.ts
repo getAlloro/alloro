@@ -23,7 +23,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import express from "express";
 import request from "supertest";
 import { z } from "zod";
-import { validate, VALIDATION_ERROR } from "../middleware/validate";
+import { validate, sanitize, VALIDATION_ERROR } from "../middleware/validate";
 // validate() now logs through the shared Pino logger (the console.* → logger
 // codemod). Spy on the logger's methods rather than console.* — the middleware
 // uses pino's merge-object form: logger.warn(meta, msg) / logger.error(meta, msg).
@@ -186,5 +186,127 @@ describe("validate() — never throws", () => {
       data: null,
       error: { code: VALIDATION_ERROR },
     });
+  });
+});
+
+/**
+ * Unit tests — sanitize() bounded-subset middleware.
+ *
+ * The posture `validate` cannot offer: bound the field, keep the request. Used
+ * by the public lead-capture route, where a 400 costs a real patient inquiry.
+ * The load-bearing guarantees:
+ *   • never rejects — no status is ever set; the request always proceeds.
+ *   • drops out-of-contract keys so downstream code cannot read them (§11.2).
+ *   • fail-CLOSED on the field / fail-OPEN on the request when the schema itself
+ *     misbehaves — the metadata is lost, never the submission.
+ *   • logs field NAMES only, never values (§5.3).
+ */
+
+/** A total schema: each field catches independently, so it can never reject. */
+const attrSchema = z.object({
+  source: z.string().max(10).optional().catch(undefined),
+  ref: z.string().max(20).optional().catch(undefined),
+});
+const ATTR_KEYS = ["source", "ref"] as const;
+
+/** One-route app mounting sanitize(); the handler echoes the body it received. */
+function makeSanitizeApp(
+  schema: Parameters<typeof sanitize>[0] = attrSchema,
+  keys: readonly string[] = ATTR_KEYS,
+) {
+  const app = express();
+  app.use(express.json());
+  app.post("/t", sanitize(schema, keys), (req, res) =>
+    res.status(200).json({ received: req.body }),
+  );
+  return app;
+}
+
+describe("sanitize() — bounded subset, never rejects", () => {
+  it("passes an IN-CONTRACT value through untouched", async () => {
+    const res = await request(makeSanitizeApp()).post("/t").send({ source: "google" });
+    expect(res.status).toBe(200);
+    expect(res.body.received.source).toBe("google");
+  });
+
+  it("DROPS an over-cap value and still returns 200 — never a rejection", async () => {
+    vi.spyOn(logger, "warn").mockImplementation(() => logger);
+    const oversized = "g".repeat(50);
+    const res = await request(makeSanitizeApp()).post("/t").send({ source: oversized });
+
+    expect(res.status).toBe(200); // the lead is never lost
+    expect(res.body.received).not.toHaveProperty("source");
+  });
+
+  it("drops a WRONG-TYPE value rather than coercing it", async () => {
+    vi.spyOn(logger, "warn").mockImplementation(() => logger);
+    const res = await request(makeSanitizeApp()).post("/t").send({ source: { a: 1 } });
+    expect(res.status).toBe(200);
+    expect(res.body.received).not.toHaveProperty("source");
+  });
+
+  it("drops only the offending field — a healthy sibling survives", async () => {
+    vi.spyOn(logger, "warn").mockImplementation(() => logger);
+    const res = await request(makeSanitizeApp())
+      .post("/t")
+      .send({ source: "g".repeat(50), ref: "https://x.com" });
+
+    expect(res.body.received).not.toHaveProperty("source");
+    expect(res.body.received.ref).toBe("https://x.com");
+  });
+
+  it("leaves UNLISTED keys alone (honeypot/timing/arbitrary form fields)", async () => {
+    const res = await request(makeSanitizeApp())
+      .post("/t")
+      .send({ source: "google", _hp: "", _ts: 123, Message: "hi" });
+
+    expect(res.body.received._ts).toBe(123);
+    expect(res.body.received.Message).toBe("hi");
+  });
+
+  it("logs the field NAME but never the value (§5.3)", async () => {
+    const warn = vi.spyOn(logger, "warn").mockImplementation(() => logger);
+    const secretish = "jane.doe.1987".padEnd(40, "x");
+    await request(makeSanitizeApp()).post("/t").send({ source: secretish });
+
+    expect(warn).toHaveBeenCalledWith(
+      expect.objectContaining({ fields: ["source"] }),
+      expect.stringContaining("sanitize"),
+    );
+    expect(JSON.stringify(warn.mock.calls)).not.toContain("jane.doe");
+  });
+
+  it("does not log when everything is in contract", async () => {
+    const warn = vi.spyOn(logger, "warn").mockImplementation(() => logger);
+    await request(makeSanitizeApp()).post("/t").send({ source: "google" });
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("FAIL-CLOSED on the field: a throwing schema drops the keys but still serves the request", async () => {
+    vi.spyOn(logger, "error").mockImplementation(() => logger);
+    vi.spyOn(logger, "warn").mockImplementation(() => logger);
+    const exploding = {
+      safeParse: () => {
+        throw new Error("boom");
+      },
+    } as unknown as Parameters<typeof sanitize>[0];
+
+    const res = await request(makeSanitizeApp(exploding))
+      .post("/t")
+      .send({ source: "google", ref: "https://x.com", keep: "me" });
+
+    expect(res.status).toBe(200); // fail-OPEN on the request
+    expect(res.body.received).not.toHaveProperty("source"); // fail-CLOSED on the field
+    expect(res.body.received).not.toHaveProperty("ref");
+    expect(res.body.received.keep).toBe("me"); // unlisted keys untouched
+  });
+
+  it("tolerates a request with no parsed body", async () => {
+    const app = express(); // no body parser mounted
+    app.post("/t", sanitize(attrSchema, ATTR_KEYS), (_req, res) =>
+      res.status(200).json({ ok: true }),
+    );
+    const res = await request(app).post("/t");
+    expect(res.status).toBe(200);
   });
 });

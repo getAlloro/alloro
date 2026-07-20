@@ -30,7 +30,7 @@ export const FACTOR_TOOLTIP: Record<string, string> = {
   nap_consistency:
     "Whether your Name, Address, and Phone match exactly across Google, your website, and online directories. Mismatches reduce Google's confidence in your listing.",
   gbp_activity:
-    "Frequency of Google posts, photo uploads, and Q&A activity over the last 90 days. Active profiles (8+ posts/quarter) get a measurable lift.",
+    "Frequency of Google posts, photo uploads, and Q&A activity over the last 90 days. An active profile reassures patients who are deciding between you and someone else.",
   sentiment:
     "How positive the text content of your recent reviews is. Beyond stars — Google reads review wording for relevance and quality signals.",
 };
@@ -135,13 +135,18 @@ function getRankingStatement(result: RankingResult): string {
   return `${displayName} has a Local Search position pending this month`;
 }
 
-function getPostingOutcome(band: SearchPositionBand): string {
-  if (band === "leader") return "protect the lead";
-  if (band === "top_set") return "widen your top-three lead";
-  if (band === "ranked") return "move closer to the top three";
-  if (band === "outside_top_20") return "break into the top 20";
-  return "keep the profile active while the position refreshes";
-}
+/**
+ * The honest outcome of posting — the SAME sentence at every rank band.
+ *
+ * This used to vary by band ("protect the lead" / "widen your top-three lead" /
+ * "move closer to the top three" / "break into the top 20"), which told the
+ * owner that posting moves rank. It does not: Google Posts convert and reassure,
+ * they do not rank (Sterling Sky / lever-evidence-map). Tying the outcome to the
+ * band was the promise, so the band no longer reaches this copy at all — that is
+ * why this is a constant and not a function of `band`.
+ */
+const POSTING_OUTCOME =
+  "keep your profile active for patients deciding between you and someone else";
 
 function getReviewAction(band: SearchPositionBand): string {
   if (band === "leader") {
@@ -173,10 +178,9 @@ export function getOverviewRecommendedAction(result: RankingResult): string {
       `${rec.title} ${rec.description ?? ""}`.toLowerCase(),
     ) ?? [];
   const band = getSearchPositionBand(result);
-  const postingOutcome = getPostingOutcome(band);
 
   if (recommendations.some((rec) => rec.includes("post"))) {
-    return `Start posting to Google Business Profile weekly to ${postingOutcome}`;
+    return `Start posting to Google Business Profile weekly to ${POSTING_OUTCOME}`;
   }
 
   if (recommendations.some((rec) => rec.includes("review"))) {
@@ -187,7 +191,7 @@ export function getOverviewRecommendedAction(result: RankingResult): string {
     return "Add fresh Google Business Profile photos to strengthen the profile";
   }
 
-  return `Start posting to Google Business Profile weekly to ${postingOutcome}`;
+  return `Start posting to Google Business Profile weekly to ${POSTING_OUTCOME}`;
 }
 
 export function getStructuredOverviewInsight(
@@ -236,10 +240,10 @@ export function getOverviewDisplayHighlights(
 export function getOverviewFallbackInsight(result: RankingResult): string {
   const query = result.searchQuery ?? "your tracked search";
   if ((result.searchStatus ?? "ok") === "ok" && result.searchPosition !== null) {
-    return `Ranked number ${result.searchPosition} for ${query}. Keep reviews and Google posts moving to protect that position.`;
+    return `Ranked number ${result.searchPosition} for ${query}. Keep reviews coming in to protect that position.`;
   }
   if (result.searchStatus === "not_in_top_20") {
-    return `You are not in the top 20 for ${query}. Focus on reviews, profile activity, and the gaps below first.`;
+    return `You are not in the top 20 for ${query}. Focus on reviews and the gaps below first.`;
   }
   if (result.searchStatus === "bias_unavailable") {
     return "Google could not locate the practice for this search. Check the connected profile and address before reading the rest of the report.";

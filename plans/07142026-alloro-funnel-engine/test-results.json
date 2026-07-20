@@ -235,19 +235,53 @@
     },
     {
       "id": "T15",
-      "title": "PR #158 exact-head remediation closes all four round-8 findings",
+      "title": "PR #158 exact-head remediation closes round-8 findings and the modifier bypass",
       "surface": "cli",
       "precondition": "GeneratedCopySafetyService, GbpContentSafetyService, answer-first lint, and the canonical acceptance receipt on the isolated PR #158 remediation head",
       "steps": [
-        "1. Run the exact unrelated-negation sentence and predicate-class variants through GeneratedCopySafetyService",
+        "1. Run unrelated-negation sentences with direct, adverb-modified, modal-modified, and multi-modifier positive predicates through GeneratedCopySafetyService",
         "2. Run raw override, raw isolate, and entity-encoded bidi controls through both generated-copy and GBP reply safety services",
         "3. Run visible-answer, collapsed-answer, and nav/chrome answer-first fixtures",
         "4. Validate the exact plan path, the ui|api|cli|none surface enum, and the extracted claim-negation file sizes"
       ],
       "expected": "Unrelated positive promises block while genuinely shared negation still passes; unsafe bidi controls block before matching; answer_behind_accordion describes only a candidate answer inside collapsed non-chrome content; the §20.5 receipt is canonical and claimNegation.ts stays below the §2.4 ceiling",
       "status": "pass",
-      "evidence": "src/__tests__/generated-copy-safety.test.ts, src/__tests__/answer-first-structure-lint.test.ts, src/__tests__/copy-normalization.test.ts, and src/__tests__/gbp-content-safety.test.ts passed in the focused 6-file / 754-test run and the full 66-file / 1210-test run. The JSON receipt validator reported the exact plan path, only canonical surface values, and a Passed rollup. wc -l reported claimNegation.ts at 664 lines and claimNegationBoundary.ts at 81 lines.",
-      "notes": "The stacked PR #159 consumer remains compatible at the shared service contract: standard blocked results still carry aligned reasonCodes and reasons, pinned by the generated-copy service test. No PR #159 files or other worktrees were edited. A synthetic merged-stack suite was not run.",
+      "evidence": "The round-9 modifier corpus passes 12 must-block and 5 must-pass cases in src/__tests__/generated-copy-safety.test.ts, including ordinary adverbs and 'will almost certainly guarantee' while preserving 'will almost certainly not guarantee'. Focused generated-copy + GBP safety run: 47/47 pass. Full suite: 66 files / 1219 tests pass. TypeScript and strict conventions exit 0; dependency-cruiser reports 0 errors and 38 existing warnings; changed-file ESLint reports 0 errors. The receipt validator reports the exact plan path, canonical surfaces, and a Passed rollup.",
+      "notes": "An independent audit disproved the prior direct-adjacency fixture as class coverage: an ordinary modifier between the coordinator/modal and positive claim verb bypassed the rule. The matcher now allows a bounded run of arbitrary non-negating modifier words and explicitly excludes negators, so the two directions stay distinct. PR #159 merged this head and its own hard-gate integration regression passes; see T16.",
+      "waiver": ""
+    },
+    {
+      "id": "T16",
+      "title": "PR #159 exact-head remediation is atomic, fails closed, and pins the shared hard gate",
+      "surface": "cli",
+      "precondition": "PR #158 commits 9ab895c92c8c022b475ca532d04316069bbe2189 and 74c1f4edadc0b82a7dd4ebd4eecd38f8f030d743 are merged; transaction behavior is exercised at the mocked model seam",
+      "steps": [
+        "1. Force the recommendation-status write to reject after the page-draft SEO update inside the shared transaction",
+        "2. Assert the transaction rolls the retained draft state back and both writes receive the same transaction",
+        "3. Verify malformed approved metadata and a missing original page both downgrade verification to failed",
+        "4. Pass a modifier-bearing ranking promise through executeUpdatePageSeoSchema and assert that no schema write occurs",
+        "5. Run focused and full tests, TypeScript, strict conventions, lint, dependency-cruiser, and diff validation"
+      ],
+      "expected": "A failed status transition cannot retain a publishable page draft; unverifiable recommendations fail closed; typed recommendation rows replace the new any usage; the shared safety-service bypass cannot reach the #159 write path",
+      "status": "pass",
+      "evidence": "The modifier-bearing hard-gate regression failed against the prior #158 service and passes after merging 74c1f4eda. Focused write/publish/generated-copy/GBP safety run: exit 0, 4 files / 119 tests. Full suite: exit 0, 68 files / 1291 tests. npx tsc --noEmit: exit 0. npm run check:conventions -- --strict: exit 0, 0 clear structural violations. npm run lint: exit 0, 0 errors / 2385 advisory warnings. npm run depcruise: exit 0, 0 errors / 38 existing warnings. Changed-file ESLint and git diff --check: exit 0.",
+      "notes": "The rollback receipt is at the mocked model transaction seam, not a live PostgreSQL server. This PR changes no migration. The GBP identity snapshot remains an activation precondition for the dormant slice; it was not invented or marked complete here.",
+      "waiver": ""
+    },
+    {
+      "id": "T16",
+      "title": "Coordinated finite predicates end unrelated copular negation scope",
+      "surface": "cli",
+      "precondition": "Rev 10 claimNegation grammar exercised through the real GeneratedCopySafetyService and GbpContentSafetyService entry points",
+      "steps": [
+        "1. Validate 'This is not complicated and results in a higher ranking.' through GeneratedCopySafetyService.",
+        "2. Validate 'This is not difficult and produces permanent results.' through GbpContentSafetyService.",
+        "3. Re-run the existing modifier-bearing positive-predicate block corpus and coordinated does-not/will-not pass corpus."
+      ],
+      "expected": "Both exact strings block; finite/modal predicate detection is structural rather than a closed claim-verb inventory; a coordinated predicate carrying its own negator remains publishable",
+      "status": "pass",
+      "evidence": "Focused generated-copy + GBP service run passed 2 files / 49 tests. Full backend suite passed 66 files / 1,221 tests. npx tsc --noEmit, npm run check:conventions -- --strict, and git diff --check exited 0 with 0 clear backend structural violations. claimNegation.ts is 681 lines.",
+      "notes": "The plan remains In Progress because Slice 1a is still in PR review and its existing live-worker item T7 is waived, not observed. Rev 10 itself is fully verified locally.",
       "waiver": ""
     }
   ]

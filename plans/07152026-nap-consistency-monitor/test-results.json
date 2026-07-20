@@ -1,0 +1,520 @@
+{
+  "plan": "plans/07152026-nap-consistency-monitor",
+  "generatedAt": "2026-07-17",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "T1",
+      "title": "Summarizer counts only a real conflict, and lists the specific listing",
+      "surface": "none",
+      "precondition": "Run the pure summarizer against mixed match-state fixtures. No network or DB.",
+      "steps": [
+        "Summarize sources spanning consistent, conflicting, and ambiguous_entity states.",
+        "Summarize sources in weak states only (external_candidate, missing_on_site).",
+        "Summarize an empty and a nullish source list."
+      ],
+      "expected": "Only 'conflicting' counts as a conflict (parity with the production scorer); weak/uncertain states are noise, never a confirmed error; empty and nullish both fold to all-zeros. No fabricated conflicts.",
+      "status": "pass",
+      "evidence": "src/__tests__/nap-consistency.test.ts — 3 summarizeNapConsistency cases passed in the 17-test A4 run and the 473-test full suite (Node 22).",
+      "notes": "A log, never a score. No rank/guarantee/lore claim is derived from these counts.",
+      "waiver": "",
+      "layer": 1
+    },
+    {
+      "id": "T2",
+      "title": "Targets are deduped by locationId — no double SerpApi cost",
+      "surface": "none",
+      "precondition": "Build a target list where one org yields the same location twice (>1 google_connection).",
+      "steps": [
+        "Pass duplicate locationIds through dedupeTargetsByLocation.",
+        "Inspect the retained targets."
+      ],
+      "expected": "One target per locationId (first occurrence wins), so the measurement never runs twice for a location and the run summary is not over-counted.",
+      "status": "pass",
+      "evidence": "src/__tests__/nap-consistency.test.ts — dedupeTargetsByLocation regression case passed.",
+      "notes": "Rev 2 adversary finding; there is no unique constraint on google_connections.organization_id.",
+      "waiver": "",
+      "layer": 1
+    },
+    {
+      "id": "T3",
+      "title": "Records one snapshot per runnable location and skips no-baseline targets",
+      "surface": "none",
+      "precondition": "Inject a target provider with two domain-bearing locations and one with no domain (spec: injected fake NAP-source provider, no network).",
+      "steps": [
+        "Execute the agent with an injected runner and record seam.",
+        "Inspect the recorded rows and the run summary."
+      ],
+      "expected": "Two rows recorded with correct source/conflict counts; the no-domain target is honestly skipped, not recorded as all-consistent.",
+      "status": "pass",
+      "evidence": "src/__tests__/nap-consistency.test.ts — executeNapConsistencyAgent record/skip case passed.",
+      "notes": "Seams (targetProvider/runner/record) are injectable, so the logic is proven without network or DB.",
+      "waiver": "",
+      "layer": 1
+    },
+    {
+      "id": "T4",
+      "title": "A provider outage persists NOTHING — never a false zero-result (§3.2)",
+      "surface": "none",
+      "precondition": "Inject a runner returning the typed provider_unavailable state.",
+      "steps": [
+        "Execute the agent for one target whose provider is unreachable.",
+        "Inspect the record seam and the run summary."
+      ],
+      "expected": "No observation row is written at all; providerUnavailable is counted separately and is NOT folded into the ordinary no-baseline skip count.",
+      "status": "pass",
+      "evidence": "src/__tests__/nap-consistency.test.ts — 'does NOT persist an observation when the provider is unavailable' passed. MUTATION-VERIFIED: stubbing the executor guard to `if (false)` fails this test and T5 and nothing else, so the test catches the real defect rather than restating the code.",
+      "notes": "Dave review #166 item 1. Before the fix, searchSerpApi swallowed every failure and returned [], so an outage persisted sources_checked: 0 as a completed measurement.",
+      "waiver": "",
+      "layer": 1
+    },
+    {
+      "id": "T5",
+      "title": "An honest zero-result is still recorded and stays distinct from an outage",
+      "surface": "none",
+      "precondition": "Inject a runner returning ok/no-sources for one location and provider_unavailable for another.",
+      "steps": [
+        "Execute the agent across both targets.",
+        "Inspect which rows were written."
+      ],
+      "expected": "Exactly one row — the honest zero (sources_checked: 0, 'we looked and found nothing'), which the spec requires stay recorded. The outage records nothing. The two are never collapsed.",
+      "status": "pass",
+      "evidence": "src/__tests__/nap-consistency.test.ts — 'distinguishes an honest zero-result from a provider outage' passed. Mutation-verified alongside T4.",
+      "notes": "This is the honesty contract: a real zero is data; an outage is an absence of data.",
+      "waiver": "",
+      "layer": 1
+    },
+    {
+      "id": "T6",
+      "title": "A real SerpApi transport failure maps to the typed state (wiring proof)",
+      "surface": "none",
+      "precondition": "Stub SERPAPI_API_KEY, mock axios to reject, and re-import the module so the env-captured const re-evaluates.",
+      "steps": [
+        "Reject every axios request with ETIMEDOUT and collect with status.",
+        "Clear the API key and collect with status."
+      ],
+      "expected": "Both return provider_unavailable; the transport case carries the underlying reason (ETIMEDOUT) rather than an empty array.",
+      "status": "pass",
+      "evidence": "src/__tests__/nap-consistency.test.ts — both collectExternalEntitySourcesWithStatus cases passed. The reason-contains-ETIMEDOUT assertion is reachable ONLY through the all-queries-failed branch (the missing-key branch has different text), which proves the axios mock is live and the catch path ran.",
+      "notes": "Closes the gap the executor tests leave: they inject the runner, so without this nothing proved a real failure produces the state the guard depends on.",
+      "waiver": "",
+      "layer": 1
+    },
+    {
+      "id": "T7",
+      "title": "The AI-SEO audit lead magnet is unaffected by the typed status",
+      "surface": "none",
+      "precondition": "Mock axios to reject and call the array-returning wrapper the audit uses.",
+      "steps": [
+        "Call collectExternalEntitySources with the provider failing.",
+        "Inspect the return shape."
+      ],
+      "expected": "It resolves to an array and does not throw — the audit degrades gracefully by design and keeps its linked-source fallback.",
+      "status": "pass",
+      "evidence": "src/__tests__/nap-consistency.test.ts — back-compat wrapper case passed; the full 473-test suite shows no regression in any audit path.",
+      "notes": "Self-caught regression: the first cut of this fix returned [] on unavailable, which would have silently stripped the page's linked directory profiles from the audit. Restructured so partial sources flow through and only the STATUS gates persistence.",
+      "waiver": "",
+      "layer": 1
+    },
+    {
+      "id": "T8",
+      "title": "One location's failure does not abort the run",
+      "surface": "none",
+      "precondition": "Inject a runner that throws for one location and succeeds for another.",
+      "steps": [
+        "Execute the agent across both targets.",
+        "Inspect the summary and recorded rows."
+      ],
+      "expected": "The throwing location is isolated and skipped with a logged warning; the other location still records.",
+      "status": "pass",
+      "evidence": "src/__tests__/nap-consistency.test.ts — failure-isolation case passed.",
+      "notes": "Per-location isolation, so one bad site cannot cost a whole scheduled run.",
+      "waiver": "",
+      "layer": 1
+    },
+    {
+      "id": "T9",
+      "title": "The observation read is tenant-isolated — one org cannot read another's rows (§11.7 / §20.2)",
+      "surface": "none",
+      "precondition": "Drive the model against an in-memory fake holding rows for TWO orgs (7 and 8) that share location_id 42. No live DB.",
+      "steps": [
+        "listForLocation(7, 42) — assert only org 7's row returns.",
+        "listForLocation(8, 42) — assert only org 8's row returns (the filter tracks the passed org, not a constant).",
+        "listForLocation(9, 42) — an org owning no row there reads nothing, never another org's row."
+      ],
+      "expected": "Each org reads only its own rows at a shared location_id. §20.2: the isolation rule is proven here, not assumed.",
+      "status": "pass",
+      "evidence": "src/__tests__/nap-consistency.test.ts — 3 two-tenant isolation cases passed. MUTATION-VERIFIED: dropping organization_id from the model's where-clause fails all 3 and nothing else. Full suite 62 files / 495 tests passed; A4 focused run 39/39 (Node 22, 2026-07-16).",
+      "notes": "Rev 3 upgrade. The prior version asserted the WHERE-clause SHAPE only; it would have passed even if the filter never actually excluded a row. This drives a fake store that APPLIES the where-clause, so it is behavioural against a fake. HONEST LIMIT: still not Postgres — it cannot catch a BaseModel-level bug that drops the WHERE. The read has zero production callers today, so there is no Layer 2 surface to drive; a real-DB test belongs in integration-tests when it is wired.",
+      "waiver": "",
+      "layer": 1
+    },
+    {
+      "id": "T10",
+      "title": "The migration is resumable — table creation is guarded",
+      "surface": "none",
+      "precondition": "Drive up() with a mocked knex harness reporting the table as absent, then as present.",
+      "steps": [
+        "Run up() where the table does not exist.",
+        "Run up() where the table already landed from a partial execution."
+      ],
+      "expected": "createTable runs once when absent and is SKIPPED when present, so a resumed migration converges instead of throwing 'already exists' and wedging the deploy.",
+      "status": "pass",
+      "evidence": "src/__tests__/nap-consistency-migration.test.ts — both guard cases passed. MUTATION-VERIFIED: forcing the guard to `if (true)` fails these tests.",
+      "notes": "PREMISE CORRECTION for Dave review #166 item 3: knexfile.ts does NOT set disableTransactions, so knex wraps each migration in a transaction and Postgres DDL is transactional — a true partial execution should roll back, making this failure mode unlikely rather than live. The guard is kept because AGENTS.md requires idempotent, resumable migrations regardless, and it costs one hasTable call.",
+      "waiver": "",
+      "layer": 1
+    },
+    {
+      "id": "T11",
+      "title": "The migration NEVER writes to `schedules` — ownership safety by construction (§10.3)",
+      "surface": "none",
+      "precondition": "Drive up() with the mocked knex harness, which records every table name knex is called with.",
+      "steps": [
+        "Run up().",
+        "Assert `schedules` is absent from the recorded table list.",
+        "Assert insert / onConflict / merge were never called at all — not merely 'guarded'.",
+        "Assert up() touches NO table other than the one it creates."
+      ],
+      "expected": "up() writes only the table it creates. It seeds no `schedules` row, so no row exists whose ownership could be ambiguous on rollback.",
+      "status": "pass",
+      "evidence": "src/__tests__/nap-consistency-migration.test.ts — 'up() NEVER writes to `schedules`' and 'up() touches no table other than the one it creates' passed (Node 22, 2026-07-16).",
+      "notes": "Rev 6, replacing the Rev 3 item 'The schedule seed cannot throw or clobber on a re-run'. Dave round 3 item 1 rejected the seed outright: `.onConflict('agent_key').ignore()` means a pre-existing operator row is NOT created by up(), yet down() deleted it by key anyway. The seed is now gone rather than guarded, so ownership is structural, not conditional. MUTATION-VERIFIED by reverting: restoring the seeding migration fails this test.",
+      "waiver": "",
+      "layer": 1
+    },
+    {
+      "id": "T12",
+      "title": "Merging creates NO schedule at all — zero SerpApi cost by construction",
+      "surface": "none",
+      "precondition": "Drive up() with the mocked knex harness.",
+      "steps": [
+        "Run up().",
+        "Assert no insert into `schedules` occurs."
+      ],
+      "expected": "The merge adds one empty table and nothing else. No schedule exists to run, so no provider cost is possible until an operator deliberately creates one.",
+      "status": "pass",
+      "evidence": "src/__tests__/nap-consistency-migration.test.ts — 'up() NEVER writes to `schedules`' passed (Node 22, 2026-07-16).",
+      "notes": "Rev 6. Previously this asserted the seeded row carried enabled=false. With the seed removed the cost guarantee is stronger and needs no runtime flag to hold: there is no row. An operator who wants the monitor creates it via POST /api/admin/schedules (AdminSchedulesController.createSchedule); the `nap_consistency` handler stays registered in agentRegistry, so an operator-created row resolves immediately.",
+      "waiver": "",
+      "layer": 1
+    },
+    {
+      "id": "T13",
+      "title": "down() drops ONLY the table it created — it never deletes a `schedules` row (§10.3)",
+      "surface": "none",
+      "precondition": "Drive down() with the mocked knex harness.",
+      "steps": [
+        "Run down().",
+        "Assert `schedules` is absent from the recorded table list.",
+        "Assert .where() and .del() were never called.",
+        "Assert dropTableIfExists was called exactly once, with nap_consistency_observation."
+      ],
+      "expected": "down() reverses only what up() created. A rollback cannot destroy data this migration did not create.",
+      "status": "pass",
+      "evidence": "src/__tests__/nap-consistency-migration.test.ts — 'down() NEVER deletes from `schedules`' and 'down() drops ONLY the table this migration created' passed (Node 22, 2026-07-16). MUTATION-VERIFIED by reverting: restoring `knex('schedules').where({agent_key}).del()` fails these tests (3 of 6 in the file fail).",
+      "notes": "Rev 6. This item previously read 'down() reverses cleanly / pass' and its own notes ACCEPTED the defect: 'KNOWN EDGE: if up() ignored the conflict because the row pre-existed from another source, down() still deletes it. Accepted — down is the declared reverse of this migration and the row is agent-specific.' Dave round 3 item 1 rejected that reasoning, correctly: 'agent-specific' is not the same as 'ours'. The artifact named the hole and waved it through; that judgement is withdrawn and the delete is gone.",
+      "waiver": "",
+      "layer": 1
+    },
+    {
+      "id": "T16",
+      "title": "Partial provider coverage persists NOTHING — not a completed zero (§3.2)",
+      "surface": "none",
+      "layer": 1,
+      "precondition": "Inject a runner returning the typed partial_coverage state (attempted 4 / failed 3).",
+      "steps": [
+        "Execute the agent for one target whose provider answered only some queries.",
+        "Execute a 3-target run mixing a complete zero, partial coverage, and a total outage.",
+        "Inspect the record seam and the run summary."
+      ],
+      "expected": "No row is written for partial coverage; partialCoverage is counted separately and folded into NEITHER the no-baseline skip count NOR the outage count. Only the complete zero is recorded.",
+      "status": "pass",
+      "evidence": "src/__tests__/nap-consistency.test.ts — 2 partial-coverage executor cases passed. MUTATION-VERIFIED: neutering the executor's partial_coverage guard fails exactly these 2 and nothing else. Full suite 62 files / 495 tests passed; A4 focused run 39/39 (Node 22, 2026-07-16).",
+      "notes": "Dave review #166 round 2, item 1. V1 behaviour is Dave's stated safest option: no persistence for partial coverage.",
+      "waiver": ""
+    },
+    {
+      "id": "T17",
+      "title": "Mixed provider success/failure is typed `partial_coverage` with attempted/failed counts (§3.2)",
+      "surface": "none",
+      "layer": 1,
+      "precondition": "Stub SERPAPI_API_KEY, mock axios per-query (some resolve, some reject), re-import the module so the env-captured const re-evaluates.",
+      "steps": [
+        "One query returns an empty organic list; the other three time out — Dave's exact 'one empty response plus three timeouts'.",
+        "One query returns a real hit; the rest time out — Dave's exact 'one successful query ... unlabeled partial conflict count'.",
+        "Every query answers with an empty list."
+      ],
+      "expected": "Cases 1 and 2 return partial_coverage carrying attempted/failed (4/3), NOT ok — so neither a completed zero nor a short conflict count can be persisted. Case 3 returns ok: a complete zero stays recordable. Partial sources are still RETURNED for display; only the status gates persistence.",
+      "status": "pass",
+      "evidence": "src/__tests__/nap-consistency.test.ts — 3 mixed success/failure cases passed. MUTATION-VERIFIED: making the service report partial as ok fails the 2 partial cases and nothing else. Full suite 62 files / 495 tests passed; A4 focused run 39/39 (Node 22, 2026-07-16).",
+      "notes": "Dave review #166 round 2, item 1 — the mixed-success/failure tests he asked for, at the wiring level rather than the injected seam.",
+      "waiver": ""
+    },
+    {
+      "id": "T18",
+      "title": "A rejected WRITE fails the run visibly — a persistence failure is not a skip (§3.2)",
+      "surface": "none",
+      "layer": 1,
+      "precondition": "Inject a record seam that throws for one location while another succeeds.",
+      "steps": [
+        "Execute with a record seam that rejects; assert the agent REJECTS with NapPersistenceError.",
+        "Execute a 3-target run where location 10's write fails; inspect what still landed."
+      ],
+      "expected": "The agent throws NapPersistenceError (code NAP_PERSISTENCE_FAILED) carrying failedLocationIds and the summary, so the scheduler's catch marks the run FAILED instead of completing it. Every location is still attempted first: one bad write does not cost the others their observation, and a measurement failure is still an isolated skip.",
+      "status": "pass",
+      "evidence": "src/__tests__/nap-consistency.test.ts — 2 persistence-failure cases passed. MUTATION-VERIFIED: reverting to the log-and-swallow behaviour fails exactly these 2 and nothing else. Scheduler wiring verified by reading src/workers/processors/scheduleExec.processor.ts:77-80 — the catch calls ScheduleRunModel.failRun. Full suite 62 files / 495 tests passed; A4 focused run 39/39 (Node 22, 2026-07-16).",
+      "notes": "Dave review #166 round 2, item 2. Before the fix, one try/catch covered both measurement and the write, so a rejected write incremented `skipped`, the handler resolved, and the scheduler reported success. The failRun path itself is pre-existing behaviour, verified by reading, not re-proven here.",
+      "waiver": ""
+    },
+    {
+      "id": "T19",
+      "title": "`locationsRecorded` counts only rows ACTUALLY inserted, and the model's idempotency is exercised",
+      "surface": "none",
+      "layer": 1,
+      "precondition": "Drive the real model against an in-memory fake that simulates ON CONFLICT DO NOTHING, plus an executor run where one write is a same-run-day no-op. No live DB.",
+      "steps": [
+        "record() on a fresh (location, run_date): assert TRUE, the conflict target ['location_id','run_date'], .ignore(), and .returning('id').",
+        "record() on a run day that already has a row: assert FALSE.",
+        "Execute a 2-target run where one write inserts and one is ignored; inspect the summary."
+      ],
+      "expected": "record() reports whether a row landed. locationsRecorded counts only inserts; ignored writes are counted separately as locationsAlreadyRecorded; and totalConflicts counts only conflicts from rows actually written — the run never reports rows or conflicts it does not have.",
+      "status": "pass",
+      "evidence": "src/__tests__/nap-consistency.test.ts — 2 model record() cases + 1 executor metric case passed. MUTATION-VERIFIED: forcing record() to always return true fails the idempotency case and nothing else. Full suite 62 files / 495 tests passed; A4 focused run 39/39 (Node 22, 2026-07-16).",
+      "notes": "Dave review #166 round 2, item 3 — took the 'return whether a row was inserted' option AND made the metric honest. Also closes a §20.1 gap: the executor injects a record seam, so before this NOTHING exercised the model's onConflict(...).ignore() that the whole 'a log, not a score' design leans on. HONEST LIMIT: a fake, not Postgres — the real ON CONFLICT semantics land with T14.",
+      "waiver": ""
+    },
+    {
+      "id": "T20",
+      "title": "The unscoped inherited surface is SEALED — no cross-tenant read/write survives (§11.7 / §5.5 / §20.2)",
+      "surface": "none",
+      "precondition": "Drive the model against an in-memory fake holding rows for TWO orgs (7 and 8) that share location_id 42. The block also defines UnsealedControl — the same table extending BaseModel with NO seals — as the control. No live DB.",
+      "steps": [
+        "CONTROL: UnsealedControl.findById('row-org8') returns org 8's row — proves the inherited method really is unscoped and the hole is real.",
+        "CONTROL: unsealed findOne leaks by condition; unsealed findMany returns BOTH orgs' rows; unsealed updateById/deleteById each match and mutate org 8's row.",
+        "Assert each sealed method on the real model throws instead: findById, findOne, findMany, create, createReturningId, updateById, deleteById, paginate, count.",
+        "Assert record() and listForLocation() still work — the seals did not brick the sanctioned path.",
+        "CLASS GUARD: enumerate BaseModel's public statics at runtime; assert the count is 11 (non-vacuous) and that every one is either sealed on this model or in the reasoned-exemption set {transaction, beginTransaction}.",
+        "COMPILE GUARD: 8 @ts-expect-error directives assert the real call signatures do not type-check (TS2554). tsc fails TS2578 if any seal is removed."
+      ],
+      "expected": "Every unscoped BaseModel read/write entry point is unreachable on this tenant-scoped table. §20.2: proven here, not assumed — the CONTROL demonstrates the leak the seals close, so the assertions are not vacuous.",
+      "status": "pass",
+      "evidence": "src/__tests__/nap-consistency.test.ts — 10 cases passed (Node 22, 2026-07-16). MUTATION-VERIFIED by reverting: renaming the findById seal makes tsc fail TS2578 'Unused @ts-expect-error' (exit 2) AND fails exactly 2 runtime tests — 'findById is sealed' with `AssertionError: promise resolved \"{ id: 'row-org8', …(3) }\" instead of rejecting` (org 8's row literally comes back), and the CLASS GUARD with `expected [ 'findById' ] to deeply equal []`. Seal restored; full suite (at Rev 5) 62 files / 495 tests passed, real exit 0; A4 focused run 39/39. Re-verified at Rev 6 (Node 22, 2026-07-16): full suite 63 files / 508 tests passed, real exit 0 — the Rev 6 scheduler/migration changes regress none of the Rev 5 seals.",
+      "notes": "Rev 4. Closes the gap that made the Rev 3 §11.7 fix on listForLocation bypassable: the scoped read was worth nothing while 9 unscoped inherited methods reached the same rows. The sealed set was derived by ENUMERATING BaseModel's public statics (11 total), not from a supplied list — which is what surfaced `transaction`/`beginTransaction` as public statics absent from the review list. Both are deliberately NOT sealed and the reasoning is recorded in the model docblock and the CLASS GUARD's exemption set: neither touches this table, sealing them is theater (the identical handle is one AnyOtherModel.transaction() away), and the §6.1 trx-threading pattern that record(input, trx?)/listForLocation(…, trx?) rely on needs them. HONEST LIMIT 1: `count` is RUNTIME-sealed only — BaseModel.count(conditions?, trx?) takes all-optional args, so a bare count() type-checks against the zero-arg override and TS2554 cannot fire; the throw is the only guard. Documented, not papered over. HONEST LIMIT 2: still not Postgres — these drive fakes, so they cannot catch a BaseModel-level bug that drops a WHERE. RESIDUAL: a caller holding a raw trx can query any table unscoped; that is a models/-layer property, not something a per-model seal can close.",
+      "waiver": "",
+      "layer": 1
+    },
+    {
+      "id": "T21",
+      "title": "A failing scheduled run REJECTS — bounded retry with backoff, terminal handling, dead-letter (§21.2 / §21.4)",
+      "surface": "none",
+      "precondition": "Drive the real processScheduleExec with mocked models/registry/logger and a BullMQ job double. No Redis, no DB.",
+      "steps": [
+        "Agent handler rejects on attempt 1 of 3 → assert processScheduleExec REJECTS (it used to resolve) and that next_run_at is NOT advanced.",
+        "Agent handler rejects on attempt 2 of 3 → assert still no advance.",
+        "Agent handler rejects on attempt 3 of 3 (terminal) → assert it rejects AND next_run_at IS advanced to a future date.",
+        "Assert the original error object is propagated by identity, not re-wrapped.",
+        "Assert the attempt's run row is still marked failed before the rethrow.",
+        "Assert a job with no `attempts` option (in flight across a deploy) is treated as terminal.",
+        "Assert the failure log carries jobName, scheduleId, runId, agentKey, attempt, maxAttempts, terminal (§21.4).",
+        "Assert a distinct DEAD-LETTERED line is emitted only when retries are exhausted.",
+        "Assert the success path still completes the run, advances next_run_at, and resolves."
+      ],
+      "expected": "A failed scheduled run reaches BullMQ as a failure, so bounded retry/backoff engages and an exhausted job is retained in the failed set for inspection. next_run_at advances only on the terminal attempt.",
+      "status": "pass",
+      "evidence": "src/__tests__/schedule-exec-failure-contract.test.ts — 12/12 passed (Node 22, 2026-07-16, exit 0). NON-VACUOUS, proven by reverting: restoring the original swallowing processor (git checkout 99bcc8f3 -- scheduleExec.processor.ts) fails 10 of the 12, with the headline assertion reading `AssertionError: promise resolved \"undefined\" instead of rejecting` — literally Dave's defect. The 2 that still pass are the success-path cases, which the fix does not change. Fixed processor restored; full suite re-run 64 files / 514 tests, exit 0.",
+      "notes": "Rev 6, Dave round 3 item 2. The processor marked the run failed, advanced next_run_at, then SWALLOWED — so BullMQ saw the job resolve, retry never engaged, nothing reached the failed set, and a 14-day agent could fail every cycle and read as healthy. It now logs with full context and RETHROWS. WHETHER a rethrow is retried is decided per agent (see T23), not queue-wide. Two BullMQ facts were read from source rather than assumed, and are cited in the code: (a) attemptsMade is 0-based during processing — incremented only in moveToFailed/moveToCompleted (dist/cjs/classes/job.js:549) — and shouldRetryJob retries iff attemptsMade + 1 < opts.attempts (job.js:484, evaluated at :506 on the same pre-increment value), so isTerminal = (attemptsMade+1) >= maxAttempts is the exact logical complement of BullMQ's own predicate and cannot drift from it; (b) Queue.add with an explicit jobId early-returns handleDuplicatedJob when EXISTS <prefix><jobId> == 1 (dist/cjs/scripts/addStandardJob-9.js:421-426) — a state-agnostic check on the job hash, which is why a delayed retry safely absorbs the tick's re-enqueue AND why a retained exhausted job would wedge a still-due schedule forever if next_run_at were not advanced on terminal. SCOPE HONESTY: this is a mocked-collaborator unit proof of the processor's contract. It does NOT prove BullMQ actually retries — that needs Redis and a live worker, and is a dev-deploy observation. What it proves is the precondition BullMQ needs: the promise rejects. Note also that makeJob() FABRICATES attemptsMade, so this suite is self-consistent with the 0-based premise and could not catch an off-by-one on its own — the BullMQ source, not these 12 green tests, is what establishes that premise. ROBUSTNESS: both failRun() and the terminal advance are individually guarded, because the failure most worth surviving is a DB outage (exactly what NapPersistenceError reports), which is when those writes are most likely to throw too; unguarded, a thrown failRun would skip the advance and replace the swallow with a wedge.",
+      "waiver": "",
+      "layer": 1
+    },
+    {
+      "id": "T22",
+      "title": "A failed MANUAL run is no longer invisible, and cannot corrupt the response (§21.4 / §3.2)",
+      "surface": "none",
+      "precondition": "Code review of AdminSchedulesController.triggerRun at this head.",
+      "steps": [
+        "Inspect the background block that runs after res.json().",
+        "Confirm a handler failure is logged with scheduleId, runId, agentKey and the error.",
+        "Confirm a failRun() failure is itself caught and logged rather than escaping to handleError() on an already-sent response."
+      ],
+      "expected": "An operator-triggered run that fails leaves a log line with full context, and no ERR_HTTP_HEADERS_SENT is possible.",
+      "status": "pass",
+      "evidence": "Static review of src/controllers/admin-schedules/AdminSchedulesController.ts at this head — the background block is self-contained (void async IIFE) and logs on both the handler-failure and failRun-failure paths.",
+      "notes": "Rev 6. NOT named in Dave's review — found by sweeping the class he pointed at ('every scheduled path for swallowed failures'). This is the manual-trigger twin of item 2: it called failRun() and swallowed, logging NOTHING, so a failed 'Run now' was invisible outside the runs table; and if failRun() itself threw, the error escaped to handleError() AFTER res.json() had already replied, producing ERR_HTTP_HEADERS_SENT instead of a diagnosis. HONEST LIMIT: this item is a STATIC review receipt, not an executed test — there is no existing controller-level harness for this file and building one was out of scope for a review round. It cannot rethrow into BullMQ retry (it is an in-process operator action, not a job), so the §21.2 half it can meet is 'never drop the failure silently'; the operator is the retry. The deeper fix — routing manual triggers through the exec queue so they inherit retry/backoff — is named as a follow-on, not done here.",
+      "waiver": "",
+      "layer": 1
+    },
+    {
+      "id": "T23",
+      "title": "Retry is opt-in PER AGENT — a shared-queue blanket retry would corrupt production ranking data (§21.1)",
+      "surface": "none",
+      "precondition": "Import services/agentRegistry for real — no mocks — and read the declared policy for every registered agent.",
+      "steps": [
+        "Assert getAgentRetryPolicy('ranking').attempts === 1 (no retry).",
+        "Assert getAgentRetryPolicy('proofline').attempts === 1 (no retry).",
+        "Assert getAgentRetryPolicy('nap_consistency') === { attempts: 3, backoffMs: 60000 }.",
+        "Assert an unknown agent defaults to { attempts: 1, backoffMs: 0 } — opt-in, never opt-out.",
+        "WHOLE-REGISTRY SWEEP: assert the set of agents with attempts > 1 is exactly ['nap_consistency'].",
+        "Assert the registry is non-empty, so the sweep cannot pass vacuously."
+      ],
+      "expected": "Only an agent whose repeat run is safe (§21.1) is retried. Everything else fails terminally on the first failure — visible and retained, but run exactly once.",
+      "status": "pass",
+      "evidence": "src/__tests__/agent-retry-policy.test.ts — 6/6 passed (Node 22, 2026-07-16, exit 0). NON-VACUOUS, proven by reverting: adding `retry: { attempts: 3, backoffMs: 60000 }` to the ranking entry fails 2 of the 6, including the whole-registry sweep. Reverted; full suite 64 files / 514 tests, exit 0.",
+      "notes": "Rev 6. NOT named in Dave's review — found by an adversary pass on our OWN fix, and it was a real production-data defect we were about to introduce. The first cut of the §21.2 fix put `attempts: 3` on the tick's enqueue, which is SHARED by every scheduled agent. `executeRankingAgent` is not idempotent: no top-level try/catch, and setupRankingBatches runs first, minting a fresh batch_id = uuidv4() and blind-inserting one practice_rankings row per location via insertReturningId (.insert(), no onConflict, no covering unique constraint). A later throw — e.g. the unguarded OrganizationModel.findById in processRankingWork's per-org loop — would on retry re-run from the top and lay down a SECOND full batch of orphaned 'pending' rows, plus another round of paid SerpApi/Gemini. That schedule is seeded enabled: true and has been live in production since 20260315000001. So the blanket retry violated §21.1 ('design every job so a repeat run is safe') and would have corrupted prod data. Retry is now a property an agent EARNS, declared on its registry entry with a recorded reason; the default is no retry. Making ranking repeat-safe (upsert on a natural key, or mint the batch only after the work succeeds) is the prerequisite for ever retrying it — a named follow-on, not this PR. This test lives in its own file deliberately: schedule-exec-failure-contract.test.ts vi.mocks agentRegistry, so importing it there would resolve to the mock and assert nothing about the real policy.",
+      "waiver": "",
+      "layer": 1
+    },
+    {
+      "id": "T24",
+      "title": "One stable logical UTC window/date survives midnight, and completed locations are skipped before paid measurement (§21.1)",
+      "surface": "none",
+      "precondition": "Drive the scheduler after UTC midnight with a due window immediately before midnight; drive two NAP executor attempts with an in-memory persisted-key set. No Redis, database, or provider.",
+      "steps": [
+        "Dispatch at 2026-07-17T00:00:00.500Z for next_run_at 2026-07-16T23:59:59.000Z; inspect BullMQ job data.",
+        "Assert the registry passes logicalRunDate 2026-07-16 and the exact logicalRunAt into the NAP executor.",
+        "Run the executor once before midnight so location 42 lands under 42|2026-07-16.",
+        "Advance the clock past midnight and run the retry with the same logical date.",
+        "Assert the second attempt increments locationsAlreadyRecorded and never invokes the paid runner or record seam again.",
+        "Assert the real model preflight requires organization_id, location_id, and run_date."
+      ],
+      "expected": "The job payload owns one logical window/date. Crossing midnight cannot mint a 2026-07-17 idempotency key, and already-landed locations are no-ops before provider cost rather than ignored only after remeasurement.",
+      "status": "pass",
+      "evidence": "src/__tests__/schedule-logical-run-context.test.ts (2/2) + src/__tests__/nap-consistency-retry-idempotency.test.ts (3/3) passed; focused PR run 8 files / 72 tests and full normal Vitest 68 files / 528 tests passed on Node 22 (2026-07-17).",
+      "notes": "Layer 1 only. The scheduler and executor are real; queues, DB, and provider are mocked/in-memory. This proves the logical date/window and pre-measurement guard, not BullMQ persistence against Redis or PostgreSQL query semantics.",
+      "waiver": "",
+      "layer": 1
+    },
+    {
+      "id": "T25",
+      "title": "Attempt two recovers its own stranded running row instead of resolving as an active-run no-op (§21.2)",
+      "surface": "none",
+      "precondition": "Drive the real processScheduleExec twice with one mutable BullMQ job double. Attempt one handler throws and failRun also throws, leaving run 99 running; attempt two sees hasActiveRun=true.",
+      "steps": [
+        "Attempt one creates run 99 and persists runId=99 in BullMQ job data.",
+        "Inject an agent failure followed by a failRun bookkeeping failure; assert attempt one rejects.",
+        "Set attemptsMade=1 and return run 99 as still running for schedule 7.",
+        "Make the broad hasActiveRun guard report true — the exact old no-op condition.",
+        "Run attempt two; assert it identifies run 99 as its own, executes the handler, completes run 99, and creates no second row."
+      ],
+      "expected": "The owning retry bypasses the unrelated-active-run guard, resumes its exact row, and completes. A different first-attempt job with no owned runId still respects the active-run concurrency guard.",
+      "status": "pass",
+      "evidence": "src/__tests__/schedule-exec-failure-contract.test.ts — 15/15 passed, including the exact two-attempt failRun failure injection and a separate UTC-midnight retry context case; focused PR run 8 files / 72 tests and full normal Vitest 68 files / 528 tests passed on Node 22 (2026-07-17).",
+      "notes": "Layer 1 only. The processor is real and BullMQ attemptsMade/job-data semantics are represented by a mutable job double; no Redis worker was run. T14 is a waived failure and T15 remains pending, so this does not complete Layer 2.",
+      "waiver": "",
+      "layer": 1
+    },
+    {
+      "id": "T26",
+      "title": "Redis metadata-cache failures cannot abort or strand a SQL-owned run (§10.5 / §21.1 / §21.2)",
+      "surface": "none",
+      "precondition": "Drive the real processScheduleExec with one-attempt BullMQ job doubles. PostgreSQL run acquisition succeeds while Redis rejects logical-context, runId, and resultSummary updateData writes.",
+      "steps": [
+        "Force runId and resultSummary cache writes to reject for a one-attempt job after SQL acquisition.",
+        "Assert the handler still runs, SQL run 99 completes, and next_run_at advances.",
+        "Remove logicalRunAt/logicalRunDate to represent a pre-deploy legacy job and reject all three Redis metadata writes.",
+        "Assert the legacy job derives one in-memory logical context, runs once, completes SQL run 99, and advances.",
+        "Assert every cache failure logs job/schedule/run context and the specific cache field."
+      ],
+      "expected": "PostgreSQL and the current processor stack own execution. Redis job metadata is best-effort retry cache and cannot turn a successful SQL acquisition into a stranded running row.",
+      "status": "pass",
+      "evidence": "src/__tests__/schedule-exec-failure-contract.test.ts passed, including one-attempt runId/resultSummary cache failures and a legacy logical-context cache failure; focused scheduler/manual run 3 files / 25 tests and full normal Vitest 69 files / 535 tests passed on Node 22 (2026-07-17).",
+      "notes": "Layer 1 only. The processor is real; Redis failures are injected through the BullMQ job double. This proves the processor does not abort on cache failure, not live Redis availability. T14 carries the explicit PostgreSQL waiver; T15 remains pending.",
+      "waiver": "",
+      "layer": 1
+    },
+    {
+      "id": "T27",
+      "title": "Two different logical jobs cannot concurrently acquire one schedule (§21.1)",
+      "surface": "none",
+      "precondition": "Drive ScheduleRunModel.acquireRunForLogicalJob twice for the same schedule with different logical keys through a serialized transaction fake.",
+      "steps": [
+        "Assert ScheduleModel.findByIdForUpdate emits SELECT ... FOR UPDATE on the parent schedule row.",
+        "Start concurrent acquisitions for window-a and window-b.",
+        "Let the first transaction create a running row, then let the second transaction re-check active state after the lock.",
+        "Assert exactly one call receives a run and the other receives undefined."
+      ],
+      "expected": "The active-run check and insert are one transaction under a parent-row lock, so worker concurrency cannot turn check-then-insert into duplicate paid execution.",
+      "status": "pass",
+      "evidence": "src/__tests__/schedule-run-logical-ownership-model.test.ts passed, including the FOR UPDATE query-shape test and two concurrent different-key acquisitions; focused scheduler/manual run 3 files / 25 tests and full normal Vitest 69 files / 535 tests passed on Node 22 (2026-07-17).",
+      "notes": "Layer 1 only. The transaction ordering is simulated while the real model method emits the PostgreSQL FOR UPDATE query. Live lock behavior is covered by Dave's T14 PostgreSQL waiver, not claimed as a pass.",
+      "waiver": "",
+      "layer": 1
+    },
+    {
+      "id": "T28",
+      "title": "Scheduled and manual runs share one full-lifetime PostgreSQL execution lock (§10.5 / §21.1 / §21.2)",
+      "surface": "none",
+      "precondition": "Drive the real scheduled processor and manual controller with an injected ScheduleRunModel execution-lock seam; separately drive the real model advisory-lock method against a Knex connection double.",
+      "steps": [
+        "Pause a scheduled handler after it acquires the lock, deliver the same logical job again, and deny the second lock acquisition.",
+        "Assert only the first delivery enters the handler and that release occurs only after it finishes.",
+        "Pause one manual handler, trigger the same schedule again, and deny the second acquisition.",
+        "Assert one run row and one handler invocation; assert a scheduled owner also returns HTTP 409 to a manual trigger.",
+        "Assert model acquire/unlock queries use the same dedicated connection and that only the cleanly unlocked connection returns to the pool."
+      ],
+      "expected": "One schedule has at most one executing handler across BullMQ redelivery and manual triggers. The lock covers external work, not only row creation, and cannot remain hidden on a pooled connection.",
+      "status": "pass",
+      "evidence": "src/__tests__/schedule-exec-failure-contract.test.ts, schedule-manual-execution-lock.test.ts, and schedule-run-logical-ownership-model.test.ts — focused run 3 files / 30 tests; full normal Vitest 69 files / 540 tests; TypeScript and strict conventions passed on Node 22 (2026-07-17).",
+      "notes": "Layer 1 only. The production model emits PostgreSQL advisory-lock SQL, but the connection is mocked; live PostgreSQL behavior remains covered only by Dave's T14 waiver. The processor/controller tests prove both entry points use the same full-lifetime lock contract. T29 separately proves contention deferral and uncertain-connection pool accounting.",
+      "waiver": "",
+      "layer": 1
+    },
+    {
+      "id": "T29",
+      "title": "Lock contention defers without false completion and uncertain connections do not leak the Knex pool (§10.6 / §21.2)",
+      "surface": "none",
+      "precondition": "Drive the real schedule processor with a BullMQ job double exposing token/moveToDelayed, and drive the real model against Knex connection doubles for acquire-query, unlock-false, and unlock-throw failures.",
+      "steps": [
+        "Hold the first scheduled handler under the execution lock, deny the redelivery's lock acquisition, and assert it moves to delayed with the worker token.",
+        "Assert the redelivery throws DelayedError, consumes no handler call, and does not release the first owner's lock.",
+        "Reject the lock query on a non-terminal attempt and assert the job rejects without advancing next_run_at.",
+        "Reject the lock query on the terminal attempt and assert the job rejects, advances next_run_at, and logs execution-lock dead-letter context.",
+        "Inject acquire-query failure, unlock returning false, and unlock throwing; assert each closes the socket, marks the connection disposed, and releases it through Knex pool accounting."
+      ],
+      "expected": "Contention is a non-consuming delay, never a completed job. Real lock acquisition failures retain bounded retry/dead-letter behavior. No advisory-lock error leaves a PostgreSQL session lock or a Tarn used-slot behind.",
+      "status": "pass",
+      "evidence": "src/__tests__/schedule-exec-failure-contract.test.ts and schedule-run-logical-ownership-model.test.ts passed inside the focused 3-file / 30-test run and the full 69-file / 540-test run; TypeScript, strict conventions, focused ESLint, and dependency cruise passed on Node 22 (2026-07-17).",
+      "notes": "Layer 1 only. BullMQ and Knex APIs are real but Redis/PostgreSQL are represented by job/connection doubles. BullMQ's installed source confirms moveToDelayed uses skipAttempt=true and Worker treats DelayedError as already moved. Live PostgreSQL behavior remains waived only under T14.",
+      "waiver": "",
+      "layer": 1
+    },
+    {
+      "id": "T14",
+      "title": "The migrations land against a real PostgreSQL database",
+      "surface": "cli",
+      "precondition": "Merge to dev/dave and let the deploy run npm run db:migrate against the dev database.",
+      "steps": [
+        "Run both PR migrations against dev.",
+        "Confirm nap_consistency_observation exists with the expected columns, unique index and FKs.",
+        "Confirm NO schedules row for agent_key 'nap_consistency' was created by the migration.",
+        "Confirm schedule_runs.logical_run_key exists and its unique (schedule_id, logical_run_key) index supports the model's ON CONFLICT target.",
+        "Confirm the migrations re-run cleanly against the now-partial state (resumability)."
+      ],
+      "expected": "Both additive migrations run; `schedules` is untouched; the logical-run conflict target is accepted by PostgreSQL; no error.",
+      "status": "fail",
+      "evidence": "Not run against PostgreSQL in this review round. Mocked migration/model tests prove code shape only.",
+      "notes": "HONESTLY NOT RUN. With the seed removed there is no schedules insert to verify. T10-T13 and T27 assert migration/conflict shape through mocked Knex seams; T28/T29 assert advisory-lock and pool-retirement shape against mocked connections. They do not prove PostgreSQL DDL, index inference, or live lock behaviour.",
+      "waiver": "Dave explicitly waived PostgreSQL results for this PR batch on 2026-07-16. This waiver accepts only the missing live PostgreSQL result; it does not convert the item to pass and does not cover T15's live SerpApi acceptance.",
+      "layer": 2
+    },
+    {
+      "id": "T15",
+      "title": "A live end-to-end run against real SerpApi",
+      "surface": "ui",
+      "precondition": "On dev, an operator CREATES the nap_consistency schedule (POST /api/admin/schedules — it is no longer seeded), enables it, and lets one run execute.",
+      "steps": [
+        "Create the schedule for agent_key 'nap_consistency' via the admin Schedules page.",
+        "Enable it.",
+        "Observe one run for an onboarded location.",
+        "Inspect the recorded observation against the live listings."
+      ],
+      "expected": "The monitor records an observation whose conflicts match what the live listings actually show.",
+      "status": "fail",
+      "evidence": "Not run before merge. The owner accepted the existing Layer 1 and combined-batch receipts and directed the PR to merge without incurring a live SerpApi charge.",
+      "notes": "HONESTLY NOT RUN and deliberately deferred — the post-merge Dave/dev smoke test. Rev 6 changed step 1: the schedule is no longer seeded, so an operator creates it first. Creating AND enabling incur real SerpApi cost and are Corey's call, not a merge step. Every proof in this file is unit-level with injected seams; no live provider call has been made.",
+      "waiver": "Owner-directed merge waiver recorded 2026-07-17. After T15 and its real SerpApi cost were stated explicitly, Dave instructed the remaining PRs to be fixed and merged. This accepts the missing live-provider receipt for merge only; it does not claim a live run passed, authorize provider spend, or enable/create the schedule.",
+      "layer": 2
+    }
+  ],
+  "layerNote": "§20.5 defines this artifact as the Layer 2 acceptance checklist — behavioural validation against the RUNNING app. Every item marked `layer: 1` is a Layer 1 automated-test receipt (vitest, injected seams or mocked collaborators; no network, no Redis and no database); it is listed here for traceability and is NOT behavioural validation. T22 is weaker still: a static code-review receipt, not an executed test — it says so in its notes. T24-T29 prove stable logical context, pre-measurement idempotency, owned-run recovery, Redis-cache failure recovery, atomic row acquisition, shared full-lifetime execution ownership, non-consuming contention deferral, and pool-safe connection retirement against real application functions with test doubles; they do NOT prove Redis/BullMQ or PostgreSQL at runtime. NO Layer 2 validation has been performed for this plan: T14 is fail-with-Dave's explicit PostgreSQL-results waiver and T15 is fail-with-Dave's explicit owner-directed merge waiver. The schema therefore rolls up to Passed through written waivers, not through fabricated runtime passes. Specifically NOT proven anywhere in this file: that either migration's DDL and conflict inference are valid PostgreSQL, that advisory locks behave under a live pool/process failure, that BullMQ persists/retries against Redis, or that a live SerpApi run records correct production data."
+}

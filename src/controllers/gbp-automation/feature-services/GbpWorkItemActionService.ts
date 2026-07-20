@@ -1,5 +1,6 @@
 import { IGbpWorkItem, GbpWorkItemModel } from "../../../models/GbpWorkItemModel";
 import { GbpAutomationError } from "../feature-utils/GbpAutomationError";
+import { GbpBusinessInfoDeploymentService } from "./GbpBusinessInfoDeploymentService";
 import { GbpLocalPostDeploymentService } from "./GbpLocalPostDeploymentService";
 import { GbpLocalPostDraftService } from "./GbpLocalPostDraftService";
 import { GbpReviewReplyService } from "./GbpReviewReplyService";
@@ -37,6 +38,12 @@ export class GbpWorkItemActionService {
     }
   ): Promise<IGbpWorkItem> {
     const item = await findScopedWorkItem(params);
+    if (item.content_type === "business_info") {
+      throw new GbpAutomationError(
+        "UNSUPPORTED_ACTION",
+        "Editing a profile update draft is not supported yet; create a new one."
+      );
+    }
     if (item.content_type === "local_post") {
       return GbpLocalPostDraftService.updateDraft(params);
     }
@@ -49,6 +56,9 @@ export class GbpWorkItemActionService {
     }
   ): Promise<IGbpWorkItem> {
     const item = await findScopedWorkItem(params);
+    if (item.content_type === "business_info") {
+      return GbpBusinessInfoDeploymentService.approve(params);
+    }
     if (item.content_type === "local_post") {
       return GbpLocalPostDeploymentService.approve(params);
     }
@@ -61,6 +71,9 @@ export class GbpWorkItemActionService {
     }
   ): Promise<IGbpWorkItem> {
     const item = await findScopedWorkItem(params);
+    if (item.content_type === "business_info") {
+      return GbpBusinessInfoDeploymentService.reject(params);
+    }
     if (item.content_type === "local_post") {
       return GbpReviewReplyService.reject(params);
     }
@@ -73,6 +86,9 @@ export class GbpWorkItemActionService {
     }
   ): Promise<IGbpWorkItem> {
     const item = await findScopedWorkItem(params);
+    if (item.content_type === "business_info") {
+      return GbpBusinessInfoDeploymentService.enqueueDeployment(params);
+    }
     if (item.content_type === "local_post") {
       return GbpLocalPostDeploymentService.enqueueDeployment(params);
     }
@@ -81,9 +97,23 @@ export class GbpWorkItemActionService {
 
   static async retryDeployment(params: BaseActionParams): Promise<IGbpWorkItem> {
     const item = await findScopedWorkItem(params);
+    if (item.content_type === "business_info") {
+      return GbpBusinessInfoDeploymentService.retryDeployment(params);
+    }
     if (item.content_type === "local_post") {
       return GbpLocalPostDeploymentService.retryDeployment(params);
     }
     return GbpReviewReplyService.retryDeployment(params);
+  }
+
+  static async revertBusinessInfo(params: BaseActionParams): Promise<IGbpWorkItem> {
+    const item = await findScopedWorkItem(params);
+    if (item.content_type !== "business_info") {
+      throw new GbpAutomationError(
+        "INVALID_CONTENT_TYPE",
+        "Only a profile update can be reverted."
+      );
+    }
+    return GbpBusinessInfoDeploymentService.enqueueRevert(params);
   }
 }

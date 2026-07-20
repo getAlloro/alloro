@@ -4,6 +4,7 @@ import { GbpCustomizationService } from "./feature-services/GbpCustomizationServ
 import { GbpReadinessService } from "./feature-services/GbpReadinessService";
 import { GbpReviewDraftSlotService } from "./feature-services/GbpReviewDraftSlotService";
 import { GbpDeployPreviewService } from "./feature-services/GbpDeployPreviewService";
+import { GbpBusinessInfoDraftService } from "./feature-services/GbpBusinessInfoDraftService";
 import { GbpLocalPostDraftService } from "./feature-services/GbpLocalPostDraftService";
 import { GbpLocalPostScheduleService } from "./feature-services/GbpLocalPostScheduleService";
 import { GbpPostMediaService } from "./feature-services/GbpPostMediaService";
@@ -20,6 +21,7 @@ import {
   parseOptionalNumber,
   settingsPayload,
 } from "./feature-utils/controllerResponses";
+import { parseBusinessInfoDraftInput } from "./feature-utils/gbpBusinessInfo";
 
 type HandlerRequest = Request | LocationScopedRequest;
 
@@ -99,6 +101,42 @@ export class GbpAutomationController {
         }
       );
       return ok(res, result);
+    } catch (error) {
+      return handleGbpError(res, error);
+    }
+  }
+
+  static async createBusinessInfoDraft(req: Request, res: Response): Promise<Response> {
+    try {
+      const ctx = clientContext(req);
+      const input = parseBusinessInfoDraftInput(req.body);
+      const item = await GbpBusinessInfoDraftService.createDraft({
+        organizationId: ctx.organizationId,
+        locationId: ctx.locationId,
+        userId: ctx.userId,
+        actorEmail: ctx.actorEmail,
+        accessibleLocationIds: ctx.accessibleLocationIds,
+        patch: input.patch,
+        updateMask: input.updateMask,
+        summary: input.summary,
+      });
+      return ok(res, item, 201);
+    } catch (error) {
+      return handleGbpError(res, error);
+    }
+  }
+
+  static async revertBusinessInfo(req: Request, res: Response): Promise<Response> {
+    try {
+      const ctx = clientContext(req);
+      const item = await GbpWorkItemActionService.revertBusinessInfo({
+        organizationId: ctx.organizationId,
+        workItemId: req.params.id,
+        userId: ctx.userId,
+        actorEmail: ctx.actorEmail,
+        accessibleLocationIds: ctx.accessibleLocationIds,
+      });
+      return ok(res, item);
     } catch (error) {
       return handleGbpError(res, error);
     }

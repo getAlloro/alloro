@@ -5,7 +5,10 @@ type GbpNotificationKind =
   | "gbp_reply_published"
   | "gbp_reply_deploy_failed"
   | "gbp_post_published"
-  | "gbp_post_deploy_failed";
+  | "gbp_post_deploy_failed"
+  | "gbp_business_info_published"
+  | "gbp_business_info_deploy_failed"
+  | "gbp_business_info_reverted";
 
 interface NotifyParams {
   organizationId: number;
