@@ -334,6 +334,11 @@
         <p><strong>Reason:</strong> Overwatch QA (multi-agent recon): a "Completed" hero on an open PR carrying unlanded, behaviorally-unverified work with a stale failing test would misread to a reviewer. No code changed — status/label only.</p>
         <p><strong>Updated Done criteria:</strong> Added: regenerate <code>test-results.json</code> against the current branch (resolve or explain the stale FAIL) before PR-ready; Layer-2 behavioral acceptance remains pending the sandbox clone.</p>
       </article>
+      <article class="task-card"><h3>Rev 5 - 2026-07-20</h3>
+        <p><strong>Change:</strong> Rebased the branch onto the advanced <code>dev/dave</code> (was 59 commits behind, built on pre-#183 code). The rebase auto-merged cleanly — the only shared file, <code>src/controllers/patient-journey/feature-utils/types.ts</code>, took both edits (this PR's <code>PatientJourneyAction.actionType/metricKey</code> loosened to <code>string</code>, and #183's <code>PatientJourneyRankContext.notInTop20</code> replacing <code>totalCompetitors</code>). #183's Get-Found honesty fixes (Search-only clicks/CTR labels, "Visited the site" caption, skip-unmapped-locations, Maps+Search impressions) are fully preserved — this PR touches none of those files. Also fixed one execution-time test-mock gap in <code>src/__tests__/metric-action.model.test.ts</code>: the mock query builder did not understand the two-arg Knex <code>.where(column, value)</code> equality form that <code>MetricActionModel</code> uses for the optional metric filter, so it returned <code>undefined</code> and failed the org-wide-event test. Taught the mock that a two-arg <code>.where</code> means equality (faithful to real Knex). Test-only; no production behavior change.</p>
+        <p><strong>Reason:</strong> Execution deviation: keep the branch mergeable on the moved <code>dev/dave</code> without regressing #183, and get the model test suite green (66/66) so #185 can land.</p>
+        <p><strong>Updated Done criteria:</strong> Backend <code>tsc</code> clean; frontend <code>tsc</code> clean; backend vitest 66/66 (patient-journey + stage-readers + metric-action); frontend patient-journey vitest 15/15. Layer-2 behavioral acceptance still pending the sandbox clone.</p>
+      </article>
     </section>
   </main>
 </body>
