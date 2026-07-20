@@ -65,6 +65,12 @@ vi.mock("../utils/rybbit/rybbit-time-zone", () => ({
 vi.mock("../lib/logger", () => ({
   default: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
+// Pin the Maps trust window. The real constant tracks a deploy date and will be
+// bumped; these tests assert the CLAMPING BEHAVIOUR, so they must not break the
+// day someone changes that date.
+vi.mock("../config/patientJourney", () => ({
+  MAPS_IMPRESSIONS_TRUSTED_FROM: "2026-01-01",
+}));
 
 import { readImpressions } from "../controllers/patient-journey/feature-services/stageReaders";
 
@@ -75,11 +81,19 @@ const END = "2026-06-30";
 const ORG = 7;
 const LOCATION = 42;
 
-// Build a daily google_data_store row: date_start = dayBefore, date_end = the
-// later day; maps impressions live under gbp_data.{yesterday,dayBefore}. The
-// impressions gate is WHOLE-PRACTICE, so a row carries its own location_id (and
-// an id, used only to prove deterministic ordering) — both default to a single
-// location for the simple cases.
+// Build a daily google_data_store row as the MODEL now returns it: date_start =
+// dayBefore, date_end = the later day, and the two `visibility` objects
+// projected out of gbp_data by the query (`#> '{yesterday,visibility}'`) rather
+// than the whole blob. The impressions gate is WHOLE-PRACTICE, so a row carries
+// its own location_id (and an id, used only to prove deterministic ordering) —
+// both default to a single location for the simple cases.
+function visibility(maps: [number, number]) {
+  return {
+    impressions_maps_desktop: maps[0],
+    impressions_maps_mobile: maps[1],
+  };
+}
+
 function dailyRow(
   dateStart: string,
   dateEnd: string,
@@ -92,24 +106,34 @@ function dailyRow(
     id,
     organization_id: ORG,
     location_id: locationId,
-    domain: "example.com",
-    run_type: "daily",
     date_start: dateStart,
     date_end: dateEnd,
-    gbp_data: {
-      dayBefore: {
-        visibility: {
-          impressions_maps_desktop: dayBeforeMaps[0],
-          impressions_maps_mobile: dayBeforeMaps[1],
-        },
-      },
-      yesterday: {
-        visibility: {
-          impressions_maps_desktop: yesterdayMaps[0],
-          impressions_maps_mobile: yesterdayMaps[1],
-        },
-      },
-    },
+    day_before_visibility: visibility(dayBeforeMaps),
+    yesterday_visibility: visibility(yesterdayMaps),
+  };
+}
+
+// A row where one or both sides carried NO stored visibility payload. The
+// projection returns SQL NULL for those, which is what "missing" looks like to
+// the reader — as opposed to a present object full of zeros.
+function partialRow(
+  dateStart: string,
+  dateEnd: string,
+  sides: {
+    dayBefore?: [number, number];
+    yesterday?: [number, number];
+  },
+  locationId: number = LOCATION,
+  id: number = 1,
+) {
+  return {
+    id,
+    organization_id: ORG,
+    location_id: locationId,
+    date_start: dateStart,
+    date_end: dateEnd,
+    day_before_visibility: sides.dayBefore ? visibility(sides.dayBefore) : null,
+    yesterday_visibility: sides.yesterday ? visibility(sides.yesterday) : null,
   };
 }
 
@@ -286,37 +310,11 @@ describe("readImpressions — Get Found = organic + whole-practice Maps", () => 
   it("does NOT count a day whose stored payload has no visibility (missing ≠ measured zero)", async () => {
     findByProjectAndDateRange.mockResolvedValue([gscDay(0)]);
     findDailyByOrgAndDateRange.mockResolvedValue([
-      {
-        id: 1,
-        organization_id: ORG,
-        location_id: LOCATION,
-        domain: "example.com",
-        run_type: "daily",
-        date_start: "2026-06-09",
-        date_end: "2026-06-10",
-        gbp_data: {
-          // dayBefore (06-09) has NO visibility payload → not a measured day.
-          dayBefore: {},
-          // yesterday (06-10) is a real measured value.
-          yesterday: {
-            visibility: {
-              impressions_maps_desktop: 30,
-              impressions_maps_mobile: 20,
-            },
-          },
-        },
-      },
-      {
-        // A wholly empty payload contributes nothing at all.
-        id: 2,
-        organization_id: ORG,
-        location_id: LOCATION,
-        domain: "example.com",
-        run_type: "daily",
-        date_start: "2026-06-11",
-        date_end: "2026-06-12",
-        gbp_data: {},
-      },
+      // dayBefore (06-09) has NO stored visibility → not a measured day.
+      // yesterday (06-10) is a real measured value.
+      partialRow("2026-06-09", "2026-06-10", { yesterday: [30, 20] }, LOCATION, 1),
+      // A wholly empty payload contributes nothing at all.
+      partialRow("2026-06-11", "2026-06-12", {}, LOCATION, 2),
     ]);
 
     const read = await readImpressions(PROJECT, START, END, true, ORG);
@@ -332,29 +330,12 @@ describe("readImpressions — Get Found = organic + whole-practice Maps", () => 
       // Dates rendered as `timestamp::text` → "YYYY-MM-DD 00:00:00" (space).
       // date_end sits on the window's last day (END) — the old "T"-only split
       // would leave " 00:00:00" attached and drop it.
-      {
-        id: 1,
-        organization_id: ORG,
-        location_id: LOCATION,
-        domain: "example.com",
-        run_type: "daily",
-        date_start: "2026-06-29 00:00:00",
-        date_end: "2026-06-30 00:00:00",
-        gbp_data: {
-          dayBefore: {
-            visibility: {
-              impressions_maps_desktop: 10,
-              impressions_maps_mobile: 0,
-            },
-          },
-          yesterday: {
-            visibility: {
-              impressions_maps_desktop: 30,
-              impressions_maps_mobile: 20,
-            },
-          },
-        },
-      },
+      dailyRow(
+        "2026-06-29 00:00:00",
+        "2026-06-30 00:00:00",
+        [10, 0],
+        [30, 20],
+      ),
     ]);
 
     const read = await readImpressions(PROJECT, START, END, true, ORG);
@@ -372,24 +353,7 @@ describe("readImpressions — Get Found = organic + whole-practice Maps", () => 
       // Location 42 has both days measured (06-09 = 10, 06-10 = 20).
       dailyRow("2026-06-09", "2026-06-10", [10, 0], [20, 0], 42, 1),
       // Location 43 only has 06-10 measured (06-09 side has no visibility).
-      {
-        id: 2,
-        organization_id: ORG,
-        location_id: 43,
-        domain: "example.com",
-        run_type: "daily",
-        date_start: "2026-06-09",
-        date_end: "2026-06-10",
-        gbp_data: {
-          dayBefore: {},
-          yesterday: {
-            visibility: {
-              impressions_maps_desktop: 5,
-              impressions_maps_mobile: 0,
-            },
-          },
-        },
-      },
+      partialRow("2026-06-09", "2026-06-10", { yesterday: [5, 0] }, 43, 2),
     ]);
     findSelectedGbpForSync.mockResolvedValue([
       { location_id: 42 },
@@ -453,5 +417,57 @@ describe("readImpressions — Get Found = organic + whole-practice Maps", () => 
     expect(read.available).toBe(true);
     expect(read.value).toBe(100);
     expect(read.metadata?.maps).toBeUndefined();
+  });
+
+  // ── Trust window ────────────────────────────────────────────────────────────
+  // Rows written before the unmapped-location fix can be fabricated copies of a
+  // sibling's listing, and the mapped-location gate judges PAST rows by PRESENT
+  // mapping — so it decays the moment an unmapped location gets mapped. The
+  // window is clamped instead. (A window entirely AFTER the trust date is the
+  // default for every test above: START is passed through unclamped, asserted by
+  // the "org-scoped" test's toHaveBeenCalledWith(ORG, START, END).)
+
+  it("drops the Maps term for a window entirely before the trust date, without querying", async () => {
+    findByProjectAndDateRange.mockResolvedValue([gscDay(100)]);
+
+    const read = await readImpressions(
+      PROJECT,
+      "2025-11-01",
+      "2025-11-30",
+      false,
+      ORG,
+    );
+
+    expect(read.value).toBe(100); // organic only
+    expect(read.metadata?.maps).toBeUndefined();
+    // The clamp short-circuits before the DB is touched — old months cost zero.
+    expect(findDailyByOrgAndDateRange).not.toHaveBeenCalled();
+  });
+
+  it("clamps a straddling window to the trust date and drops the pre-trust days", async () => {
+    findByProjectAndDateRange.mockResolvedValue([gscDay(100)]);
+    findDailyByOrgAndDateRange.mockResolvedValue([
+      // This row spans the boundary: dayBefore (12-31) is pre-trust, yesterday
+      // (01-01) is not. Only the trusted side may count.
+      dailyRow("2025-12-31", "2026-01-01", [40, 10], [30, 20]),
+    ]);
+
+    const read = await readImpressions(
+      PROJECT,
+      "2025-12-15",
+      "2026-01-15",
+      false,
+      ORG,
+    );
+
+    // Queried from the trust date, not from the caller's startDate.
+    expect(findDailyByOrgAndDateRange).toHaveBeenCalledWith(
+      ORG,
+      "2026-01-01",
+      "2026-01-15",
+    );
+    // Only 01-01 (50) counts; the pre-trust 12-31 side (50) is dropped.
+    expect(read.value).toBe(150);
+    expect(read.metadata?.maps).toEqual({ impressions: 50, days: 1 });
   });
 });

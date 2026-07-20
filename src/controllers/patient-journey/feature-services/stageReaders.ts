@@ -18,6 +18,7 @@ import { WebsiteIntegrationModel } from "../../../models/website-builder/Website
 import { ProjectModel } from "../../../models/website-builder/ProjectModel";
 import { ReviewModel } from "../../../models/website-builder/ReviewModel";
 import { PracticeRankingModel } from "../../../models/PracticeRankingModel";
+import { MAPS_IMPRESSIONS_TRUSTED_FROM } from "../../../config/patientJourney";
 import { aggregatePmsData } from "../../../utils/pms/pmsAggregator";
 import { fetchRybbitOverview } from "../../admin-websites/feature-services/service.rybbit-performance";
 import { resolveRybbitTimeZone } from "../../../utils/rybbit/rybbit-time-zone";
@@ -237,25 +238,15 @@ async function emptyImpressionsRead(
 }
 
 /**
- * Get Found = appearances on Google. That's GSC organic web-search impressions
- * PLUS Google Maps/local impressions — two distinct surfaces (Search Console
- * API vs Business Profile Performance API), so they never double-count.
+ * Maps impressions (desktop + mobile) for one stored GBP day-side's `visibility`
+ * object, as projected by the model. Returns null when the side carried NO
+ * `visibility` payload — that's a missing metric, not a measured zero, so the
+ * caller must NOT count it toward day-coverage. A present `visibility` with zero
+ * values returns 0 (a real measured zero day).
  */
-type GbpDailyVisibility = {
-  impressions_maps_desktop?: unknown;
-  impressions_maps_mobile?: unknown;
-};
-type GbpDailySide = { visibility?: GbpDailyVisibility };
-type GbpDailyPayload = { yesterday?: GbpDailySide; dayBefore?: GbpDailySide };
-
-/**
- * Maps impressions (desktop + mobile) for one stored GBP day-side. Returns null
- * when the side carries NO `visibility` payload — that's a missing metric, not
- * a measured zero, so the caller must NOT count it toward day-coverage. A
- * present `visibility` with zero values returns 0 (a real measured zero day).
- */
-function mapsImpressionsForSide(side: GbpDailySide | undefined): number | null {
-  const visibility = side?.visibility;
+function mapsImpressionsForVisibility(
+  visibility: Record<string, unknown> | null,
+): number | null {
   if (!visibility) return null;
   return (
     readNumber(visibility.impressions_maps_desktop) +
@@ -266,30 +257,50 @@ function mapsImpressionsForSide(side: GbpDailySide | undefined): number | null {
 /**
  * Whole-practice GBP Maps impressions over [startDate, endDate].
  *
+ * Get Found = appearances on Google: GSC organic web-search impressions PLUS
+ * Google Maps/local impressions — two distinct surfaces (Search Console API vs
+ * Business Profile Performance API), so they never double-count.
+ *
  * An org has ONE website (one project → GSC organic) but MANY locations, and
  * the three funnel gates are whole-practice aggregates. So the Maps term sums
  * across EVERY location of the org — not the currently-viewed tab.
  *
- * Each daily row stores two consecutive days — `gbp_data.yesterday` maps to
- * `date_end`, `gbp_data.dayBefore` to `date_start` — and a location's
- * consecutive/retried runs overlap by one day, so we key each measured value by
- * (location_id, calendar-day) to de-duplicate (never count one location's day
- * twice), then sum across all locations and days. A (location, day) only counts
- * when the stored side actually carries a `visibility` payload; a missing side
- * (an un-run / un-stored day) is absent, never a fabricated zero. Note `days` is
- * therefore STORED-DAY coverage, not "days Google returned data": the writer
- * zero-fills `visibility` for a Google-empty day, so that day still counts here.
+ * Each daily row stores two consecutive days — the `yesterday` side maps to
+ * `date_end`, `dayBefore` to `date_start` — and a location's consecutive/retried
+ * runs overlap by one day, so we key each measured value by (location_id,
+ * calendar-day) to de-duplicate (never count one location's day twice), then sum
+ * across all locations and days. The model projects just the two `visibility`
+ * objects rather than the whole `gbp_data` blob (§10.4) — same values, a
+ * fraction of the payload. A (location, day) only counts when its side actually
+ * carried a stored `visibility` payload; a missing side (an un-run / un-stored
+ * day) is absent, never a fabricated zero. Note `days` is therefore STORED-DAY
+ * coverage, not "days Google returned data": the writer zero-fills `visibility`
+ * for a Google-empty day, so that day still counts here.
  * Returns null when the org has no daily GBP rows in the window (the Maps term
- * is then absent and the gate falls back to organic-only).
+ * is then absent and the gate falls back to organic-only), and likewise for a
+ * window entirely before MAPS_IMPRESSIONS_TRUSTED_FROM — a null there means
+ * "Maps is not trusted for this window", which the gate already handles as
+ * organic-only.
  */
 async function readMapsImpressions(
   organizationId: number,
   startDate: string,
   endDate: string,
 ): Promise<{ impressions: number; days: number; asOf: string | null } | null> {
+  // Trust window (§4.2). Rows written before the unmapped-location fix can be
+  // fabricated copies of a sibling's listing, and the mapped-location gate below
+  // judges PAST rows by PRESENT mapping — so it decays the moment an unmapped
+  // location gets a google_properties row. Clamping the window is what makes the
+  // mitigation durable; see the constant for why this costs nothing.
+  const effectiveStart =
+    startDate > MAPS_IMPRESSIONS_TRUSTED_FROM
+      ? startDate
+      : MAPS_IMPRESSIONS_TRUSTED_FROM;
+  // A window entirely before the fix short-circuits without touching the DB.
+  if (effectiveStart > endDate) return null;
   const rows = await GoogleDataStoreModel.findDailyByOrgAndDateRange(
     organizationId,
-    startDate,
+    effectiveStart,
     endDate,
   );
   if (!rows.length) return null;
@@ -308,22 +319,22 @@ async function readMapsImpressions(
   const perLocationDay = new Map<string, number>();
   let asOf: string | null = null;
   for (const row of rows) {
-    const data = row.gbp_data as GbpDailyPayload | null;
-    if (!data) continue;
     const loc = row.location_id;
     // Unmapped location -> its Maps data is the fabricated account-blob copy; skip.
     if (loc === null || !mappedLocationIds.has(loc)) continue;
+    // A row's two-day span can reach back past the clamped start, so each day is
+    // re-checked against effectiveStart — not the caller's startDate.
     const endDay = isoDate(row.date_end);
-    if (endDay && endDay >= startDate && endDay <= endDate) {
-      const value = mapsImpressionsForSide(data.yesterday);
+    if (endDay && endDay >= effectiveStart && endDay <= endDate) {
+      const value = mapsImpressionsForVisibility(row.yesterday_visibility);
       if (value !== null) {
         perLocationDay.set(`${loc}::${endDay}`, value);
         if (!asOf || endDay > asOf) asOf = endDay;
       }
     }
     const startDay = isoDate(row.date_start);
-    if (startDay && startDay >= startDate && startDay <= endDate) {
-      const value = mapsImpressionsForSide(data.dayBefore);
+    if (startDay && startDay >= effectiveStart && startDay <= endDate) {
+      const value = mapsImpressionsForVisibility(row.day_before_visibility);
       if (value !== null) {
         perLocationDay.set(`${loc}::${startDay}`, value);
         if (!asOf || startDay > asOf) asOf = startDay;

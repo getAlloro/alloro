@@ -21,23 +21,33 @@ export interface IGoogleDataStore {
 }
 
 /**
- * A daily google_data_store row, trimmed to the columns the patient-journey
- * impressions reader needs (`location_id` included so the reader can dedup and
- * sum per location). `date_start`/`date_end` are cast to text so they
- * come back as clean YYYY-MM-DD strings regardless of the underlying column
- * type; `gbp_data` is the jsonb payload (already an object off the pg driver).
+ * A daily google_data_store row, projected down to exactly what the
+ * patient-journey impressions reader needs (`location_id` included so the reader
+ * can dedup and sum per location). `date_start`/`date_end` are cast to text so
+ * they come back as clean YYYY-MM-DD strings regardless of the underlying column
+ * type.
+ *
+ * The whole `gbp_data` blob is deliberately NOT selected. It carries the full
+ * review objects (reviewer text included), profile and engagement for BOTH days
+ * of every row — measured at 283 kB for one org's month, against 126 bytes per
+ * row-side for the `visibility` object that is actually read — and this query
+ * runs on the main Dashboard render path. Only the two `visibility` objects are
+ * projected (§10.4).
+ *
+ * `yesterday_visibility`/`day_before_visibility` are `null` when that side
+ * carried no stored `visibility` — the distinction the reader depends on, since
+ * a missing side is a MISSING metric (it must not count toward day-coverage)
+ * while a stored `visibility` of zeros is a real measured zero. The value is
+ * byte-identical to what `gbp_data.yesterday?.visibility` yielded when the whole
+ * blob was fetched, so the reader's arithmetic is unchanged.
  */
 export type GoogleDataStoreDailyRow = Pick<
   IGoogleDataStore,
-  | "id"
-  | "organization_id"
-  | "location_id"
-  | "domain"
-  | "date_start"
-  | "date_end"
-  | "run_type"
-  | "gbp_data"
->;
+  "id" | "organization_id" | "location_id" | "date_start" | "date_end"
+> & {
+  yesterday_visibility: Record<string, unknown> | null;
+  day_before_visibility: Record<string, unknown> | null;
+};
 
 export class GoogleDataStoreModel extends BaseModel {
   protected static tableName = "google_data_store";
@@ -70,10 +80,28 @@ export class GoogleDataStoreModel extends BaseModel {
     trx?: QueryContext
   ): Promise<GoogleDataStoreDailyRow[]> {
     return this.table(trx)
-      .select("id", "organization_id", "location_id", "domain", "gbp_data")
-      .select(db.raw("run_type::text as run_type"))
+      .select("id", "organization_id", "location_id")
       .select(db.raw("date_start::text as date_start"))
       .select(db.raw("date_end::text as date_end"))
+      // Project ONLY the two visibility objects instead of the whole blob
+      // (§10.4). `#>` path-extraction is used rather than a SQL sum of the four
+      // integers so the value handed to the reader is exactly the object it used
+      // to pull out of `gbp_data` itself: the summing/validation stays in the one
+      // already-tested place, and this change cannot move a computed number.
+      //
+      // `#>` also works identically on `json` and `jsonb` columns, unlike
+      // `jsonb_typeof`/`jsonb_path_query` — the table predates this repo's
+      // migration history, so the column type is not asserted anywhere in-tree.
+      //
+      // The paths are fixed literals (no caller input is interpolated) and the
+      // tenant/date predicates below stay parameterized through the builder
+      // (§10.1). Keys are case-sensitive: `dayBefore` matches the writer.
+      .select(
+        db.raw("gbp_data #> '{yesterday,visibility}' as yesterday_visibility"),
+      )
+      .select(
+        db.raw("gbp_data #> '{dayBefore,visibility}' as day_before_visibility"),
+      )
       .where("run_type", "daily")
       .where("organization_id", organizationId)
       .whereNotNull("location_id")
