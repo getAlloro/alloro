@@ -41,6 +41,7 @@ export async function processDailyAgent(
   locationId?: number | null,
 ): Promise<{
   success: boolean;
+  skipped?: boolean;
   output?: any;
   payload?: any;
   rawData?: any;
@@ -66,12 +67,34 @@ export async function processDailyAgent(
         log(`  [DAILY] Scoped GBP to location ${locationId} (${gbpProps.length} properties)`);
       }
     }
-    // Fallback: if no location-scoped properties, parse from JSON blob
-    if (!propertyIds.gbp || propertyIds.gbp.length === 0) {
+    // Fallback: only the org-level/primary run (no locationId) uses the account
+    // blob. A real location with NO mapped GBP property must NOT fall back to the
+    // account's first listing — that fabricates Maps data for a location with no
+    // listing (the C1 double-count). It stays unmapped, so its stored row carries
+    // no GBP data rather than a copy of locations[0].
+    if ((!propertyIds.gbp || propertyIds.gbp.length === 0) && !locationId) {
       propertyIds = typeof account.google_property_ids === "string"
         ? JSON.parse(account.google_property_ids)
         : (account.google_property_ids || {});
       log(`  [DAILY] Using full JSON blob for GBP (${propertyIds.gbp?.length || 0} properties)`);
+    }
+
+    // A real location with NO mapped GBP property has nothing to proof: the
+    // account-blob fallback above only fires for the org-level/primary run (no
+    // locationId), so an empty propertyIds.gbp here means this location is
+    // unmapped. Skip it — running the Claude agent and storing a zeros
+    // google_data_store row would burn a call on an empty payload and fabricate
+    // a Maps-less "measured" row. Signal a clean skip so the executor continues
+    // the batch without counting it as a failure.
+    if (locationId && (!propertyIds.gbp || propertyIds.gbp.length === 0)) {
+      log(
+        `  [DAILY] Location ${locationId} has no mapped GBP property — skipping (no GBP data to proof)`
+      );
+      return {
+        success: false,
+        skipped: true,
+        error: "No mapped GBP property for location",
+      };
     }
 
     // Fetch data for day before yesterday (single day)

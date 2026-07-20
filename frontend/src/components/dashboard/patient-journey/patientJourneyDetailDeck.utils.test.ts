@@ -17,10 +17,10 @@ function impressionsStage(
   return {
     key: "impressions",
     label: "Google Visibility",
-    metaLabel: "Google search impressions",
+    metaLabel: "How often you showed up on Google",
     value: 2400,
     available: true,
-    source: "Google Search Console",
+    source: "Google Search Console + Business Profile",
     asOf: "2026-07-15",
     shared: false,
     metadata: gsc,
@@ -29,7 +29,7 @@ function impressionsStage(
 }
 
 describe("buildGateDetailContent — Google visibility", () => {
-  it("formats clicks and ratio-based CTR for non-technical users", () => {
+  it("scopes clicks and CTR to Search only, so they never claim to divide into the Maps-inclusive impressions", () => {
     const content = buildGateDetailContent(
       impressionsStage({
         gsc: {
@@ -48,13 +48,19 @@ describe("buildGateDetailContent — Google visibility", () => {
 
     expect(content.summary).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ label: "Google clicks", value: "84" }),
+        expect.objectContaining({ label: "Search clicks", value: "84" }),
         expect.objectContaining({
-          label: "Google click-through rate",
+          label: "Search click-through rate",
           value: "3.5%",
         }),
       ]),
     );
+    // The labels must scope the metric to Search — never a bare "Google
+    // click-through rate" that reads as CTR over the combined impressions.
+    const labels = content.summary.map((item) => item.label);
+    expect(labels).not.toContain("Google click-through rate");
+    // The footer must not imply a combined CTR; it states the Search-only scope.
+    expect(content.footer).toMatch(/Search Console only/i);
   });
 
   it("uses honest empty values when Search Console metadata is absent", () => {
