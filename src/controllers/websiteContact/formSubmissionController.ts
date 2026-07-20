@@ -32,6 +32,8 @@ import { buildEmailBody } from "./websiteContact-services/emailBodyBuilder";
 import { resolveFormSubmissionEmailContext } from "./websiteContact-services/formSubmissionEmailContextService";
 import { ProjectModel } from "../../models/website-builder/ProjectModel";
 import { FormSubmissionModel, type FileValue, type FormSection, type FormContents } from "../../models/website-builder/FormSubmissionModel";
+import { FormResponderSettingsModel } from "../../models/FormResponderSettingsModel";
+import { isLikelyDeliverableLeadEmail } from "./websiteContact-utils/leadEmailQuality";
 import { WebsiteIntegrationModel } from "../../models/website-builder/WebsiteIntegrationModel";
 import { IntegrationFormMappingModel } from "../../models/website-builder/IntegrationFormMappingModel";
 import { CrmSyncLogModel } from "../../models/website-builder/CrmSyncLogModel";
@@ -82,6 +84,39 @@ function extractEmail(contents: Record<string, string>): string | null {
     if (typeof value === "string" && emailRegex.test(value.trim())) return value.trim().toLowerCase();
   }
   return null;
+}
+
+/**
+ * Extract the first email-like value from form contents, handling BOTH the flat
+ * key-value shape and the ordered sections array (extractEmail above only takes
+ * the flat Record; the main submission path can carry either shape).
+ */
+function extractLeadEmail(contents: FormContents): string | null {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const values: (string | FileValue)[] = Array.isArray(contents)
+    ? contents.flatMap((section) => section.fields.map(([, value]) => value))
+    : Object.values(contents);
+  for (const value of values) {
+    if (typeof value === "string" && emailRegex.test(value.trim())) {
+      return value.trim().toLowerCase();
+    }
+  }
+  return null;
+}
+
+/**
+ * Responder V1 hardcoded pilot auto-reply body (owner-approved once — Option B;
+ * no template store/UI yet). Plain acknowledgment of receipt only — no promise
+ * of follow-up or timing, no results guarantee (Value #6). Replace with the
+ * per-practice approved template when that lands.
+ */
+function buildResponderAutoReplyBody(practiceName: string): string {
+  return [
+    `<p>Hi there,</p>`,
+    `<p>Thanks for reaching out to ${practiceName} — we've received your message and the team has been notified.</p>`,
+    `<p>We're glad you got in touch.</p>`,
+    `<p>— ${practiceName}</p>`,
+  ].join("");
 }
 
 /**
@@ -546,6 +581,59 @@ export async function handleFormSubmission(req: Request, res: Response): Promise
         // No active integration → no log row (write-amplification rule)
       } catch (err) {
         logger.error({ err: err }, "[Form Submission] CRM enqueue failed:");
+        // Do not throw — visitor response must complete normally.
+      }
+    }
+
+    // ── 14c. Responder: owner-controlled instant auto-reply to the LEAD ──
+    // OFF by default — Alloro never auto-replies until the owner turns it on in
+    // their responder settings (freedom + Option B consent + backscatter safety:
+    // no settings row / disabled → we send nothing). When on, uses the owner's
+    // own copy ('custom') or the AI draft they approved ('ai', stored on the
+    // settings row), falling back to the default acknowledgment only if blank.
+    // Gated on !flagged, only when a lead email is present, in its own try/catch
+    // so a send blip never breaks the visitor response.
+    if (!flagged && submissionId && project?.organization_id) {
+      try {
+        const responderSettings =
+          await FormResponderSettingsModel.findEffectiveForLocation(
+            project.organization_id,
+            null
+          );
+        const leadEmail = extractLeadEmail(finalContents);
+        if (responderSettings?.enabled && leadEmail) {
+          // Partial backscatter mitigation: never auto-reply to a malformed or
+          // disposable address (see leadEmailQuality). NOT the complete fix —
+          // the form's own spam layers (Dave's) are the rest.
+          if (!isLikelyDeliverableLeadEmail(leadEmail)) {
+            logger.info(
+              { submissionId },
+              "[Form Submission] Responder skipped — lead email failed the quality gate (malformed/disposable)"
+            );
+          } else {
+            const responderContext = await resolveFormSubmissionEmailContext(project);
+            const practiceName = responderContext.fromName || "our team";
+            const responderFrom = process.env.CONTACT_FORM_FROM || "info@getalloro.com";
+            const replyBody =
+              responderSettings.reply_body?.trim() ||
+              buildResponderAutoReplyBody(practiceName);
+            const replySubject =
+              responderSettings.reply_subject?.trim() ||
+              `Thanks for reaching out to ${practiceName}`;
+            await sendEmailWebhook({
+              cc: [],
+              bcc: [],
+              body: replyBody,
+              from: responderFrom,
+              subject: replySubject,
+              fromName: responderContext.fromName,
+              recipients: [leadEmail],
+            });
+            await FormSubmissionModel.markResponded(submissionId, "email");
+          }
+        }
+      } catch (err) {
+        logger.error({ err }, "[Form Submission] Responder auto-reply failed:");
         // Do not throw — visitor response must complete normally.
       }
     }
