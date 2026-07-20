@@ -1,0 +1,63 @@
+name: PR Spec Checks
+
+# One check, model-free, on every PR into dev/dave: a plan's spec.html must be internally
+# self-consistent. The hero status pill and the meta-grid status card must agree, the status
+# must come from the documented vocabulary, and a spec this PR moves to "Completed" must ship
+# a test-results.json that rolls up Passed (§20.5).
+#
+# It asserts the ARTIFACT, not the PR. An earlier revision asked GitHub whether the PR had
+# merged and failed any spec claiming "Completed" while unmerged. That collides with the
+# documented --done contract -- a --done PR is Completed AND unmerged by construction -- and
+# made the verdict depend on state read at run time, so re-running the same workflow on the
+# same commit after a merge flipped red to green. Self-consistency is a pure function of the
+# tree: no network, no `gh`, and no pull-requests: read scope.
+#
+# Trust boundary (lifted from PR #174, correct for a PUBLIC repo):
+#   * `pull_request` (NOT pull_request_target) -> fork PRs run WITHOUT repo secrets.
+#   * read-only token; nothing here writes to the repo, comments, or deploys.
+#   * contents: read is the only scope needed now that the check reads no PR state.
+#   * SHAs reach the script through `env:`, never interpolated into the `run:` body.
+
+on:
+  pull_request:
+    branches: [dev/dave]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-spec-checks-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  spec-checks:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout PR merge result
+        uses: actions/checkout@v6
+        with:
+          # The check reads the two endpoint commits and nothing else, so full history is
+          # unjustified. The base and head objects are fetched explicitly below.
+          fetch-depth: 1
+          # No step pushes or writes, so the checkout token should not linger in .git/config.
+          persist-credentials: false
+
+      - name: Fetch the two commits the check compares
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: git fetch --no-tags --depth=1 origin "$BASE_SHA" "$HEAD_SHA"
+
+      # ---- ADVISORY (ratchet-in) ----
+      # continue-on-error keeps this reporting without blocking, for a short soak on real PRs.
+      # Unlike the previous revision, the path being soaked is the path that would block: the
+      # gate is proven to exit non-zero on a real repository diff (see the plan's
+      # test-results.json, item T7), so these runs exercise the code, not a no-op branch.
+      # Promote by deleting continue-on-error once the soak is clean.
+      - name: Spec status self-consistency
+        continue-on-error: true
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: bash scripts/check-spec-parity.sh

@@ -2,6 +2,29 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.170] - July 2026
+
+### First PR check — plan-spec status self-consistency
+
+A model-free CI check now runs on every pull request into `dev/dave`. It reads the two places the Alloro spec template records execution status — the hero pill and the meta-grid status card — out of each touched `spec.html`, and fails when they disagree, when a status is outside the documented vocabulary, or when a change moves a spec to `Completed` without an acceptance artifact that rolls up `Passed` (§20.5). Built on `plans/07192026-handoff-enforcement-system` (the T3 verification-gate slice). Carried by open PR #189; it runs **advisory** (`continue-on-error`) for a short soak before promotion to a required check, and it is not yet merged to `dev/dave`.
+
+The check asserts the **artifact**, not the pull request. An earlier revision of this work asked GitHub whether the PR had merged and failed any spec that said `Completed` while unmerged. That rule contradicts the documented `--done` contract — a finalization PR is `Completed` and unmerged at the same time, by construction — and it made the verdict depend on state read at run time, so re-running the same workflow on the same commit after a merge flipped red to green. Self-consistency is a pure function of the tree.
+
+**Key Changes:**
+- **Self-consistency gate.** `scripts/check-spec-parity.sh` extracts both status surfaces from the file (not from diff text) and reports a pill/card disagreement as its own finding, naming the file and both values. Distinct exit codes: `1` finding, `2` usage or infrastructure error, `3` a touched spec with no extractable status.
+- **Fails closed.** The previous parse returned success on any internal failure and printed the same reassuring message as a genuine clean pass. An unparseable touched spec now exits `3` and a missing `python3` exits `2`; neither prints "nothing to assert".
+- **Sees statuses the old matcher missed.** Normalizing to the head token before a separator makes values with trailing commentary visible — `Deployed to Dev` and `Completed · 17/17 audited` are both live in the corpus and both passed the old regex untouched. A second hero template used by ten funnel-engine specs, which nests a dot span inside the pill and ships no status card, is now recognized rather than invisible.
+- **Removes three false-positive and false-negative classes at the root.** Reading the file post-image rather than `+` lines ends the false positives on re-indenting or class-swapping an already-`Completed` pill, the blind spot on a pill wrapped across lines, and an `awk` file tracker that silently dropped every added line after any line beginning `++ `.
+- **Proven to block.** 22-case offline fixture suite (`--self-test`), plus recorded exit-1 and exit-3 runs against real repository diffs. The previous acceptance set had no item in which the gate exited non-zero on the path CI runs.
+- **Minimal read-only workflow.** `.github/workflows/pr-spec-checks.yml` runs on `pull_request` to `dev/dave` with a `contents: read` token, `pull_request` (not `pull_request_target`) so fork PRs carry no secrets, `persist-credentials: false`, and SHAs passed through `env:` — the trust boundary lifted from PR #174. Dropping the PR-state read also dropped the `gh` dependency and the `pull-requests: read` scope; `fetch-depth` went from full history to the two commits the check compares.
+- **Advisory ratchet-in.** The step is `continue-on-error` for now. A `--strict-vocab` flag lets the documented-vocabulary rule be promoted separately from the parity rule; it currently reports nine advisory warnings across five specs.
+- **Docs parity.** Internal CI tooling with no dashboard or customer-facing surface, so no Alloro Docs update was required.
+
+**Commits:**
+- `scripts/check-spec-parity.sh` — file-based two-surface self-consistency check with an offline fixture suite.
+- `.github/workflows/pr-spec-checks.yml` — minimal read-only PR workflow. The `scripts/pr-log.sh --check` step was removed: it had no `continue-on-error` and was guarded only by a file-existence test, so it would have become a hard blocking check on every PR the moment that script landed from PR #181. PR-LOG freshness belongs to the PR that owns the script.
+- `plans/07192026-handoff-enforcement-system/` — spec Rev 4, `test.html`, and `test-results.json` recording the acceptance evidence.
+
 ## [0.0.169] - July 2026
 
 ### Project Board comments add images and targeted alerts
