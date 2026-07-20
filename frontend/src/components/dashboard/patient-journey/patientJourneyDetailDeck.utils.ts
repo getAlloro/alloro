@@ -90,20 +90,20 @@ export function buildGateDetailContent(
           "How often you showed up on Google — in search and on the map — during the selected period.",
         summary: [
           metric(
-            "Google clicks",
+            "Search clicks",
             gsc?.clicks,
-            "Clicks from a Google Search result to your website during the selected period.",
+            "Clicks from a Google Search result to your website. Search Console only — Google Maps appearances have no click metric.",
           ),
           metric(
-            "Google click-through rate",
+            "Search click-through rate",
             formatPrecisePct(clickThroughRate),
-            "The share of Google Search appearances that resulted in a website click.",
+            "Search clicks divided by Google Search appearances — computed over Search Console alone. It is NOT the Maps-inclusive impressions total above divided into clicks.",
           ),
         ],
         insightsTitle: "Top Google searches",
         insights: topGscQueries(stage),
         footer:
-          "From Google Search Console + Business Profile for the selected period.",
+          "Impressions combine Google Search Console and Business Profile. Clicks and click-through rate are from Search Console only — Maps appearances have no click.",
       };
     }
     case "visits": {

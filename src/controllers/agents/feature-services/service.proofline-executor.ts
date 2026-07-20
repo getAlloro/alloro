@@ -22,6 +22,7 @@ export interface ProoflineResult {
     totalAccounts: number;
     totalLocations: number;
     successful: number;
+    skipped: number;
     failed: number;
     durationMs: number;
   };
@@ -31,6 +32,7 @@ export interface ProoflineResult {
     locationId?: number;
     locationName?: string;
     success: boolean;
+    skipped?: boolean;
     error?: string;
   }>;
 }
@@ -52,7 +54,7 @@ export async function executeProoflineAgent(referenceDate?: string): Promise<Pro
     log("[SETUP] No onboarded accounts found");
     return {
       success: true,
-      summary: { totalAccounts: 0, totalLocations: 0, successful: 0, failed: 0, durationMs: Date.now() - startTime },
+      summary: { totalAccounts: 0, totalLocations: 0, successful: 0, skipped: 0, failed: 0, durationMs: Date.now() - startTime },
       results: [],
     };
   }
@@ -104,6 +106,14 @@ export async function executeProoflineAgent(referenceDate?: string): Promise<Pro
         try {
           const dailyResult = await processDailyAgent(account, oauth2Client, dailyDates, locationId);
 
+          // Location has no mapped GBP property — cleanly skipped upstream (no
+          // agent call, no zeros row). Record it as skipped, not failed.
+          if (dailyResult.skipped) {
+            log(`  [LOCATION] ⊘ Proofline skipped for "${locationName}": ${dailyResult.error}`);
+            results.push({ googleAccountId, domain, locationId, locationName, success: false, skipped: true, error: dailyResult.error });
+            continue;
+          }
+
           if (!dailyResult.success) {
             log(`  [LOCATION] \u2717 Proofline failed for "${locationName}": ${dailyResult.error}`);
             results.push({ googleAccountId, domain, locationId, locationName, success: false, error: dailyResult.error || "Proofline agent failed" });
@@ -153,13 +163,15 @@ export async function executeProoflineAgent(referenceDate?: string): Promise<Pro
 
   const duration = Date.now() - startTime;
   const successfulResults = results.filter((r) => r.success).length;
+  const skippedResults = results.filter((r) => r.skipped).length;
 
   log("\n" + "=".repeat(70));
   log(`[COMPLETE] \u2713 Proofline run completed`);
   log(`  - Total clients: ${accounts.length}`);
   log(`  - Total locations processed: ${totalLocationsProcessed}`);
   log(`  - Successful: ${successfulResults}`);
-  log(`  - Failed: ${results.length - successfulResults}`);
+  log(`  - Skipped (no mapped GBP): ${skippedResults}`);
+  log(`  - Failed: ${results.length - successfulResults - skippedResults}`);
   log(`  - Duration: ${duration}ms (${(duration / 1000).toFixed(1)}s)`);
   log("=".repeat(70) + "\n");
 
@@ -169,7 +181,8 @@ export async function executeProoflineAgent(referenceDate?: string): Promise<Pro
       totalAccounts: accounts.length,
       totalLocations: totalLocationsProcessed,
       successful: successfulResults,
-      failed: results.length - successfulResults,
+      skipped: skippedResults,
+      failed: results.length - successfulResults - skippedResults,
       durationMs: duration,
     },
     results,
