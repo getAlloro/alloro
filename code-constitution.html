@@ -64,6 +64,7 @@
   .part{margin-bottom:14px;opacity:0;transform:translateY(10px);animation:rise .5s ease forwards}
   .part:nth-child(1){animation-delay:.02s}.part:nth-child(2){animation-delay:.08s}
   .part:nth-child(3){animation-delay:.14s}.part:nth-child(4){animation-delay:.2s}
+  .part:nth-child(5){animation-delay:.26s}
   @keyframes rise{to{opacity:1;transform:none}}
   .part-head{width:100%;text-align:left;display:flex;align-items:center;gap:14px;cursor:pointer;user-select:none;
     border:1px solid var(--ink);border-radius:12px;background:var(--paper);padding:16px 18px;font:inherit}
@@ -238,12 +239,15 @@ const DATA = [
      {id:"4.2", t:"No magic numbers or strings", r:"Extract magic values to named constants. If a value appears in logic, it gets a name that explains it."},
      {id:"4.3", t:"DRY carefully", r:"Deduplicate only genuinely-identical concepts. Coincidental similarity across domains is not duplication; premature abstraction is worse than repetition."},
      {id:"4.4", t:"Dependency discipline", r:"Prefer stdlib and existing utilities before a package; audit imports; pin versions; run npm audit."},
+     {id:"4.5", t:"Type safety: no any", r:"Avoid any. Type values explicitly; reach for unknown plus a narrow before any. Shared across both stacks — the frontend instance is mechanized as §17.2, and the backend is held to a ratcheted baseline where new code must not add : any / as any and the existing count only goes down."},
    ]},
    {n:5, title:"Security Baseline", articles:[
      {id:"5.1", t:"No secrets in code", r:"No secrets, API keys, or credentials in code — environment variables only, accessed via config."},
      {id:"5.2", t:"Never trust client input", r:"Sanitize and validate all user input. Guard against SQL injection, XSS, and path traversal on every user-facing input."},
      {id:"5.3", t:"Never log sensitive data", r:"Never log passwords, tokens, or PII. Redact before logging."},
      {id:"5.4", t:"Re-enforce every check server-side", r:"The client protects nothing. Every authorization and validation check is authoritative on the server."},
+     {id:"5.5", t:"Tenant data is isolated", r:"Every read or write of tenant-owned data is scoped to the caller's tenant (organization/location), derived from server-side context — never from client input. A query that can return another tenant's rows is a data-leak vulnerability, not a bug. Enforced on the backend by §11.7."},
+     {id:"5.6", t:"Validate configuration at startup", r:"Validate required configuration and environment variables at startup and fail fast with a clear message. Never discover a missing or malformed config value at request time."},
    ]},
  ]},
 
@@ -285,6 +289,7 @@ const DATA = [
      {id:"11.4", t:"Transport & headers", r:"CORS explicit (no wildcard * in production); Helmet enabled; CSRF protection on state-changing endpoints."},
      {id:"11.5", t:"Credentials & tokens", r:"Password hashing with bcrypt, ≥10 salt rounds. JWTs short-expiry; httpOnly cookies preferred over localStorage."},
      {id:"11.6", t:"Standard pagination", r:"All list endpoints paginate with the same shape: { page, limit, total, totalPages }."},
+     {id:"11.7", t:"Enforce tenant scope in models/", r:"Every model query against a tenant-scoped table filters by the organization/location from server context, passed as a required argument — not an optional filter a caller may forget. This is the backend enforcement of §5.5. Mechanized only as a coarse heuristic (model files that query without a tenant-column reference are surfaced for review), so it stays advisory; pair with §5.5 review and §20.2 tests."},
    ]},
  ]},
 
@@ -293,6 +298,7 @@ const DATA = [
      {id:"12.1", t:"Mirror the reference triad", r:"Mirror the api/index.ts client + React Query + feature-folder triad. api/index.ts is the only place that reads the JWT (getCommonHeaders)."},
      {id:"12.2", t:"Every file has a home", r:"Place each file correctly — api/, components/, contexts/, hooks/, lib/, pages/, stores/, types/, utils/."},
      {id:"12.3", t:"Feature folders, not flat dumps", r:"Group components by feature folder. A directory accreting 80+ files in one level is the anti-pattern."},
+     {id:"12.4", t:"Enforce import boundaries", r:"Respect import boundaries: pages/ are not imported by other pages/; components/ do not import from pages/; api/ does not import from components/ or pages/. The frontend analog of the backend layering rule (§7.1), enforced as an advisory baseline — a grep backstop today, dependency-cruiser or eslint-boundaries when configured."},
    ]},
    {n:13, title:"Size & Structure", articles:[
      {id:"13.1", t:"File-size tiers and hard ceiling", r:"Same tiers as §2.4, JSX-adjusted; ~800-line hard ceiling for any .ts/.tsx. Past it, extract a use<Feature>() hook + child components + *.utils.ts.", mech:true, status:{state:"warn", label:"38"}},
@@ -328,6 +334,22 @@ const DATA = [
    {n:18, title:"Mechanized Checks", custom:"mechtable"},
    {n:19, title:"Verification Checklist", custom:"checklist"},
  ]},
+
+ {n:"V", title:"Testing & Operability", stack:"shared", blurb:"Automated tests (the code-level proof) and background-job discipline. Appended after Part IV by the never-renumber rule.", sections:[
+   {n:20, title:"Testing", articles:[
+     {id:"20.1", t:"Tests exist and mirror the unit", r:"Every model and service has tests, and a test file mirrors the path of the unit it covers (x.ts → x.test.ts or __tests__/x.test.ts). Tests run on vitest."},
+     {id:"20.2", t:"Cover the contract, the failures, and the tenant scope", r:"Tests cover the { success, data, error } contract, the error and throw paths (not only the happy path), and — for tenant-scoped data — that one tenant cannot read another's rows. The §11.7 isolation rule is proven here, not assumed."},
+     {id:"20.3", t:"No focused or skipped tests merged", r:"No .only, describe.skip/it.skip/test.skip, xit, or xdescribe reaches the main branch — they silently disable coverage. Greppable; advisory Tier A."},
+     {id:"20.4", t:"Test data is synthetic", r:"Tests build their data via factories or seeds; never run against production data or real PII."},
+     {id:"20.5", t:"Every executed plan ships a passing acceptance artifact", r:"Every plan executed via -x or -i produces a test.html + test-results.json acceptance checklist (Layer 2 — behavioral validation against the running app), and -d cannot finalize until it passes or each failure is waived with a reason. This is behavioral validation and does not replace the automated tests in §20.1–§20.4."},
+   ]},
+   {n:21, title:"Background Jobs & Workers", articles:[
+     {id:"21.1", t:"Jobs are idempotent", r:"A job may run more than once (retries, at-least-once delivery); design every job so a repeat run is safe — guard with idempotency keys or upserts."},
+     {id:"21.2", t:"Retries with backoff and a dead-letter path", r:"Configure bounded retries with backoff; route exhausted jobs to a dead-letter queue for inspection — never silently drop a failed job."},
+     {id:"21.3", t:"Jobs call services, not their own logic", r:"A worker orchestrates and calls the same services/ the request path uses. No business logic that diverges from the service layer."},
+     {id:"21.4", t:"Job failures are logged with context", r:"Every job failure logs the job name, payload identifiers, attempt count, and the error — through Pino (§9), never console."},
+   ]},
+ ]},
 ];
 
 const MECH_ROWS = [
@@ -345,6 +367,12 @@ const MECH_ROWS = [
   ["grep: dangerouslySetInnerHTML","§17.4","frontend","2"],
   ["grep: token read outside api client","§17.5","frontend","12"],
   ["grep: knex .raw outside models/","§10.2","backend","3"],
+  ["grep: process.env in the FE bundle (use VITE_)","§17.3","frontend","advisory"],
+  ["grep: stray client-state libraries in FE deps","§15.4","frontend","advisory"],
+  ["grep: possible hardcoded secret literals","§5.1","backend","advisory"],
+  ["grep: focused/skipped tests (.only/.skip/xit/xdescribe)","§20.3","both","advisory"],
+  ["grep: frontend import-boundary breaches","§12.4","frontend","advisory"],
+  ["grep: models querying without a tenant-scope column (heuristic)","§11.7","backend","advisory"],
 ];
 const CHECK_BE = [
   ["§2.4","File within its size tier (~300 single-purpose, ~800 ceiling)"],
@@ -354,6 +382,9 @@ const CHECK_BE = [
   ["§9.1","No console.* — using Pino"],
   ["§11.1","Auth middleware on protected routes"],
   ["§10.5","Transactions for multi-table writes"],
+  ["§11.7","Tenant scope enforced in models/ — no query can return another tenant's rows (§5.5)"],
+  ["§20.1","Tests exist and mirror the unit; contract, error paths, and tenant scope covered (§20.2)"],
+  ["§21","Workers idempotent, retried with a dead-letter path, calling services"],
 ];
 const CHECK_FE = [
   ["§13.1","File within its size tier (~300 single-purpose, ~800 ceiling)"],
@@ -363,12 +394,14 @@ const CHECK_FE = [
   ["§14.3","Data-fetching in a hook, not inline"],
   ["§16.1","Errors surfaced through the one contract, never swallowed"],
   ["§12.3","Component in a feature folder, not a flat dump"],
+  ["§20.3","No .only / skipped tests merged"],
+  ["§12.4","Import boundaries respected (pages, components, api)"],
 ];
 
 /* mechanizability roadmap (plans/06152026-constitution-mechanization).
    'now' = a.mech (enforced today). The rest derive: Tier A = quick grep, Tier B = linter/depcruise, else judgment-only. */
-const TIER_A = ["5.1","10.2","15.4","17.3","17.4","17.5"];
-const TIER_B = ["1.1","1.3","1.4","2.2","2.3","3.1","4.1","4.2","6.3","7.1","7.3","10.1","11.4","11.5","12.3","13.2","14.1","14.3","16.3"];
+const TIER_A = ["5.1","10.2","11.7","12.4","15.4","17.3","17.4","17.5","20.3"];
+const TIER_B = ["1.1","1.3","1.4","2.2","2.3","3.1","4.1","4.2","4.5","6.3","7.1","7.3","10.1","11.4","11.5","12.3","13.2","14.1","14.3","16.3"];
 
 /* ============================ RENDER ============================ */
 const esc = s => s.replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
