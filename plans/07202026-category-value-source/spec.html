@@ -53,11 +53,11 @@
     <header class="spec-hero">
       <div class="hero-topline">
         <p class="eyebrow">Alloro Plan Spec</p>
-        <span class="status-pill">Completed</span>
+        <span class="status-pill">In Progress</span>
       </div>
       <h1>Category Value-Source</h1>
       <dl class="meta-grid">
-        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
+        <div class="status-card"><dt>Status</dt><dd>In Progress</dd></div>
         <div><dt>Plan Folder</dt><dd>plans/07202026-category-value-source</dd></div>
         <div><dt>Size</dt><dd>Medium</dd></div>
         <div><dt>Risk</dt><dd>Level 2</dd></div>
@@ -197,7 +197,20 @@
         <li><input type="checkbox" disabled> Test proves the draft cannot write to Google without owner approval AND the A6 master switch on</li>
         <li><input type="checkbox" disabled> No import of any Google write path in the new code</li>
         <li><input type="checkbox" disabled> <code>npm run check:conventions --strict</code> &mdash; no new backend violations</li>
+        <li><input type="checkbox" disabled> Unknown/absent current category &rarr; nothing proposed (no lateral/downgrade off an unknown baseline) (Rev 1)</li>
+        <li><input type="checkbox" disabled> Rationale never asserts "more specific than" unless catalog-verified generic &rarr; specialty (Rev 1)</li>
+        <li><input type="checkbox" disabled> Ordinary family-dentistry copy mentioning children does NOT propose Pediatric dentist (Rev 1)</li>
       </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-07-20</h3>
+        <p><strong>Change:</strong> Fixed recommendation-logic honesty breaches found in adversarial review of PR #193 (write-safety rail untouched). (1) <code>resolveCurrent</code> now returns <code>null</code> when the current primary category is not in the catalog, so an already-specialized or unknown/absent baseline (e.g. "Oral and maxillofacial surgeon", null) proposes nothing instead of defaulting to specificity 0 and getting a lateral/downgrade. (2) A proposal is now only reachable for a catalog-verified generic&rarr;specialty pair, so the "more specific than" rationale is provably true; reworded the visibility-flavored tail ("typically surfaces for more of the searches&hellip;") to the descriptive "is a closer match to what this business does." (3) Pediatric tokens split into strong specialty words vs weak generic words ("child"/"kids"/"children"); a weak-only single signal no longer fires the board specialty. Hero status pill/card moved Completed &rarr; In Progress (PR still open).</p>
+        <p><strong>Reason:</strong> User QA / adversarial review: manufactured false proposals off unknown baselines and a rationale that could assert a falsehood are Value #6 honesty breaches; the pediatric false-positive and the unmeasured visibility claim are the same class.</p>
+        <p><strong>Updated Done criteria:</strong> Added the three Rev 1 checklist items above (unknown-baseline &rarr; nothing; rationale only on verified generic&rarr;specialty; family-dentistry-children does not propose Pediatric).</p>
+      </article>
     </section>
   </main>
 </body>

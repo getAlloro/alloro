@@ -32,6 +32,14 @@ interface CategoryCatalogEntry {
   specificity: number;
   /** Lowercase tokens whose presence in the business's signals implies this specialty. */
   signalTokens: string[];
+  /**
+   * The subset of signalTokens that are specialty-grade on their own — a single one is
+   * strong enough to warrant the proposal. Tokens NOT listed here are weak: they only
+   * count toward the ">=2 signals" bar, never on their own. Defaults to all signalTokens
+   * (every token strong) when omitted. Prevents a lone generic word (e.g. "children" in
+   * ordinary family-dentistry copy) from firing a board-specialty proposal.
+   */
+  strongTokens?: string[];
 }
 
 /** What the resolver needs to decide: the current primary category + context signals. */
@@ -77,7 +85,29 @@ const CATEGORY_CATALOG: CategoryCatalogEntry[] = [
     gcid: "gcid:pediatric_dentist",
     displayName: "Pediatric dentist",
     specificity: 1,
-    signalTokens: ["pediatric", "paediatric", "children", "childrens", "child", "kids", "kid"],
+    // Weak tokens are kept distinct and non-overlapping ("child" is a substring of "children",
+    // so listing both would let one word count twice) — see hasQualifyingEvidence.
+    signalTokens: [
+      "pediatric dentist",
+      "pediatric dentistry",
+      "paediatric dentist",
+      "paediatric dentistry",
+      "pediatric",
+      "paediatric",
+      "children",
+      "kids",
+    ],
+    // Only explicit specialty words fire on their own. "children"/"kids" are weak: they appear
+    // in ordinary family-dentistry copy and must not, alone, propose the board specialty. A
+    // weak-only case needs two distinct weak signals to clear the bar.
+    strongTokens: [
+      "pediatric dentist",
+      "pediatric dentistry",
+      "paediatric dentist",
+      "paediatric dentistry",
+      "pediatric",
+      "paediatric",
+    ],
   },
   {
     gcid: "gcid:endodontist",
@@ -126,14 +156,17 @@ function toCategoryRef(entry: CategoryCatalogEntry): GbpCategoryRef {
 }
 
 /**
- * Resolve the current primary category to its catalog specificity. A category the
- * catalog does not know is treated as generic (specificity 0) so a well-supported
- * specialty can still beat it — but its identity is preserved for the equality guard.
+ * Resolve the current primary category to a KNOWN catalog entry, or `null` when the
+ * catalog does not recognize it. Returning null is the honest answer: if we do not know
+ * what the current category is, we cannot claim a proposed one is "more specific" than it.
+ * An already-specialized profile (e.g. "Oral and maxillofacial surgeon") that is not in
+ * the catalog resolves to null here, so no lateral/downgrade proposal is ever manufactured.
  */
 function resolveCurrent(input: CategoryRecommendationInput): {
-  gcid: string | null;
+  gcid: string;
+  displayName: string;
   specificity: number;
-} {
+} | null {
   const gcid = toGcid(input.currentPrimaryCategory?.name);
   const displayName = input.currentPrimaryCategory?.displayName?.trim().toLowerCase() || null;
   const match = CATEGORY_CATALOG.find(
@@ -141,7 +174,8 @@ function resolveCurrent(input: CategoryRecommendationInput): {
       (gcid !== null && entry.gcid === gcid) ||
       (displayName !== null && entry.displayName.toLowerCase() === displayName)
   );
-  return { gcid: gcid ?? match?.gcid ?? null, specificity: match?.specificity ?? 0 };
+  if (!match) return null; // unknown baseline — never propose off it
+  return { gcid: match.gcid, displayName: match.displayName, specificity: match.specificity };
 }
 
 /** How many of a candidate's signal tokens appear anywhere in the business's signals. */
@@ -153,6 +187,24 @@ function countSignalMatches(entry: CategoryCatalogEntry, haystack: string): numb
 }
 
 /**
+ * Whether a candidate's evidence is strong enough to warrant the proposal: at least one
+ * specialty-grade (strong) token, OR at least two signals of any strength. A single weak
+ * token — e.g. "children" in "we welcome children" — never clears this bar on its own.
+ * Entries without an explicit `strongTokens` treat every token as strong (>=1 = qualifies).
+ */
+function hasQualifyingEvidence(entry: CategoryCatalogEntry, haystack: string): boolean {
+  const strongTokens = entry.strongTokens ?? entry.signalTokens;
+  const strongMatches = strongTokens.filter((token) => haystack.includes(token)).length;
+  if (strongMatches >= 1) return true;
+  // No specialty-grade token. Entries with no weak tier (strongTokens omitted) stop here.
+  if (!entry.strongTokens) return false;
+  // Weak-only path: require at least two DISTINCT weak signals (e.g. "children" + "kids").
+  const weakTokens = entry.signalTokens.filter((token) => !entry.strongTokens!.includes(token));
+  const weakMatches = weakTokens.filter((token) => haystack.includes(token)).length;
+  return weakMatches >= 2;
+}
+
+/**
  * Find a strictly-more-specific, settable primary category for this location, or
  * `null` when none is warranted (already specific, no supporting signal, or the
  * only match is the current category). Never manufactures a change.
@@ -161,14 +213,15 @@ export function findMoreSpecificPrimaryCategory(
   input: CategoryRecommendationInput
 ): CategoryRecommendation | null {
   const current = resolveCurrent(input);
+  if (!current) return null; // unknown/absent baseline: never propose off it
   const haystack = input.signals.map((s) => s.toLowerCase()).join("  ");
 
   let best: { entry: CategoryCatalogEntry; matches: number } | null = null;
   for (const entry of CATEGORY_CATALOG) {
     if (entry.specificity <= current.specificity) continue; // not more specific
     if (entry.gcid === current.gcid) continue; // same category
+    if (!hasQualifyingEvidence(entry, haystack)) continue; // no strong-enough evidence
     const matches = countSignalMatches(entry, haystack);
-    if (matches === 0) continue; // no evidence — never guess
     // Deterministic pick: most signal matches wins; catalog order breaks ties.
     if (!best || matches > best.matches) {
       best = { entry, matches };
@@ -177,6 +230,8 @@ export function findMoreSpecificPrimaryCategory(
 
   if (!best) return null;
 
+  // Only reached for a catalog-verified generic (specificity 0) to specialty (specificity 1)
+  // pair, so "more specific" is provably true from the catalog, never an unproven claim.
   const proposed = toCategoryRef(best.entry);
   return {
     current: {
@@ -186,8 +241,7 @@ export function findMoreSpecificPrimaryCategory(
     proposed,
     rationale:
       `"${proposed.displayName}" is a more specific primary category than ` +
-      `"${input.currentPrimaryCategory?.displayName ?? "the current category"}", so this profile ` +
-      `typically surfaces for more of the searches that match what this business actually does. ` +
+      `"${current.displayName}" — it is a closer match to what this business does. ` +
       `This is a proposal for the owner to approve — nothing changes on Google until they do.`,
   };
 }

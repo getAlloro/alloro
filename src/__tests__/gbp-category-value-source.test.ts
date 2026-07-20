@@ -77,6 +77,74 @@ describe("CategoryRecommendationService.recommendPrimaryCategory", () => {
     });
     expect(rec).toBeNull();
   });
+
+  // Honesty fixes (adversarial review of PR #193): never propose off an unknown baseline,
+  // never assert a falsehood, and never fire a board specialty on ordinary family copy.
+
+  it("proposes nothing when the current category is out-of-catalog (already specialized)", () => {
+    // "Oral and maxillofacial surgeon" is not a catalog entry. Even with oral-surgery
+    // signals present, an unknown baseline must yield no lateral/downgrade proposal.
+    const rec = CategoryRecommendationService.recommendPrimaryCategory({
+      currentPrimaryCategory: {
+        displayName: "Oral and maxillofacial surgeon",
+        name: "categories/gcid:oral_and_maxillofacial_surgeon",
+      },
+      signals: ["oral surgery", "maxillofacial", "wisdom teeth", "braces", "invisalign"],
+    });
+    expect(rec).toBeNull();
+  });
+
+  it("proposes nothing for another out-of-catalog specialized current category", () => {
+    const rec = CategoryRecommendationService.recommendPrimaryCategory({
+      currentPrimaryCategory: {
+        displayName: "Dental implants periodontist",
+        name: "categories/gcid:dental_implants_periodontist",
+      },
+      signals: ["periodontal", "gum disease", "implants"],
+    });
+    expect(rec).toBeNull();
+  });
+
+  it("proposes nothing when there is no current category at all", () => {
+    const rec = CategoryRecommendationService.recommendPrimaryCategory({
+      currentPrimaryCategory: null,
+      signals: ["braces", "Invisalign", "orthodontics"],
+    });
+    expect(rec).toBeNull();
+  });
+
+  it("does not propose Pediatric dentist from ordinary family-dentistry copy mentioning children", () => {
+    const rec = CategoryRecommendationService.recommendPrimaryCategory({
+      currentPrimaryCategory: { displayName: "Dentist", name: "categories/gcid:dentist" },
+      signals: ["Dentist", "family dentistry, we welcome children"],
+    });
+    expect(rec).toBeNull();
+  });
+
+  it("still proposes Pediatric dentist from genuine pediatric-specialty copy", () => {
+    const rec = CategoryRecommendationService.recommendPrimaryCategory({
+      currentPrimaryCategory: { displayName: "Dentist", name: "categories/gcid:dentist" },
+      signals: ["Dentist", "pediatric dentistry for kids"],
+    });
+    expect(rec).not.toBeNull();
+    expect(rec?.proposed.displayName).toBe("Pediatric dentist");
+    expect(rec?.proposed.name).toBe("categories/gcid:pediatric_dentist");
+  });
+
+  it("builds a truthful rationale — 'more specific than' the verified generic, no visibility claim", () => {
+    const rec = CategoryRecommendationService.recommendPrimaryCategory({
+      currentPrimaryCategory: { displayName: "Dentist", name: "categories/gcid:dentist" },
+      signals: ["Dentist", "braces and Invisalign"],
+    });
+    expect(rec).not.toBeNull();
+    const r = rec?.rationale.toLowerCase() ?? "";
+    expect(r).toContain("more specific");
+    expect(r).toContain("dentist"); // names the real, catalog-verified current category
+    // No unmeasured visibility promise (Value #6).
+    expect(r).not.toContain("surface");
+    expect(r).not.toContain("searches");
+    expect(r).not.toContain("rank");
+  });
 });
 
 describe("CategoryValueSourceService.proposeCategoryDraft — wiring", () => {
