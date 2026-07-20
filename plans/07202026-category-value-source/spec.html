@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Category Value-Source Spec</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); margin-top: 14px; }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 840px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; letter-spacing: 0; }
+    h2 { font-size: 1.35rem; letter-spacing: 0; }
+    h3 { font-size: 1rem; letter-spacing: 0; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill">Completed</span>
+      </div>
+      <h1>Category Value-Source</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/07202026-category-value-source</dd></div>
+        <div><dt>Size</dt><dd>Medium</dd></div>
+        <div><dt>Risk</dt><dd>Level 2</dd></div>
+      </dl>
+      <dl class="meta-grid" style="margin-top:12px;">
+        <div><dt>Worktree</dt><dd>/Users/coreys.air/code/alloro-worktrees/category-value-source</dd></div>
+        <div><dt>Branch</dt><dd>claude/category-value-source</dd></div>
+        <div><dt>Source</dt><dd>origin/dev/dave @ c2b18a37e</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>Alloro is the CMO of the owner's local presence: diagnose, prescribe the ONE move, do it once the owner approves, then measure the lift. The single strongest Get-Found lever is the Google Business Profile <strong>primary category</strong> ("Orthodontist" is found for far more intent than "Dentist"). Alloro already scrapes the current category into <code>client_gbp</code> and already reasons about category specificity in the audit (<code>SearchConversion.md</code>) &mdash; but no feature turns "your category should be X" into an owner-approved change. This closes that seam.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>A recommendation service that, for a location, proposes a <strong>more specific, real, settable</strong> Google primary category from a curated Google GBP category catalog (a <code>gcid</code> + displayName, never free text), and an orchestrator that stages that proposal as an owner-approved A6 <code>business_info</code> draft through the existing <code>GbpBusinessInfoDraftService.createDraft</code> rail. Done when: (1) a better category yields a <code>draft</code>-status work item with <code>patch.categories.primaryCategory</code> and <code>updateMask: ["categories"]</code>; (2) no better category proposes nothing (returns a "no proposal" result, never a manufactured change); (3) a test proves the draft cannot reach Google without both owner approval and A6's master switch on; (4) <code>npx tsc --noEmit</code> is clean and the unit tests pass.</p>
+      <p><strong>Honesty (Value #6):</strong> the output is a proposal ("a more specific category typically surfaces for more searches"), never "this will raise your rank."</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant Files (studied)</h3>
+      <ul>
+        <li><code>src/controllers/gbp-automation/feature-services/GbpBusinessInfoDraftService.ts</code> &mdash; the A6 draft rail I reuse. <code>createDraft</code> re-enforces the master switch (<code>assertWritebackEnabled</code>) and Google-readiness, stages a <code>draft</code>-status work item, writes nothing to Google.</li>
+        <li><code>src/controllers/gbp-automation/feature-services/GbpBusinessInfoDeploymentService.ts</code> &mdash; <code>assertWritebackEnabled</code> (master switch, seeded DISABLED) and <code>approve</code> (owner gate) live here; the write only happens on deploy after <code>approved</code> status.</li>
+        <li><code>src/controllers/gbp-automation/feature-utils/gbpBusinessInfo.ts</code> &mdash; <code>BUSINESS_INFO_FIELDS</code> includes <code>categories</code>; deploy-time <code>mergePatchOverSnapshot</code> deep-merges the new <code>primaryCategory</code> over the live snapshot, preserving <code>additionalCategories</code>.</li>
+        <li><code>src/validation/gbpBusinessInfo.schemas.ts</code> &mdash; the settable category shape: <code>categories.primaryCategory = { name: "categories/gcid:*", displayName }</code>.</li>
+        <li><code>src/agents/auditAgents/gbp/SearchConversion.md</code> &mdash; the recommendation <em>principle</em>: "Orthodontist beats Dental clinic; Pediatric Dentist beats Dentist."</li>
+        <li><code>src/controllers/audit/audit-utils/payloadCondensers.ts</code> &mdash; <code>CondensedGbp</code> (the <code>client_gbp</code> shape) supplies <code>categoryName</code>, <code>categories[]</code>, <code>title</code> as recommendation signals.</li>
+      </ul>
+      <h3>Constitution Articles this work touches</h3>
+      <ul>
+        <li><strong>&sect;6.1</strong> mirror <code>src/controllers/gbp-automation/</code> &mdash; the reference analog. New logic lands in <code>feature-services/</code>, pure helpers/types in <code>feature-utils/</code>.</li>
+        <li><strong>&sect;5.4 / &sect;5.5 / &sect;11.7</strong> the master switch and tenant scope are re-enforced server-side; the draft rail already carries org/location scope &mdash; I do not open a second write path around it.</li>
+        <li><strong>&sect;4.5</strong> no <code>any</code>; narrow <code>unknown</code> at the boundary.</li>
+        <li><strong>&sect;8.3</strong> typed domain errors (<code>GbpAutomationError</code>) propagate from the reused rail; the service adds none of its own <code>res.status</code>.</li>
+        <li><strong>&sect;20.1 / &sect;20.2</strong> service tests mirror the unit and cover the contract, the no-proposal path, and the unbypassable guard.</li>
+      </ul>
+      <p><strong>Reference analog:</strong> <code>GbpBusinessInfoDraftService.ts</code> (structure, scope guard, typed error, model-through-transaction) and <code>GbpReadinessService.ts</code> (feature-service shape).</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Stage every proposal through <code>GbpBusinessInfoDraftService.createDraft</code> &mdash; inherit its master-switch, Google-ready, and owner-approval guards unchanged.</li>
+            <li>Propose only a <strong>real, settable</strong> category (<code>{ name: "categories/gcid:*", displayName }</code>) from the curated catalog.</li>
+            <li>Propose only a <strong>strictly more specific</strong> primary category than the current one; otherwise propose nothing.</li>
+            <li>Be deterministic and tenant-scoped; no <code>any</code>; typed errors.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>Never write to Google directly &mdash; no import of <code>patchGbpBusinessInformation</code> or any deploy path.</li>
+            <li>Never auto-approve or auto-deploy; the draft sits at <code>draft</code> for the owner.</li>
+            <li>Never emit free-text categories or manufacture a change when none is warranted.</li>
+            <li>No new dependencies; do not modify the A6 rail, the audit worker, or unrelated code.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>An HTTP route / controller endpoint or a worker trigger that <em>calls</em> the orchestrator (the upstream door is the next seam, deliberately not built here).</li>
+        <li>Validating the seed <code>gcid</code> strings against Google's live <code>categories.list</code> (belongs at Dave's Google runtime gate &mdash; we hold no creds).</li>
+        <li>Additional-category (secondary) proposals; only the primary is in scope.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 2 (Concern).</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><strong>Seed gcid accuracy.</strong> The catalog's <code>gcid</code> strings are the well-known public Google category IDs but are not verified here against Google's live taxonomy. <strong>Mitigation:</strong> the resolver logic is deterministic and fully tested; the gcid values are validated at Dave's Google runtime gate before any real write, and the whole write is already gated there. Flagged, not hidden.</li>
+        <li><strong>Recommendation source is encoded, not called.</strong> <code>SearchConversion.md</code> is an LLM prompt returning free-text; I encode its stated specificity principle as a deterministic resolver instead of calling the LLM. <strong>Mitigation:</strong> determinism gives a stable, testable, settable proposal (an LLM emitting a free-text name cannot guarantee a settable gcid). Recorded as a deliberate deviation.</li>
+        <li><strong>Orphan risk (Rube Goldberg).</strong> Nothing calls the orchestrator yet. <strong>Mitigation:</strong> its downstream door (createDraft) is real and tested; the upstream trigger is the explicit next seam. Stated plainly, not pretended end-to-end.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> new files only. No existing file is modified. Consumers of the A6 rail are unaffected &mdash; I add a caller, not a change.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li>A curated catalog covers only the ICP verticals it seeds. The right long-term source is Google's <code>categories:search</code>. Recommended: ship the deterministic resolver now (honest, testable), swap the catalog for the live taxonomy when the Google runtime is wired.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <article class="task-card">
+        <h3>T1: Category taxonomy + resolver (feature-utils)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add <code>gbpCategoryTaxonomy.ts</code>: a curated catalog of real Google GBP categories (<code>gcid</code> + displayName + specificity rank + parent), types (<code>GbpCategoryRef</code>, <code>CategoryRecommendationInput</code>, <code>CategoryRecommendation</code>), and pure helpers that match context signals to a strictly-more-specific settable category. Encodes SearchConversion's principle.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/gbp-automation/feature-utils/gbpCategoryTaxonomy.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code>; unit tests</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T2: CategoryRecommendationService (feature-services)</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>recommendPrimaryCategory(input): CategoryRecommendation | null</code> &mdash; runs the resolver, returns the proposal (with the A6 patch shape + plain-English rationale) or <code>null</code> when nothing is warranted.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/gbp-automation/feature-services/CategoryRecommendationService.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>unit tests: better category &rarr; recommendation; no better &rarr; null</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T3: CategoryValueSourceService orchestrator (feature-services)</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>proposeCategoryDraft(params)</code> &mdash; get the recommendation; if present, call <code>GbpBusinessInfoDraftService.createDraft</code> with <code>patch.categories.primaryCategory</code> + <code>updateMask: ["categories"]</code>; return a typed result (<code>{ proposed: false }</code> or <code>{ proposed: true, workItem, recommendation }</code>). Never writes to Google.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/gbp-automation/feature-services/CategoryValueSourceService.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T2</dd></div>
+          <div><dt>Verify</dt><dd>unit tests: wiring + no-proposal-no-draft + master-switch-off blocks staging</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T4: Tests</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Cover: (a) resolver &mdash; better/no-better/already-specific; (b) service recommendation contract; (c) orchestrator stages the correct A6 patch on a proposal and stages nothing on none; (d) the real <code>createDraft</code> throws <code>BUSINESS_INFO_WRITEBACK_DISABLED</code> and stages nothing when the master switch is off &mdash; proving the write is unbypassable.</dd></div>
+          <div><dt>Files</dt><dd><code>src/__tests__/gbp-category-value-source.test.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1, T2, T3</dd></div>
+          <div><dt>Verify</dt><dd><code>npx vitest run src/__tests__/gbp-category-value-source.test.ts</code></dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled> <code>npx tsc --noEmit</code> &mdash; zero new errors</li>
+        <li><input type="checkbox" disabled> Better category &rarr; a <code>draft</code>-status <code>business_info</code> work item with <code>patch.categories.primaryCategory</code> + <code>updateMask: ["categories"]</code></li>
+        <li><input type="checkbox" disabled> No better category &rarr; nothing proposed, no draft created</li>
+        <li><input type="checkbox" disabled> Test proves the draft cannot write to Google without owner approval AND the A6 master switch on</li>
+        <li><input type="checkbox" disabled> No import of any Google write path in the new code</li>
+        <li><input type="checkbox" disabled> <code>npm run check:conventions --strict</code> &mdash; no new backend violations</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>
