@@ -1,0 +1,68 @@
+name: Refresh PR-LOG.md
+
+# PR-LOG.md is a committed file whose content is a function of the set of ALL open and
+# merged PRs, not of any single PR's diff. That is why regeneration lives here — on
+# dev/dave, with a single writer — and NEVER on a `pull_request` event.
+#
+# A staleness check attached to `pull_request` has no fixed point: PR X regenerates,
+# differs from the committed copy because unrelated PR Y opened, and goes red; X commits
+# its regeneration, which instantly stales every other open PR. With 18 open PRs no
+# sequence of regenerations makes them all green. scripts/pr-log.sh --check refuses to
+# run on a pull_request event for the same reason, so this cannot be re-created by a
+# future workflow edit.
+#
+# This job is the only writer. Nothing here runs on a pull request, so nothing here can
+# turn another PR red.
+
+on:
+  schedule:
+    # 06:00 UTC daily. The ledger is never more than a day stale and repairs itself.
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: pr-log-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout dev/dave
+        uses: actions/checkout@v6
+        with:
+          ref: dev/dave
+          # Reachability is computed against the base tree, so the history must be real.
+          fetch-depth: 0
+
+      - name: Regenerate the ledger
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/pr-log.sh
+
+      - name: Publish to the job summary
+        run: cat PR-LOG.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Commit only if it changed
+        run: |
+          set -uo pipefail
+          if git diff --quiet -- PR-LOG.md; then
+            echo "PR-LOG.md is already current — nothing to commit."
+            exit 0
+          fi
+          # [skip ci] matters: dev.yml deploys on every push to dev/dave with no path
+          # filter, so without it this docs-only commit would trigger a full dev deploy
+          # every day. GitHub honours the marker for push events.
+          git -c user.name="github-actions[bot]" \
+              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -m "docs(pr-log): scheduled regeneration [skip ci]" -- PR-LOG.md || exit 1
+          # Rebase onto anything pushed while this job ran, then push once.
+          git pull --rebase --quiet origin dev/dave || {
+            echo "pr-log-refresh: rebase onto origin/dev/dave failed; not pushing." >&2
+            exit 1
+          }
+          git push origin HEAD:dev/dave
