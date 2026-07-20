@@ -25,14 +25,14 @@ GET FOUND        ──CTR──▶   GET CONSIDERED    ──CRO──▶   GET
 
 **When submissions are low, do not guess — ask which term is small.** CRO small → the website. Impressions/CTR small → traffic. **And rung one is always: is the number even real?** Strip bots and existing customers from the denominator before optimizing anything. *Optimizing a phantom is the field's first sin.*
 
-**Implementation (built + live):** `src/controllers/patient-journey/feature-utils/types.ts` → the union `"impressions" | "visits" | "leads"`, with `patients` reserved and deliberately claiming no number. That union is a compiler-enforced contract — **it is the reason this definition never drifted while four documents argued about it for fourteen months.**
+**Implementation (built + live):** `src/controllers/patient-journey/feature-utils/types.ts` → the union `"impressions" | "visits" | "leads" | "patients"`, where `patients` is reserved and deliberately claims no number until converted-patient data is trustworthy. That union is a compiler-enforced contract — **it is the reason this definition never drifted while four documents argued about it for fourteen months.**
 
-⛔ **RETIRED vocabulary — never write these. A `PreToolUse` hook blocks them:**
+⛔ **RETIRED vocabulary — never write these. This is a written rule, not a mechanical one: nothing in this repo blocks them for you.**
 - **"get converted"** — "chosen" and "converted" are ONE event; there's no cart to abandon, and "chose but didn't call" is unobservable.
 - **"booked"** as a stage — booking is the practice's operation, outside the lane.
 - **Findable / Choosable / Bookable / Memorable** — the retired journey-lattice ladder. It names these same gates in different words, which is exactly how "chosen" came to mean gate 2 in some docs and gate 3 in others.
 
-**Full map** (levels, evidence grades, per-lever research, the kill-list of docs that contradict this): memory anchor `project_funnel_three_gates`, plus `alloro-artifacts/attraction-manual/` (the 12 chapters + 12 agent knowledge modules).
+**Where the rest lives, in this repo:** the build list and its blockers are in `plans/07142026-alloro-funnel-engine/funnel-feature-sequence.md`; the implementation is the union above. The deeper research — levels, evidence grades, per-lever sourcing — is **external material held outside this repository**; ask the owner for it rather than grepping, and do not cite it as a repo path.
 
 **Why this section exists:** a fresh agent asked "what is Alloro's funnel?" spent 25 tool calls, found **six** conflicting answers, and reported it would have been *"fluent and wrong."* Nothing in this repo pointed at the right one. That is now this section's job.
 

@@ -15,9 +15,9 @@
 > **Where to look when a number is low:** impressions → the map · organic · AI answers. CTR → the map card · the blue-link snippet · the AI answer. CRO → the website.
 > **Sorting rule for any lever: which of the three numbers does it move?** None → it's a chore. Some move two (reviews, hours, the page title all affect appearing *and* being clicked) — **name both or you drop one.**
 >
-> **THE MAP** (levels, evidence grades, per-lever research, the kill-list of docs that contradict this): memory anchor **`project_funnel_three_gates`** · repo-side summary: **`AGENTS.md` → "THE FUNNEL"** · implementation: `src/controllers/patient-journey/feature-utils/types.ts` (a compiler-enforced union — the one place this never drifted).
+> **THE MAP:** the definition lives in **`AGENTS.md` → "⛔ THE FUNNEL"** · implementation: `src/controllers/patient-journey/feature-utils/types.ts` (a compiler-enforced union — the one place this never drifted). The deeper research (levels, evidence grades, per-lever sourcing) is **external material held outside this repository** — ask the owner; it is not a path you can grep.
 >
-> ⛔ **Retired, hook-blocked:** "get converted" · "booked" as a stage · Findable/Choosable/Bookable/Memorable.
+> ⛔ **Retired — never write these:** "get converted" · "booked" as a stage · Findable/Choosable/Bookable/Memorable. *(A written rule. Nothing in this repo blocks them mechanically.)*
 
 # Alloro Funnel Engine — Identified + Sequenced Feature List
 
@@ -241,7 +241,7 @@ Lever 5 is graded **ABSENT** across this library. It is **STRANDED**. Commit `4c
 - Frontend: `ReviewRequestCard.tsx` · `pages/dashboard/ReviewRequests.tsx` · `OrgReviewRequestsTab.tsx` · `api/reviewRequests.ts`
 - **Ancestor of `main`: NO. Ancestor of `dev/dave`: NO. Last commit 2026-04-21.**
 
-⚠️ **Every "review-gen is unbuilt / `review_requests` is a ghost / no SMS anywhere" receipt in this library is true of the SHIPPING LINE ONLY.** Nobody checked the branches. **Triage WO18 before building fresh** — `alloro-artifacts/specs/review-generation-build-spec.md` (+ its 2026-07-16 amendment) is the design; WO18 may be most of the parts. Also the **kickstart lever**, per the Merchynt note directly above.
+⚠️ **Every "review-gen is unbuilt / `review_requests` is a ghost / no SMS anywhere" receipt in this library is true of the SHIPPING LINE ONLY.** Nobody checked the branches. **Triage WO18 before building fresh** — the review-generation build spec (+ its 2026-07-16 amendment) is the design, held in the owner's external spec library, not in this repo; the parts that *are* in this repo are the WO18 commits named above. WO18 may be most of them. Also the **kickstart lever**, per the Merchynt note directly above.
 
 ### (b) STRANDED BUILD #2 — the proof receipt: built 2026-07-12, no PR ever opened
 
@@ -254,7 +254,7 @@ bd592bb2  feat(proof-receipt): Tier-1 backend read layer — owner-facing "what 
 ```
 187 lines: `proofReceiptService.ts`, `ProofReceiptController.ts`, `routes/proofReceipt.ts`, `GbpWorkItemModel` +28, wired in `app.ts`. Reads **published `gbp_work_items`** → dated `{type: "review_reply" | "local_post", at, workItemId, locationId}` + a count summary; tenant-scoped; location-grained *"so a multi-location practice's feed stays de-blendable"*. Its header states the Tier-1 discipline verbatim: *"no causal arrow, nothing modeled, nothing to fabricate — that honesty is what makes it a rail-record and not an agency activity report."* Its type carries **`at: Date; // published_at — when Alloro did it`** — the past-tense sentence **no competitor in this category publishes** (11 vendor pages fetched 2026-07-16: every one is present-tense capability or future-tense promise; **not one shows an owner what it did**).
 
-**Backend done and honest. No frontend. No PR. Nobody can see it.** Spec: `alloro-artifacts/specs/proof-receipt-build-spec.md` (2026-07-12) — also absent from this list. **The proof receipt is a LAYER, not a lever; add it to the board as such.** Carry its adversarial correction with it: *"a receipt of activity is not an ownership lane — it is the failure pattern with better UI"* (Angi/Thumbtack already print owned, dated activity records and churn anyway). **Tier 1 is the wedge; channel-ownership is the lane** — which agrees with this list's own canon anchor. **Tier 4 — the unattributed bucket ("8 we can trace, 15 we can't") — is the line no competitor can copy**: every vendor checked publishes outcome numbers with no denominator anywhere.
+**Backend done and honest. No frontend. No PR. Nobody can see it.** Spec: the proof-receipt build spec (2026-07-12), held in the owner's external spec library rather than this repo — also absent from this list. **The proof receipt is a LAYER, not a lever; add it to the board as such.** Carry its adversarial correction with it: *"a receipt of activity is not an ownership lane — it is the failure pattern with better UI"* (Angi/Thumbtack already print owned, dated activity records and churn anyway). **Tier 1 is the wedge; channel-ownership is the lane** — which agrees with this list's own canon anchor. **Tier 4 — the unattributed bucket ("8 we can trace, 15 we can't") — is the line no competitor can copy**: every vendor checked publishes outcome numbers with no denominator anywhere.
 
 ### (c) THE WORK LOG — 24 writers, no owner read
 
@@ -282,7 +282,7 @@ Every owner- or patient-facing lever is gated on a precondition that appears now
 - **This file:** *"#156 Attribution capture half — OPEN — **premature / out of order; parked**"*
 - **This file, gate ③:** *"NS1 = attributed, so the proof/measurement hook is **part of done, not a later stage**."*
 - **This file's tail:** *"**Attribution = NS1.** The owner must SEE the result and know it came from Alloro. Reinforces the measurement rail being **foundational, not last**."*
-- **`MENU-2026-07-13.md` MOAT REFRAME (staked with Corey 2026-07-14):** *"the moat-brick is **Slice 4 = visitor→submission measurement**… **That measurement is the moat.** Without it, Alloro is an honest website builder, not a moated platform."*
+- **The 2026-07-13 menu doc, MOAT REFRAME (staked with Corey 2026-07-14) — external, not in this repo:** *"the moat-brick is **Slice 4 = visitor→submission measurement**… **That measurement is the moat.** Without it, Alloro is an honest website builder, not a moated platform."*
 
 **Three say foundational. One parks it.** #156 is the only PR in the batch that could ever answer *"is this customer getting $2k/location of value."* **Parked, or the moat? It cannot be both, and the answer changes the sequence.**
 
@@ -293,4 +293,4 @@ Every owner- or patient-facing lever is gated on a precondition that appears now
 - **P1–P4 go on the board as blockers, and they come FIRST.** Cheap — one signup, one OAuth flow, one token, one query — but first. **A lever mounted on a dead edge is instrumentation, not a lever.**
 - **Gate ② applies to documents too.** *What feeds this, and what does its output feed?* **Nothing goes on this list without a door — including this list.**
 
-*Method note: on 2026-07-16 a review-request spec was written without reading `specs/review-generation-build-spec.md`, six days old and better. Deleted, not merged; its four original findings became that spec's amendment. Its author was ~30 seconds from writing a third copy of the proof receipt before spotting `claude/proof-receipt-v1` in a `git worktree list` printed six hours earlier. **The duplication is not carelessness — it is the predicted output of building without one list.***
+*Method note: on 2026-07-16 a review-request spec was written without reading the existing review-generation build spec, six days old and better. Deleted, not merged; its four original findings became that spec's amendment. Its author was ~30 seconds from writing a third copy of the proof receipt before spotting `claude/proof-receipt-v1` in a `git worktree list` printed six hours earlier. **The duplication is not carelessness — it is the predicted output of building without one list.***
