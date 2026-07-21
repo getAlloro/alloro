@@ -1,7 +1,7 @@
 {
   "plan": "plans/07152026-journey-insights-alloro-actions",
-  "generatedAt": "2026-07-16",
-  "status": "Passed",
+  "generatedAt": "2026-07-19",
+  "status": "In Progress",
   "items": [
     {
       "id": "T1",
@@ -92,6 +92,54 @@
       "evidence": "Dave directed -d finalization and merge to dev/dave on 2026-07-16 after the browser acceptance results were presented.",
       "notes": "Jo's review has not been recorded and remains recommended before production promotion.",
       "waiver": "Dave explicitly authorized finalization and the dev/dave merge without waiting for Jo; this does not claim Jo approval."
+    },
+    {
+      "id": "T7",
+      "title": "A published GBP completeness fill surfaces on the owner's get-found (impressions) stage",
+      "surface": "api",
+      "precondition": "Stocked sandbox: an onboarded location with GBP + patient-journey impressions rows for the target month, and one Alloro-published completeness fill recorded on the rail (MetricActionService.recordGbpCompletenessFill, action_type gbp_completeness_fill) for that location and month.",
+      "steps": [
+        "Request GET /api/patient-journey?locationId=<L>&month=<YYYY-MM> with that organization's token.",
+        "Inspect the impressions (get-found) stage actions array in the response."
+      ],
+      "expected": "HTTP 200; the impressions stage contains one gbp_completeness_fill action whose plain-English summary reads \"Filled in your <fields> on your Google Business Profile.\" for exactly the fields Alloro filled.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "Derived from spec Rev 3 Done + MetricActionService.gbpCompletenessSummary/recordGbpCompletenessFill. Behavioral run deferred to the post-clone stocked sandbox (no GBP/journey rows locally).",
+      "waiver": "",
+      "layer": 2
+    },
+    {
+      "id": "T8",
+      "title": "The completeness action states a watch-window and makes no causal or lift claim (doctor rule)",
+      "surface": "api",
+      "precondition": "Same stocked sandbox and published completeness fill as T7.",
+      "steps": [
+        "In the same journey response, read the completeness action's measurement copy and summary.",
+        "Scan the action for any improvement, percentage, or causal language."
+      ],
+      "expected": "The measurement copy reads \"Watching <metric> through <date>.\" — a watch-window only. No \"improved\", \"+X%\", \"caused\", or CTR-lift claim appears anywhere on the action.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "Derived from spec Rev 3 (\"the action and its watch-window, never a causal or lift claim\") + MetricActionService.measurementNote. Mirrors the Layer-1 unit test \"surfaces a completeness fill to the owner without claiming it caused a lift\".",
+      "waiver": "",
+      "layer": 2
+    },
+    {
+      "id": "T9",
+      "title": "A manual owner edit never surfaces an Alloro-credit action",
+      "surface": "api",
+      "precondition": "Stocked sandbox where the owner edited a GBP field directly and NO rail record (recordGbpCompletenessFill) was created for that edit.",
+      "steps": [
+        "Request GET /api/patient-journey?locationId=<L>&month=<YYYY-MM> for that location and month.",
+        "Inspect the impressions stage actions array."
+      ],
+      "expected": "No gbp_completeness_fill action is present for the owner's own edit — Alloro never claims credit for a change it did not make.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "Derived from spec Rev 3 (\"A manual owner edit never claims Alloro's credit\").",
+      "waiver": "",
+      "layer": 2
     }
   ]
 }

@@ -34,8 +34,8 @@ export type StageUnavailableReason = "not_connected" | "pending" | "no_data";
 
 export interface PatientJourneyAction {
   id: string;
-  actionType: "seo_meta_update";
-  metricKey: "ctr";
+  actionType: "seo_meta_update" | "gbp_completeness_fill";
+  metricKey: "ctr" | "impressions";
   occurredAt: string;
   activeUntil: string;
   summary: string;

@@ -31,4 +31,33 @@ describe("PatientJourneyActionNote", () => {
     expect(screen.getByText(/Watching Google click-through/)).toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/improved|increased|caused/i);
   });
+
+  it("renders a GBP completeness fill action with summary and watch-window copy", () => {
+    render(
+      <PatientJourneyActionNote
+        action={{
+          id: "action-2",
+          actionType: "gbp_completeness_fill",
+          metricKey: "impressions",
+          occurredAt: "2026-07-15T12:00:00.000Z",
+          activeUntil: "2026-08-14T12:00:00.000Z",
+          summary:
+            "Filled in your hours, website on your Google Business Profile.",
+          measurementNote:
+            "Watching how often you show up on Google through August 14.",
+        }}
+      />,
+    );
+
+    expect(screen.getByRole("complementary", { name: "Alloro action" })).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Filled in your hours, website on your Google Business Profile.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Watching how often you show up on Google/),
+    ).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/improved|increased|caused/i);
+  });
 });
