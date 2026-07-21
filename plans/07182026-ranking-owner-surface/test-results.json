@@ -1,0 +1,51 @@
+{
+  "plan": "plans/07182026-ranking-owner-surface",
+  "generatedAt": "2026-07-18",
+  "status": "In Progress",
+  "items": [
+    {
+      "id": "T1",
+      "title": "Layer 1 — ranking output honesty guardrails pass",
+      "surface": "cli",
+      "precondition": "checkout claude/ranking-owner-surface",
+      "steps": [
+        "1. npx vitest run src/__tests__/service.ranking-output-guardrails.test.ts"
+      ],
+      "expected": "all guardrail tests green",
+      "status": "pass",
+      "evidence": "27 tests passed (vitest, 2026-07-18); tsc 0 errors; check:conventions --strict 0 structural violations",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Ranking card speaks the owner's vocabulary (per org-type, non-healthcare supported)",
+      "surface": "api",
+      "precondition": "authed on an org whose type resolves to a non-healthcare vocabulary",
+      "steps": [
+        "1. Load the practice-ranking output for the org",
+        "2. Read the recommendation copy"
+      ],
+      "expected": "copy uses the org's vocabulary tokens, not hardcoded healthcare terms",
+      "status": "pending",
+      "evidence": "",
+      "notes": "closes on dev after the dev/dave -> sandbox clone; sandbox has no ranking data to render",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "No generic 'get more reviews' homework unless it names a real competitor gap",
+      "surface": "api",
+      "precondition": "authed on an org with ranking output that could trigger a generic recommendation",
+      "steps": [
+        "1. Load the ranking output",
+        "2. Confirm any review/homework recommendation names a specific competitor gap, or is dropped"
+      ],
+      "expected": "banned generic homework is suppressed unless competitor-specific; no false state-claims in fallback copy",
+      "status": "pending",
+      "evidence": "Layer 1 covers the guardrail logic in unit (service.ranking-output-guardrails.test.ts); behavioral confirmation pending the clone",
+      "notes": "closes on dev after the clone",
+      "waiver": ""
+    }
+  ]
+}

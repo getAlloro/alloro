@@ -23,3 +23,8 @@ During `--start` (`-s`) and any execution mode (`-x`, `-i`, `-q`), **invoke the 
 - **Execution:** conform to the cited Articles, then verify with `npm run check:all` (backend CI gate: `npm run check:conventions --strict`), citing `§N.M` for every violation. Fix must-fix violations before reporting done; frontend mechanized Articles are advisory until the frontend remediation lands.
 
 The full contract is at `~/.claude/skills/code-constitution/SKILL.md`; a browsable view is in [`code-constitution.html`](code-constitution.html).
+
+## PR Pipeline Protocol
+
+Before any PR work, read docs/pr-pipeline-protocol.md and comply with its active rules. Every plan file must contain an acceptance block (numbered behavioral items plus predicted signals) before code is written, and PR bodies may only claim what a passing acceptance item proved.
+Before removing or bypassing any existing check, filter, or config, state its inferred purpose in the session log first.

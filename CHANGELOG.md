@@ -2,6 +2,55 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.171] - July 2026
+
+### Server-derived tenant scope and route authentication on PMS and rankings
+
+PMS key data and job listings now take their organization from the authenticated session rather than from the request, and the cross-organization view the admin dashboard needs moves to a dedicated super-admin route. Practice-ranking's dashboard routes now declare authentication and role checks; its machine-called trigger and status routes carry a service token in observation mode instead, so the live ranking pipeline is untouched while callers are inventoried for the enforcement stage. Location scoping validates both parameter spellings and rejects a malformed identifier rather than resolving it to no filter. Built on `plans/07202026-tenant-scope-hardening`; 1999 backend tests, TypeScript on both trees, and strict Constitution checks pass, with the deployed dev endpoints verified directly. This release is published through `dev/dave`; production has not been promoted.
+
+**Key Changes:**
+- **Session-derived organization scope.** `GET /api/pms/keyData` and the PMS job listings resolve the organization from the authenticated session. Model queries take the organization as a required argument rather than an optional filter (§5.5, §11.7).
+- **Dedicated admin route.** Cross-organization PMS reads move to `GET /api/admin/pms/keyData` behind `superAdminMiddleware`, mirroring the existing `routes/admin/` arrangement (§6.1). The admin Org PMS tab reads through it.
+- **Authenticated ranking routes.** The practice-ranking dashboard reads, retries, deletions and competitor refresh now declare `authenticateToken` and `rbacMiddleware` (§11.1).
+- **Service token in observation mode.** A shared token for machine callers, with a two-stage rollout: stage one recognises a valid token and logs callers without one; stage two rejects. Startup refuses to boot when enforcement is enabled with no token configured (§5.6). Constant-time comparison.
+- **Stricter location scoping.** `locationScopeMiddleware` accepts `location_id` as well as `locationId`, so a requested location is validated on endpoints using either spelling. A malformed value in a query or path parameter returns 400 rather than resolving to no filter; body values continue to fall through to the route's validation schema, which owns body shape (§11.2).
+- **Compile-safe client signature.** `fetchPmsKeyData` takes an options object rather than positional arguments, so a stale call fails to compile instead of mapping a value onto the wrong parameter.
+- **Environment placeholder check.** `npm run check:env` flags a tracked `.env*` file whose values are neither empty nor placeholder-shaped, reporting key names and counts only so its output is safe in CI logs. Wired into `npm run check:all`.
+
+**Commits:**
+- `src/controllers/pms/PmsController.ts`, `src/routes/pms.ts` — session-derived scope on key data; the admin job block moved behind `superAdminMiddleware`.
+- `src/controllers/admin-pms/AdminPmsController.ts`, `src/routes/admin/pms.ts`, `src/app.ts` — new super-admin PMS mount.
+- `src/routes/practiceRanking.ts` — authentication on the dashboard routes; service token on the machine-called routes.
+- `src/middleware/rbac.ts` — both parameter spellings accepted; malformed query and path identifiers rejected.
+- `src/config/serviceToken.ts`, `src/middleware/serviceToken.ts` — two-stage token with startup validation.
+- `src/controllers/pms/pms-services/pms-retry.service.ts`, `pms-approval.service.ts` — self-calls send the token header.
+- `frontend/src/api/admin-pms.ts`, `frontend/src/api/pms/jobs.ts`, four query hooks — client and admin callers split.
+- `src/__tests__/` — tenant-isolation, auth-boundary and service-token coverage added (§20.2); the practice-ranking smoke test rewritten to match the new contract.
+- `scripts/check-env-placeholders.sh`, `package.json` — the `check:env` gate.
+
+## [0.0.170] - July 2026
+
+### First PR check — plan-spec status self-consistency
+
+A model-free CI check now runs on every pull request into `dev/dave`. It reads the two places the Alloro spec template records execution status — the hero pill and the meta-grid status card — out of each touched `spec.html`, and fails when they disagree, when a status is outside the documented vocabulary, or when a change moves a spec to `Completed` without an acceptance artifact that rolls up `Passed` (§20.5). Built on `plans/07192026-handoff-enforcement-system` (the T3 verification-gate slice). Carried by open PR #189; it runs **advisory** (`continue-on-error`) for a short soak before promotion to a required check, and it is not yet merged to `dev/dave`.
+
+The check asserts the **artifact**, not the pull request. An earlier revision of this work asked GitHub whether the PR had merged and failed any spec that said `Completed` while unmerged. That rule contradicts the documented `--done` contract — a finalization PR is `Completed` and unmerged at the same time, by construction — and it made the verdict depend on state read at run time, so re-running the same workflow on the same commit after a merge flipped red to green. Self-consistency is a pure function of the tree.
+
+**Key Changes:**
+- **Self-consistency gate.** `scripts/check-spec-parity.sh` extracts both status surfaces from the file (not from diff text) and reports a pill/card disagreement as its own finding, naming the file and both values. Distinct exit codes: `1` finding, `2` usage or infrastructure error, `3` a touched spec with no extractable status.
+- **Fails closed.** The previous parse returned success on any internal failure and printed the same reassuring message as a genuine clean pass. An unparseable touched spec now exits `3` and a missing `python3` exits `2`; neither prints "nothing to assert".
+- **Sees statuses the old matcher missed.** Normalizing to the head token before a separator makes values with trailing commentary visible — `Deployed to Dev` and `Completed · 17/17 audited` are both live in the corpus and both passed the old regex untouched. A second hero template used by ten funnel-engine specs, which nests a dot span inside the pill and ships no status card, is now recognized rather than invisible.
+- **Removes three false-positive and false-negative classes at the root.** Reading the file post-image rather than `+` lines ends the false positives on re-indenting or class-swapping an already-`Completed` pill, the blind spot on a pill wrapped across lines, and an `awk` file tracker that silently dropped every added line after any line beginning `++ `.
+- **Proven to block.** 22-case offline fixture suite (`--self-test`), plus recorded exit-1 and exit-3 runs against real repository diffs. The previous acceptance set had no item in which the gate exited non-zero on the path CI runs.
+- **Minimal read-only workflow.** `.github/workflows/pr-spec-checks.yml` runs on `pull_request` to `dev/dave` with a `contents: read` token, `pull_request` (not `pull_request_target`) so fork PRs carry no secrets, `persist-credentials: false`, and SHAs passed through `env:` — the trust boundary lifted from PR #174. Dropping the PR-state read also dropped the `gh` dependency and the `pull-requests: read` scope; `fetch-depth` went from full history to the two commits the check compares.
+- **Advisory ratchet-in.** The step is `continue-on-error` for now. A `--strict-vocab` flag lets the documented-vocabulary rule be promoted separately from the parity rule; it currently reports nine advisory warnings across five specs.
+- **Docs parity.** Internal CI tooling with no dashboard or customer-facing surface, so no Alloro Docs update was required.
+
+**Commits:**
+- `scripts/check-spec-parity.sh` — file-based two-surface self-consistency check with an offline fixture suite.
+- `.github/workflows/pr-spec-checks.yml` — minimal read-only PR workflow. The `scripts/pr-log.sh --check` step was removed: it had no `continue-on-error` and was guarded only by a file-existence test, so it would have become a hard blocking check on every PR the moment that script landed from PR #181. PR-LOG freshness belongs to the PR that owns the script.
+- `plans/07192026-handoff-enforcement-system/` — spec Rev 4, `test.html`, and `test-results.json` recording the acceptance evidence.
+
 ## [0.0.169] - July 2026
 
 ### Project Board comments add images and targeted alerts

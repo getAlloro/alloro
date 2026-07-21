@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Zero-Maps Impressions Fix Spec</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); margin-top: 14px; }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 840px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; letter-spacing: 0; }
+    h2 { font-size: 1.35rem; letter-spacing: 0; }
+    h3 { font-size: 1rem; letter-spacing: 0; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    pre { background: var(--soft); border: 1px solid var(--line); border-radius: 8px; padding: 16px; overflow-x: auto; }
+    pre code { border: 0; padding: 0; background: none; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    .callout { border-left: 4px solid var(--ink); background: var(--soft); padding: 14px 18px; border-radius: 0 8px 8px 0; margin-top: 14px; }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-pending">Pending Execution</span>
+      </div>
+      <h1>Zero-Maps Impressions Fix</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Pending Execution</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/07202026-zero-maps-fix</dd></div>
+        <div><dt>Size</dt><dd>Medium</dd></div>
+        <div><dt>Risk</dt><dd>Level 3</dd></div>
+      </dl>
+      <div class="callout">
+        <p style="margin:0"><strong>This spec is not the fix yet — and the fix is contingent on an unconfirmed hypothesis.</strong>
+        A low-risk, additive, logging-only diagnostic ships first (branch <code>claude/zero-maps-diagnostic</code>) to
+        confirm or refute the root cause with real API values. Only after the next real daily run confirms the cause
+        should the fix below be executed. Do <em>not</em> treat the zeros as fixed by this document.</p>
+      </div>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p><strong>Alloro is the CMO of the owner's local presence</strong> — it must report the <em>Get Found</em> number
+      (Google impressions = the top funnel gate) honestly. Right now the daily agent stores <code>0</code> for the Google
+      Maps impressions term, which understates or zeroes the owner's visibility gate. A wrong "0" at the top of the funnel
+      poisons every downstream rate (CTR, CRO) and breaks the honesty that is the product.</p>
+      <p><strong>Leading hypothesis (UNCONFIRMED):</strong> the daily agent fetches only <em>yesterday</em> and
+      <em>day-before-yesterday</em> (<code>getDailyDates</code>). The Google Business Profile Performance API trails
+      several days for impression metrics, so the two most-recent days legitimately return no data (which the code sums
+      to <code>0</code>). Nobody has yet verified against the live API that Maps is 0 for yesterday but non-zero for older
+      dates, or whether Search is also 0. The diagnostic below produces that evidence.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p><strong>The robust fix:</strong> instead of fetching only the two most-recent single days, fetch a small
+      <strong>trailing window</strong> (default ~7 days) in one API call per metric set, then use the most-recent day(s)
+      that actually carry data. This is robust to whatever the real API lag turns out to be — no hard-coded "subtract N days"
+      offset guess. If the whole window is empty, the payload says "no recent data" honestly rather than silently reporting 0.</p>
+      <p><strong>Done when:</strong> for a location with known non-zero recent Maps/Search impressions, the daily Proofline
+      payload's <code>visibility.*</code> values reflect the most-recent day that has data (not 0), the value carries the
+      <em>date it came from</em>, and an all-empty window is reported as "unavailable", not 0. Confirmed by re-running the
+      diagnostic and by Dave's live-API check (see <a href="#dave-test">Dave's confirmation test</a>).</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>The fetch → shape chain (verified by reading the code)</h3>
+      <ol>
+        <li><code>service.proofline-executor.ts:96</code> — calls <code>getDailyDates(referenceDate)</code> once per run,
+        then writes <code>dayBeforeYesterday</code>/<code>yesterday</code> into <code>agent_results</code> and
+        <code>google_data_store</code> (via the transaction at ~line 116).</li>
+        <li><code>service.daily-agent-processor.ts:81-99</code> — calls <code>fetchAllServiceData</code> twice, one single
+        day each (<code>dayBeforeYesterday</code>, then <code>yesterday</code>).</li>
+        <li><code>utils/dataAggregation/dataAggregator.ts</code> — <code>fetchAllServiceData → fetchGBPDataForRange →
+        getGBPAIReadyData</code>.</li>
+        <li><code>controllers/gbp/GbpController.ts:119-142</code> — <code>getGBPAIReadyData</code> requests the metric set
+        including <code>BUSINESS_IMPRESSIONS_{DESKTOP,MOBILE}_{MAPS,SEARCH}</code> via <code>fetchPerfTimeSeries</code>.</li>
+        <li><code>controllers/gbp/gbp-services/performance-handler.service.ts:4-32</code> — the actual API call
+        (<code>fetchMultiDailyMetricsTimeSeries</code>); returns <code>multiDailyMetricTimeSeries[]</code>.</li>
+        <li><code>service.agent-input-builder.ts:19-35</code> — <code>extractMetricTotal</code> walks
+        <code>...performance.series[].dailyMetricTimeSeries[].timeSeries.datedValues[]</code> and <strong>sums to 0 when
+        <code>datedValues</code> is empty or <code>value</code> is undefined</strong>. This is where a legitimately-empty
+        recent window becomes a reported <code>0</code>.</li>
+      </ol>
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>src/controllers/agents/feature-utils/dateHelpers.ts</code> — <code>getDailyDates</code>; the window logic changes here (and/or a new sibling helper).</li>
+        <li><code>src/controllers/agents/feature-services/service.daily-agent-processor.ts</code> — the two per-day fetches become a trailing-window fetch + "pick most-recent day with data".</li>
+        <li><code>src/controllers/agents/feature-services/service.proofline-executor.ts</code> — reads the dates for DB writes; must stay consistent with the new shape.</li>
+        <li><code>src/controllers/agents/feature-services/service.agent-input-builder.ts</code> — <code>extractMetricTotal</code> / <code>flattenDailyGbpData</code> must distinguish "0 interactions" from "no data for this date".</li>
+        <li><code>src/config/</code> — the trailing-window size (~7) is a named constant here (§4.2), not a literal in logic.</li>
+      </ul>
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li><strong>Reference analog — §6.1</strong> <code>src/controllers/gbp-automation/</code>: thin controller, logic in <code>feature-services/</code>, helpers/typed errors in <code>feature-utils/</code>, the <code>{ success, data, error }</code> handling.</li>
+        <li><strong>§6.3</strong> — date/window helpers belong in <code>controllers/agents/feature-utils/</code> (where <code>dateHelpers.ts</code> already lives), not a bare <code>utils/</code>.</li>
+        <li><strong>§9.1</strong> — log through the Pino-backed <code>log()</code> in <code>feature-utils/agentLogger.ts</code>; never <code>console.*</code>.</li>
+      </ul>
+      <p><strong>Reference file:</strong> <code>src/controllers/gbp-automation/</code> — closest clean domain for structure matching.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Fetch a trailing window in <strong>one</strong> API call per metric set, not N single-day calls (bounds the extra API cost — see Risk).</li>
+            <li>Pick the most-recent day <em>that has data</em>; do not average across the window unless the product explicitly wants a window sum.</li>
+            <li>Distinguish "0 interactions on a day that reported" from "no data for this date". §4.2: window size is a named constant in <code>config/</code>.</li>
+            <li>Keep the DB writes in <code>service.proofline-executor.ts</code> consistent — the stored <code>date_start</code>/<code>date_end</code> must describe the window actually used.</li>
+            <li>§9.1 Pino logging; §3.1/§3.2 every async wrapped, errors logged with context, never swallowed; §20.1 tests mirror the changed units.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>Hard-code a "subtract N days" offset guess for the lag — the window + most-recent-with-data is the point.</li>
+            <li>Add new dependencies.</li>
+            <li>Touch the monthly agents' date logic (<code>getPreviousMonthRange</code>, <code>getCurrentMonthRange</code>) — out of scope.</li>
+            <li>Refactor the GBP fetch chain beyond what the window change needs (no drive-by cleanup — §Refactoring Rule).</li>
+            <li>Execute this fix before the diagnostic confirms the cause.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Monthly agent windows and any dashboard/frontend rendering of the number.</li>
+        <li>Back-filling historically-stored <code>0</code> rows in <code>google_data_store</code> (separate data task if wanted).</li>
+        <li>The diagnostic itself — it ships on this branch now and is the gate, not part of the fix execution.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 3 — Structural risk: broad blast radius plus a behavior change to what every daily agent sees and stores.</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><strong>Shared date source.</strong> <code>getDailyDates</code> is the single date source for the whole daily pipeline. Changing its shape changes what the daily processor fetches AND what the proofline executor stores. <strong>Mitigation:</strong> keep <code>getDailyDates</code>'s existing return shape intact for backward-compat and add the window as a new, separately-consumed helper; migrate consumers deliberately, not implicitly.</li>
+        <li><strong>Extra API cost / rate limits.</strong> A 7-day window is more data per call; if implemented as N calls it is 7&times; the requests. <strong>Mitigation:</strong> one <code>fetchMultiDailyMetricsTimeSeries</code> call spanning the window (the API already takes a date range), not a loop.</li>
+        <li><strong>Semantic drift of stored dates.</strong> Downstream rows (<code>agent_results.date_start/date_end</code>, <code>google_data_store</code>) currently mean "yesterday/day-before". After the change they mean "the window / the day actually used". <strong>Mitigation:</strong> store the actual resolved date(s) and document the meaning change in the Revision Log at execution time.</li>
+        <li><strong>Hypothesis may be wrong.</strong> If the diagnostic shows Search is ALSO 0 for older dates, or the API returns data for yesterday, the root cause is elsewhere (auth scope, wrong location, metric name, or a real zero). <strong>Mitigation:</strong> the diagnostic gates the fix; do not execute until it points at lag.</li>
+      </ul>
+      <p><strong>Blast radius (known consumers of <code>getDailyDates</code> / the daily fetch):</strong></p>
+      <ul>
+        <li><code>service.daily-agent-processor.ts</code> — param typed <code>ReturnType&lt;typeof getDailyDates&gt;</code>; drives both fetch windows and the <code>google_data_store</code> raw row (<code>date_start</code>/<code>date_end</code>).</li>
+        <li><code>service.proofline-executor.ts:96</code> — reads the dates for the <code>agent_results</code> + <code>google_data_store</code> transaction writes.</li>
+        <li><code>service.agent-input-builder.ts</code> — <code>extractMetricTotal</code> / <code>flattenDailyGbpData</code> shape the values every daily agent (Proofline) reads.</li>
+      </ul>
+      <h3>Pushback</h3>
+      <ul>
+        <li>Because this is Level 3, the fix must not auto-execute. Confirm the cause with the diagnostic first, then execute deliberately with a Revision Log entry recording the stored-date semantic change. A cheaper-but-wrong alternative — hard-coding "fetch 4 days ago" — is explicitly rejected: it bakes in a guess at the lag that will silently rot when Google changes it.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+
+      <article class="task-card">
+        <h3>T0 (SHIPS NOW, on this branch): Logging-only diagnostic to confirm the cause</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add a pure log-shaping helper that, for each fetched day window, records the <em>actual values</em> the GBP Performance API returned for <code>BUSINESS_IMPRESSIONS_{DESKTOP,MOBILE}_{MAPS,SEARCH}</code> — per-date <code>datedValues</code> + total + whether the metric/series was present at all. Log it via the Pino-backed <code>log()</code> in the daily processor after each fetch. No behavior change, no writes.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/agents/feature-utils/gbpImpressionsDiagnostic.ts</code> (new), <code>src/controllers/agents/feature-services/service.daily-agent-processor.ts</code> (2 log calls), <code>src/controllers/agents/feature-utils/__tests__/gbpImpressionsDiagnostic.test.ts</code> (new).</dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code> exit 0; unit tests green; next real daily run emits the per-date values.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T1: Trailing-window date helper (§4.2, §6.3)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add a new helper (e.g. <code>getDailyTrailingWindow(referenceDate?, windowDays?)</code>) beside <code>getDailyDates</code> returning <code>{ startDate, endDate }</code> for the last ~7 days. Window size is a named constant in <code>src/config/</code>. Leave <code>getDailyDates</code>'s shape intact for now.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/agents/feature-utils/dateHelpers.ts</code>, <code>src/config/</code>, mirrored test.</dd></div>
+          <div><dt>Depends on</dt><dd>T0 confirms lag</dd></div>
+          <div><dt>Verify</dt><dd>Unit test: window spans N days ending at reference-1.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: Fetch the window and pick the most-recent day with data</h3>
+        <dl>
+          <div><dt>Do</dt><dd>In the daily processor, replace the two single-day fetches with one window fetch; add a pure selector that walks the returned series and returns, per metric, the most-recent <code>datedValues</code> entry that actually carries data (and a "no data in window" signal when none do).</dd></div>
+          <div><dt>Files</dt><dd><code>service.daily-agent-processor.ts</code>, <code>service.agent-input-builder.ts</code> (a data-aware extractor beside <code>extractMetricTotal</code>), mirrored tests.</dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>Unit test with a fixture where the last 2 days are empty and day-4 has values → payload reflects day-4, tagged with its date.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: Keep stored dates + payload honest, migrate consumers</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Make <code>service.proofline-executor.ts</code> store the actual resolved date(s); make the payload distinguish "0 interactions" from "no recent data". Record the stored-date semantic change in the Revision Log.</dd></div>
+          <div><dt>Files</dt><dd><code>service.proofline-executor.ts</code>, <code>service.agent-input-builder.ts</code>, this <code>spec.html</code> (Revision Log).</dd></div>
+          <div><dt>Depends on</dt><dd>T2</dd></div>
+          <div><dt>Verify</dt><dd>Dave's live-API confirmation test below; re-run diagnostic shows non-zero for a known-active location.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="dave-test">
+      <h2>Dave's confirmation test (live API — the exact check)</h2>
+      <p>This is the check Dave runs against the <strong>live Google Business Profile Performance API</strong> to (a) confirm the lag is the cause and (b) later validate the fix. It needs a real OAuth2 client and a location with known recent activity.</p>
+      <h3>Step 1 — Confirm the cause (before the fix)</h3>
+      <ol>
+        <li>Pick an active location (<code>accountId</code>, <code>locationId</code>) that you know had Maps/Search impressions in the last two weeks.</li>
+        <li>Call the same path the agent uses, but over a <strong>14-day</strong> range:
+        <code>getGBPAIReadyData(oauth2Client, accountId, locationId, &lt;today-14&gt;, &lt;today-1&gt;)</code>,
+        or hit <code>fetchMultiDailyMetricsTimeSeries</code> directly with the four
+        <code>BUSINESS_IMPRESSIONS_*</code> metrics for that range.</li>
+        <li>Inspect <code>performance.series[].dailyMetricTimeSeries[].timeSeries.datedValues[]</code> per metric. Read off,
+        per calendar date, the value for <code>DESKTOP_MAPS</code>, <code>MOBILE_MAPS</code>, <code>DESKTOP_SEARCH</code>,
+        <code>MOBILE_SEARCH</code>.</li>
+      </ol>
+      <p><strong>Hypothesis is CONFIRMED if:</strong> the most-recent 1–3 dates are empty/absent for <em>all</em> metrics
+      (Maps AND Search), and older dates carry non-zero values — i.e. it is an API lag, not a Maps-specific zero.
+      <strong>Hypothesis is REFUTED if:</strong> yesterday already has data (cause is elsewhere), or Search has data while Maps
+      is 0 across the whole window (a Maps-specific problem — auth scope, metric name, or a genuine zero), in which case
+      do not ship the trailing-window fix; re-diagnose.</p>
+      <h3>Step 2 — Validate the fix (after execution)</h3>
+      <ol>
+        <li>Run the daily agent (or the diagnostic) for that same location.</li>
+        <li>Confirm the Proofline payload's <code>visibility.impressions_maps_*</code> now reflect the most-recent day that
+        had data (matching what you read manually in Step 1), and each value carries the date it came from.</li>
+        <li>Confirm a location that genuinely had zero activity is reported as such (not conflated with "no data").</li>
+      </ol>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled> <code>npx tsc --noEmit</code> — zero errors from this work</li>
+        <li><input type="checkbox" disabled> Diagnostic (T0) shipped, logging-only, unit-tested, merged — the confirmation gate</li>
+        <li><input type="checkbox" disabled> Dave's Step-1 live-API check run; hypothesis CONFIRMED (lag) before the fix executes</li>
+        <li><input type="checkbox" disabled> Trailing-window fetch replaces the two single-day fetches (one API call per metric set)</li>
+        <li><input type="checkbox" disabled> Payload/store distinguish "0 interactions" from "no recent data"; stored dates describe the window used</li>
+        <li><input type="checkbox" disabled> Dave's Step-2 validation: known-active location reports non-zero Maps; genuine-zero location reported honestly</li>
+        <li><input type="checkbox" disabled> <code>npm run check:conventions --strict</code> clean for the backend changes (§ citations for any residual)</li>
+        <li><input type="checkbox" disabled> No regression in monthly agents (their date logic untouched)</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

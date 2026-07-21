@@ -5,6 +5,7 @@ import { GbpReadinessService } from "./feature-services/GbpReadinessService";
 import { GbpReviewDraftSlotService } from "./feature-services/GbpReviewDraftSlotService";
 import { GbpDeployPreviewService } from "./feature-services/GbpDeployPreviewService";
 import { GbpBusinessInfoDraftService } from "./feature-services/GbpBusinessInfoDraftService";
+import { GbpCompletenessDraftService } from "./feature-services/GbpCompletenessDraftService";
 import { GbpLocalPostDraftService } from "./feature-services/GbpLocalPostDraftService";
 import { GbpLocalPostScheduleService } from "./feature-services/GbpLocalPostScheduleService";
 import { GbpPostMediaService } from "./feature-services/GbpPostMediaService";
@@ -121,6 +122,30 @@ export class GbpAutomationController {
         summary: input.summary,
       });
       return ok(res, item, 201);
+    } catch (error) {
+      return handleGbpError(res, error);
+    }
+  }
+
+  /**
+   * MANUAL detect → fix trigger: grade the caller's location for GBP completeness and
+   * stage an owner-approval fill draft for the gaps Alloro can fill on its own. Thin
+   * by design (mirrors createBusinessInfoDraft, §6.1) — all logic is in the service.
+   * Nothing auto-publishes: the draft is owner-approved downstream and the write-back
+   * master switch is re-enforced in createDraft. 201 when a draft was staged, 200 when
+   * nothing was fillable (honest empty, never a fabricated draft).
+   */
+  static async createCompletenessFillDraft(req: Request, res: Response): Promise<Response> {
+    try {
+      const ctx = clientContext(req);
+      const result = await GbpCompletenessDraftService.stageFillForLocation({
+        organizationId: ctx.organizationId,
+        locationId: ctx.locationId,
+        userId: ctx.userId,
+        actorEmail: ctx.actorEmail,
+        accessibleLocationIds: ctx.accessibleLocationIds,
+      });
+      return ok(res, result, result.workItem ? 201 : 200);
     } catch (error) {
       return handleGbpError(res, error);
     }

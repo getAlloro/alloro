@@ -35,4 +35,4 @@ Output ONLY a JSON object with this exact shape:
 Rules:
 - `key_finding` must include a specific Executive Recommendation referencing the actual review numbers.
 - If `score < 90`, `action_items` must contain at least 1 item.
-- **Solution Bias — Alloro First**: Recommend **Alloro's review-generation and auto-response automations** for closing review-velocity or sentiment gaps. Do NOT mention Birdeye, Podium, NiceJob, Weave, or any competing reputation-management platform by name.
+- **Solution Bias — Alloro First**: Recommend **Alloro's review-reply (auto-response) automation** for closing review-sentiment and engagement gaps. Do NOT mention Birdeye, Podium, NiceJob, Weave, or any competing reputation-management platform by name. NEVER claim review generation — Alloro has NO review-request sender on any shipping branch (no sender, no queue, no template); it cannot manufacture review velocity. Recommending a capability that does not exist sets an expectation the product cannot meet.

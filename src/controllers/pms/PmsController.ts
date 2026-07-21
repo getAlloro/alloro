@@ -8,7 +8,7 @@ import * as sanitizationService from "./pms-services/pms-paste-analysis.service"
 import { coerceBoolean, validateJobId } from "./pms-utils/pms-validator.util";
 import { tryParseMonthlyRollupPayload } from "./pms-utils/pms-mapping-validator.util";
 import { PmsStatus } from "./pms-utils/pms-constants";
-import { RBACRequest } from "../../middleware/rbac";
+import { RBACRequest, LocationScopedRequest } from "../../middleware/rbac";
 import type { MonthlyRollupForJob } from "../../utils/pms/applyColumnMapping";
 import * as comparisonInsightsService from "./pms-services/pms-comparison-insights.service";
 import { monthSortValue } from "../../utils/pms/monthKey";
@@ -166,24 +166,31 @@ export async function getPmsSummary(req: Request, res: Response) {
 
 /**
  * GET /pms/keyData
- * Aggregate PMS key metrics for an organization across all processed jobs.
+ * Aggregate PMS key metrics for the CALLER'S organization across all processed
+ * jobs.
+ *
+ * The organization is derived from server context (rbacMiddleware), never from
+ * the request (§5.5) — a caller-supplied organization_id previously let any
+ * authenticated user read any practice's referral and production figures. The
+ * cross-organization read the admin dashboard needs lives behind
+ * superAdminMiddleware at GET /api/admin/pms/keyData.
  */
 export async function getKeyData(req: Request, res: Response) {
   try {
-    const organizationId = parseInt(String(req.query.organization_id), 10);
+    const scopedReq = req as LocationScopedRequest;
+    const organizationId = scopedReq.organizationId ?? null;
 
-    if (!organizationId || isNaN(organizationId)) {
+    if (!organizationId) {
       return res.status(400).json({
         success: false,
-        error: "Missing or invalid organization_id parameter",
+        error: "Missing organization context",
       });
     }
 
-    const locationIdRaw = req.query.location_id
-      ? parseInt(String(req.query.location_id), 10)
-      : undefined;
-    const locationId =
-      locationIdRaw !== undefined && !isNaN(locationIdRaw) ? locationIdRaw : undefined;
+    // locationScopeMiddleware has already validated the requested location
+    // against the caller's accessible set and resolved it onto the request.
+    // Re-reading it from the query string here would bypass that check.
+    const locationId = scopedReq.locationId ?? undefined;
 
     const data = await dataService.aggregateKeyData(organizationId, locationId);
 

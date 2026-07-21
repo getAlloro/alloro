@@ -60,11 +60,11 @@
     <header class="spec-hero">
       <div class="hero-topline">
         <p class="eyebrow">Alloro Plan Spec</p>
-        <span class="status-pill">Completed</span>
+        <span class="status-pill">Needs Verification</span>
       </div>
       <h1>Journey Insights: Alloro Actions</h1>
       <dl class="meta-grid">
-        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
+        <div class="status-card"><dt>Status</dt><dd>Base rail (SEO-meta actions) shipped to dev/dave. This branch adds the seam-11 GBP-completeness→owner variant — build-and-hold on PR 185, Layer-2 behavioral pending the sandbox clone; recorded test-results are stale (show a FAIL predating the seam-11 commit) and need re-run.</dd></div>
         <div><dt>Plan Folder</dt><dd>plans/07152026-journey-insights-alloro-actions</dd></div>
         <div><dt>Size</dt><dd>Large</dd></div>
         <div><dt>Risk</dt><dd>Level 3</dd></div>
@@ -322,6 +322,22 @@
         <p><strong>Change:</strong> Completed implementation, automated verification, desktop/mobile browser acceptance, Alloro Docs parity, and finalization records. Acceptance T6 is preserved as a waived failure instead of being presented as Jo approval.</p>
         <p><strong>Reason:</strong> User QA: Dave directed <code>-d</code> finalization and merge to <code>dev/dave</code> without waiting for Jo's copy review.</p>
         <p><strong>Updated Done criteria:</strong> Jo's copy review is waived for this dev merge only and remains recommended before production promotion.</p>
+      </article>
+      <article class="task-card">
+        <h3>Rev 3 - 2026-07-18</h3>
+        <p><strong>Change:</strong> Extended the MetricAction rail with GBP completeness-fill recording (<code>MetricActionService.recordGbpCompletenessFill</code>, config in <code>metricActions.ts</code>, <code>MetricActionModel</code> + the journey response type in lockstep). A published GBP completeness fix now surfaces on the owner's get-found (impressions) stage as an "Alloro filled in X" action — the action and its watch-window, never a causal or lift claim (doctor rule). A manual owner edit never claims Alloro's credit. Branch <code>claude/seam-completeness-to-owner</code> → PR #185.</p>
+        <p><strong>Reason:</strong> Scope addition: the completeness→owner half of the funnel-engine seam. The base rail (SEO-meta actions) shipped in Rev 2; this adds the GBP-completeness variant. Inert on its own until a publish-trigger composes it with the detect→fix bridge (a follow-on PR).</p>
+        <p><strong>Updated Done criteria:</strong> Layer 1 — 6 rail unit tests pass (verified 2026-07-18), tsc + <code>check:conventions --strict</code> clean. Layer 2 (behavioral: a published fill actually surfaces on the journey) is PENDING the dev/dave → sandbox data clone — the sandbox has no GBP/journey rows to exercise it. This addition is not "Completed" until that walk runs; the hero pill stays "Completed" for the base rail, which did ship.</p>
+      </article>
+      <article class="task-card"><h3>Rev 4 - 2026-07-19</h3>
+        <p><strong>Change:</strong> Hero status moved from "Completed" to "Needs Verification." Rev 3 had deliberately kept the pill "Completed" for the shipped base rail, but for a reader of PR #185 that is misleading — the PR delivers the unlanded seam-11 GBP-completeness→owner addition (<code>dd6e7187f</code>), whose behavioral (Layer-2) acceptance is pending the clone, and whose recorded <code>test-results.json</code> is stale (shows a FAIL predating that commit, not regenerated). The status now states both truths: base rail shipped, extension build-and-hold + needs a test re-run.</p>
+        <p><strong>Reason:</strong> Overwatch QA (multi-agent recon): a "Completed" hero on an open PR carrying unlanded, behaviorally-unverified work with a stale failing test would misread to a reviewer. No code changed — status/label only.</p>
+        <p><strong>Updated Done criteria:</strong> Added: regenerate <code>test-results.json</code> against the current branch (resolve or explain the stale FAIL) before PR-ready; Layer-2 behavioral acceptance remains pending the sandbox clone.</p>
+      </article>
+      <article class="task-card"><h3>Rev 5 - 2026-07-20</h3>
+        <p><strong>Change:</strong> Rebased the branch onto the advanced <code>dev/dave</code> (was 59 commits behind, built on pre-#183 code). The rebase auto-merged cleanly — the only shared file, <code>src/controllers/patient-journey/feature-utils/types.ts</code>, took both edits (this PR's <code>PatientJourneyAction.actionType/metricKey</code> loosened to <code>string</code>, and #183's <code>PatientJourneyRankContext.notInTop20</code> replacing <code>totalCompetitors</code>). #183's Get-Found honesty fixes (Search-only clicks/CTR labels, "Visited the site" caption, skip-unmapped-locations, Maps+Search impressions) are fully preserved — this PR touches none of those files. Also fixed one execution-time test-mock gap in <code>src/__tests__/metric-action.model.test.ts</code>: the mock query builder did not understand the two-arg Knex <code>.where(column, value)</code> equality form that <code>MetricActionModel</code> uses for the optional metric filter, so it returned <code>undefined</code> and failed the org-wide-event test. Taught the mock that a two-arg <code>.where</code> means equality (faithful to real Knex). Test-only; no production behavior change.</p>
+        <p><strong>Reason:</strong> Execution deviation: keep the branch mergeable on the moved <code>dev/dave</code> without regressing #183, and get the model test suite green (66/66) so #185 can land.</p>
+        <p><strong>Updated Done criteria:</strong> Backend <code>tsc</code> clean; frontend <code>tsc</code> clean; backend vitest 66/66 (patient-journey + stage-readers + metric-action); frontend patient-journey vitest 15/15. Layer-2 behavioral acceptance still pending the sandbox clone.</p>
       </article>
     </section>
   </main>

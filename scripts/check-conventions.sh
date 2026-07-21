@@ -2,9 +2,24 @@
 # check-conventions.sh — mechanized subset of the /code-constitution verification checklist.
 #
 # Read-only static checks. Surfaces structural violations so they can't grow silently.
-# Default exits 0 (the backend is mid-remediation and carries known debt).
-# Pass --strict to exit 1 when any CLEAR structural violation exists — wire that into
-# CI once the debt is cleared, or use a ratchet/baseline (see NOTE at the bottom).
+#
+# STRICT IS THE DEFAULT (fail-closed). Exits 1 when any CLEAR structural violation exists.
+# Pass --no-strict to opt out (report only, always exit 0).
+#
+# WHY THE DEFAULT FLIPPED (2026-07-16): this script previously defaulted to STRICT=0 and
+# required `--strict` to enforce. But `npm run check:conventions --strict` — the exact
+# command mandated by CLAUDE.md, AGENTS.md, and Code Constitution §18 — does NOT pass the
+# flag through: npm consumes a bare `--strict` as its own option, so "$@" arrives EMPTY,
+# STRICT stayed 0, and the gate could never exit 1. Every agent that followed the
+# documented instruction ran a no-op and reported a green. The CHANGELOG carries dozens of
+# "check:conventions --strict: 0 violations" entries produced by a check that was disabled.
+# Only `-- --strict` ever worked, and almost nobody wrote it.
+#
+# Fixing the string in three documents would leave the trap: the fourth document written
+# next month says `--strict` again. Flipping the default makes every existing invocation —
+# broken or not — actually enforce, and makes all three documents retroactively true
+# without editing the Constitution (which lives outside this repo; not ours to edit).
+# `--strict` is still accepted and is now a no-op, so nothing that passes it breaks.
 # Pass --audit to print the full untruncated list for every check (the refactor backlog;
 #   `npm run audit:constitution`). Advisory — never changes the exit code.
 #
@@ -20,12 +35,14 @@
 set -uo pipefail
 cd "$(dirname "$0")/.." || exit 2
 
-STRICT=0
+STRICT=1
 AUDIT=0
 for arg in "$@"; do
   case "$arg" in
-    --strict) STRICT=1 ;;
-    --audit)  AUDIT=1 ;;
+    --strict)    STRICT=1 ;;   # no-op: strict is the default. Kept so the documented
+                               # (and npm-swallowed) form stays valid instead of erroring.
+    --no-strict) STRICT=0 ;;   # explicit opt-out: report only, never fail.
+    --audit)     AUDIT=1 ;;
   esac
 done
 CEILING=800
@@ -217,6 +234,72 @@ a117_n=$(count_nonempty "$a117")
 printf 'ℹ️  models querying w/o a tenant-scope column ref [§11.7]: %s   (HEURISTIC — verify each; many are legitimately global)\n' "$a117_n"
 show "$a117" 8
 printf 'NOTE: Tier A is ADVISORY — surfaced for the mechanization rollout; does not fail --strict.\n'
+rule
+
+# ────────────────────────────────────────────────────────────
+# OWNER-FACING SURFACE — product vocabulary + honesty (ADVISORY; do NOT affect --strict).
+# These scan owner-facing PROSE only — the words a practice owner actually reads:
+# agent prompts (src/agents/**/*.md), practice-ranking output
+# (src/controllers/practice-ranking/**), and non-Admin email templates
+# (src/emails/templates/*, excluding Admin*). They enforce product canon (the
+# vocabulary mapper and the ranking output-guardrails), NOT a numbered code-constitution
+# Article — so they carry no §N.M tag. Like §5.1, they are conservative and expect
+# false positives; verify each. They never change the exit code.
+echo
+echo "code-constitution check  (owner-facing surface — advisory, product canon)"
+rule
+
+# VOCAB-BYPASS: hardcoded healthcare nouns that bypass the vocabulary mapper, so a
+#   chiropractor / vet / med-spa owner would read "patient" / "dentist" verbatim.
+#   KEY RULE for prompts: an agent .md is FINE if it carries the {{vocab_directive}}
+#   injection token (the owner's real vocabulary is substituted at runtime) — it flags
+#   ONLY when a healthcare noun is present AND that token is absent (so CRO.md flags,
+#   Summary.md clears). .ts owner-prose (practice-ranking, non-Admin email templates)
+#   flags a noun inside a MULTI-WORD quoted string (prose). Bare enum/schema values
+#   (e.g. "dentist" Places types), snake_case / camelCase identifiers, and import/type
+#   lines are excluded by construction. Competitor-discovery / Places query strings in
+#   practice-ranking are expected false positives — verify each.
+VB_NOUN='patient|patients|dentist|dentists|doctor|doctors|practice'
+vocab_bypass=""
+for f in $(find src/agents -name '*.md' 2>/dev/null | sort); do
+  if grep -qwiE "(${VB_NOUN})" "$f" && ! grep -q 'vocab_directive' "$f"; then
+    vocab_bypass="${vocab_bypass}${f}"$'\n'
+  fi
+done
+for f in $(find src/controllers/practice-ranking src/emails/templates -name '*.ts' 2>/dev/null ! -name 'Admin*' | sort); do
+  if grep -Ei "[\"'\`][^\"'\`]* [^\"'\`]*\b(${VB_NOUN})\b|\b(${VB_NOUN})\b[^\"'\`]* [^\"'\`]*[\"'\`]" "$f" 2>/dev/null \
+       | grep -vqE '^[[:space:]]*(import|export type|type |interface )'; then
+    vocab_bypass="${vocab_bypass}${f}"$'\n'
+  fi
+done
+vocab_bypass=$(printf '%s' "$vocab_bypass" | sed '/^$/d')
+vocab_bypass_n=$(count_nonempty "$vocab_bypass")
+printf '%sowner prose bypassing the vocabulary mapper [VOCAB-BYPASS]: %s   (verify each — false positives expected)\n' "$(icon "$vocab_bypass_n")" "$vocab_bypass_n"
+show "$vocab_bypass" 8
+[ "$vocab_bypass_n" -gt 8 ] && printf '     …and %s more\n' "$((vocab_bypass_n-8))"
+rule
+
+# STATIC-CLAIM: a hardcoded owner-facing recommendation/claim that ASSERTS the
+#   practice's present state — "your reviews are working", "your profile is active",
+#   "your photos are strong" — with no data behind it. This is the class of the
+#   safe-fallback bug already fixed in service.ranking-output-guardrails.ts: a data-less
+#   path must state only why a lever matters and the forward action, never a good-state
+#   claim it cannot see. Comment lines (which legitimately DOCUMENT the banned phrases)
+#   are excluded — only shipped strings / prompt prose count.
+SC_STATE='(your|our|recent) ([a-z]+ )?(reviews?|profile|photos?|listing|rating|ratings|hours|posts?|website|ranking|presence|score) (is|are|look|looks|make|makes|is not|are not|isn'"'"'?t|aren'"'"'?t) (already |still |now |really |a )?(working|active|strong|healthy|good|great|fine|solid|excellent|complete|current|optimized|helping|up[- ]?to[- ]?date|in good shape|all set|looking good)'
+static_claim=""
+for f in $(grep -rlEi "$SC_STATE" src/agents src/controllers/practice-ranking src/emails/templates --include='*.ts' --include='*.md' 2>/dev/null | sort); do
+  # keep the file only if a MATCHING line is not a comment (real shipped copy, not the rule's own docs)
+  if grep -EinI "$SC_STATE" "$f" | grep -vqE '^[0-9]+:[[:space:]]*(//|\*|/\*)'; then
+    static_claim="${static_claim}${f}"$'\n'
+  fi
+done
+static_claim=$(printf '%s' "$static_claim" | sed '/^$/d')
+static_claim_n=$(count_nonempty "$static_claim")
+printf '%sstatic owner-facing state claims w/o data conditioning [STATIC-CLAIM]: %s   (verify each — false positives expected)\n' "$(icon "$static_claim_n")" "$static_claim_n"
+show "$static_claim" 8
+[ "$static_claim_n" -gt 8 ] && printf '     …and %s more\n' "$((static_claim_n-8))"
+printf 'NOTE: owner-facing surface checks are ADVISORY (product canon, not a code-constitution Article); they do not fail --strict.\n'
 rule
 
 violations=$((big_n + con_n + dbq_n))

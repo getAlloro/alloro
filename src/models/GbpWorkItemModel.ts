@@ -70,6 +70,24 @@ export interface GbpWorkItemFilters {
   limit?: number;
 }
 
+/**
+ * Scope for the owner-facing proof-receipt reads: PUBLISHED work items for an
+ * org within [since, until). Used by listPublishedForOrgInRange,
+ * countPublishedForOrgInRange and summarizePublishedForOrgInRange.
+ */
+export interface PublishedWorkItemRangeFilters {
+  organizationId: number;
+  /**
+   * §11.7 — REQUIRED, not an optional filter a caller may forget. Every row
+   * any of the three readers returns is inside this set.
+   */
+  accessibleLocationIds: number[];
+  since: Date;
+  until: Date;
+  /** Optional NARROWING within the accessible set — never a widening. */
+  locationId?: number;
+}
+
 export class GbpWorkItemModel extends BaseModel {
   protected static tableName = "gbp_work_items";
   protected static jsonFields = [
@@ -191,6 +209,78 @@ export class GbpWorkItemModel extends BaseModel {
 
     const rows = await query;
     return rows.map((row: IGbpWorkItem) => this.deserializeJsonFields(row));
+  }
+
+  /**
+   * The one place the proof-receipt tenant predicate is written. All three
+   * readers below build on it, so the list, the count and the summary cannot
+   * drift apart in scope — which is how partial tenant fixes usually regress.
+   *
+   * An empty `accessibleLocationIds` matches nothing, so every reader returns
+   * empty: the correct fail-closed behavior.
+   */
+  private static scopedPublishedQuery(
+    filters: PublishedWorkItemRangeFilters,
+    trx?: QueryContext
+  ) {
+    let query = this.table(trx)
+      .where({ organization_id: filters.organizationId, status: "published" })
+      .whereIn("location_id", filters.accessibleLocationIds)
+      .andWhere("published_at", ">=", filters.since)
+      .andWhere("published_at", "<", filters.until);
+
+    // Production GBP work is location-scoped; a multi-location practice must be
+    // able to scope to one office (else its storefronts blend into one feed).
+    if (typeof filters.locationId === "number") {
+      query = query.where({ location_id: filters.locationId });
+    }
+
+    return query;
+  }
+
+  /** One page of published work items, newest first. */
+  static async listPublishedForOrgInRange(
+    filters: PublishedWorkItemRangeFilters & { limit: number; offset: number },
+    trx?: QueryContext
+  ): Promise<IGbpWorkItem[]> {
+    const limit = Math.min(Math.max(filters.limit, 1), MAX_WORK_ITEM_LIST_LIMIT);
+    const rows = await this.scopedPublishedQuery(filters, trx)
+      .orderBy("published_at", "desc")
+      .limit(limit)
+      .offset(Math.max(filters.offset, 0));
+    return rows.map((row: IGbpWorkItem) => this.deserializeJsonFields(row));
+  }
+
+  /**
+   * Total matching rows over the WHOLE range, so pagination reports a true
+   * total rather than the length of the current page.
+   */
+  static async countPublishedForOrgInRange(
+    filters: PublishedWorkItemRangeFilters,
+    trx?: QueryContext
+  ): Promise<number> {
+    const [row] = await this.scopedPublishedQuery(filters, trx).count({
+      count: "*",
+    });
+    return Number(row?.count ?? 0);
+  }
+
+  /**
+   * Per-content-type counts over the WHOLE range. Deriving the summary from a
+   * single page would under-report a practice with more than one page of work.
+   */
+  static async summarizePublishedForOrgInRange(
+    filters: PublishedWorkItemRangeFilters,
+    trx?: QueryContext
+  ): Promise<{ content_type: GbpContentType; count: number }[]> {
+    const rows = await this.scopedPublishedQuery(filters, trx)
+      .groupBy("content_type")
+      .select("content_type")
+      .count({ count: "*" });
+    return rows.map((row: { content_type: string; count: string | number }) => ({
+      content_type: row.content_type as GbpContentType,
+      count: Number(row.count),
+    }));
   }
 
   static async create(

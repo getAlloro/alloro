@@ -1,0 +1,101 @@
+{
+  "plan": "plans/07172026-gate1-impressions-search-maps",
+  "generatedAt": "2026-07-17",
+  "status": "In Progress",
+  "items": [
+    {
+      "id": "T1",
+      "title": "Model returns the org's daily Maps rows across ALL locations (tenant-scoped, deterministic)",
+      "surface": "cli",
+      "precondition": "google_data_store has run_type='daily' rows for the org's locations in the window",
+      "steps": [
+        "1. Call GoogleDataStoreModel.findDailyByOrgAndDateRange(org, start, end)",
+        "2. Assert only run_type='daily', location_id NOT NULL rows for that org whose two-day span overlaps the window are returned",
+        "3. Assert rows come back ordered by (date_start, id) for deterministic dedup"
+      ],
+      "expected": "Only in-window daily rows for the caller's org (all real locations); no cross-tenant rows; deterministic order",
+      "status": "pass",
+      "evidence": "npx tsc --noEmit clean; 37/37 unit tests pass incl. GoogleDataStoreModel mock cases; query self-read (org-scoped by organization_id, location_id NOT NULL, orderBy(date_start).orderBy(id), db.raw only for ::text casts, inside the model — §10.2/§11.7 clean)",
+      "notes": "Replaced the earlier per-location findDailyByLocationAndDateRange — the impressions gate is a whole-practice aggregate.",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "readImpressions = whole-website organic + whole-practice Maps, and never fabricates",
+      "surface": "cli",
+      "precondition": "unit test doubles for GscDataModel + GoogleDataStoreModel",
+      "steps": [
+        "1. Run patient-journey.stage-readers.test.ts + patient-journey.service.test.ts",
+        "2. Confirm: organic + Maps summed across ALL locations; dedup per (location_id, calendar-day); same day at two locations counts twice; empty/missing visibility payload NOT counted in days (missing != measured zero); Postgres timestamp::text dates ('YYYY-MM-DD 00:00:00') don't drop the boundary day or leak a time into asOf; maps-only availability when GSC empty but Maps positive; measured-zero preserves pending reason; no org -> organic-only; Maps read throw -> organic-only degrade (Pino-logged, §3.1/§3.2)"
+      ],
+      "expected": "All whole-practice + hardening cases pass; value = organic + summed Maps; metadata.maps = {impressions, days} where days is the real (location, day) coverage",
+      "status": "pass",
+      "evidence": "37/37 vitest pass (2 patient-journey suites); readMapsImpressions/readImpressions logic verified by the added multi-location sum, per-location dedup, empty-payload coverage, timestamp-date, and partial-coverage tests",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "Owner-facing backend label honestly describes the combined whole-practice number",
+      "surface": "cli",
+      "precondition": "Corey's plain-language wording chosen",
+      "steps": [
+        "1. Confirm PatientJourneyService.ts:252-253 subtitle + source",
+        "2. Assert the service contract-shape test pins the exact strings"
+      ],
+      "expected": "Subtitle 'How often you showed up on Google'; source 'Google Search Console + Business Profile' — neither says 'search only' while the number includes Maps",
+      "status": "pass",
+      "evidence": "PatientJourneyService.ts:252-253 set to the chosen wording; patient-journey.service.test.ts contract-shape test asserts both strings (green in the 37/37 run)",
+      "notes": "Corey chose the wording. Rev 3: the frontend labels are now aligned too (see T6), so the SPA no longer says 'Google search' only.",
+      "waiver": ""
+    },
+    {
+      "id": "T5",
+      "title": "Shared multi-location note is honest for impressions and does not shadow the combined source (M1, Rev 3)",
+      "surface": "cli",
+      "precondition": "unit test doubles; multi-location org (locationCount > 1)",
+      "steps": [
+        "1. Run patient-journey.service.test.ts multi-location labelling case",
+        "2. Assert the impressions shared note = 'Whole-practice total — all locations.' and does NOT match /website/i",
+        "3. Confirm the note reads honestly for all three shared gates (impressions/visits/leads)"
+      ],
+      "expected": "The shared note no longer claims 'website total' (the impressions number includes GBP Maps); since stageTooltip returns note||source, the SPA tooltip now shows an honest whole-practice label",
+      "status": "pass",
+      "evidence": "PatientJourneyService.ts:155-163 note text changed; patient-journey.service.test.ts asserts exact text + not /website/i; backend 37/37 green; tsc clean. N1 model rationale + C2 days docstrings corrected in the same pass (comment-only).",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T6",
+      "title": "SPA impressions labels describe search + Maps, so a backend-alone deploy isn't dishonest (M2, Rev 3)",
+      "surface": "cli",
+      "precondition": "frontend deps installed (npm ci); vitest",
+      "steps": [
+        "1. Run frontend patientJourney.utils.test.ts + patientJourneyDetailDeck.utils.test.ts",
+        "2. Assert impressions subtext = 'How often you showed up on Google' and not /search/i",
+        "3. Assert detail-deck description names search AND map; footer names 'Google Search Console + Business Profile'"
+      ],
+      "expected": "All SPA impressions copy honestly describes the combined whole-practice search + Maps number; tooltip-shadow test confirms the note stays honest",
+      "status": "pass",
+      "evidence": "patientJourney.utils.ts subtext + type doc, patientJourneyDetailDeck.utils.ts description + footer updated; new patientJourney.utils.test.ts (3 tests); frontend vitest 6/6 pass; frontend tsc clean",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T4",
+      "title": "Dashboard 'Get Found' number reflects whole-practice search + Maps for a seeded practice",
+      "surface": "ui",
+      "precondition": "Running app + a seeded org with GSC organic AND stored daily GBP Maps rows across its locations (verify google_data_store exists on the dev DB — the local .env DB lacked the table)",
+      "steps": [
+        "1. Seed an org with known GSC organic impressions and known GBP Maps impressions across two locations for the window",
+        "2. Assemble the patient journey (API or dashboard)",
+        "3. Assert the 'Get Found' value = organic + Maps summed across all locations, identical on every location tab, and metadata.maps.days matches the seeded (location, day) coverage"
+      ],
+      "expected": "The gauge shows the summed (higher) whole-practice number, the same on every location tab; partial windows show honest day coverage",
+      "status": "pending",
+      "evidence": "",
+      "notes": "Layer-2 behavioral run against the running app — not yet executed. Gated on confirming google_data_store daily rows exist on the dev runtime DB. Rev 3: also confirm the seeded org's unmapped-location rows (if any) don't inflate the sum via the blob-fallback double-count (C1) — cross-check sibling same-day gbp_data before trusting the number.",
+      "waiver": ""
+    }
+  ]
+}

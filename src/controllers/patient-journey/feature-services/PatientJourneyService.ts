@@ -153,7 +153,12 @@ function toStage(
   if (read.note) stage.note = read.note;
   if (read.metadata) stage.metadata = read.metadata;
   if (shared && isMultiLocation) {
-    const wholePractice = "Whole-practice website total.";
+    // Honest for ALL three shared gates. It must NOT say "website": the
+    // impressions gate now folds in whole-practice GBP Maps (not just the
+    // website), and this note SHADOWS the corrected source in the SPA
+    // (patientJourney.utils.ts stageTooltip: `note?.trim() || source`), so a
+    // "website total" here would silently mislabel the combined number.
+    const wholePractice = "Whole-practice total — all locations.";
     stage.note = stage.note ? `${stage.note} ${wholePractice}` : wholePractice;
   }
   return stage;
@@ -193,6 +198,9 @@ export async function assemblePatientJourney(
             period.startDate,
             period.endDate,
             isCurrentMonth,
+            // Whole-practice Maps sum across all the org's locations — the
+            // impressions gate is a shared, org-wide aggregate (not per-tab).
+            input.organizationId,
           )
         : Promise.resolve(emptyRead),
       projectId
@@ -247,8 +255,8 @@ export async function assemblePatientJourney(
       ...toStage(
         "impressions",
         "Google Visibility",
-        "Google search impressions",
-        "Google Search Console",
+        "How often you showed up on Google",
+        "Google Search Console + Business Profile",
         impressions,
         true,
         isMulti,
@@ -303,8 +311,8 @@ export async function assemblePatientJourney(
     context: {
       rank: {
         position: rank.position,
-        totalCompetitors: rank.totalCompetitors,
         available: rank.available,
+        notInTop20: rank.notInTop20,
       },
       reviews: {
         rating: reviews.rating,

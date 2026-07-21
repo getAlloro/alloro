@@ -189,15 +189,24 @@ export async function deletePmsJob(jobId: number) {
 }
 
 /**
- * Fetch PMS key data aggregation for an organization.
+ * Fetch PMS key data aggregation for the CALLER'S organization.
+ *
+ * No organization_id is sent: the server derives the tenant from the JWT. It
+ * previously accepted one from the query string, which let any authenticated
+ * user read any practice's referral and production figures. Admin surfaces that
+ * legitimately read across organizations use `fetchAdminPmsKeyData`
+ * (api/admin-pms.ts), which is backed by a super-admin-only route.
+ *
+ * Takes an options object rather than positional arguments on purpose. The
+ * previous signature was (organizationId, locationId) — both `number`, so a
+ * stale positional call would have silently passed an organization id as the
+ * location filter and still compiled.
  */
 export async function fetchPmsKeyData(
-  organizationId?: number,
-  locationId?: number | null
+  options: { locationId?: number | null } = {}
 ): Promise<PmsKeyDataResponse> {
   const params = new URLSearchParams();
-  if (organizationId) params.set("organization_id", String(organizationId));
-  if (locationId) params.set("location_id", String(locationId));
+  if (options.locationId) params.set("location_id", String(options.locationId));
   const query = params.toString();
   return apiGet({
     path: `/pms/keyData${query ? `?${query}` : ""}`,

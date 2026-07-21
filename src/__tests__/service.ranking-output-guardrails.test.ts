@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { sanitizeRankingLlmAnalysis } from "../controllers/practice-ranking/feature-services/service.ranking-output-guardrails";
+import {
+  sanitizeRankingLlmAnalysis,
+  HONEST_POST_ACTION,
+  HONEST_WEEKLY_POST_ACTION,
+} from "../controllers/practice-ranking/feature-services/service.ranking-output-guardrails";
+import { SYSTEM_PROMPT } from "../controllers/practice-ranking/feature-services/service.ranking-llm";
+import { substitutePromptPlaceholders } from "../agents/service.prompt-substituter";
 
 function analysisWithOverview(text: string) {
   return {
@@ -44,6 +50,95 @@ describe("ranking output guardrail search-position bands", () => {
 
     expect(result.overview_card.text).toContain("improve the position");
     expect(result.overview_card.text).not.toContain("protect the top-three standing");
+  });
+});
+
+describe("ranking output guardrail generic-homework + vocabulary", () => {
+  type Rec = {
+    title?: string;
+    description?: string;
+    expected_outcome?: string;
+    generic?: boolean;
+  };
+  const recAt = (result: { top_recommendations: unknown[] }, i = 0): Rec =>
+    result.top_recommendations[i] as Rec;
+
+  const bannedTitles = [
+    "Get more reviews",
+    "Post more often on Google",
+    "Add more photos to your profile",
+  ];
+
+  it.each(bannedTitles)(
+    "drops the banned generic-homework recommendation and falls back to safe copy: %s",
+    (title) => {
+      const result = sanitizeRankingLlmAnalysis(
+        { top_recommendations: [{ title, description: title }], gaps: [] },
+        { orgType: "health" },
+      );
+      expect(result.top_recommendations).toHaveLength(1);
+      expect(recAt(result).title).not.toBe(title);
+      expect(recAt(result).generic).toBe(true);
+    },
+  );
+
+  it("drops the incident card (ask-for-reviews-to-protect-rank, names no competitor)", () => {
+    const result = sanitizeRankingLlmAnalysis(
+      {
+        top_recommendations: [
+          {
+            title: "Protect your #1 ranking",
+            description:
+              "Ask every happy patient for a review this week to protect your #1 local ranking. With only 77 reviews vs 400-500+ for nearby competitors, growing your review count is the fastest way.",
+          },
+        ],
+        gaps: [],
+      },
+      {
+        orgType: "health",
+        searchPosition: 1,
+        competitorNames: ["Bright Smiles Endodontics"],
+      },
+    );
+    // Numbers present, but no NAMED competitor -> generic homework -> honest fallback.
+    expect(recAt(result).generic).toBe(true);
+    expect(recAt(result).title).not.toContain("Protect your #1 ranking");
+  });
+
+  it("keeps a specific recommendation that names an actual competitor", () => {
+    const specific = {
+      title: "Close the photo gap with Bright Smiles Endodontics",
+      description:
+        "Bright Smiles Endodontics shows 48 photos to your 6. Add more photos of the office this week to close the gap.",
+    };
+    const result = sanitizeRankingLlmAnalysis(
+      { top_recommendations: [specific], gaps: [] },
+      { orgType: "health", competitorNames: ["Bright Smiles Endodontics"] },
+    );
+    // Contains "add more photos" but names a real competitor -> kept, not dropped.
+    expect(recAt(result).title).toContain("Bright Smiles");
+    expect(recAt(result).generic).not.toBe(true);
+  });
+
+  it("renders the fallback in business vocabulary for a generic org", () => {
+    const result = sanitizeRankingLlmAnalysis(
+      { top_recommendations: [], gaps: [] },
+      { orgType: "generic" },
+    );
+    const text = `${recAt(result).title} ${recAt(result).description} ${recAt(result).expected_outcome}`;
+    expect(text).toContain("customer");
+    expect(text).not.toMatch(/patient|\bpractice\b/i);
+    expect(text).not.toContain("{{");
+  });
+
+  it("renders the fallback in health vocabulary by default (byte-identical)", () => {
+    const result = sanitizeRankingLlmAnalysis(
+      { top_recommendations: [], gaps: [] },
+      { orgType: "health" },
+    );
+    const text = `${recAt(result).title} ${recAt(result).description} ${recAt(result).expected_outcome}`;
+    expect(text).toContain("patient");
+    expect(text).not.toContain("{{");
   });
 });
 
@@ -157,5 +252,51 @@ describe("ranking output guardrail Google post honesty", () => {
     expect(result.overview_card.highlights.join(" ")).toContain(
       "profile current",
     );
+  });
+});
+
+describe("prompt-token resolution completeness", () => {
+  it.each(["health", "generic"] as const)(
+    "SYSTEM_PROMPT resolves all {{tokens}} for orgType '%s'",
+    (orgType) => {
+      const resolved = substitutePromptPlaceholders(SYSTEM_PROMPT, orgType);
+      expect(resolved).not.toContain("{{");
+    },
+  );
+});
+
+describe("HONEST_POST_ACTION vocabulary substitution", () => {
+  it("resolves to business vocabulary for a generic org (no 'patients')", () => {
+    const resolved = substitutePromptPlaceholders(HONEST_POST_ACTION, "generic");
+    expect(resolved).not.toContain("patients");
+    expect(resolved).not.toContain("{{");
+    expect(resolved).toContain("customers");
+  });
+
+  it("resolves to health vocabulary for a health org", () => {
+    const resolvedAction = substitutePromptPlaceholders(HONEST_POST_ACTION, "health");
+    const resolvedWeekly = substitutePromptPlaceholders(HONEST_WEEKLY_POST_ACTION, "health");
+    expect(resolvedAction).toContain("patients");
+    expect(resolvedWeekly).toContain("patients");
+    expect(resolvedAction).not.toContain("{{");
+    expect(resolvedWeekly).not.toContain("{{");
+  });
+
+  it("rewrites post-to-rank claims with generic vocabulary when orgType is generic", () => {
+    const result = sanitizeRankingLlmAnalysis(
+      {
+        top_recommendations: [],
+        gaps: [],
+        overview_card: {
+          text: "Publish weekly Google posts to stay visible in local search.",
+          highlights: [],
+        },
+      },
+      { searchPosition: 3, orgType: "generic" },
+    );
+    expect(result.overview_card.text).toContain("profile current");
+    expect(result.overview_card.text).toContain("customers");
+    expect(result.overview_card.text).not.toContain("patients");
+    expect(result.overview_card.text).not.toContain("{{");
   });
 });

@@ -5,6 +5,7 @@ import * as mappingController from "../controllers/pms/PmsMappingController";
 import * as pasteController from "../controllers/pms/PmsPasteController";
 import { upload } from "../controllers/pms/pms-utils/file-upload.config";
 import { authenticateToken } from "../middleware/auth";
+import { superAdminMiddleware } from "../middleware/superAdmin";
 import {
   locationScopeMiddleware,
   rbacMiddleware,
@@ -13,6 +14,7 @@ import {
 
 const pmsRoutes = express.Router();
 const protectedPms = [authenticateToken, rbacMiddleware, locationScopeMiddleware];
+const adminOnlyPms = [authenticateToken, superAdminMiddleware];
 const canManagePmsFiles = [
   authenticateToken,
   rbacMiddleware,
@@ -47,7 +49,10 @@ pmsRoutes.post("/jobs/:id/reprocess", ...canManagePmsFiles, mappingController.re
 pmsRoutes.get("/mappings/cache", authenticateToken, rbacMiddleware, mappingController.getCachedMapping);
 
 // Data Retrieval
-pmsRoutes.get("/keyData", authenticateToken, rbacMiddleware, controller.getKeyData);
+// locationScopeMiddleware is required here, not optional: getKeyData now reads
+// the resolved req.locationId instead of the raw query value, so without it a
+// requested location would be silently dropped rather than validated (§5.5).
+pmsRoutes.get("/keyData", ...protectedPms, controller.getKeyData);
 pmsRoutes.post(
   "/comparison-insights",
   authenticateToken,
@@ -106,18 +111,23 @@ pmsRoutes.get("/automation/active", authenticateToken, rbacMiddleware, controlle
 
 // =====================================================================
 // ADMIN ENDPOINTS (accessed from the admin dashboard)
-// Now require a valid JWT. The app-level default-deny guard also protects these
-// (/api/pms is not on the public allowlist); authenticateToken is declared here
-// too so the requirement is explicit at the route and matches the client block
-// above. Includes destructive ops (DELETE /jobs/:id, POST /jobs/:id/restart),
-// which previously shipped with no auth at all.
+// Super-admin only. These take organization_id / a bare job id from the request
+// and apply no per-tenant scoping, so authenticateToken alone was not a
+// boundary: any authenticated user could list another practice's jobs by
+// passing organization_id (or every practice's by omitting it), and could
+// delete, approve, retry or restart any job by id (§5.5, §11.1).
+//
+// Confirmed safe to gate this way: the only frontend callers are
+// components/Admin/pms-pipeline/ and hooks/queries/useAdminOrgTabQueries.ts.
+// Clients approve their own jobs through /jobs/:id/client-approval above,
+// which is separately RBAC-scoped.
 // =====================================================================
 
-pmsRoutes.get("/jobs", authenticateToken, controller.listJobs);
-pmsRoutes.patch("/jobs/:id/approval", authenticateToken, controller.approveJob);
-pmsRoutes.patch("/jobs/:id/response", authenticateToken, controller.updateResponseLog);
-pmsRoutes.delete("/jobs/:id", authenticateToken, controller.deleteJob);
-pmsRoutes.post("/jobs/:id/retry", authenticateToken, controller.retryJob);
-pmsRoutes.post("/jobs/:id/restart", authenticateToken, controller.restartJob);
+pmsRoutes.get("/jobs", ...adminOnlyPms, controller.listJobs);
+pmsRoutes.patch("/jobs/:id/approval", ...adminOnlyPms, controller.approveJob);
+pmsRoutes.patch("/jobs/:id/response", ...adminOnlyPms, controller.updateResponseLog);
+pmsRoutes.delete("/jobs/:id", ...adminOnlyPms, controller.deleteJob);
+pmsRoutes.post("/jobs/:id/retry", ...adminOnlyPms, controller.retryJob);
+pmsRoutes.post("/jobs/:id/restart", ...adminOnlyPms, controller.restartJob);
 
 export default pmsRoutes;

@@ -1,7 +1,7 @@
 {
   "plan": "plans/07152026-nap-consistency-monitor",
-  "generatedAt": "2026-07-17",
-  "status": "Passed",
+  "generatedAt": "2026-07-19",
+  "status": "In Progress",
   "items": [
     {
       "id": "T1",
@@ -514,7 +514,70 @@
       "notes": "HONESTLY NOT RUN and deliberately deferred — the post-merge Dave/dev smoke test. Rev 6 changed step 1: the schedule is no longer seeded, so an operator creates it first. Creating AND enabling incur real SerpApi cost and are Corey's call, not a merge step. Every proof in this file is unit-level with injected seams; no live provider call has been made.",
       "waiver": "Owner-directed merge waiver recorded 2026-07-17. After T15 and its real SerpApi cost were stated explicitly, Dave instructed the remaining PRs to be fixed and merged. This accepts the missing live-provider receipt for merge only; it does not claim a live run passed, authorize provider spend, or enable/create the schedule.",
       "layer": 2
+    },
+    {
+      "id": "T30",
+      "title": "GET /api/nap-consistency returns the latest observation and bounded history for the scoped location",
+      "surface": "api",
+      "precondition": "Stocked sandbox: the caller's onboarded location has nap_consistency_observation rows; a valid token whose location scope resolves server-side through the auth -> RBAC -> location-scope chain.",
+      "steps": [
+        "Request GET /api/nap-consistency with the org's token (optionally ?locationId=<an accessible location> and ?limit=).",
+        "Inspect the {success, data, error} envelope."
+      ],
+      "expected": "HTTP 200; success true and error null; data.latest carries runDate, conflictCount and conflicts[], and data.history is newest-first, matching the stored rows.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "Reader seam added by PR #187 (NapConsistencyController.getForLocation + NapConsistencyReadService). The reader endpoint is NOT specced in this plan's spec.html (PR #187 modified no spec); item derives from the reader test contract (nap-consistency-reader.test.ts) and the route (routes/napConsistency.ts). Behavioral run deferred to the post-clone stocked sandbox.",
+      "waiver": "",
+      "layer": 2
+    },
+    {
+      "id": "T31",
+      "title": "HONESTY: a never-measured location is absent, not a manufactured all-clear",
+      "surface": "api",
+      "precondition": "An onboarded, accessible location that has NO nap_consistency_observation rows.",
+      "steps": [
+        "Request GET /api/nap-consistency for that location.",
+        "Inspect data."
+      ],
+      "expected": "HTTP 200; data.latest is null, data.hasConflicts is false, and data.history is empty — no fabricated \"0 conflicts\" all-clear row.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "Derived from nap-consistency-reader.test.ts \"a never-measured location is absent, not a manufactured all-clear\".",
+      "waiver": "",
+      "layer": 2
+    },
+    {
+      "id": "T32",
+      "title": "Tenant isolation: a caller cannot read another org/location's observations (§11.7)",
+      "surface": "api",
+      "precondition": "Two orgs each with observation rows; a token scoped to org A only.",
+      "steps": [
+        "Request GET /api/nap-consistency?locationId=<a location belonging to org B> with org A's token."
+      ],
+      "expected": "The request is denied through the location-scope chain (error envelope, LOCATION_ACCESS_DENIED / scope error); no org-B data is returned.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "Derived from nap-consistency-reader.test.ts clientContext scope tests (rejects an out-of-scope requested locationId; throws when scope was never established). §5.5 / §11.7.",
+      "waiver": "",
+      "layer": 2
+    },
+    {
+      "id": "T33",
+      "title": "A real clean measurement reports hasConflicts false but is not treated as never-measured",
+      "surface": "api",
+      "precondition": "The scoped location's latest observation is a real clean run (conflict_count 0, a row present).",
+      "steps": [
+        "Request GET /api/nap-consistency.",
+        "Inspect data.latest and data.hasConflicts."
+      ],
+      "expected": "data.latest is NOT null (the clean run is surfaced) and data.hasConflicts is false — distinct from the never-measured absent case in T31.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "Derived from nap-consistency-reader.test.ts \"latest with conflict_count 0 reports hasConflicts false (a real clean measurement)\".",
+      "waiver": "",
+      "layer": 2
     }
   ],
-  "layerNote": "§20.5 defines this artifact as the Layer 2 acceptance checklist — behavioural validation against the RUNNING app. Every item marked `layer: 1` is a Layer 1 automated-test receipt (vitest, injected seams or mocked collaborators; no network, no Redis and no database); it is listed here for traceability and is NOT behavioural validation. T22 is weaker still: a static code-review receipt, not an executed test — it says so in its notes. T24-T29 prove stable logical context, pre-measurement idempotency, owned-run recovery, Redis-cache failure recovery, atomic row acquisition, shared full-lifetime execution ownership, non-consuming contention deferral, and pool-safe connection retirement against real application functions with test doubles; they do NOT prove Redis/BullMQ or PostgreSQL at runtime. NO Layer 2 validation has been performed for this plan: T14 is fail-with-Dave's explicit PostgreSQL-results waiver and T15 is fail-with-Dave's explicit owner-directed merge waiver. The schema therefore rolls up to Passed through written waivers, not through fabricated runtime passes. Specifically NOT proven anywhere in this file: that either migration's DDL and conflict inference are valid PostgreSQL, that advisory locks behave under a live pool/process failure, that BullMQ persists/retries against Redis, or that a live SerpApi run records correct production data."
+  "layerNote": "§20.5 defines this artifact as the Layer 2 acceptance checklist — behavioural validation against the RUNNING app. Every item marked `layer: 1` is a Layer 1 automated-test receipt (vitest, injected seams or mocked collaborators; no network, no Redis and no database); it is listed here for traceability and is NOT behavioural validation. T22 is weaker still: a static code-review receipt, not an executed test — it says so in its notes. T24-T29 prove stable logical context, pre-measurement idempotency, owned-run recovery, Redis-cache failure recovery, atomic row acquisition, shared full-lifetime execution ownership, non-consuming contention deferral, and pool-safe connection retirement against real application functions with test doubles; they do NOT prove Redis/BullMQ or PostgreSQL at runtime. NO Layer 2 validation has been performed for this plan: T14 is fail-with-Dave's explicit PostgreSQL-results waiver and T15 is fail-with-Dave's explicit owner-directed merge waiver. The schema therefore rolls up to Passed through written waivers, not through fabricated runtime passes. Specifically NOT proven anywhere in this file: that either migration's DDL and conflict inference are valid PostgreSQL, that advisory locks behave under a live pool/process failure, that BullMQ persists/retries against Redis, or that a live SerpApi run records correct production data. T30-T33 (added 2026-07-19) are the reader-endpoint acceptance items for PR #187 (GET /api/nap-consistency); they are Layer 2 and status `pending` — the endpoint is proven at Layer 1 by nap-consistency-reader.test.ts but has NOT been exercised against the running app, and the reader is not described in this plan's spec.html (PR #187 modified no spec), so these items are grounded in the reader's code/test contract rather than a spec Done section. The plan therefore now rolls up to In Progress."
 }

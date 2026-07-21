@@ -102,6 +102,30 @@ export interface RankingKeywordLocation {
   search_state: string | null;
 }
 
+/**
+ * The exact columns findLatestCompletedRankingMetrics projects, and the source
+ * of truth for its return type: `RankingMetricsRow` is derived from this array
+ * and the query spreads it into `.select()`, so dropping a column here breaks
+ * the build at every call site that reads it. Annotating the return type alone
+ * would not — `BaseModel.table()` is an untyped `Knex.QueryBuilder`, so `any`
+ * launders a silently-missing column (e.g. the `search_status` that
+ * `stageReaders.readRank` gates `notInTop20` on).
+ */
+const RANKING_METRICS_COLUMNS = [
+  "rank_position",
+  "search_position",
+  "search_status",
+  "rank_score",
+  "total_competitors",
+  "ranking_factors",
+] as const satisfies readonly (keyof IPracticeRanking)[];
+
+/** The column projection returned by findLatestCompletedRankingMetrics. */
+export type RankingMetricsRow = Pick<
+  IPracticeRanking,
+  (typeof RANKING_METRICS_COLUMNS)[number]
+>;
+
 export class PracticeRankingModel extends BaseModel {
   protected static tableName = "practice_rankings";
   protected static jsonFields = [
@@ -545,17 +569,16 @@ export class PracticeRankingModel extends BaseModel {
   }
 
   /**
-   * Latest completed ranking for an org (optional location), projected to the
-   * dashboard ranking columns. Mirrors the inline query in
+   * Latest completed ranking for an org (optional location), projected to
+   * RANKING_METRICS_COLUMNS. Mirrors the inline query in
    * utils/dashboard-metrics/service.dashboard-metrics.buildRankingMetrics
-   * verbatim. Returns the raw row (or undefined).
+   * verbatim. Returns the projected row (or undefined when none exists).
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   static async findLatestCompletedRankingMetrics(
     organizationId: number,
     locationId: number | null,
     trx?: QueryContext
-  ): Promise<any> {
+  ): Promise<RankingMetricsRow | undefined> {
     let query = this.table(trx).where({
       organization_id: organizationId,
       status: "completed",
@@ -565,13 +588,7 @@ export class PracticeRankingModel extends BaseModel {
     }
     return query
       .orderBy("created_at", "desc")
-      .select(
-        "rank_position",
-        "search_position",
-        "rank_score",
-        "total_competitors",
-        "ranking_factors"
-      )
+      .select(...RANKING_METRICS_COLUMNS)
       .first();
   }
 

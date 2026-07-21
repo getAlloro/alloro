@@ -12,6 +12,8 @@ import * as llmWebhookHandler from "./service.llm-webhook-handler";
 import { log, logError } from "../feature-utils/util.ranking-logger";
 import { updateStatus, StatusDetail } from "./service.ranking-status";
 import { sanitizeRankingLlmAnalysis } from "./service.ranking-output-guardrails";
+import { substitutePromptPlaceholders } from "../../../agents/service.prompt-substituter";
+import { OrgType } from "../../../config/orgLabels";
 import {
   getExternalErrorMessage,
   isRetryableExternalError,
@@ -106,7 +108,8 @@ export interface RankingAnalysisRunResult {
 // PROMPT
 // =====================================================================
 
-const SYSTEM_PROMPT = `You are an expert SEO and local search analyst specializing in dental specialty practices. Analyze the practice's ranking performance against competitors and provide actionable insights.
+export const SYSTEM_PROMPT = `{{vocab_directive}}
+You are an expert SEO and local search analyst specializing in local {{org_noun}}s. Analyze the {{org_possessive}} ranking performance against competitors and provide actionable insights.
 
 ## Ranking Factors (8 weighted factors)
 1. Primary Category Match (25%)
@@ -399,6 +402,7 @@ export async function runRankingAnalysis(
   payload: RankingLlmPayload,
   ranking: any,
   statusDetail: StatusDetail,
+  orgType: OrgType,
   logger?: (msg: string) => void,
 ): Promise<RankingAnalysisRunResult> {
   const _log = logger || log;
@@ -415,7 +419,7 @@ export async function runRankingAnalysis(
     const { value: result, attempts } = await runWithRetry(
       async () => {
         const agentResult = await runAgent({
-          systemPrompt: SYSTEM_PROMPT,
+          systemPrompt: substitutePromptPlaceholders(SYSTEM_PROMPT, orgType),
           userMessage,
           maxTokens: 16384,
           temperature: 0,
@@ -446,6 +450,10 @@ export async function runRankingAnalysis(
     const llmAnalysis = sanitizeRankingLlmAnalysis(result.parsed, {
       visibleScore: leanInput.client?.visible_local_search_score,
       searchPosition: leanInput.search_position?.position,
+      orgType,
+      competitorNames: (leanInput.competitors ?? [])
+        .map((competitor: { name?: string }) => competitor?.name)
+        .filter((name: string | undefined): name is string => Boolean(name)),
     });
 
     // Ensure practice_ranking_id is set correctly
