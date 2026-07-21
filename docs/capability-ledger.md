@@ -21,7 +21,7 @@
 
 | # | Capability | Moves | State | Where you see it | Lives (receipt) |
 |---|---|---|---|---|---|
-| H1 | **Multi-location rank display shows only the best location, hides contested/losing ones** | Trust | **DEFECT** | Client Local Rankings / "#1 locally" card | Verified 2026-07-21: org 39 admin ranking — Falls Church #1 of 11 shown to client, **Woodbridge #11 of 11 hidden**. Same defect class as a false healthy verdict. |
+| H1 | **Multi-location rank display shows one location as the whole story, omitting the rest** | Trust | **DEFECT** | Client Local Rankings / "#1 locally" card | Verified 2026-07-21: org 39 shows Falls Church #1 of 11 to the client and omits its other four locations. The defect is the **omission** (5 summarized as 1) — same class as a false healthy verdict — and stands regardless of a hidden location's rank. NB: one omitted location, Woodbridge, is **brand-new**, so its #11 of 11 is the expected from-zero start, not a problem. |
 | H2 | **Rank display shows every location, incl. the worst** *(the fix for H1)* | Trust | **FROM-SCRATCH** | Local Rankings | Honest-narrator rule; not built |
 | H3 | **Named-competitor visibility for the operator** (who are they, where does a named rival rank) | Trust | **GAP** | admin practice-ranking shows counts/ranks (`#N of 11`) but **no names** | Dominion-by-name unresolved → Dave DB query (Woodbridge set) |
 
