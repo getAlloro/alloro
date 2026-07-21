@@ -31,4 +31,4 @@
  * otherwise rows written by the old processor in the gap stay trusted.
  * See `plans/07202026-pr-merge-remediation/pr-183-impressions.spec.html` (T6).
  */
-export const MAPS_IMPRESSIONS_TRUSTED_FROM = "2026-07-21";
+export const MAPS_IMPRESSIONS_TRUSTED_FROM: number = "2026-07-21";
