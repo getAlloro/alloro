@@ -76,6 +76,19 @@ describe("MetricActionService", () => {
     );
   });
 
+  it("does not write an event when filledFields is empty", async () => {
+    await expect(
+      MetricActionService.recordGbpCompletenessFill({
+        organizationId: 10,
+        locationId: 20,
+        projectId: "project-1",
+        workItemId: "wi-empty",
+        filledFields: [],
+      })
+    ).resolves.toBeNull();
+    expect(model.upsertBySource).not.toHaveBeenCalled();
+  });
+
   it("records a GBP completeness fill on the get-found stage (impressions)", async () => {
     const occurredAt = new Date("2026-07-15T12:00:00.000Z");
     model.upsertBySource.mockResolvedValue({ id: "event-c1" } as never);

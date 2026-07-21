@@ -5,6 +5,7 @@ import {
   METRIC_ACTION_TYPE,
   METRIC_ACTION_VISIBLE_DAYS,
   type MetricActionMetric,
+  type MetricActionType,
 } from "../config/metricActions";
 import {
   MetricActionModel,
@@ -44,8 +45,8 @@ export interface RecordGbpCompletenessFillInput {
 
 export interface JourneyMetricAction {
   id: string;
-  actionType: string;
-  metricKey: string;
+  actionType: MetricActionType;
+  metricKey: MetricActionMetric;
   occurredAt: string;
   activeUntil: string;
   summary: string;
