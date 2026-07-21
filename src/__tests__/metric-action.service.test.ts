@@ -76,6 +76,86 @@ describe("MetricActionService", () => {
     );
   });
 
+  it("does not write an event when filledFields is empty", async () => {
+    await expect(
+      MetricActionService.recordGbpCompletenessFill({
+        organizationId: 10,
+        locationId: 20,
+        projectId: "project-1",
+        workItemId: "wi-empty",
+        filledFields: [],
+      })
+    ).resolves.toBeNull();
+    expect(model.upsertBySource).not.toHaveBeenCalled();
+  });
+
+  it("records a GBP completeness fill on the get-found stage (impressions)", async () => {
+    const occurredAt = new Date("2026-07-15T12:00:00.000Z");
+    model.upsertBySource.mockResolvedValue({ id: "event-c1" } as never);
+
+    await MetricActionService.recordGbpCompletenessFill({
+      organizationId: 10,
+      locationId: 20,
+      projectId: "project-1",
+      workItemId: "wi-1",
+      filledFields: ["hours", "website"],
+      occurredAt,
+    });
+
+    expect(model.upsertBySource).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action_type: METRIC_ACTION_TYPE.GBP_COMPLETENESS_FILL,
+        stage_key: "impressions",
+        metric_key: "impressions",
+        source_id: "wi-1",
+        affected_count: 2,
+        occurred_at: occurredAt,
+        active_until: new Date("2026-08-14T12:00:00.000Z"),
+        metadata: { filled_fields: ["hours", "website"] },
+      })
+    );
+  });
+
+  it("surfaces a completeness fill to the owner without claiming it caused a lift", async () => {
+    model.findLatestActiveForMetric.mockResolvedValue({
+      id: "event-c1",
+      organization_id: 10,
+      location_id: 20,
+      project_id: "project-1",
+      action_type: "gbp_completeness_fill",
+      stage_key: "impressions",
+      metric_key: "impressions",
+      source_type: "gbp_business_info_writeback",
+      source_id: "wi-1",
+      entity_type: "gbp_profile",
+      affected_count: 2,
+      occurred_at: new Date("2026-07-15T12:00:00.000Z"),
+      active_until: new Date("2026-08-14T12:00:00.000Z"),
+      metadata: { filled_fields: ["hours", "website"] },
+      created_at: new Date("2026-07-15T12:00:00.000Z"),
+      updated_at: new Date("2026-07-15T12:00:00.000Z"),
+    } as never);
+
+    const result = await MetricActionService.findLatestForJourney({
+      organizationId: 10,
+      locationId: 20,
+      projectId: "project-1",
+      periodStart: new Date("2026-07-01T00:00:00.000Z"),
+      periodEnd: new Date("2026-08-01T00:00:00.000Z"),
+      now: new Date("2026-07-20T00:00:00.000Z"),
+    });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        actionType: "gbp_completeness_fill",
+        summary:
+          "Filled in your hours, website on your Google Business Profile.",
+        measurementNote:
+          "Watching how often you show up on Google through August 14.",
+      })
+    );
+  });
+
   it("returns plain-English copy without claiming CTR improved", async () => {
     model.findLatestActiveForMetric.mockResolvedValue({
       id: "event-1",

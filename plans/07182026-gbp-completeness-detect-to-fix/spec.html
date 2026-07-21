@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GBP Completeness Detect → Owner-Approved Fix Spec</title>
+  <style>
+    :root { color-scheme: light; --paper:#fff; --ink:#080808; --muted:#5f5f5f; --line:#d8d8d8; --soft:#f5f5f5; }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--paper); color:var(--ink); font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; line-height:1.5; }
+    .spec-shell { width:min(1120px,calc(100% - 32px)); margin:0 auto; padding:48px 0; }
+    .spec-hero,.spec-card,.task-card { border:1px solid var(--line); border-radius:8px; background:var(--paper); }
+    .spec-hero { border-color:var(--ink); padding:32px; margin-bottom:20px; }
+    .hero-topline { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px; }
+    .spec-card { padding:28px; margin-top:16px; }
+    .task-card { padding:20px; background:var(--soft); margin-top:14px; }
+    .eyebrow,dt { color:var(--muted); font-size:.78rem; font-weight:700; text-transform:uppercase; }
+    .eyebrow { margin:0; }
+    .status-pill { display:inline-flex; align-items:center; min-height:34px; padding:0 12px; border:1px solid var(--ink); border-radius:999px; background:var(--ink); color:var(--paper); font-size:.78rem; font-weight:800; text-transform:uppercase; }
+    .status-card { border-color:var(--ink); }
+    h1,h2,h3,p { margin-top:0; }
+    h1 { max-width:840px; margin-bottom:24px; font-size:clamp(2rem,5vw,3.4rem); line-height:.98; }
+    h2 { font-size:1.35rem; } h3 { font-size:1rem; }
+    code { padding:.1rem .3rem; border:1px solid var(--line); border-radius:4px; background:var(--soft); font-size:.92em; }
+    .meta-grid,.split-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; }
+    .meta-grid { margin:0; } .meta-grid div,.split-grid>div { border:1px solid var(--line); border-radius:8px; padding:16px; }
+    dd { margin:4px 0 0; font-weight:700; }
+    ul { margin:.4rem 0; padding-left:1.15rem; } li { margin:.3rem 0; }
+    .checklist { list-style:none; padding-left:0; } .checklist li { display:flex; gap:10px; align-items:flex-start; padding:10px 0; border-top:1px solid var(--line); }
+    @media (max-width:640px){ .spec-shell{width:min(100% - 20px,1120px);padding:24px 0;} .spec-hero,.spec-card{padding:20px;} }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec · Get-Found Seam</p>
+        <span class="status-pill">In Progress</span>
+      </div>
+      <h1>GBP Completeness → Owner-Approved Fix (detect → fix seam)</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>In Progress — code done, behavioral acceptance pending dev-data clone</dd></div>
+        <div><dt>Branch / PR</dt><dd>claude/seam-detect-to-writeback-invoke · #184 → dev/dave</dd></div>
+        <div><dt>Size</dt><dd>Small (8 files)</dd></div>
+        <div><dt>Risk</dt><dd>Level 2</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>A2 (the completeness monitor, <code>plans/07152026-gbp-own-completeness-scoring</code>) already detects that a Google Business Profile field is empty, and A6 (the write-back, <code>plans/07152026-gbp-writeback</code>) can push an owner-approved change to Google — but nothing connects them. The "found it → fixed it" arc is broken at its first seam. This closes it: a detected, fillable gap becomes an owner-approval draft to fix the profile. The primary category is the strongest get-found lever, so closing this arc is where get-found improvements start.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>An owner/operator-triggered endpoint — <code>POST /api/gbp-automation/business-info/completeness-fill</code> — that grades a location's GBP completeness live and stages a <em>draft</em> businessInformation write-back for the gaps Alloro can fill from a value it genuinely holds independent of Google. <strong>Nothing auto-publishes</strong>: the owner approves before any write, the write-back master switch is re-enforced, and the draft flows through A6's existing approval/deploy path.</p>
+      <p><strong>Done when:</strong> the endpoint stages an owner-approval draft (201) for a fillable gap and returns an honest empty (200) when nothing is fillable, verified behaviorally on real data.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant files (this PR — 8)</h3>
+      <ul>
+        <li><code>src/routes/gbpAutomation.ts</code> — the thin route (line ~107), behind auth + rbac + location-scope middleware; mounts at <code>/api/gbp-automation</code>.</li>
+        <li><code>src/controllers/gbp-automation/GbpAutomationController.ts</code> — <code>createCompletenessFillDraft</code> (thin orchestration).</li>
+        <li><code>src/controllers/gbp-automation/feature-services/GbpCompletenessDraftService.ts</code> — grades completeness, builds the fill, stages the draft (composes model calls; opens the transaction through the model, §7.4).</li>
+        <li><code>src/controllers/gbp-automation/feature-utils/gbpCompletenessFill.ts</code> — pure: turns a missing-field set into a patch, only for genuinely-held values.</li>
+        <li>3 test files — <code>gbp-completeness-fill.test.ts</code>, <code>gbp-completeness-fill-invoke.test.ts</code>, <code>gbp-automation-write-routes.test.ts</code>.</li>
+      </ul>
+      <h3>Patterns to follow</h3>
+      <ul>
+        <li>Mirrors <code>src/controllers/gbp-automation/</code> — the certified-clean reference domain (§6.1): thin controller, logic in <code>feature-services/</code>, typed errors + <code>ok()/fail()</code> in <code>feature-utils/</code>.</li>
+      </ul>
+      <p><strong>Reference analog:</strong> <code>GbpBusinessInfoDraftService.createDraft</code> — the manual business-info draft path this mirrors; A6 owns the downstream approve/deploy.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div><h3>Must</h3><ul>
+          <li>Never stage a fabricated or blank value (Value #6). Today only <code>websiteUri</code> has a trustworthy independent source (the practice's own domain).</li>
+          <li>Re-enforce the write-back master switch and Google-readiness before staging.</li>
+          <li>Tenant scope from server context (§5.5/§11.7); auth + validation at the boundary (§11.1/§11.2).</li>
+          <li>Response contract <code>{ success, data, error }</code> via the domain builders (§8.1/§8.2).</li>
+        </ul></div>
+        <div><h3>Must Not</h3><ul>
+          <li>Auto-publish. Nothing reaches Google without owner approval downstream.</li>
+          <li>Guess category / phone / hours — surfaced as <code>no-value-source</code>, never filled (they stay owner-verified).</li>
+          <li>Touch unrelated GBP flows.</li>
+        </ul></div>
+      </div>
+      <h3>Out of scope</h3>
+      <ul><li>The value-source for category/phone/hours (a separate owner-input build). The completeness → owner-surface trigger (its own follow-on PR).</li></ul>
+      <p><strong>Constitution Articles touched:</strong> §6.1, §7.4, §8.1/§8.2, §5.5/§11.7, §11.1/§11.2.</p>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 2 — a write-back path to a customer's live Google profile, but gated: draft-only, owner-approved, master-switch-enforced, and A6 ships disabled per-account. No auto-send.</p>
+      <ul>
+        <li>Over-fill / fabricated value. <strong>Mitigation:</strong> only fill a field with a genuine independent source; everything else is <code>no-value-source</code>, surfaced not guessed.</li>
+        <li>Circular source. <strong>Mitigation:</strong> <code>business_data</code> is populated FROM the GBP read, so it is never used to refill a GBP gap.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> additive endpoint + service in the gbp-automation domain; no existing field changes. Downstream draft/approval/deploy path unchanged.</p>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <article class="task-card"><h3>T1: Completeness-fill draft endpoint + service</h3>
+        <dl class="meta-grid">
+          <div><dt>Do</dt><dd>Route + controller + <code>GbpCompletenessDraftService.stageFillForLocation</code>; pure fill builder.</dd></div>
+          <div><dt>Files</dt><dd>routes/controller/service/util above</dd></div>
+          <div><dt>Verify</dt><dd><code>vitest</code> — 67 tests across the 3 files (pass, see Done)</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" checked disabled> <code>npx tsc --noEmit</code> — 0 errors (verified).</li>
+        <li><input type="checkbox" checked disabled> <code>npm run check:conventions --strict</code> — 0 structural violations (verified).</li>
+        <li><input type="checkbox" checked disabled> Layer 1: 67 unit tests pass across the 3 test files (verified 2026-07-18).</li>
+        <li><input type="checkbox" disabled> Layer 2 (behavioral): staged-draft + honest-empty walk on real data — <strong>pending the dev/dave → sandbox clone</strong> (see test-results.json).</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

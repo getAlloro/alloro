@@ -48,6 +48,9 @@ function makeQueryBuilder(): Record<string, unknown> {
           ([column, expected]) => valueOf(row, column) === expected
         )
       );
+    } else if (arg3 === undefined) {
+      // Two-arg form `.where(column, value)` is Knex shorthand for equality.
+      filters.push((row) => valueOf(row, String(arg1)) === arg2);
     } else {
       filters.push((row) => compare(valueOf(row, String(arg1)), String(arg2), arg3));
     }

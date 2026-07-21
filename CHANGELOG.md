@@ -2,6 +2,32 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.171] - July 2026
+
+### Server-derived tenant scope and route authentication on PMS and rankings
+
+PMS key data and job listings now take their organization from the authenticated session rather than from the request, and the cross-organization view the admin dashboard needs moves to a dedicated super-admin route. Practice-ranking's dashboard routes now declare authentication and role checks; its machine-called trigger and status routes carry a service token in observation mode instead, so the live ranking pipeline is untouched while callers are inventoried for the enforcement stage. Location scoping validates both parameter spellings and rejects a malformed identifier rather than resolving it to no filter. Built on `plans/07202026-tenant-scope-hardening`; 1999 backend tests, TypeScript on both trees, and strict Constitution checks pass, with the deployed dev endpoints verified directly. This release is published through `dev/dave`; production has not been promoted.
+
+**Key Changes:**
+- **Session-derived organization scope.** `GET /api/pms/keyData` and the PMS job listings resolve the organization from the authenticated session. Model queries take the organization as a required argument rather than an optional filter (§5.5, §11.7).
+- **Dedicated admin route.** Cross-organization PMS reads move to `GET /api/admin/pms/keyData` behind `superAdminMiddleware`, mirroring the existing `routes/admin/` arrangement (§6.1). The admin Org PMS tab reads through it.
+- **Authenticated ranking routes.** The practice-ranking dashboard reads, retries, deletions and competitor refresh now declare `authenticateToken` and `rbacMiddleware` (§11.1).
+- **Service token in observation mode.** A shared token for machine callers, with a two-stage rollout: stage one recognises a valid token and logs callers without one; stage two rejects. Startup refuses to boot when enforcement is enabled with no token configured (§5.6). Constant-time comparison.
+- **Stricter location scoping.** `locationScopeMiddleware` accepts `location_id` as well as `locationId`, so a requested location is validated on endpoints using either spelling. A malformed value in a query or path parameter returns 400 rather than resolving to no filter; body values continue to fall through to the route's validation schema, which owns body shape (§11.2).
+- **Compile-safe client signature.** `fetchPmsKeyData` takes an options object rather than positional arguments, so a stale call fails to compile instead of mapping a value onto the wrong parameter.
+- **Environment placeholder check.** `npm run check:env` flags a tracked `.env*` file whose values are neither empty nor placeholder-shaped, reporting key names and counts only so its output is safe in CI logs. Wired into `npm run check:all`.
+
+**Commits:**
+- `src/controllers/pms/PmsController.ts`, `src/routes/pms.ts` — session-derived scope on key data; the admin job block moved behind `superAdminMiddleware`.
+- `src/controllers/admin-pms/AdminPmsController.ts`, `src/routes/admin/pms.ts`, `src/app.ts` — new super-admin PMS mount.
+- `src/routes/practiceRanking.ts` — authentication on the dashboard routes; service token on the machine-called routes.
+- `src/middleware/rbac.ts` — both parameter spellings accepted; malformed query and path identifiers rejected.
+- `src/config/serviceToken.ts`, `src/middleware/serviceToken.ts` — two-stage token with startup validation.
+- `src/controllers/pms/pms-services/pms-retry.service.ts`, `pms-approval.service.ts` — self-calls send the token header.
+- `frontend/src/api/admin-pms.ts`, `frontend/src/api/pms/jobs.ts`, four query hooks — client and admin callers split.
+- `src/__tests__/` — tenant-isolation, auth-boundary and service-token coverage added (§20.2); the practice-ranking smoke test rewritten to match the new contract.
+- `scripts/check-env-placeholders.sh`, `package.json` — the `check:env` gate.
+
 ## [0.0.170] - July 2026
 
 ### First PR check — plan-spec status self-consistency

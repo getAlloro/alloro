@@ -29,6 +29,7 @@ import logger from "./lib/logger";
 
 import gbpRoutes from "./routes/gbp";
 import gbpAutomationRoutes from "./routes/gbpAutomation";
+import napConsistencyRoutes from "./routes/napConsistency";
 import patientJourneyRoutes from "./routes/patient-journey";
 import { getDatabaseHealth } from "./models/DatabaseHealthModel";
 import clarityRoutes from "./routes/clarity";
@@ -238,6 +239,7 @@ app.use(requireAuthUnlessPublic);
 app.use(router);
 app.use("/api/gbp", gbpRoutes);
 app.use("/api/gbp-automation", gbpAutomationRoutes);
+app.use("/api/nap-consistency", napConsistencyRoutes);
 app.use("/api/patient-journey", patientJourneyRoutes);
 // Machine-called prefixes: service token in observation mode until the rollout
 // reaches stage 2 (config/serviceToken.ts). Nothing is rejected yet — un-tokened

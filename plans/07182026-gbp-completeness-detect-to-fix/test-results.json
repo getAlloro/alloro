@@ -1,0 +1,65 @@
+{
+  "plan": "plans/07182026-gbp-completeness-detect-to-fix",
+  "generatedAt": "2026-07-18",
+  "status": "In Progress",
+  "items": [
+    {
+      "id": "T1",
+      "title": "Layer 1 — unit suite passes for the completeness-fill flow",
+      "surface": "cli",
+      "precondition": "checkout claude/seam-detect-to-writeback-invoke",
+      "steps": [
+        "1. npx vitest run src/__tests__/gbp-completeness-fill.test.ts src/__tests__/gbp-completeness-fill-invoke.test.ts src/__tests__/gbp-automation-write-routes.test.ts"
+      ],
+      "expected": "all tests green",
+      "status": "pass",
+      "evidence": "67 tests passed across 3 files (vitest, 2026-07-18); tsc 0 errors; check:conventions --strict 0 structural violations",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "A fillable gap stages an owner-approval draft, does NOT publish",
+      "surface": "api",
+      "precondition": "authed operator on a location whose GBP is missing a website AND whose domain Alloro holds; write-back master switch on for that account",
+      "steps": [
+        "1. POST /api/gbp-automation/business-info/completeness-fill for the location",
+        "2. Inspect the created work item"
+      ],
+      "expected": "201; a business_info draft in awaiting-approval status with only websiteUri in the patch; nothing sent to Google",
+      "status": "pending",
+      "evidence": "",
+      "notes": "closes on dev after the dev/dave -> sandbox clone; sandbox currently has no GBP tables to exercise this",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "Nothing fillable returns an honest empty, never a fabricated draft",
+      "surface": "api",
+      "precondition": "authed operator on a location with no fillable gap (or no independent value source)",
+      "steps": [
+        "1. POST /api/gbp-automation/business-info/completeness-fill for the location"
+      ],
+      "expected": "200 with the unfillable gaps surfaced (reasons), no draft created",
+      "status": "pending",
+      "evidence": "",
+      "notes": "closes on dev after the clone",
+      "waiver": ""
+    },
+    {
+      "id": "T4",
+      "title": "Category / phone / hours are never auto-filled",
+      "surface": "api",
+      "precondition": "authed operator on a location missing category/phone/hours",
+      "steps": [
+        "1. POST /api/gbp-automation/business-info/completeness-fill",
+        "2. Confirm those fields appear as no-value-source, not in any patch"
+      ],
+      "expected": "category/phone/hours surfaced as unfillable (no-value-source); never staged",
+      "status": "pending",
+      "evidence": "Layer 1 covers this in unit (gbp-completeness-fill.test.ts); behavioral confirmation pending the clone",
+      "notes": "closes on dev after the clone",
+      "waiver": ""
+    }
+  ]
+}
