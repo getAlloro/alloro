@@ -92,11 +92,11 @@ Same impressions, more clicks: a sharper title/description earns the click. Move
 ---
 
 ## LANE 4 — Organic + AEO · clock: AFTER CTR
-### Turn 0 — Let the AI bots in (robots.txt) *(gates everything AI on hosted sites)*
-- **Lever:** on each hosted client site, allow the AI answer-crawlers in `robots.txt`: **OAI-SearchBot, GPTBot, PerplexityBot, ClaudeBot**.
+### Turn 0 — Let the *right* AI bots in (robots.txt) *(gates everything AI on hosted sites)*
+- **Lever:** on each hosted client site, allow the **search/fetch** crawlers that make you citation-eligible — **`OAI-SearchBot`, `PerplexityBot`, `Googlebot`**. The **training-only** crawlers (`GPTBot`, `ClaudeBot`, `Google-Extended`) can be *blocked* with **no** loss of AI-answer visibility — being cited depends on the search bots, not the training ones. *(Corrected 2026-07-21 vs `alloro-brain/library/strategy/seo-aeo-geo-state-2026.md` + web verify — the earlier line conflated the two classes and named the wrong bots.)*
 - **What fires it:** a ~5-minute per-site check + edit — we host the sites.
-- **Number:** AI-answer visibility (a silent block zeroes it regardless of everything else).
-- **Dave checks:** each hosted site's `robots.txt` does not disallow those agents.
+- **Number:** AI-answer visibility (a silent block of the *search* bots zeroes it).
+- **Dave checks:** each hosted site's `robots.txt` allows `OAI-SearchBot`, `PerplexityBot`, and `Googlebot`.
 - **State: FROM-SCRATCH audit** — most agencies never run it; cheap and load-bearing.
 
 ### Turn 1 — Revive the GSC→content loop — ledger **GF7**
@@ -105,8 +105,8 @@ Same impressions, more clicks: a sharper title/description earns the click. Move
 - **Dave checks:** new pages for real search terms exist; impressions for more queries climb.
 - **State: SHIPPED — verify it still runs** ("A1's shipped GSC→content loop"; confirm the schedule, don't rebuild).
 
-### Turn 2 — FAQ / schema + citation-worthiness per playbook v4 — ledger **GF8**
-- **Lever:** add FAQ + JSON-LD blocks **and make pages citation-worthy** — natural-language URL slugs (an ~8-point citation swing in Ahrefs' 1.4M-prompt study), quotable specific facts over marketing prose, schema.
+### Turn 2 — Entity schema + citation-worthiness per playbook v4 — ledger **GF8**
+- **Lever:** make pages **citation-worthy** — natural-language URL slugs (**8.67-pt** citation lift, Ahrefs 1.4M-prompt study, Feb 2025 data), quotable specific facts + statistics over marketing prose, and **LocalBusiness / MedicalBusiness entity schema** (`sameAs`). **NB: Google removed FAQ rich results May 2026** — FAQ markup is no longer a hero; schema value is now entity/local, and it's hygiene, not the mover. *(Corrected 2026-07-21 vs `seo-aeo-geo-state-2026.md`.)*
 - **Why both:** *retrieval is not citation.* AI fetches many pages and cites few — schema gets you read; extractable specifics get you *quoted*.
 - **Number:** AI-answer visibility (citations, not just retrieval).
 - **Dave checks:** page carries FAQ + schema (`hasFaqSchema` true) and has clean slugs + quotable facts.
@@ -124,7 +124,7 @@ Same impressions, more clicks: a sharper title/description earns the click. Move
 - **Dave checks:** each source lists the client, claimed and NAP-consistent.
 - **State: FROM-SCRATCH.**
 
-**Why build-ahead, not now:** only ~**1.2%** of local businesses get AI-recommended (ChatGPT) vs **35.9%** in Google's 3-pack, with only ~**45% overlap** between the two — a distinct, uncontested surface. Cheap and mostly one-time. It does **not** serve the July-31 impressions win (see calibration); it's the early-GBP-adopter play for the next surface.
+**Why build-ahead, not now:** ~**1.2%** of local businesses get AI-recommended by ChatGPT vs **35.9%** in Google's 3-pack (**SOCi 2026 Local Visibility Index**, ~350K locations, Jan 2026 — single-vendor; treat as directional). The often-quoted "45% overlap" is narrower than it sounds — it's **retail top-20** visibility-vs-AI overlap, not general. Still a distinct, uncontested surface, cheap and mostly one-time. It does **not** serve the July-31 impressions win (see calibration). **The highest-evidence AI-local move is data consistency (NAP across Bing/Apple/Yelp/Foursquare) — SOCi's own data ranks accuracy the #1 AI factor — i.e. this lane's Turn 1, which is why Turn 1 is the real one here.**
 
 ---
 
@@ -139,7 +139,7 @@ Out of scope on purpose: slow, partly outside our control, doesn't fit the draft
 - **LSA / PMax flag:** a one-line client flag if anyone runs Local Services Ads, re the **Aug 2026 PMax migration**.
 
 ## Honesty calibration — build the presence now, promise nothing yet
-The SEO-industry "AI is ~45% of local discovery" numbers are **vendor-inflated.** The hardest datum in the pile is CallRail's: **AI-driven calls are ~0.115% of inbound today**, growing 58% in eight months. Posture is neither panic nor dismissal: **make the cheap structural moves now while uncontested** (how early GBP adopters won the last decade), **instrument the measurement**, and **never promise a client AI traffic today.** That's our register — small verified claims. *(Calendar: SEJ AI Visibility Masterclass webinar is July 30 — worth the hour for whoever owns the verify column.)*
+The SEO-industry "AI is ~45% of local discovery" numbers are **vendor-inflated** (SOCi and CallRail both sell into this problem). The hardest datum: CallRail's ~20M-call analysis puts **AI-driven calls at ~0.07–0.10% of inbound today**, up ~30% in ~4 months. *(The earlier "0.115% / 58% in 8 months" was a mis-extrapolation — corrected 2026-07-21 against CallRail's primary numbers.)* Tiny, fast-growing, high-intent. Posture is neither panic nor dismissal: **make the cheap structural moves now while uncontested** (how early GBP adopters won the last decade), **instrument the measurement**, and **never promise a client AI traffic today.** That's our register — small verified claims. *(Calendar: SEJ AI Visibility Masterclass webinar is July 30 — worth the hour for whoever owns the verify column.)*
 
 ## The honest bottom line for Dave
 - **Get Found = out-compete, not complete.** Category + reviews + activity climb; NAP is the floor.
