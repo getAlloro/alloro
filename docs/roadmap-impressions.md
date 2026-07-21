@@ -8,6 +8,7 @@ One real customer's **impressions go measurably up by end of month**, because of
 
 - **Get Found is about being COMPETITIVE, not complete.** Filling in name, address, phone (NAP) is the **floor** — it stops Google penalizing you. It does not move you *above* a rival. The levers that climb are **relevance** (category, content) and **prominence** (reviews, activity).
 - **Impressions** = how often you showed up on Google (Maps + Search; the "Google Visibility" number).
+- **Definition of done (Get Found) — the full funnel, not impressions in a vacuum.** Done = an *undeniable, data-backed* increase in impressions **and everything associated**, that **flows through the funnel**: impressions (Get Found) → **CTR + website traffic** (Get Considered) → **CRO + form submissions** (Get Chosen). `submissions = impressions × CTR × CRO` — so "done" is when the top of that equation visibly moves the bottom, with the analytics to prove each step. Impressions up but submissions flat = vanity, not done. The month-end milestone (one proof site's impressions up) is the **first rung**, not the finish.
 
 ## Proof customers — pick sites with room to CLIMB, not a winner
 A dominant, already-complete practice can't demonstrate competitive lift. So:
@@ -47,12 +48,12 @@ Winning the map-pack against rivals. Moves **impressions**. (NAP fill is the flo
 - **Dave checks:** profile's main category reads the specific one; impressions climb over 1–3 weeks.
 - **State: BUILT–NOT-WIRED** (recommender #193 has no caller). Build = wire into approve-and-publish (A6).
 
-### Turn 2 — Activity / freshness (posts, photos) *(prominence signal)*
-- **Lever:** regular GBP posts + photos — Google favors active profiles.
-- **What fires it:** Alloro drafts a post/photo cadence, owner approves, publish.
-- **Number:** impressions.
-- **Dave checks:** the profile shows recent posts/photos; impressions trend up.
-- **State: PARTLY BUILT** — local-post generation exists (default-off, ledger GF5-family); confirm cadence + wire.
+### Turn 2 — Activity / freshness (photos, Q&A > posts) *(prominence signal)*
+- **Lever:** keep the profile active — **photos, Google Q&A, updates**. *Caveat (Sterling Sky, 441-kw study): GBP **posts** produced **zero ranking movement** — don't over-invest in posts; photos/Q&A/freshness carry more weight.*
+- **What fires it:** Alloro drafts a photo/Q&A/update cadence, owner approves, publish.
+- **Number:** impressions (freshness signal).
+- **Dave checks:** the profile shows recent photos/Q&A; impressions trend up.
+- **State: PARTLY BUILT** — local-post generation exists (default-off, ledger GF5-family); confirm cadence + **reweight toward photos/Q&A**.
 
 ### Turn 3 — NAP / completeness *(the FLOOR — label it as such)* — ledger **GF3/GF4/GF6**
 - **Lever:** fill missing hours/phone; keep name/address/phone consistent.
@@ -74,7 +75,8 @@ The biggest competitive local lever: more, fresher reviews than the rival. Moves
 - **Lever:** ask more patients for reviews so volume/velocity beats the rival.
 - **What fires it:** patient contact via **Sikka** → owner-approved request → send.
 - **Number:** review count/velocity → prominence → impressions.
-- **Dave checks:** new-review rate rises vs. the tracked rival.
+- **Recency is now a top factor** — it jumped from #20 (2023) to top-tier; **74% of consumers weight reviews from the last 3 months**, and AI uses rating as a confidence threshold (below ~4.0★ = excluded). So this is a **steady last-90-days flow, not a one-time push** — stop getting new reviews and rankings slip.
+- **Dave checks:** new-review rate rises vs. the tracked rival, and stays steady month-over-month.
 - **State: GREENFIELD, Sikka-gated.** Review *replies* built; review *requests* not. Sandbox is free to start now; paid rollout triggers on the cash plan (Pawlak save / Garrison signature). See `[[project_sikka_integration]]`.
 
 ---
@@ -112,6 +114,18 @@ Same impressions, more clicks: a sharper title/description earns the click. Move
 - **Dave checks:** page carries FAQ + schema (`hasFaqSchema` true) and has clean slugs + quotable facts.
 - **State: PARTLY BUILT** (audit detects; JSON-LD insert+verify exists). Build = apply systematically + add the citation-worthiness items.
 
+### Turn 3 — Entity-graph presence (Wikidata / Wikipedia / Organization `sameAs`) *(build-ahead)*
+- **Lever:** engines resolve queries to **entities**, not keyword strings. Establish the practice as a recognized entity — Organization schema + `sameAs`, and a **Wikidata / Wikipedia** presence where legitimate.
+- **Number:** AI-answer + Knowledge-Graph visibility.
+- **Dave checks:** the practice resolves as a consistent entity (Knowledge Panel / `sameAs`).
+- **State: FROM-SCRATCH.** Grounded in `seo-aeo-geo-state-2026.md` (Entities).
+
+### Turn 4 — Server-render critical content *(we host the sites — we control this)*
+- **Lever:** AI crawlers *and* Googlebot render JavaScript unreliably → **server-render the critical content** (name, services, hours, reviews, key facts) so it's extractable on first fetch, not trapped behind client-side JS.
+- **Number:** citation-eligibility / impressions — content a bot can't read on first fetch can't rank or be cited.
+- **Dave checks:** a no-JS fetch / view-source of a hosted page shows the key content present.
+- **State: AUDIT** — depends how our hosted sites render; fully in our control since we host them. Grounded in `seo-aeo-geo-state-2026.md` (Rendering).
+
 ---
 
 ## LANE 5 — AI-source presence (off-Google citations) · clock: BUILD-AHEAD
@@ -127,6 +141,13 @@ Same impressions, more clicks: a sharper title/description earns the click. Move
 **Why build-ahead, not now:** ~**1.2%** of local businesses get AI-recommended by ChatGPT vs **35.9%** in Google's 3-pack (**SOCi 2026 Local Visibility Index**, ~350K locations, Jan 2026 — single-vendor; treat as directional). The often-quoted "45% overlap" is narrower than it sounds — it's **retail top-20** visibility-vs-AI overlap, not general. Still a distinct, uncontested surface, cheap and mostly one-time. It does **not** serve the July-31 impressions win (see calibration). **The highest-evidence AI-local move is data consistency (NAP across Bing/Apple/Yelp/Foursquare) — SOCi's own data ranks accuracy the #1 AI factor — i.e. this lane's Turn 1, which is why Turn 1 is the real one here.**
 
 ---
+
+## Cross-cutting — trust (YMYL / E-E-A-T) for medical & dental
+Dental/medical is **YMYL** ("your money or your life") → the strictest bar, and **Trust is the load-bearing member of E-E-A-T** (E-E-A-T isn't a direct ranking factor, but Trust drives what does). This applies across every lane, not one turn:
+- **Named, credentialed authorship** on hosted content (real doctor bylines, credentials, `sameAs` to profiles) — not anonymous marketing copy.
+- **High-authority vertical directories** — Healthgrades / Zocdoc / NPI-class, claimed + NAP-consistent (also feeds Lane 5's AI sources).
+- **Consistency of the entity's facts** across every surface — the same signal AI uses for confidence.
+It's a *lens on the other lanes* (write content as a credentialed source; pick trust-signal directories), not a separate build.
 
 ## Deliberately deferred — backlinks beyond citations
 Out of scope on purpose: slow, partly outside our control, doesn't fit the draft→approve→publish loop. Revisit only after the four lanes prove they move numbers.
@@ -146,6 +167,6 @@ The SEO-industry "AI is ~45% of local discovery" numbers are **vendor-inflated**
 - **Prove on sites with room to climb** (org 8, org 39/Woodbridge, Garrison South Orange) — never a winner.
 - **Build-state per lever is in the ledger, checked against code** — not asserted here.
 - **One customer, one change at a time, owner approves each** — no blanket auto-publish.
-- **Done =** a proof site's impressions measurably higher than its written-down baseline, and we can name the Alloro change that moved them.
+- **Done (full DoD) =** a proof site's **impressions** measurably up vs its dated baseline, **flowing through to CTR + website traffic and then to CRO + form submissions** — each step visible in the analytics — and we can name the Alloro change that moved them. Impressions up alone is the first rung; the funnel moving end-to-end is done.
 
 _Written 2026-07-21 from verified dev/dave (66f1bf7af). Build-state calls live in `docs/capability-ledger.md`._
