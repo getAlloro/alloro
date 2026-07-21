@@ -1,3 +1,6 @@
+import { OrgType } from "../../../config/orgLabels";
+import { substitutePromptPlaceholders } from "../../../agents/service.prompt-substituter";
+
 type RankingRecommendation = {
   priority?: number;
   title?: string;
@@ -19,6 +22,8 @@ type RankingGap = {
 type RankingLlmGuardrailContext = {
   visibleScore?: number | null;
   searchPosition?: number | null;
+  orgType?: OrgType;
+  competitorNames?: string[];
 };
 
 const WEBSITE_ACTION_PATTERN =
@@ -61,10 +66,10 @@ const RANK_OUTCOME_FROM_POST = new RegExp(
 );
 const RECOMMENDED_ACTION_PREFIX = /^recommended action:\s*/i;
 const WEEKLY_POST_PATTERN = /\b(?:weekly|each week|every week|once a week)\b/i;
-const HONEST_POST_ACTION =
-  "Publish a useful Google post to keep your profile current for patients who are deciding";
-const HONEST_WEEKLY_POST_ACTION =
-  "Publish a useful Google post weekly to keep your profile current for patients who are deciding";
+export const HONEST_POST_ACTION =
+  "Publish a useful Google post to keep your profile current for {{customers}} who are deciding";
+export const HONEST_WEEKLY_POST_ACTION =
+  "Publish a useful Google post weekly to keep your profile current for {{customers}} who are deciding";
 const LEADER_SEARCH_POSITION = 1;
 const TOP_THREE_SEARCH_POSITIONS = new Set([2, 3]);
 
@@ -72,23 +77,29 @@ const TOP_THREE_SEARCH_POSITIONS = new Set([2, 3]);
 // contract: the cross-stage selector (Summary v2) is meant to de-prioritize a generic
 // candidate in favor of a specific, caught-unseen one from another stage. Wiring that
 // consumer is Chapter 7's job; today the flag is an honest passthrough (emitted, not
-// yet read). Copy is relief-first (leads with what is already working), never
-// deficit-framed. This should fire rarely; a specific LLM recommendation is the norm.
+// yet read).
+// HONESTY CONSTRAINT (do not weaken): this path receives NO practice data, so every line
+// must be true for ANY practice. State only why a lever matters (a general truth) and the
+// forward action to take. NEVER assert this practice's current state — "your reviews are
+// working", "your profile is active", "your photos are strong" — because with no data
+// those can be false, and a false claim to an owner breaks the honesty bar. Relief-first
+// means non-deficit framing, not a claim of a good state we cannot see.
+// This should fire rarely; a specific LLM recommendation is the norm.
 const SAFE_RECOMMENDATION_BACKFILL: RankingRecommendation[] = [
   {
-    title: "Your reviews are already working for you",
+    title: "Reviews are the signal {{customers}} weigh most",
     description:
-      "Recent reviews are helping patients choose you. Asking each happy patient for one keeps that trust growing.",
+      "A steady stream of reviews is one of the strongest things that helps {{customers}} choose a {{org_noun}}. Asking each happy {{customer}} for one is the simplest way to keep them coming.",
     impact: "high",
     effort: "low",
     timeline: "30 days",
-    expected_outcome: "Fresh reviews that keep your local search trust signals strong.",
+    expected_outcome: "Fresh reviews that strengthen your local search trust signals.",
     generic: true,
   },
   {
-    title: "Your Google profile is active, keep it fresh",
+    title: "An up-to-date profile reassures {{customers}}",
     description:
-      "An active profile reassures patients before they call. One useful Google post a week keeps it looking cared-for.",
+      "An up-to-date Google profile reassures {{customers}} before they call. One useful post a week is enough to keep it current.",
     impact: "medium",
     effort: "low",
     timeline: "30 days",
@@ -96,13 +107,13 @@ const SAFE_RECOMMENDATION_BACKFILL: RankingRecommendation[] = [
     generic: true,
   },
   {
-    title: "Your photos make a strong first impression",
+    title: "Photos are often the first thing {{customers}} check",
     description:
-      "Patients look at your photos before they call. A few current office and team photos keep that impression current.",
+      "Many {{customers}} look at your photos before they call. A few current office and team photos keep that first impression strong.",
     impact: "medium",
     effort: "low",
     timeline: "2 weeks",
-    expected_outcome: "A complete profile that reassures patients at the first look.",
+    expected_outcome: "Photos that reassure {{customers}} at the first look.",
     generic: true,
   },
 ];
@@ -203,7 +214,7 @@ function normalizeLeadProtectionLanguage(
     .replace(/\bprotect that lead\b/gi, "improve that position");
 }
 
-function rewritePostRankSentence(sentence: string): string {
+function rewritePostRankSentence(sentence: string, orgType?: OrgType): string {
   if (!hasPostToRankCausalClaim(sentence)) {
     return sentence;
   }
@@ -220,9 +231,12 @@ function rewritePostRankSentence(sentence: string): string {
   const factSeparator = postIndex > 0 ? body.lastIndexOf(",", postIndex) : -1;
   const rankFactPrefix =
     factSeparator >= 0 ? body.slice(0, factSeparator).trim() : "";
-  const honestAction = WEEKLY_POST_PATTERN.test(body)
-    ? HONEST_WEEKLY_POST_ACTION
-    : HONEST_POST_ACTION;
+  const honestAction = substituteVocab(
+    WEEKLY_POST_PATTERN.test(body)
+      ? HONEST_WEEKLY_POST_ACTION
+      : HONEST_POST_ACTION,
+    orgType,
+  );
   const rewrittenAction = `${actionPrefix}${honestAction}${punctuation}`;
 
   return rankFactPrefix
@@ -254,14 +268,14 @@ function hasPostToRankCausalClaim(sentence: string): boolean {
   return false;
 }
 
-function rewritePostRankClaims(value: unknown): unknown {
+function rewritePostRankClaims(value: unknown, orgType?: OrgType): unknown {
   if (typeof value !== "string" || !hasPostToRankCausalClaim(value)) {
     return value;
   }
 
   return value
     .split(/(?<=[.!?])\s+/u)
-    .map(rewritePostRankSentence)
+    .map((s) => rewritePostRankSentence(s, orgType))
     .join(" ");
 }
 
@@ -279,6 +293,7 @@ function sanitizeText(
       ),
       context,
     ),
+    context.orgType,
   );
 }
 
@@ -347,8 +362,59 @@ function isWebsiteActionGap(gap: RankingGap): boolean {
   );
 }
 
+// The prompt bans generic homework as the single recommendation ("get more
+// reviews", "ask every patient for a review", "post more often", "add more
+// photos", chasing a review count) UNLESS it is framed around a specific
+// competitor from the input. Enforce that in code: a recommendation matching a
+// generic-homework shape is dropped (backfillRecommendations replaces it with
+// honest safe copy), but one that NAMES an actual competitor is kept — it is the
+// specific, caught-unseen card the prompt allows. This closes the incident card
+// ("ask every patient for a review to protect your #1 ranking" — names no
+// competitor -> dropped) while keeping a real "beat Bright Smiles's 48 photos"
+// card. It also catches the specialist-vs-generalist shape, which never names a
+// specific competitor ("vs 400-500+ nearby competitors"). Deterministic shape
+// check, not a full quality judgment — a number-bearing but still-vague card is
+// the residual the recommendation-quality eval must catch.
+const GENERIC_HOMEWORK_PATTERN =
+  /\b(get more reviews|grow(?:ing)?\s+(?:your\s+)?reviews?(?:\s+count)?|ask\s+(?:every|each|all|your|more|happy)\b[^.!?]{0,60}?\breviews?\b|keep\s+review\s+momentum|post\s+more\s+often|add\s+more\s+photos|(?:your\s+)?rating\s+is\s+lower\s+than\s+average)\b/i;
+
+function namesACompetitor(text: string, competitorNames?: string[]): boolean {
+  const haystack = text.toLowerCase();
+  return (competitorNames ?? []).some(
+    (name) =>
+      typeof name === "string" &&
+      name.trim().length > 2 &&
+      haystack.includes(name.toLowerCase()),
+  );
+}
+
+function isBannedGenericHomework(
+  rec: RankingRecommendation,
+  competitorNames?: string[],
+): boolean {
+  const text = `${rec.title ?? ""} ${rec.description ?? ""}`;
+  if (!GENERIC_HOMEWORK_PATTERN.test(text)) return false;
+  // Prompt escape valve: a generic action is allowed only when it names a
+  // specific competitor the owner can't see; otherwise it is generic homework.
+  return !namesACompetitor(text, competitorNames);
+}
+
+// Translate the static fallback copy into the org's vocabulary. The fallback
+// tokens ({{customers}}, {{org_noun}}) resolve to health terms for health orgs
+// (byte-identical) and business terms for generic orgs.
+function substituteVocab(
+  text: string | undefined,
+  orgType?: OrgType,
+): string | undefined {
+  if (!text) return text;
+  // Default to health when unknown so tokens always resolve (never leak a raw
+  // {{token}}); health terms are byte-identical to the original copy.
+  return substitutePromptPlaceholders(text, orgType ?? "health");
+}
+
 function backfillRecommendations(
   recommendations: RankingRecommendation[],
+  orgType?: OrgType,
 ): RankingRecommendation[] {
   const titles = new Set(
     recommendations.map((rec) => rec.title?.toLowerCase()).filter(Boolean),
@@ -362,7 +428,13 @@ function backfillRecommendations(
     if (next.length >= 1) break;
     const key = fallback.title?.toLowerCase();
     if (key && titles.has(key)) continue;
-    next.push({ ...fallback, priority: next.length + 1 });
+    next.push({
+      ...fallback,
+      title: substituteVocab(fallback.title, orgType),
+      description: substituteVocab(fallback.description, orgType),
+      expected_outcome: substituteVocab(fallback.expected_outcome, orgType),
+      priority: next.length + 1,
+    });
     if (key) titles.add(key);
   }
 
@@ -377,7 +449,9 @@ export function sanitizeRankingLlmAnalysis<T extends Record<string, any>>(
   const recommendations = Array.isArray(next.top_recommendations)
     ? next.top_recommendations
         .filter(
-          (rec: RankingRecommendation) => !isWebsiteActionRecommendation(rec),
+          (rec: RankingRecommendation) =>
+            !isWebsiteActionRecommendation(rec) &&
+            !isBannedGenericHomework(rec, context.competitorNames),
         )
         .map((rec: RankingRecommendation) =>
           sanitizeRecommendation(rec, context),
@@ -389,7 +463,10 @@ export function sanitizeRankingLlmAnalysis<T extends Record<string, any>>(
         .map((gap: RankingGap) => sanitizeGap(gap, context))
     : [];
 
-  next.top_recommendations = backfillRecommendations(recommendations);
+  next.top_recommendations = backfillRecommendations(
+    recommendations,
+    context.orgType,
+  );
   next.gaps = gaps.slice(0, 4);
   next.render_text = sanitizeText(next.render_text, context);
   next.client_summary = sanitizeText(next.client_summary, context);

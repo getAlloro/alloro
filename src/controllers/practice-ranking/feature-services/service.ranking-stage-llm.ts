@@ -15,6 +15,8 @@ import { updateStatus, StatusDetail } from "./service.ranking-status";
 import { GbpLocalPostModel } from "../../../models/GbpLocalPostModel";
 import { ReviewModel } from "../../../models/website-builder/ReviewModel";
 import { PracticeRankingModel } from "../../../models/PracticeRankingModel";
+import { OrganizationModel } from "../../../models/OrganizationModel";
+import { resolveOrgType } from "../../../config/orgLabels";
 import {
   beginPipelineTiming,
   finishPipelineTiming,
@@ -221,12 +223,20 @@ export async function runLlmStage(input: LlmStageInput): Promise<void> {
     },
   };
 
+  const orgType = resolveOrgType(
+    organizationIdForEngagement
+      ? (await OrganizationModel.findById(organizationIdForEngagement))
+          ?.organization_type
+      : null,
+  );
+
   const llmTiming = beginPipelineTiming("llm");
   const llmResult = await runRankingAnalysis(
     rankingId,
     llmPayload,
     ranking,
     statusDetail,
+    orgType,
     log,
   );
   finishPipelineTiming(
