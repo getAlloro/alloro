@@ -1,6 +1,7 @@
 # PR Pipeline Protocol v1
 
 **Status:** Proposed 2026-07-20. Becomes law when Corey and Dave both confirm.
+Rules below are active for agent compliance via CLAUDE.md.
 **Applies to:** Every PR into dev/dave, from any agent or human.
 **Why it exists:** Two consecutive batches arrived 70 to 90 percent not merge-ready. Root cause, named identically by both review sides: nothing checks work before handoff, and findings travel out-of-band. This protocol installs the missing feedback signal. Four rules, one page.
 
@@ -37,7 +38,7 @@
 **What:** No build starts without a written acceptance spec. No PR leaves draft until that spec passes locally.
 
 **How:**
-1. Before CC writes code, the plan file includes an **acceptance block**: numbered behavioral items (the T1..Tn format from the 0720 suite) plus, for anything with a data or output claim, the **predicted signal**: what the output must look like if the change works, stated before it runs.
+1. Before CC writes code, the plan file includes an **acceptance block**: numbered behavioral items (the T1..Tn format from the July 20, 2026 review suite, PRs 183-187) plus, for anything with a data or output claim, the **predicted signal**: what the output must look like if the change works, stated before it runs.
 2. Format ownership: Dave's side owns the acceptance spec format and can reject a spec as insufficient. CC owns passing it. CC never grades its own homework format.
 3. The PR body may only claim what an acceptance item proved. "Read-only," "no writes," "sanitizes" are claims; each needs a passing item behind it. Unproven claims stay out of the body.
 4. **Data-first corollary:** before scheduling any validation window, confirm the underlying data exists (one read-only query, like the zero-Maps check). A correct fix on empty data proves nothing and burns an afternoon.
