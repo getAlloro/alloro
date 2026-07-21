@@ -28,7 +28,6 @@ import { CategoryRecommendationService } from "../controllers/gbp-automation/fea
 import { CategoryValueSourceService } from "../controllers/gbp-automation/feature-services/CategoryValueSourceService";
 import { GbpBusinessInfoDraftService } from "../controllers/gbp-automation/feature-services/GbpBusinessInfoDraftService";
 import { GbpReadinessService } from "../controllers/gbp-automation/feature-services/GbpReadinessService";
-import { GbpAutomationError } from "../controllers/gbp-automation/feature-utils/GbpAutomationError";
 import { GbpAutomationSettingsModel } from "../models/GbpAutomationSettingsModel";
 import { GbpWorkItemModel, type IGbpWorkItem } from "../models/GbpWorkItemModel";
 import { GbpWorkEventModel } from "../models/GbpWorkEventModel";
@@ -144,6 +143,35 @@ describe("CategoryRecommendationService.recommendPrimaryCategory", () => {
     expect(r).not.toContain("surface");
     expect(r).not.toContain("searches");
     expect(r).not.toContain("rank");
+  });
+
+  // Multi-specialty tie-breaking: when signals match more than one specialty from the
+  // same generic baseline, the resolver must pick deterministically — most signal
+  // matches wins; catalog order breaks equal counts.
+
+  it("picks the specialty with more signal matches when signals span multiple specialties", () => {
+    // "braces", "invisalign", and "aligners" each match Orthodontist (3 hits).
+    // "veneers" matches Cosmetic dentist (1 hit). Orthodontist wins on count.
+    const rec = CategoryRecommendationService.recommendPrimaryCategory({
+      currentPrimaryCategory: { displayName: "Dentist", name: "categories/gcid:dentist" },
+      signals: ["Dentist", "braces and invisalign aligners with veneers"],
+    });
+    expect(rec).not.toBeNull();
+    expect(rec?.proposed.displayName).toBe("Orthodontist");
+    expect(rec?.proposed.name).toBe(ORTHO_NAME);
+  });
+
+  it("breaks equal match counts by catalog order (first-in-catalog wins)", () => {
+    // "braces" → 1 hit for Orthodontist (catalog index 2).
+    // "veneers" → 1 hit for Cosmetic dentist (catalog index 7).
+    // Equal counts — Orthodontist appears first in catalog, so it wins.
+    const rec = CategoryRecommendationService.recommendPrimaryCategory({
+      currentPrimaryCategory: { displayName: "Dentist", name: "categories/gcid:dentist" },
+      signals: ["Dentist", "braces and veneers"],
+    });
+    expect(rec).not.toBeNull();
+    expect(rec?.proposed.displayName).toBe("Orthodontist");
+    expect(rec?.proposed.name).toBe(ORTHO_NAME);
   });
 });
 
