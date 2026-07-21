@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { sanitizeRankingLlmAnalysis } from "../controllers/practice-ranking/feature-services/service.ranking-output-guardrails";
+import {
+  sanitizeRankingLlmAnalysis,
+  HONEST_POST_ACTION,
+  HONEST_WEEKLY_POST_ACTION,
+} from "../controllers/practice-ranking/feature-services/service.ranking-output-guardrails";
+import { SYSTEM_PROMPT } from "../controllers/practice-ranking/feature-services/service.ranking-llm";
+import { substitutePromptPlaceholders } from "../agents/service.prompt-substituter";
 
 function analysisWithOverview(text: string) {
   return {
@@ -246,5 +252,51 @@ describe("ranking output guardrail Google post honesty", () => {
     expect(result.overview_card.highlights.join(" ")).toContain(
       "profile current",
     );
+  });
+});
+
+describe("prompt-token resolution completeness", () => {
+  it.each(["health", "generic"] as const)(
+    "SYSTEM_PROMPT resolves all {{tokens}} for orgType '%s'",
+    (orgType) => {
+      const resolved = substitutePromptPlaceholders(SYSTEM_PROMPT, orgType);
+      expect(resolved).not.toContain("{{");
+    },
+  );
+});
+
+describe("HONEST_POST_ACTION vocabulary substitution", () => {
+  it("resolves to business vocabulary for a generic org (no 'patients')", () => {
+    const resolved = substitutePromptPlaceholders(HONEST_POST_ACTION, "generic");
+    expect(resolved).not.toContain("patients");
+    expect(resolved).not.toContain("{{");
+    expect(resolved).toContain("customers");
+  });
+
+  it("resolves to health vocabulary for a health org", () => {
+    const resolvedAction = substitutePromptPlaceholders(HONEST_POST_ACTION, "health");
+    const resolvedWeekly = substitutePromptPlaceholders(HONEST_WEEKLY_POST_ACTION, "health");
+    expect(resolvedAction).toContain("patients");
+    expect(resolvedWeekly).toContain("patients");
+    expect(resolvedAction).not.toContain("{{");
+    expect(resolvedWeekly).not.toContain("{{");
+  });
+
+  it("rewrites post-to-rank claims with generic vocabulary when orgType is generic", () => {
+    const result = sanitizeRankingLlmAnalysis(
+      {
+        top_recommendations: [],
+        gaps: [],
+        overview_card: {
+          text: "Publish weekly Google posts to stay visible in local search.",
+          highlights: [],
+        },
+      },
+      { searchPosition: 3, orgType: "generic" },
+    );
+    expect(result.overview_card.text).toContain("profile current");
+    expect(result.overview_card.text).toContain("customers");
+    expect(result.overview_card.text).not.toContain("patients");
+    expect(result.overview_card.text).not.toContain("{{");
   });
 });

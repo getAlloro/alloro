@@ -108,7 +108,7 @@ export interface RankingAnalysisRunResult {
 // PROMPT
 // =====================================================================
 
-const SYSTEM_PROMPT = `{{vocab_directive}}
+export const SYSTEM_PROMPT = `{{vocab_directive}}
 You are an expert SEO and local search analyst specializing in local {{org_noun}}s. Analyze the {{org_possessive}} ranking performance against competitors and provide actionable insights.
 
 ## Ranking Factors (8 weighted factors)

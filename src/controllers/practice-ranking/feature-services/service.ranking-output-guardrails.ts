@@ -66,10 +66,10 @@ const RANK_OUTCOME_FROM_POST = new RegExp(
 );
 const RECOMMENDED_ACTION_PREFIX = /^recommended action:\s*/i;
 const WEEKLY_POST_PATTERN = /\b(?:weekly|each week|every week|once a week)\b/i;
-const HONEST_POST_ACTION =
-  "Publish a useful Google post to keep your profile current for patients who are deciding";
-const HONEST_WEEKLY_POST_ACTION =
-  "Publish a useful Google post weekly to keep your profile current for patients who are deciding";
+export const HONEST_POST_ACTION =
+  "Publish a useful Google post to keep your profile current for {{customers}} who are deciding";
+export const HONEST_WEEKLY_POST_ACTION =
+  "Publish a useful Google post weekly to keep your profile current for {{customers}} who are deciding";
 const LEADER_SEARCH_POSITION = 1;
 const TOP_THREE_SEARCH_POSITIONS = new Set([2, 3]);
 
@@ -214,7 +214,7 @@ function normalizeLeadProtectionLanguage(
     .replace(/\bprotect that lead\b/gi, "improve that position");
 }
 
-function rewritePostRankSentence(sentence: string): string {
+function rewritePostRankSentence(sentence: string, orgType?: OrgType): string {
   if (!hasPostToRankCausalClaim(sentence)) {
     return sentence;
   }
@@ -231,9 +231,12 @@ function rewritePostRankSentence(sentence: string): string {
   const factSeparator = postIndex > 0 ? body.lastIndexOf(",", postIndex) : -1;
   const rankFactPrefix =
     factSeparator >= 0 ? body.slice(0, factSeparator).trim() : "";
-  const honestAction = WEEKLY_POST_PATTERN.test(body)
-    ? HONEST_WEEKLY_POST_ACTION
-    : HONEST_POST_ACTION;
+  const honestAction = substituteVocab(
+    WEEKLY_POST_PATTERN.test(body)
+      ? HONEST_WEEKLY_POST_ACTION
+      : HONEST_POST_ACTION,
+    orgType,
+  );
   const rewrittenAction = `${actionPrefix}${honestAction}${punctuation}`;
 
   return rankFactPrefix
@@ -265,14 +268,14 @@ function hasPostToRankCausalClaim(sentence: string): boolean {
   return false;
 }
 
-function rewritePostRankClaims(value: unknown): unknown {
+function rewritePostRankClaims(value: unknown, orgType?: OrgType): unknown {
   if (typeof value !== "string" || !hasPostToRankCausalClaim(value)) {
     return value;
   }
 
   return value
     .split(/(?<=[.!?])\s+/u)
-    .map(rewritePostRankSentence)
+    .map((s) => rewritePostRankSentence(s, orgType))
     .join(" ");
 }
 
@@ -290,6 +293,7 @@ function sanitizeText(
       ),
       context,
     ),
+    context.orgType,
   );
 }
 
