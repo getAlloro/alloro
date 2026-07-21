@@ -18,6 +18,10 @@ import {
 } from "../../../utils/dataAggregation/dataAggregator";
 import { log, logError, isValidAgentOutput, logAgentOutput } from "../feature-utils/agentLogger";
 import { getDailyDates } from "../feature-utils/dateHelpers";
+import {
+  buildGbpImpressionsDiagnostic,
+  summarizeGbpImpressionsDiagnostic,
+} from "../feature-utils/gbpImpressionsDiagnostic";
 import { loadPrompt } from "../../../agents/service.prompt-loader";
 import { substitutePromptPlaceholders } from "../../../agents/service.prompt-substituter";
 import { resolveOrgType } from "../../../config/orgLabels";
@@ -110,6 +114,19 @@ export async function processDailyAgent(
       dates.dayBeforeYesterday,
     );
 
+    // DIAGNOSTIC (logging only, no behavior change): record the actual per-date
+    // impression values the GBP Performance API returned for this day, so the
+    // "zero-Maps" hypothesis can be confirmed/refuted from a real run.
+    // See plans/07202026-zero-maps-fix/spec.html.
+    log(
+      summarizeGbpImpressionsDiagnostic(
+        buildGbpImpressionsDiagnostic(
+          dayBeforeYesterdayData,
+          `dayBeforeYesterday ${dates.dayBeforeYesterday}`,
+        ),
+      ),
+    );
+
     // Fetch data for yesterday (single day)
     log(`  [DAILY] Fetching data for ${dates.yesterday} (yesterday)`);
     const yesterdayData = await fetchAllServiceData(
@@ -119,6 +136,16 @@ export async function processDailyAgent(
       propertyIds,
       dates.yesterday,
       dates.yesterday,
+    );
+
+    // DIAGNOSTIC (logging only, no behavior change): same for yesterday.
+    log(
+      summarizeGbpImpressionsDiagnostic(
+        buildGbpImpressionsDiagnostic(
+          yesterdayData,
+          `yesterday ${dates.yesterday}`,
+        ),
+      ),
     );
 
     // Fetch Rybbit website analytics (optional, non-blocking)
