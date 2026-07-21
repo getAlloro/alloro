@@ -33,32 +33,55 @@ import {
   requireRole,
 } from "../middleware/rbac";
 import { placesPhotoLimiter } from "../middleware/publicRateLimiter";
+import { serviceTokenMiddleware } from "../middleware/serviceToken";
 
 const router = express.Router();
 
-// Trigger analysis
-router.post("/trigger", controller.triggerBatchAnalysis);
+// Dashboard-facing routes: JWT + RBAC. This whole prefix sits on the public
+// allowlist (middleware/publicRoutes.ts), so until now none of these declared
+// any auth at all — /latest returned another practice's rankings to an
+// anonymous caller, and DELETE /:id deleted a ranking for one (§5.5, §11.1).
+// Per-route middleware is authoritative regardless of the allowlist, so
+// declaring it here closes those holes without waiting on the allowlist edit.
+const dashboardRanking = [authenticateToken, rbacMiddleware];
 
-// Status endpoints
-router.get("/batch/:batchId/status", controller.getBatchStatus);
-router.get("/status/:id", controller.getRankingStatus);
+// Machine-called routes. publicRoutes.ts records these as "currently
+// unauthenticated and externally triggered", so they carry the service token in
+// observation mode rather than a JWT — nothing is rejected until the rollout
+// reaches stage 2 (config/serviceToken.ts). The token is applied per-route, not
+// at the prefix, because the dashboard routes below authenticate with a JWT and
+// would be rejected by a prefix-wide token check once enforcement is on.
+//
+// Until stage 2 these remain open to anonymous callers. That is a known hole,
+// tracked in the spec and asserted by a characterization test.
+router.post("/trigger", serviceTokenMiddleware, controller.triggerBatchAnalysis);
+router.get(
+  "/batch/:batchId/status",
+  serviceTokenMiddleware,
+  controller.getBatchStatus
+);
+router.get("/status/:id", serviceTokenMiddleware, controller.getRankingStatus);
 
-// Results
-router.get("/results/:id", controller.getRankingResults);
-router.get("/list", controller.listRankings);
-router.get("/accounts", controller.listAccounts);
-router.get("/latest", controller.getLatestRankings);
-router.get("/in-flight", controller.getInFlightRanking);
-router.get("/history", controller.getRankingHistory);
+// Results — read by the client dashboard.
+router.get("/results/:id", ...dashboardRanking, controller.getRankingResults);
+router.get("/list", ...dashboardRanking, controller.listRankings);
+router.get("/accounts", ...dashboardRanking, controller.listAccounts);
+router.get("/latest", ...dashboardRanking, controller.getLatestRankings);
+router.get("/in-flight", ...dashboardRanking, controller.getInFlightRanking);
+router.get("/history", ...dashboardRanking, controller.getRankingHistory);
 
-// Retry
-router.post("/retry/:id", controller.retryRanking);
-router.post("/retry-batch/:batchId", controller.retryBatch);
+// Retry — billable work, triggered from the dashboard.
+router.post("/retry/:id", ...dashboardRanking, controller.retryRanking);
+router.post("/retry-batch/:batchId", ...dashboardRanking, controller.retryBatch);
 
-// Management
-router.delete("/batch/:batchId", controller.deleteBatch);
-router.delete("/:id", controller.deleteRanking);
-router.post("/refresh-competitors", controller.refreshCompetitors);
+// Management — destructive, dashboard-only.
+router.delete("/batch/:batchId", ...dashboardRanking, controller.deleteBatch);
+router.delete("/:id", ...dashboardRanking, controller.deleteRanking);
+router.post(
+  "/refresh-competitors",
+  ...dashboardRanking,
+  controller.refreshCompetitors
+);
 
 // =====================================================================
 // v2 Curated Competitor Lists — gated by auth + RBAC + location scope.

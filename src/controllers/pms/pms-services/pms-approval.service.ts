@@ -11,6 +11,7 @@ import {
 } from "../../../utils/pms/pmsAutomationStatus";
 import { parseResponseLog } from "../pms-utils/pms-normalizer.util";
 import { OrganizationLifecycleService } from "../../../services/OrganizationLifecycleService";
+import { serviceTokenHeader } from "../../../config/serviceToken";
 import logger from "../../../lib/logger";
 
 /**
@@ -157,7 +158,8 @@ export async function approveByClient(jobId: number, clientApproval: boolean) {
             force: true,
             pmsJobId: jobId,
             locationId: updatedJob.location_id,
-          }
+          },
+          { headers: serviceTokenHeader() }
         );
 
         logger.info(

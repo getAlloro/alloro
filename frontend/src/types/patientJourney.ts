@@ -94,9 +94,10 @@ export interface PatientJourneyStageMetadata {
 
 /**
  * One funnel stage. `value: null` + `available: false` => render the honest
- * empty state. `shared: true` marks the website-traffic stages
+ * empty state. `shared: true` marks the org-wide stages
  * (impressions / visits / leads) that, for a multi-location practice, are
- * whole-practice totals (label them "whole-practice website").
+ * whole-practice totals (label them "whole-practice — all locations", NOT
+ * "website": impressions now folds in whole-practice GBP Maps, not just the site).
  */
 export interface PatientJourneyStage {
   key: PatientJourneyStageKey;
@@ -131,8 +132,8 @@ export interface PatientJourneyRevenue {
 
 export interface PatientJourneyRankContext {
   position: number | null;
-  totalCompetitors: number | null;
   available: boolean;
+  notInTop20: boolean;
 }
 
 export interface MemorableCard {

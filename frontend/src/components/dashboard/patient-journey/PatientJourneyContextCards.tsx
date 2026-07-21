@@ -51,12 +51,15 @@ export function PatientJourneyContextCards({
 }: PatientJourneyContextCardsProps) {
   const { rank, reviews } = context;
 
+  // No competitor denominator is rendered: the curated competitor set does not
+  // share a universe with the SerpApi Maps position, so "#N of M" would pair two
+  // different scales. The rank context carries no denominator to pair with.
   const rankStat =
     rank.available && rank.position !== null
-      ? rank.totalCompetitors !== null
-        ? `#${rank.position} of ${rank.totalCompetitors} locally`
-        : `#${rank.position} locally`
-      : "Rank not available yet";
+      ? `#${rank.position} locally`
+      : rank.notInTop20
+        ? "Not in the local top 20 yet"
+        : "Rank not available yet";
 
   // FIX 4: the stored-row count is dropped here so it cannot contradict
   // Google's all-time total (the aggregate lives on exactly one surface, GBP).
@@ -83,7 +86,7 @@ export function PatientJourneyContextCards({
     reviewLines.push("Connect your Google Business Profile to track reviews");
   }
 
-  const rankLines: string[] = rank.available
+  const rankLines: string[] = rank.available || rank.notInTop20
     ? ["Your local search standing"]
     : ["Run a ranking to see where you stand"];
 

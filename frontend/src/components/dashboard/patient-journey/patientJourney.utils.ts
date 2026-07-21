@@ -143,7 +143,9 @@ export function stageGateLabel(stage: PatientJourneyStage): string {
 export function stageGateSubtext(stage: PatientJourneyStage): string {
   switch (stage.key) {
     case "impressions":
-      return "Google search impressions";
+      // Search Console organic + Business Profile Maps, folded together — the
+      // subtext must not say "search" only (it under-describes the number).
+      return "How often you showed up on Google";
     case "visits":
       return stage.metadata?.rybbit
         ? "Rybbit website visitors"
@@ -161,7 +163,11 @@ export function stageGateSubtext(stage: PatientJourneyStage): string {
  * Friendly arrow caption for a conversion, keyed by the stage it flows INTO.
  */
 const STEP_CAPTIONS: Record<string, string> = {
-  visits: "Clicked through",
+  // The impressions→visits step's denominator now folds in GBP Maps impressions
+  // (whole-practice), and a Maps appearance has no "click" — so "Clicked
+  // through" would falsely claim a click-through rate over a universe that
+  // includes clickless Maps impressions. Describe the transition neutrally.
+  visits: "Visited the site",
   leads: "Converted",
   patients: "Became patients",
 };
