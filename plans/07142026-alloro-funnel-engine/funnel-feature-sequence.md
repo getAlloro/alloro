@@ -1,5 +1,5 @@
-> # ⛔ RETIRED 2026-07-21 — capability state now lives in `docs/capability-ledger.md`.
-> This file's build-state is superseded by the single Capability Ledger (grounded + dated, one row per capability). Do not update build-state here; kept for history only. → **`docs/capability-ledger.md`**
+> # ⛔ CANONICAL END-TO-END FUNNEL PLAN (A–E, staged). NOT retired.
+> **Two complementary views, both live:** this file = the **staged BUILD PLAN** (A Get Found → B Get Considered → C Get Chosen → D Cohesion → E Measurement/Moat; build order, per-feature DoD, reuse analysis). `docs/capability-ledger.md` = the **current build-STATE** (one row per capability). Update *state* in the ledger; update the *plan/sequence* here. Gap reconciliation (2026-07-21, 9-analysis) draft: `gap-reconciliation-2026-07-21.md`. *(An earlier 2026-07-21 banner wrongly marked this "retired" in favor of the ledger — corrected: the ledger is state, this is the plan; neither replaces the other.)*
 >
 > ---
 >
