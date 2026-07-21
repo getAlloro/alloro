@@ -9,7 +9,7 @@
 |---|---|---|---|
 | 1 | No dev-to-prod promotion path; merged fix (#155) undeliverable since 2026-07-17, pending promotion path | Open; this week's Dave conversation | Corey + Dave |
 | 2 | Zero-Maps: Get Found number cannot move; confirm query posted to #192 | Awaiting Dave's DB run or next daily via #192 | Dave |
-| 3 | Tenant scoping: 5 routes pending tenant-scoping verification; list held off-repo per AGENTS.md | Carded for batch N+1 | CC |
+| 3 | Authorization verification: batch planned; details off-repo per AGENTS.md | Carded for batch N+1 | CC |
 | 4 | Stale-data guard, 35-day threshold (Decision 3, ruled 2026-07-20) | Carded for batch N+1 | CC |
 | 5 | Delivery channel (Monday/Friday emails, owner briefs) paused; all client felt-value gated on it | Batch N+1 centerpiece; coordinate with Jo | Corey + CC + Jo |
 | 6 | PR legibility: five-field template + CI section check | PR open (this PR) | CC |
@@ -18,7 +18,7 @@
 | 9 | org 47 has no locations rows; open since 2026-05-04 | Flagged | Jo |
 | 10 | Onboarding org: GBP connect gates activation, monitoring, and launch sequence | Follow-up with date attached | Jo |
 | 11 | Sikka OneAPI licensing (per-practice vs per-agency); touches review-request + referral data path | Uncarded, asked 2026-07-17 | Dave |
-| 12 | Rate limiter is per-process under PM2; a cluster-wide cap needs a shared (Redis) store | Ticketed, uncarded | Dave |
+| 12 | Rate limiter: planned upgrade to cluster-wide enforcement | Ticketed, uncarded | Dave |
 | 13 | #176 responder redesign (owner toggle, owner picks reply, default off): spec unwritten | Unwritten | Corey + CC |
 | 14 | Extra-categories per-vertical lists (endo, ortho) for Decision 1 | CC proposes, Corey signs off | Corey |
 | 15 | Coverage-map + plan artifacts live in chat, not repo/Notion; agents cannot read them at runtime | Deferred until current queue clears | CC |
