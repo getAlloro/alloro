@@ -16,20 +16,21 @@ A dominant, already-complete practice can't demonstrate competitive lift. So:
 - **Garrison / South Orange** — brand-new location, climbing from zero (the same play Woodbridge is already running).
 - **org 39 overall is the wrong proof site** — it's #1 in four of five locations and fully complete; hygiene levers can't show lift there.
 
-### Saif vs Dominion — two live hypotheses (do not assert until Dave's query returns)
-The rival Saif (One Endo) cares about is **Dominion Endodontics**. There are two hypotheses about that fight, and Dave's Woodbridge competitor query resolves only the first:
-- **A — it's a map fight:** Dominion is in the tracked local-pack set and we can measure position. *Dave's query answers this.*
-- **B — it's a referral-share fight, not a map fight:** the contest is over which referring dentists send patients where — **Reflect's / the Referrals Hub's domain, fed by the Sikka DentalEMR bridge** — and local-pack rank is beside the point. *Dave's query does NOT resolve this.*
+### Saif vs Dominion — RESOLVED to hypothesis B (2026-07-21, Dave's prod query)
+The rival Saif (One Endo) cares about is **Dominion Endodontics**. Dave's prod query returned: **Dominion is NOT in Woodbridge's tracked competitor set — not in the top 20.** One Endo Woodbridge sits #4 of 20 (prod), 0 reviews (brand-new listing).
+- **A — map fight: FALSE.** The defining rival is invisible to the local-pack instrument — see ledger H3.
+- **B — referral-share fight: the live read.** The contest is over which referring dentists send patients where — **Reflect's / the Referrals Hub's domain, fed by the Sikka DentalEMR bridge** — not the local pack. *B is now the working hypothesis; confirm it in the referral data, don't yet assert it.*
 
-**Rule:** no Saif-facing narrative asserts Dominion's location or rank until the query returns. (An earlier inference that Dominion sits in Woodbridge's set was unconfirmed and is **withdrawn** — Deming: don't state what isn't measured.)
+**Rule (still in force):** no Saif-facing narrative asserts Dominion's map rank — because it has none in our instrument. (The earlier "Dominion sits in Woodbridge's set" inference is **withdrawn and now disproven** — Deming: don't state what isn't measured.)
 
-## Four lanes, four clocks
+## Five lanes, five clocks
 | Lane | Moves | Clock |
 |---|---|---|
 | **1. Local pack** (GBP: category, reviews, activity) | Impressions | **Now** — current batch (cash items) |
 | **2. Reviews / prominence** | Impressions (prominence) | **With Lane 1** — strongest form is Sikka-gated |
 | **3. CTR** (page titles on hosted sites) | CTR | **Next**, after cash items |
-| **4. Organic + AEO** (GSC→content, FAQ/schema) | Impressions | **After CTR** |
+| **4. Organic + AEO** (GSC→content, FAQ/schema, AI-bot access) | Impressions / AI answers | **After CTR** |
+| **5. AI-source presence** (off-Google citations) | AI recommendations | **Build-ahead** — cheap, uncontested; deferred from the July-31 impressions win |
 | _Backlinks beyond citations_ | _authority_ | **Deferred on purpose** |
 
 Every Turn: **the lever · what fires it · which number · how Dave checks it moved without reading code.**
@@ -91,17 +92,39 @@ Same impressions, more clicks: a sharper title/description earns the click. Move
 ---
 
 ## LANE 4 — Organic + AEO · clock: AFTER CTR
+### Turn 0 — Let the AI bots in (robots.txt) *(gates everything AI on hosted sites)*
+- **Lever:** on each hosted client site, allow the AI answer-crawlers in `robots.txt`: **OAI-SearchBot, GPTBot, PerplexityBot, ClaudeBot**.
+- **What fires it:** a ~5-minute per-site check + edit — we host the sites.
+- **Number:** AI-answer visibility (a silent block zeroes it regardless of everything else).
+- **Dave checks:** each hosted site's `robots.txt` does not disallow those agents.
+- **State: FROM-SCRATCH audit** — most agencies never run it; cheap and load-bearing.
+
 ### Turn 1 — Revive the GSC→content loop — ledger **GF7**
 - **Lever:** publish pages answering the practice's real Google demand.
 - **Number:** impressions (organic).
 - **Dave checks:** new pages for real search terms exist; impressions for more queries climb.
 - **State: SHIPPED — verify it still runs** ("A1's shipped GSC→content loop"; confirm the schedule, don't rebuild).
 
-### Turn 2 — FAQ / schema per playbook v4 — ledger **GF8**
-- **Lever:** add FAQ + JSON-LD blocks to hosted pages so AI answers pick them up.
-- **Number:** AI-answer visibility.
-- **Dave checks:** page carries FAQ + schema; `hasFaqSchema` flips true.
-- **State: PARTLY BUILT** (audit detects; JSON-LD insert+verify exists). Build = apply systematically.
+### Turn 2 — FAQ / schema + citation-worthiness per playbook v4 — ledger **GF8**
+- **Lever:** add FAQ + JSON-LD blocks **and make pages citation-worthy** — natural-language URL slugs (an ~8-point citation swing in Ahrefs' 1.4M-prompt study), quotable specific facts over marketing prose, schema.
+- **Why both:** *retrieval is not citation.* AI fetches many pages and cites few — schema gets you read; extractable specifics get you *quoted*.
+- **Number:** AI-answer visibility (citations, not just retrieval).
+- **Dave checks:** page carries FAQ + schema (`hasFaqSchema` true) and has clean slugs + quotable facts.
+- **State: PARTLY BUILT** (audit detects; JSON-LD insert+verify exists). Build = apply systematically + add the citation-worthiness items.
+
+---
+
+## LANE 5 — AI-source presence (off-Google citations) · clock: BUILD-AHEAD
+**The big gap this map missed: AI recommendations run on a different data stack than Google, and Lanes 1–4 only feed Google's.** ChatGPT's local answers draw on Bing / Bing Places, Foursquare (~70% of ChatGPT local results in one study), Apple Maps, Yelp, and third-party mentions — **not** your Google Business Profile. So off-Google citations aren't hygiene here; they're **load-bearing** for AI answers.
+
+### Turn 1 — Claim + NAP-lock the off-Google sources
+- **Lever:** claim and NAP-lock **Bing Places, Apple Business Connect, Yelp, Foursquare**, and the healthcare directories (Healthgrades-class) per client.
+- **What fires it:** hours of one-time done-for-you setup per account — the drudgery no doctor will do themselves.
+- **Number:** AI recommendations (a *different* surface than impressions).
+- **Dave checks:** each source lists the client, claimed and NAP-consistent.
+- **State: FROM-SCRATCH.**
+
+**Why build-ahead, not now:** only ~**1.2%** of local businesses get AI-recommended (ChatGPT) vs **35.9%** in Google's 3-pack, with only ~**45% overlap** between the two — a distinct, uncontested surface. Cheap and mostly one-time. It does **not** serve the July-31 impressions win (see calibration); it's the early-GBP-adopter play for the next surface.
 
 ---
 
@@ -109,6 +132,14 @@ Same impressions, more clicks: a sharper title/description earns the click. Move
 Out of scope on purpose: slow, partly outside our control, doesn't fit the draft→approve→publish loop. Revisit only after the four lanes prove they move numbers.
 
 ---
+
+## Measurement / verify — the AI surface (as ruled)
+- **Per-location AI-answer accuracy audit:** does ChatGPT / Perplexity state the practice's facts correctly, and does it *recommend* (not just cite) it? Track wrong-fact detection + the citations-vs-recommendations distinction.
+- **AI-referral capture:** CallRail AI-source data + confirm **#156 records AI referrers**, so AI-driven visits/calls are visible when they arrive.
+- **LSA / PMax flag:** a one-line client flag if anyone runs Local Services Ads, re the **Aug 2026 PMax migration**.
+
+## Honesty calibration — build the presence now, promise nothing yet
+The SEO-industry "AI is ~45% of local discovery" numbers are **vendor-inflated.** The hardest datum in the pile is CallRail's: **AI-driven calls are ~0.115% of inbound today**, growing 58% in eight months. Posture is neither panic nor dismissal: **make the cheap structural moves now while uncontested** (how early GBP adopters won the last decade), **instrument the measurement**, and **never promise a client AI traffic today.** That's our register — small verified claims. *(Calendar: SEJ AI Visibility Masterclass webinar is July 30 — worth the hour for whoever owns the verify column.)*
 
 ## The honest bottom line for Dave
 - **Get Found = out-compete, not complete.** Category + reviews + activity climb; NAP is the floor.
