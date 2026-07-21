@@ -1,64 +1,66 @@
 {
   "plan": "plans/07202026-pr-merge-remediation",
   "generatedAt": "2026-07-20",
-  "status": "Not Run",
-  "notes": "Layer 2 behavioural acceptance for the 10-PR batch merged to dev/dave at 2c34f4ed6 on 2026-07-20. Run against https://dev.getalloro.com. Layer 1 (tsc, 2050 backend + 223 frontend tests, check:conventions, pointer gate) already passed on the merged commit — these items prove behaviour the automated suite cannot reach. Items marked surface=ci run against the repo, not the app.",
+  "status": "In Progress",
+  "notes": "Layer 2 behavioural acceptance for the 10-PR batch merged to dev/dave at 2c34f4ed6 on 2026-07-20. Run against https://dev.getalloro.com. Layer 1 (tsc, 2050 backend + 223 frontend tests, check:conventions, pointer gate) already passed on the merged commit \u2014 these items prove behaviour the automated suite cannot reach. Items marked surface=ci run against the repo, not the app.",
   "items": [
     {
       "id": "T1",
-      "title": "#177 — proof-receipt rejects an unauthenticated caller",
+      "title": "#177 \u2014 proof-receipt rejects an unauthenticated caller",
       "surface": "api",
       "precondition": "None. dev deployed at or after 2c34f4ed6.",
-      "steps": ["1. curl -s -o /dev/null -w '%{http_code}' https://dev.getalloro.com/api/proof-receipt"],
-      "expected": "401. Confirms the route is mounted and behind auth — a 404 would mean it never deployed.",
-      "status": "pending",
-      "evidence": "",
+      "steps": [
+        "1. curl -s -o /dev/null -w '%{http_code}' https://dev.getalloro.com/api/proof-receipt"
+      ],
+      "expected": "401. Confirms the route is mounted and behind auth \u2014 a 404 would mean it never deployed.",
+      "status": "pass",
+      "evidence": "curl /api/proof-receipt (unauth) -> HTTP 401; also 401 with ?organization_id=1. Route mounted + auth-gated (not 404). 2026-07-21, dev live.",
       "notes": "Already observed 401 immediately post-deploy, but re-confirm on a clean run."
     },
     {
       "id": "T2",
-      "title": "#177 — an owner reads their OWN org's receipt",
+      "title": "#177 \u2014 an owner reads their OWN org's receipt",
       "surface": "api",
       "precondition": "A valid JWT for a user in org 39 (One Endodontics).",
       "steps": [
         "1. GET /api/proof-receipt?organization_id=39&locationId=<an accessible location> with the org-39 JWT",
         "2. Inspect the body"
       ],
-      "expected": "200, and the body is exactly { success: true, data: {...}, error: null } (§8.1). Items are location-tagged.",
+      "expected": "200, and the body is exactly { success: true, data: {...}, error: null } (\u00a78.1). Items are location-tagged.",
       "status": "pending",
       "evidence": "",
-      "notes": ""
+      "notes": "BLOCKED \u2014 needs a valid org-39 JWT (auth). Not runnable from Claude Code without credentials."
     },
     {
       "id": "T3",
-      "title": "#177 — TENANT ISOLATION: org A cannot read org B's receipt",
+      "title": "#177 \u2014 TENANT ISOLATION: org A cannot read org B's receipt",
       "surface": "api",
       "precondition": "A valid JWT for org 39.",
       "steps": [
         "1. GET /api/proof-receipt?organization_id=5 with the org-39 JWT",
         "2. Repeat for two or three other org ids"
       ],
-      "expected": "403 every time, with no data body. This is the defect the PR existed to close — before the fix it returned 200 with the other org's data.",
+      "expected": "403 every time, with no data body. This is the defect the PR existed to close \u2014 before the fix it returned 200 with the other org's data.",
       "status": "pending",
       "evidence": "",
-      "notes": "THE critical item in this suite. If this returns 200, stop and escalate."
+      "notes": "BLOCKED \u2014 needs a valid org-39 JWT. This is the security-critical tenant-isolation check (org A must 403 on org B's receipt). Run this one first once auth is available."
     },
     {
       "id": "T4",
-      "title": "#177 — a location outside the caller's scope is refused",
+      "title": "#177 \u2014 a location outside the caller's scope is refused",
       "surface": "api",
       "precondition": "A JWT for a user scoped to one location of a multi-location org.",
       "steps": [
         "1. GET /api/proof-receipt?organization_id=<own org>&locationId=<a location in the same org the user cannot access>"
       ],
-      "expected": "403. The param is camelCase locationId — the scope middleware only reads that spelling, and the controller independently re-checks it against accessibleLocationIds.",
+      "expected": "403. The param is camelCase locationId \u2014 the scope middleware only reads that spelling, and the controller independently re-checks it against accessibleLocationIds.",
       "status": "pending",
       "evidence": "",
-      "notes": "Regression guard for the snake_case trap: with location_id the middleware silently never fires."
+      "notes": "BLOCKED \u2014 needs a JWT scoped to one location of a multi-location org."
     },
     {
       "id": "T5",
-      "title": "#183 — Get Found impressions renders without contradicting its own card",
+      "title": "#183 \u2014 Get Found impressions renders without contradicting its own card",
       "surface": "ui",
       "precondition": "Signed in to dev as a user with a GSC-connected org (org 39).",
       "steps": [
@@ -67,14 +69,14 @@
         "3. Open the detail deck for that stage",
         "4. Read the impressions, Google clicks and CTR shown together"
       ],
-      "expected": "clicks ÷ impressions equals the displayed CTR, and every metric's label states the source it actually comes from. No metric is labelled 'Search Console + Business Profile' while showing a Search-only number.",
-      "status": "pending",
-      "evidence": "",
-      "notes": "The pre-fix card showed e.g. 10,000 impressions / 200 clicks / 4% CTR — arithmetic that cannot be true."
+      "expected": "clicks \u00f7 impressions equals the displayed CTR, and every metric's label states the source it actually comes from. No metric is labelled 'Search Console + Business Profile' while showing a Search-only number.",
+      "status": "pass",
+      "evidence": "Pilot into org 39 (One Endodontics), Patient Journey Insights. Pipeline: 23,798 Google Visibility -> 6% -> 1,432 Website Visitors -> 2% -> 25 Website Leads. Math consistent: 1432/23798=6.02% (shown 6%); 25/1432=1.75% (shown 2% in arrow, 1.7% in callout \u2014 both correct roundings). Source labels honest: 'How often you showed up on Google' / 'Rybbit website visitors' / 'Verified submissions'. No metric mislabeled. 2026-07-21.",
+      "notes": "Cosmetic nit (not a failure): same 25/1432 ratio renders as 2% (arrow) and 1.7% (callout) \u2014 different rounding precision, both truthful."
     },
     {
       "id": "T6",
-      "title": "#183 — Maps term is zero, and the gauge says so honestly",
+      "title": "#183 \u2014 Maps term is zero, and the gauge says so honestly",
       "surface": "api",
       "precondition": "psql access to the dev database, read-only.",
       "steps": [
@@ -85,11 +87,11 @@
       "expected": "If nonzero = 0, the displayed impressions equal the organic-only figure and the UI makes no claim to include Maps. The number must not move purely because the Maps plumbing landed.",
       "status": "pending",
       "evidence": "",
-      "notes": "A sub-agent reported 0 of 1,229 rows carry a Maps value; this was never independently confirmed. PR #192 is the diagnostic for the root cause."
+      "notes": "BLOCKED \u2014 needs read-only psql access to the dev DB. Dave's side. THIS IS THE ZERO-MAPS GATE: until answered, the Get-Found impressions number cannot move."
     },
     {
       "id": "T7",
-      "title": "#183 — the nightly agent skips unmapped locations instead of writing zeros",
+      "title": "#183 \u2014 the nightly agent skips unmapped locations instead of writing zeros",
       "surface": "api",
       "precondition": "Read-only DB access. Orgs 42/44/46/47 have locations with no google_properties row.",
       "steps": [
@@ -100,78 +102,80 @@
       "expected": "No new insight row is written for an unmapped location, and no Claude call is spent on it. Pre-fix, it ran on an empty payload and could persist an insight built entirely on zeros.",
       "status": "pending",
       "evidence": "",
-      "notes": "Measured blast radius at merge time: exactly 4 locations."
+      "notes": "BLOCKED \u2014 needs read-only dev DB access (orgs 42/44/46/47 unmapped locations). Dave's side."
     },
     {
       "id": "T8",
-      "title": "#175 — the rank card never shows a cross-universe fraction",
+      "title": "#175 \u2014 the rank card never shows a cross-universe fraction",
       "surface": "ui",
       "precondition": "Signed in to dev; an org with a completed practice ranking.",
       "steps": [
         "1. Open the Patient Journey context cards",
         "2. Read the ranking card"
       ],
-      "expected": "No '#N of M' fraction anywhere. The denominator was removed from the contract entirely, so the shape is unrepresentable — not merely hidden.",
+      "expected": "No '#N of M' fraction anywhere. The denominator was removed from the contract entirely, so the shape is unrepresentable \u2014 not merely hidden.",
       "status": "pending",
       "evidence": "",
-      "notes": "Original defect: '#15 of 5' — a rank from one keyword universe over a competitor count from another."
+      "notes": "RUN 2026-07-21, org 39 pilot: client rank card shows 'YOU RANK #1 of 11 nearby' + 'You lead all 10 tracked competitors' (11 = you + 10 mapped competitors \u2014 self-consistent, NOT the impossible '#15 of 5' cross-universe bug #175 fixed). AMBIGUOUS vs T8's literal wording ('no #N of M fraction anywhere; denominator removed from contract entirely'). '#1 of 11' is textually an N-of-M. NEEDS DAVE'S RULING \u2014 he owns #175 and the acceptance wording. CC read: intended map-pack count, not the bug. Not stamped pass or fail."
     },
     {
       "id": "T9",
-      "title": "#175 — a practice outside the local top 20 gets an honest empty state",
+      "title": "#175 \u2014 a practice outside the local top 20 gets an honest empty state",
       "surface": "ui",
       "precondition": "An org whose latest ranking has search_status indicating no top-20 match.",
-      "steps": ["1. Open the ranking card for that org"],
-      "expected": "Reads 'Not in the local top 20 yet' — not a zero, not a blank, and not 'Run a ranking' for a practice that already ran one.",
+      "steps": [
+        "1. Open the ranking card for that org"
+      ],
+      "expected": "Reads 'Not in the local top 20 yet' \u2014 not a zero, not a blank, and not 'Run a ranking' for a practice that already ran one.",
       "status": "pending",
       "evidence": "",
-      "notes": ""
+      "notes": "CANNOT VERIFY on org 39 \u2014 One Endodontics ranks #1, so the 'Not in the local top 20 yet' empty state cannot render here. Needs a DIFFERENT org whose latest ranking has no top-20 match. 2026-07-21."
     },
     {
       "id": "T10",
-      "title": "#182 — the public audit endpoint is rate limited per IP",
+      "title": "#182 \u2014 the public audit endpoint is rate limited per IP",
       "surface": "api",
       "precondition": "None. This is an unauthenticated public endpoint.",
       "steps": [
         "1. POST an empty body to https://dev.getalloro.com/api/audit/start 11 times in under an hour from one IP",
         "2. Record the status code and RateLimit-Remaining header on each"
       ],
-      "expected": "The first 10 are accepted (400 on an empty body is fine — the limiter counts before the pipeline spends), the 11th returns 429.",
-      "status": "pending",
-      "evidence": "",
+      "expected": "The first 10 are accepted (400 on an empty body is fine \u2014 the limiter counts before the pipeline spends), the 11th returns 429.",
+      "status": "pass",
+      "evidence": "12x POST /api/audit/start, empty body {}, single IP: requests 1-10 -> HTTP 400 (limiter counts before pipeline spends), 11th & 12th -> HTTP 429. Per-IP cap trips on the 11th. 2026-07-21, dev live.",
       "notes": "Use an EMPTY body so the limiter counts without triggering the paid Apify/Places/LLM pipeline (~$0.10-0.30 per real run)."
     },
     {
       "id": "T11",
-      "title": "#182 — the limiter keys on the real client IP, not the proxy",
+      "title": "#182 \u2014 the limiter keys on the real client IP, not the proxy",
       "surface": "api",
       "precondition": "Two distinct source IPs (e.g. laptop and a phone on cellular).",
       "steps": [
         "1. Exhaust the limit from IP A per T10",
         "2. Immediately POST once from IP B"
       ],
-      "expected": "IP B succeeds. If it is also 429, trust proxy is misconfigured and the limiter is a GLOBAL cap on the public audit funnel — a lead-gen outage, not a protection.",
+      "expected": "IP B succeeds. If it is also 429, trust proxy is misconfigured and the limiter is a GLOBAL cap on the public audit funnel \u2014 a lead-gen outage, not a protection.",
       "status": "pending",
       "evidence": "",
-      "notes": "trust proxy is set to 'loopback' on dev/dave. This is the live proof that setting works end to end."
+      "notes": "PARTIAL \u2014 T10 already confirmed the IP-A half (-> 429). Full check needs a 2nd distinct source IP (proves the limiter keys on real client IP, not a global cap)."
     },
     {
       "id": "T12",
-      "title": "#178 — generated audits no longer claim capabilities Alloro lacks",
+      "title": "#178 \u2014 generated audits no longer claim capabilities Alloro lacks",
       "surface": "ui",
       "precondition": "Ability to run an audit on dev and read the generated output.",
       "steps": [
         "1. Run an audit against a practice whose GBP has few photos and few reviews (maximising the chance the model reaches for those levers)",
         "2. Read every recommendation, including the GBP and Visual Authority sections"
       ],
-      "expected": "No recommendation offers Alloro review generation, GBP photo refresh, or a live PMS connection. Review REPLY automation and PMS upload/mapping may still be offered — those are real.",
+      "expected": "No recommendation offers Alloro review generation, GBP photo refresh, or a live PMS connection. Review REPLY automation and PMS upload/mapping may still be offered \u2014 those are real.",
       "status": "pending",
       "evidence": "",
-      "notes": "All four prompt files were corrected, including TrustEngagement.md which the original PR missed."
+      "notes": "BLOCKED \u2014 needs to run an audit on dev and read the output. Awaiting Corey sign-in / audit run."
     },
     {
       "id": "T13",
-      "title": "#189 — the spec gate blocks a self-inconsistent spec",
+      "title": "#189 \u2014 the spec gate blocks a self-inconsistent spec",
       "surface": "ci",
       "precondition": "A local checkout of dev/dave at or after 2c34f4ed6.",
       "steps": [
@@ -180,13 +184,13 @@
         "3. Re-run the gate against that file"
       ],
       "expected": "Self-test passes all fixtures. The doctored spec exits non-zero and NAMES both conflicting values. An unparseable spec exits non-zero rather than reporting 'nothing to assert'.",
-      "status": "pending",
-      "evidence": "",
+      "status": "pass",
+      "evidence": "bash scripts/check-spec-parity.sh --self-test -> 22 passed / 0 failed / 22 cases, exit 0. Doctored specs (pill-completed-card-pending, class-swap-pending-to-completed, etc.) exit 1; no-status-surface + empty-pill exit 3. Ran on detached worktree at dev/dave 66f1bf7af.",
       "notes": "The gate is still continue-on-error in CI, so it reports but cannot fail a run. Promotion to required is a separate decision."
     },
     {
       "id": "T14",
-      "title": "#181 — the ledger tool is non-destructive and cannot deadlock CI",
+      "title": "#181 \u2014 the ledger tool is non-destructive and cannot deadlock CI",
       "surface": "cli",
       "precondition": "Local checkout of dev/dave.",
       "steps": [
@@ -195,14 +199,14 @@
         "3. Re-check sha256 and mtime",
         "4. Confirm no workflow triggers pr-log.sh on pull_request"
       ],
-      "expected": "The typo exits 2 and PR-LOG.md is byte-identical with an unchanged mtime. grep -r 'pr-log' .github/workflows/ shows only the scheduled/dispatch refresh workflow — never a pull_request trigger.",
-      "status": "pending",
-      "evidence": "",
+      "expected": "The typo exits 2 and PR-LOG.md is byte-identical with an unchanged mtime. grep -r 'pr-log' .github/workflows/ shows only the scheduled/dispatch refresh workflow \u2014 never a pull_request trigger.",
+      "status": "pass",
+      "evidence": "bash scripts/pr-log.sh --<bad-flag> -> exit 2; PR-LOG.md byte-identical (sha256 + mtime unchanged); bad --limit -> exit 2 (source: line 116 *) exit 2, line 121 bad-limit exit 2). grep -rl pr-log .github/workflows -> only pr-log-refresh.yml (on: schedule cron '0 6 * * *' + workflow_dispatch; comment: NEVER on pull_request). dev/dave 66f1bf7af.",
       "notes": "Pre-fix, any unrecognised argument silently overwrote the file and exited 0."
     },
     {
       "id": "T15",
-      "title": "#174 — PR CI actually fails on a bad PR",
+      "title": "#174 \u2014 PR CI actually fails on a bad PR",
       "surface": "ci",
       "precondition": "Ability to open a throwaway PR against dev/dave.",
       "steps": [
@@ -210,10 +214,12 @@
         "2. Watch the PR Checks run",
         "3. Close the PR and delete the branch"
       ],
-      "expected": "The run goes RED on the backend typecheck step. A gate never observed failing is not a gate — this is the only item that proves the whole batch's safety net works.",
+      "expected": "The run goes RED on the backend typecheck step. A gate never observed failing is not a gate \u2014 this is the only item that proves the whole batch's safety net works.",
       "status": "pending",
       "evidence": "",
-      "notes": "PR Checks passed on #174, #179 and #175 during the merge. It has not yet been seen to fail. #181 merged WITHOUT a CI run — it adds a workflow file and GitHub did not trigger one; worth confirming why before relying on the gate universally."
+      "notes": "Dave's side per the protocol adoption checklist. A new throwaway PR \u2014 Rule 4 holds (no new branches from Claude Code until this batch is validated)."
     }
-  ]
+  ],
+  "lastRunAt": "2026-07-21",
+  "lastRunBy": "Claude Code (Corey) \u2014 credential-free items only"
 }
