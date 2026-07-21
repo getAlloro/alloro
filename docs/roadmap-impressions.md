@@ -12,9 +12,16 @@ One real customer's **impressions go measurably up by end of month**, because of
 ## Proof customers — pick sites with room to CLIMB, not a winner
 A dominant, already-complete practice can't demonstrate competitive lift. So:
 - **org 8 (Artful Orthodontics)** — a contested market to climb.
-- **org 39 / Woodbridge location** — One Endo ranks **#11 of 11 (last)** here for "endodontist" (verified; the client dashboard hides it — ledger row H1). A genuinely contested site *inside* an otherwise-winning account.
-- **Garrison / South Orange** — brand-new location, climbing from zero.
+- **org 39 / Woodbridge location** — a **brand-new location climbing from zero**. #11 of 11 is the *expected* starting state, not a scandal — an honest "from-zero" chart that goes up. It's the running precedent for the Garrison South Orange play below (same story). The client dashboard omits it (ledger H1) — that's the instrument defect, not a comment on Woodbridge's rank.
+- **Garrison / South Orange** — brand-new location, climbing from zero (the same play Woodbridge is already running).
 - **org 39 overall is the wrong proof site** — it's #1 in four of five locations and fully complete; hygiene levers can't show lift there.
+
+### Saif vs Dominion — two live hypotheses (do not assert until Dave's query returns)
+The rival Saif (One Endo) cares about is **Dominion Endodontics**. There are two hypotheses about that fight, and Dave's Woodbridge competitor query resolves only the first:
+- **A — it's a map fight:** Dominion is in the tracked local-pack set and we can measure position. *Dave's query answers this.*
+- **B — it's a referral-share fight, not a map fight:** the contest is over which referring dentists send patients where — **Reflect's / the Referrals Hub's domain, fed by the Sikka DentalEMR bridge** — and local-pack rank is beside the point. *Dave's query does NOT resolve this.*
+
+**Rule:** no Saif-facing narrative asserts Dominion's location or rank until the query returns. (An earlier inference that Dominion sits in Woodbridge's set was unconfirmed and is **withdrawn** — Deming: don't state what isn't measured.)
 
 ## Four lanes, four clocks
 | Lane | Moves | Clock |
