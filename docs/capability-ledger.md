@@ -40,7 +40,7 @@
 
 | # | Capability | Moves | State | Where you see it | Lives (receipt) |
 |---|---|---|---|---|---|
-| GF1 | **Impressions gauge** (Google Visibility) | Impressions | **BLOCKED** — reads 0 (zero-Maps) | Patient Journey Insights | `service.daily-agent-processor` / `dateHelpers`; #192 diagnostic merged; Dave's DB query + offset fix pending |
+| GF1 | **Impressions gauge** (Google Visibility) | Impressions | **BLOCKED** — reads 0 (zero-Maps) | Patient Journey Insights | `service.daily-agent-processor` / `dateHelpers`; #192 diagnostic merged. **Not a one-day lag: Dave's local prod-clone check (07-20) found the Maps term = 0 in ALL 1,229 daily rows, across 7 orgs / 9 months.** So #183 (merged to prod) can't move the gauge until the source defect is fixed + backfilled. Root-cause + backfill is Dave's; #192 confirms cause on the next daily run after deploy. **This is the top-of-funnel blocker to the July-31 mission.** |
 | GF2 | **GBP primary category** (specialty, most-specific) — strongest lever | Impressions | **BUILT–NOT-WIRED** | (would be) GBP Automation | `gbpCategoryTaxonomy.ts` (#193) imported only by its own services; no running caller |
 | GF3 | **GBP completeness fill — website URL** | Impressions (≈no-op) | **LIVE** | GBP Automation drafts | `gbpCompletenessFill.ts:106` — only field it fills; profiles already have websites |
 | GF4 | **GBP completeness fill — phone / hours** | Impressions | **FROM-SCRATCH** | — | `gbpCompletenessFill.ts:115` empty stubs; comment L20 "no-value-source" |
