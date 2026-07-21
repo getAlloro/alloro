@@ -1,0 +1,67 @@
+{
+  "plan": "plans/07202026-category-value-source",
+  "generatedAt": "2026-07-20",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "T1",
+      "title": "TypeScript compiles clean",
+      "surface": "cli",
+      "precondition": "npm ci on Node 22 in the worktree",
+      "steps": ["1. cd worktree", "2. npx tsc --noEmit"],
+      "expected": "Exit code 0, no type errors",
+      "status": "pass",
+      "evidence": "TSC_EXIT=0",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Better category yields a draft-status A6 business_info work item with the category patch",
+      "surface": "cli",
+      "precondition": "unit test with GbpBusinessInfoDraftService.createDraft real; settings enabled + Google ready mocked",
+      "steps": ["1. npx vitest run src/__tests__/gbp-category-value-source.test.ts"],
+      "expected": "Model create called once with content_type=business_info, status=draft, business_info_payload.patch.categories.primaryCategory set, updateMask=[categories]",
+      "status": "pass",
+      "evidence": "8 passed (8) — incl. 'with the master switch on and Google ready, stages a draft-status item'",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "No better category proposes nothing (never a manufactured change)",
+      "surface": "cli",
+      "precondition": "resolver + orchestrator unit tests",
+      "steps": ["1. npx vitest run src/__tests__/gbp-category-value-source.test.ts"],
+      "expected": "recommendPrimaryCategory returns null and proposeCategoryDraft returns {proposed:false}; createDraft not called",
+      "status": "pass",
+      "evidence": "'proposes nothing when no specialty signal' + 'stages nothing when there is no better category' pass",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T4",
+      "title": "Write is unbypassable — master switch off blocks staging before any work item is created",
+      "surface": "cli",
+      "precondition": "real createDraft; only GbpAutomationSettingsModel.findEffectiveForLocation stubbed OFF",
+      "steps": ["1. npx vitest run src/__tests__/gbp-category-value-source.test.ts"],
+      "expected": "proposeCategoryDraft rejects with BUSINESS_INFO_WRITEBACK_DISABLED; GbpWorkItemModel.create never called; readiness never consulted",
+      "status": "pass",
+      "evidence": "'throws BUSINESS_INFO_WRITEBACK_DISABLED and creates no work item when the master switch is off' passes",
+      "notes": "Owner-approval gate is a separate transition (status stays draft); no code path in the new files imports a Google write. Live Google write itself is unverified here (no credentials — Dave's runtime gate).",
+      "waiver": ""
+    },
+    {
+      "id": "T5",
+      "title": "No new backend Constitution violations",
+      "surface": "cli",
+      "precondition": "worktree",
+      "steps": ["1. npm run check:conventions --strict"],
+      "expected": "Exit 0; 0 clear structural backend violations",
+      "status": "pass",
+      "evidence": "CHECK_EXIT=0; 'CLEAR structural violations — backend (size + console + db): 0'",
+      "notes": "",
+      "waiver": ""
+    }
+  ]
+}
