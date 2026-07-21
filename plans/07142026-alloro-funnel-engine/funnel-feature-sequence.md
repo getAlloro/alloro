@@ -1,3 +1,8 @@
+> # ⛔ RETIRED 2026-07-21 — capability state now lives in `docs/capability-ledger.md`.
+> This file's build-state is superseded by the single Capability Ledger (grounded + dated, one row per capability). Do not update build-state here; kept for history only. → **`docs/capability-ledger.md`**
+>
+> ---
+>
 > ## ⛔ START HERE — THE FUNNEL IS STAKED. THIS FILE IS A BUILD LIST, NOT THE MAP.
 >
 > **You probably landed here from `grep funnel`. This file will not tell you what the funnel is.** A fresh agent that stopped here spent 25 tool calls, found **six** conflicting answers, and reported it would have been *"fluent and wrong."* Read this box, then go to the map.
