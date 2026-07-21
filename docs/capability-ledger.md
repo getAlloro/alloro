@@ -7,7 +7,7 @@
 2. **Self-maintaining via the PR flow.** No capability PR merges until its ledger row is updated — this is the enforcement half of protocol v1.2 (the PR "metric line"). Without that rule, this file dies in a month.
 
 ## This replaces
-- `plans/07142026-alloro-funnel-engine/build-checklist.md`, `funnel-feature-sequence.md`, and the chat "coverage-map" artifacts — **retired; point here instead.**
+- `plans/07142026-alloro-funnel-engine/build-checklist.md` and the chat "coverage-map" artifacts — **retired; point here instead.** **`funnel-feature-sequence.md` is NOT retired** — it's the staged BUILD PLAN; this ledger is the build-STATE. Two complementary views, neither replaces the other (see that file's header). *(Corrected 2026-07-21 — an earlier line wrongly retired it.)*
 - The **overwatch register** does NOT move here — it lives in **Notion** (cross-team open issues, not capability state). Do not recreate a repo mirror.
 - The **roadmap** (`docs/roadmap-impressions.md`) stays — it's the forward plan and points at these rows. The **risk register** stays private (`~/alloro-private/`).
 
@@ -60,7 +60,7 @@
 | # | Capability | Moves | State | Where you see it | Lives (receipt) |
 |---|---|---|---|---|---|
 | CH1 | **Review REPLIES** (respond to existing reviews) | Prominence | **LIVE** | Reviews & Posts | `GbpReviewReplyService` + siblings (merged) |
-| CH2 | **Review REQUESTS / velocity** (get more, fresher reviews) — top competitive lever | Prominence → impressions | **GREENFIELD, Sikka-gated** | — | none built; substrate = Sikka ([[project_sikka_integration]]); sandbox free-to-start, paid trigger = cash |
+| CH2 | **Review REQUESTS / velocity** (get more, fresher reviews) — top competitive lever | Prominence → impressions | **STRANDED + Sikka-gated** | — | `ReviewRequestModel.ts` + `ReviewRequestEmail.ts` exist **stranded on `origin/checkup-upgrade`** (not on trunk) — NOT greenfield; PMS-trigger substrate = Sikka ([[project_sikka_integration]]); sandbox free-to-start, paid trigger = cash |
 | CH3 | **Form-submission confirmation email** (lead reassurance) | Submissions (trust) | **FROM-SCRATCH** | hosted lead forms | none — verified missing on Alloro's own site (M6) |
 
 ## Send infrastructure
@@ -68,7 +68,7 @@
 | # | Capability | Moves | State | Where you see it | Lives (receipt) |
 |---|---|---|---|---|---|
 | S1 | **Email (Mailgun)** | — | **LIVE** (prod only; non-prod intercept) | Email Logs | `src/emails/transport/mailgunTransport.ts`; hotfix merged main+dev |
-| S2 | **SMS** | — | **FROM-SCRATCH** | — | zero providers across all branches |
+| S2 | **SMS** | — | **STRANDED** | — | `src/sms/smsService.ts` exists **stranded on `origin/checkup-upgrade`** (not on trunk) — no wired provider *on trunk*, but not from-scratch |
 
 ## Process / security gates
 
