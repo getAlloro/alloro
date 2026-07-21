@@ -1,4 +1,4 @@
-# PR Pipeline Protocol v1
+# PR Pipeline Protocol v1.1
 
 **Status:** Proposed 2026-07-20. Becomes law when Corey and Dave both confirm.
 **Applies to:** Every PR into dev/dave, from any agent or human.
@@ -43,6 +43,8 @@
 4. **Data-first corollary:** before scheduling any validation window, confirm the underlying data exists (one read-only query, like the zero-Maps check). A correct fix on empty data proves nothing and burns an afternoon.
 
 **Achieves:** Kills the overclaim class at the source ("read-only" PRs that write, "sanitizing" commits that reject). This is the same defect BUG-04 was: no predicted signal, so a wrong output looked fine for six weeks.
+
+The PR body follows the repo template (.github/PULL_REQUEST_TEMPLATE.md). A PR the reviewer cannot situate in plain language — what it is, where it's seen, who it touches — is not reviewable and is returned, not reviewed.
 
 ---
 
