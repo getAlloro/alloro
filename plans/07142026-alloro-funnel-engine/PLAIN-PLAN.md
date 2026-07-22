@@ -1,79 +1,63 @@
-# The Plan, in Plain Words
+# The Plan — Get Found, in Plain Words
 
-*A simple map of what we are building and how. Written 2026-07-15 so Corey and Claude both point at the same thing. The full, detailed version is `funnel-feature-sequence.md` in this same folder.*
+*One short page so Corey, Dave, and both our Claudes work from the same thing. Written fresh 2026‑07‑21 (the old version was stale). The long, detailed version is `funnel-feature-sequence.md`; the real‑time build state is `docs/capability-ledger.md`.*
 
-## Why we are doing this
-Alloro helps a small local business (like a dentist's office) get noticed online. When someone nearby needs that kind of help, we want the business to show up, look like people they can trust, and be easy to reach.
+**What this is:** the get‑found part of Alloro's job — helping a customer's practice get found by the people searching for them. In canon terms it's **Driver 2 (presence)**, and it powers the Master Recipe's **"Activate"** step: make the customers we already have *feel* Alloro working. That is canon's #1 priority — you don't pour new sales into a leaking bucket.
 
-The owner started their business to have a good life — not to fight with Google all day. We do the online part for them, so they get their time back.
+---
 
-**The one thing we count:** more of the right people "raise their hand." They fill out the form on the website and say "I want to come in." That is our finish line. We do **not** book the visit or answer the phone for them. That part is the owner's job.
+## The finish line (what "done" means)
 
-## The three steps (a customer's trip)
-1. **Get found** — people can find the business at all. On Google, on maps, and in AI answers.
-2. **Get considered** — people look and think "yes, I trust these folks." This all happens on the website.
-3. **Get chosen** — people reach out. They fill out the form. That is the win.
+There are two halves, and they move at different speeds:
 
-**Not our job:** social media, paid ads, or texting old customers to come back. Those belong to someone else.
+1. **A number actually moves** — impressions, then website traffic, then form submissions.
+2. **The owner sees Alloro working** — they open the app (or the email) and feel that someone is on it.
 
-## How we build (the big rule)
-One piece at a time. In order. We finish one piece and prove it is real before we start the next. No jumping ahead. We never say "done" without proof you can click.
+**The honest version (this matters):** "done" is **Alloro provably doing the right work on the levers, and honestly reporting the result** — not a promise that every number goes up. A real CMO improves the odds and does the work; no honest CMO guarantees every figure rises every month (Google takes time; competitors and seasons move). We say *"designed to increase your visibility,"* never *"you will get more patients."*
 
-Think of a restaurant:
-- First we lock **the menu** — the list of what we are making.
-- Then we write **each recipe** — a plan for one piece, based on real research on how it works and who proved it.
-- Then we cook **each dish in the test kitchen** (the sandbox) — in Dave's style, so it looks familiar to him.
-- Then we **taste it** — we test it, and we try hard to break it.
-- Then **Dave plates it** — he checks it and adds it to the real system.
+**The one test for any task:** does it move one of the three numbers, **or** make the owner see Alloro working? If neither — we don't do it.
 
-Each step is something we can fall back to. If we stop partway, we still have the menu, the recipes, and the dishes we already finished.
+---
 
-## What "done" means (so you can always check)
-A piece is done only when:
-- There is a **plan file** you can open.
-- It is **built and tested** — the tests still pass (485 of them, all green).
-- A **"try to break it" check** passed.
-- There is a **link** (a Pull Request) you can click and see.
+## Track A — make a number actually move (slower: weeks)
 
-**No link = not done.** Then I say "still planning," not "done."
+1. **Fix the impressions number that reads zero.** *(Dave's.)* It's stuck at zero for everyone — the data's there, it's not summed right. Nothing else in Track A can be proven until this number is real. This is the one blocker, and it lives here in the plan, not off to the side.
+2. **Wire the category lever.** Today the only thing Alloro auto‑does is fill in a website URL — and every Google profile already has one, so it changes nothing. The business *category* is the strongest lever; it's built but not connected. Connect it so Alloro proposes a better category and, once the owner approves, sets it.
+3. **Turn it on for our own Alloro account and watch.** It's our beta — we can break it. When our own number moves, we turn it on for Garrison and Pollux.
 
-## The order we go in
-**Get found (we are close — one part is already done):**
-1. Check the Google-demand tool really works.
-2. Score the business's own Google listing.
-3. Check if they show up in Google's AI answers.
-4. Check that the name, address, and phone match everywhere.
-5. Make the map-rank check better.
-6. (Later, harder) Write fixes straight to Google.
+## Track B — make the owner see Alloro working (faster: days)
 
-**Early, alongside get-found — the counter:** put in the plumbing that tracks how many people raise their hand, and where they came from. We put this in early so nothing gets built blind.
+4. **Replace the confusing "all caught up / not connected" with "here's what Alloro did for you this week."** Right now the app reads broken when it should read reassuring.
+5. **Add the "thanks, we got your request" confirmation email.** The form works, but the person who fills it out hears nothing back. Small, fast, and it's felt value.
 
-**Get considered (the website):**
-7. Turn on website tracking.
-8. Rewrite the page in the business's real voice.
-9. Add the real people and their credentials.
-10–12. Warm up reviews, posts, and real photos.
+*Track B is the fast half. It can put a visible win across the line in days while Track A's Google number takes weeks — which is what keeps a customer paying while the slow number climbs.*
 
-**Get chosen (the form):**
-13. Make the form solid and safe.
-14. Let people say "here's a time that works for me."
-15. Ask happy customers for a review — only when the owner says OK.
-- (Optional, later) A "thanks, we got it" note — only if the owner approves it.
+---
 
-**Last:**
-16. Keep the whole trip smooth, from search to page to form.
-17–18. Turn on the experiments that show which version works best.
+## The rules we can't break (from canon)
 
-## The safety rules (always on)
-- **No promises we can't keep.** We say "designed to help," never "we will get you to #1."
-- **The owner is the boss.** Every tool has an on/off switch and a preview.
-- **I build in the test kitchen only.** I never push straight to the real system. Dave checks and adds everything.
+- **No promises.** "Designed to," "working to" — never "will." (Value #6)
+- **Never show a number until it's true for that customer.** A wrong number to a skeptic loses them faster than no number.
+- **Every "what Alloro did" has to be specific and true** — a real report, never a generic "get more reviews" card. The test: *does it make the owner feel understood before informed?*
+- **The owner stays the hero.** Alloro does the work and shows it; the owner approves each outward change.
 
-## The North Star (the one test every piece must pass)
-When the owner sees what we made, they should say **"how did they know that?"** — and know it came from Alloro. If a piece does not clear that bar, it does not ship.
+---
 
-## Where we are right now
-- The **menu** is written (a file).
-- **Three dishes** are already cooked and waiting for Dave (three links you can click: PRs #158, #159, #160).
-- The **test kitchen works** (485 tests green).
-- **Next:** check the first get-found piece really works on the live dev site, then plan the next piece.
+## The next machine (named, not now): Sika
+
+The PMS/EMR bridge. It ends the manual report pulls, fixes the inaccurate numbers, and unlocks the two things we can't do today: **review requests** (the fastest‑acting lever) and **referral‑conversion tracking** (did the referral actually *start*). Gated on the sales call + the practice connecting + cash. Dave can pilot it on Garrison (Ortho2). This is a separate machine — it does not belong inside the get‑found steps above.
+
+---
+
+## What we don't know yet (honest — no pretending it's clean)
+
+- **Why Maps reads zero** across 9 months — Dave's to root‑cause; it could reveal the number is harder to fix than a quick sum.
+- **Whether "wire the category lever" is actually small** — that's an inference; we confirm it with a code trace *when we build it*, not before.
+- **The full "what Alloro did" report is more than a wording fix** — the owner‑facing report is largely unbuilt. The confirmation email is the small piece.
+- **Proving a number moved *because of* Alloro** needs attribution we haven't built yet — at first it's directional ("we did X, it rose"), not causally proven.
+
+---
+
+## Where this fits
+
+Get‑found is the **first gate**. A competent CMO works all three (found → considered → chosen) as a portfolio. This plan is the **first slice** — and the first proof that the loop (diagnose → do the owner‑approved work → measure → report honestly) actually works on a real account. Not the finished CMO. The first honest step toward it.
