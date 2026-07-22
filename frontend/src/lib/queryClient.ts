@@ -334,6 +334,8 @@ export const QUERY_KEYS = {
     ["agent-data", orgId, locationId] as const,
   summaryDashboard: (orgId: number | null, locationId?: number | null) =>
     ["summary-dashboard", orgId, locationId] as const,
+  proofReceipt: (orgId: number | null, locationId?: number | null) =>
+    ["proof-receipt", orgId, locationId] as const,
   pmsFocusPeriod: (orgId: number | null, locationId?: number | null) =>
     ["pms-focus-period", orgId, locationId] as const,
   pmsFileManager: (orgId: number | null, locationId?: number | null) =>

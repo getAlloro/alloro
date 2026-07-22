@@ -6,6 +6,7 @@ import { GbpReviewDraftSlotService } from "./feature-services/GbpReviewDraftSlot
 import { GbpDeployPreviewService } from "./feature-services/GbpDeployPreviewService";
 import { GbpBusinessInfoDraftService } from "./feature-services/GbpBusinessInfoDraftService";
 import { GbpCompletenessDraftService } from "./feature-services/GbpCompletenessDraftService";
+import { CategoryValueSourceService } from "./feature-services/CategoryValueSourceService";
 import { GbpLocalPostDraftService } from "./feature-services/GbpLocalPostDraftService";
 import { GbpLocalPostScheduleService } from "./feature-services/GbpLocalPostScheduleService";
 import { GbpPostMediaService } from "./feature-services/GbpPostMediaService";
@@ -146,6 +147,29 @@ export class GbpAutomationController {
         accessibleLocationIds: ctx.accessibleLocationIds,
       });
       return ok(res, result, result.workItem ? 201 : 200);
+    } catch (error) {
+      return handleGbpError(res, error);
+    }
+  }
+
+  /**
+   * MANUAL category-value-source trigger: propose a more-specific Google primary
+   * category for the caller's location and stage it as an owner-approval A6
+   * `business_info` draft. Thin by design (mirrors createCompletenessFillDraft, §6.1);
+   * writes nothing to Google. 201 when a proposal was staged, 200 when no better
+   * category was warranted (honest empty, never a fabricated proposal).
+   */
+  static async createCategoryProposalDraft(req: Request, res: Response): Promise<Response> {
+    try {
+      const ctx = clientContext(req);
+      const result = await CategoryValueSourceService.proposeCategoryDraftForLocation({
+        organizationId: ctx.organizationId,
+        locationId: ctx.locationId,
+        userId: ctx.userId,
+        actorEmail: ctx.actorEmail,
+        accessibleLocationIds: ctx.accessibleLocationIds,
+      });
+      return ok(res, result, result.proposed ? 201 : 200);
     } catch (error) {
       return handleGbpError(res, error);
     }

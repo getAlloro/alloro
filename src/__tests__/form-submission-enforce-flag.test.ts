@@ -63,6 +63,16 @@ vi.mock(
     WebhookError: class WebhookError extends Error {},
   }),
 );
+vi.mock(
+  "../controllers/websiteContact/websiteContact-services/formSubmissionEmailContextService",
+  () => ({
+    resolveFormSubmissionEmailContext: vi.fn(async () => ({
+      fromName: "Dr Pavan Endo",
+      headerColor: "#0e8988",
+      logoUrl: "https://cdn.example/logo.png",
+    })),
+  }),
+);
 
 import { ProjectModel } from "../models/website-builder/ProjectModel";
 import { FormSubmissionModel } from "../models/website-builder/FormSubmissionModel";
@@ -249,5 +259,34 @@ describe("public lead capture with VALIDATION_ENFORCE=1 (§5.2, §11.2)", () => 
 
     expect(res.status).toBe(400);
     expect(res.body.error.code).toBe("VALIDATION_ERROR");
+  });
+});
+
+describe("confirmation receipt to the submitter (transactional acknowledgment)", () => {
+  it("sends a branded receipt to the submitter's own email when the lead is not flagged", async () => {
+    const res = await request(enforceApp)
+      .post(FORM_ROUTE)
+      .set("Referer", "https://drpavanendo.com/contact")
+      .send(BASE_BODY); // contents carry Email: sam@example.com
+
+    expect(res.status).toBe(200);
+    const receipt = vi
+      .mocked(sendEmailWebhook)
+      .mock.calls.find((call) => call[0].subject === "We received your message");
+    expect(receipt).toBeDefined();
+    expect(receipt?.[0].recipients).toEqual(["sam@example.com"]);
+  });
+
+  it("sends no receipt when the submission carries no email address", async () => {
+    const res = await request(enforceApp)
+      .post(FORM_ROUTE)
+      .set("Referer", "https://drpavanendo.com/contact")
+      .send({ ...BASE_BODY, contents: { Name: "Sam Rivera", Message: "hello" } });
+
+    expect(res.status).toBe(200);
+    const receipt = vi
+      .mocked(sendEmailWebhook)
+      .mock.calls.find((call) => call[0].subject === "We received your message");
+    expect(receipt).toBeUndefined();
   });
 });

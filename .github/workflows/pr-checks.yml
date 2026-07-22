@@ -40,6 +40,45 @@ jobs:
           # .git/config where every later step (and anything they run) could read it.
           persist-credentials: false
 
+      # ---- HARD FAIL: PR body legibility (protocol Rule 3 / v1.1) ----
+      # Reads the PR body from the event — no checkout data, no deps — so it fails in seconds,
+      # before any install. Fails (naming the missing section) when a body is missing one of the
+      # five PULL_REQUEST_TEMPLATE.md sections, or has a section header with no content under it.
+      - name: PR body — five legibility sections present and non-empty
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          set -euo pipefail
+          body="$(printf '%s' "${PR_BODY:-}" | tr -d '\r')"
+          sections=(
+            "## What this is"
+            "## Where you see it"
+            "## Who it touches"
+            "## Planned action after merge"
+            "## Acceptance"
+          )
+          missing=()
+          for header in "${sections[@]}"; do
+            if ! grep -qxF -- "$header" <<<"$body"; then
+              missing+=("$header — header missing")
+              continue
+            fi
+            content="$(awk -v h="$header" '
+              $0==h {found=1; next}
+              found && /^## / {exit}
+              found {print}
+            ' <<<"$body" | grep -v '^[[:space:]]*$' || true)"
+            if [ -z "$content" ]; then
+              missing+=("$header — present but empty (no content under the header)")
+            fi
+          done
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "PR body legibility FAILED — a PR the reviewer cannot situate is returned, not reviewed (protocol Rule 3). Fix these in the PR body (see .github/PULL_REQUEST_TEMPLATE.md):"
+            for m in "${missing[@]}"; do echo "  - $m"; done
+            exit 1
+          fi
+          echo "PR body legibility: all five sections present and non-empty."
+
       - name: Set up Node
         uses: actions/setup-node@v4
         with:

@@ -49,6 +49,7 @@ import { GbpReviewReplyService } from "../controllers/gbp-automation/feature-ser
 import { GbpReviewDraftSlotService } from "../controllers/gbp-automation/feature-services/GbpReviewDraftSlotService";
 import { GbpReviewEscalationService } from "../controllers/gbp-automation/feature-services/GbpReviewEscalationService";
 import { GbpPublishedReplyService } from "../controllers/gbp-automation/feature-services/GbpPublishedReplyService";
+import { CategoryValueSourceService } from "../controllers/gbp-automation/feature-services/CategoryValueSourceService";
 import type { IGbpWorkItem } from "../models/GbpWorkItemModel";
 import { businessInfoDraftSchema } from "../validation/gbpBusinessInfo.schemas";
 
@@ -145,6 +146,15 @@ const MUTATING_ROUTES: MutatingRoute[] = [
           completeness: 1,
           missingFields: [],
         }),
+  },
+  {
+    method: "post",
+    routerPath: "/business-info/category-proposal",
+    path: `${BASE}/business-info/category-proposal`,
+    spy: () =>
+      vi
+        .spyOn(CategoryValueSourceService, "proposeCategoryDraftForLocation")
+        .mockResolvedValue({ proposed: false }),
   },
   {
     method: "post",
