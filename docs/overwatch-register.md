@@ -15,7 +15,7 @@
 | 6 | PR legibility: five-field template + CI section check | PR open (this PR) | CC |
 | 7 | Branch protection on dev/dave + red-PR gate proof | Adoption checklist, pending | Dave |
 | 8 | Renderer access for 4 Get Chosen pills marked Live but unverified | Awaiting Corey grant or downgrade order | Corey |
-| 9 | org 47 has no locations rows; open since 2026-05-04 | Flagged | Jo |
+| 9 | One org has no locations rows; open since 2026-05-04 | Flagged | Jo |
 | 10 | Onboarding org: GBP connect gates activation, monitoring, and launch sequence | Follow-up with date attached | Jo |
 | 11 | Sikka OneAPI licensing (per-practice vs per-agency); touches review-request + referral data path | Uncarded, asked 2026-07-17 | Dave |
 | 12 | Rate limiter: planned upgrade to cluster-wide enforcement | Ticketed, uncarded | Dave |
