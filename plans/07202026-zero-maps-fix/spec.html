@@ -56,11 +56,11 @@
     <header class="spec-hero">
       <div class="hero-topline">
         <p class="eyebrow">Alloro Plan Spec</p>
-        <span class="status-pill status-pending">Pending Execution</span>
+        <span class="status-pill status-inprogress">In Progress</span>
       </div>
       <h1>Zero-Maps Impressions Fix</h1>
       <dl class="meta-grid">
-        <div class="status-card"><dt>Status</dt><dd>Pending Execution</dd></div>
+        <div class="status-card"><dt>Status</dt><dd>In Progress</dd></div>
         <div><dt>Plan Folder</dt><dd>plans/07202026-zero-maps-fix</dd></div>
         <div><dt>Size</dt><dd>Medium</dd></div>
         <div><dt>Risk</dt><dd>Level 3</dd></div>
@@ -273,6 +273,16 @@
         <li><input type="checkbox" disabled> <code>npm run check:conventions --strict</code> clean for the backend changes (§ citations for any residual)</li>
         <li><input type="checkbox" disabled> No regression in monthly agents (their date logic untouched)</li>
       </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-07-22</h3>
+        <p><strong>Change:</strong> Executed T1–T3. <strong>T1</strong> — <code>getDailyTrailingWindow()</code> added beside <code>getDailyDates</code> (whose shape is untouched), with the window size as the named constant <code>DAILY_TRAILING_WINDOW_DAYS = 7</code> in <code>src/config/dailyAgents.ts</code> (§4.2). <strong>T2</strong> — the two single-day fetches became ONE window fetch, and a new pure module <code>feature-utils/gbpWindowSelector.ts</code> resolves the most-recent day(s) the API actually published, plus an explicit "no data in window" signal (an empty result). No fixed offset is subtracted anywhere — the mechanism is most-recent-with-data, so it survives Google changing the lag. <strong>T3</strong> — the Proofline payload now carries <code>period.window_start/window_end</code>, <code>period.latest_data_date</code>, <code>period.previous_data_date</code> and <code>period.has_recent_data</code>, with <code>visibility.latest</code>/<code>engagement.latest</code> set to <code>null</code> (never <code>0</code>) when the window published nothing; the stored <code>google_data_store</code> row carries a per-side <code>data_date</code> and OMITS its <code>visibility</code> object entirely when no day reported.</p>
+        <p><strong>Reason:</strong> Dave's Step-1 live-API check on production CONFIRMED the hypothesis — the Business Profile Performance API trails roughly 3–4 days, so the two most-recent dates were legitimately absent and the old code summed an empty <code>datedValues</code> array to a reported <code>0</code>. That is the gate this spec set for executing the fix, and it is met.</p>
+        <p><strong>Updated Done criteria:</strong> <strong>Stored-date semantics changed</strong> — <code>agent_results.date_start/date_end</code> and the <code>google_data_store</code> row's dates now describe the days Google ACTUALLY published, not calendar yesterday and the day before. The <code>yesterday</code> / <code>dayBefore</code> keys in the stored blob keep their names (renaming them is a wider migration than this fix needs) but their MEANING is now "most-recent published day" and "the one before it"; each side's <code>data_date</code> records which day that actually was. Consumers reading those keys get real values instead of fabricated zeros. The omitted-<code>visibility</code> case is deliberate and load-bearing: <code>stageReaders.mapsImpressionsForVisibility</code> already treats a side with no <code>visibility</code> object as a MISSING metric excluded from day-coverage, and a present-but-zero object as a real measured zero — so "no recent data" and "zero impressions" stay distinct all the way to the dashboard. Still open: Dave's Step-2 live validation after deploy.</p>
+      </article>
     </section>
   </main>
 </body>

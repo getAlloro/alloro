@@ -44,6 +44,12 @@ const DATES = {
   dayBeforeYesterday: "2026-06-09",
 } as unknown as Parameters<typeof processDailyAgent>[2];
 
+/** The GBP trailing window — separate from DATES because Rybbit is not lagged. */
+const WINDOW = {
+  startDate: "2026-06-04",
+  endDate: "2026-06-10",
+} as unknown as Parameters<typeof processDailyAgent>[3];
+
 const ACCOUNT = {
   id: 1,
   domain_name: "example.com",
@@ -64,7 +70,7 @@ describe("processDailyAgent — unmapped location skip (no wasted Claude call, n
     // Location 42 has no google_properties rows → unmapped.
     findByLocationId.mockResolvedValue([]);
 
-    const result = await processDailyAgent(ACCOUNT, {}, DATES, 42);
+    const result = await processDailyAgent(ACCOUNT, {}, DATES, WINDOW, 42);
 
     expect(result.skipped).toBe(true);
     expect(result.success).toBe(false);
