@@ -46,6 +46,32 @@
       <p style="border-top:1px solid var(--line);margin-top:14px;padding-top:12px"><strong>Update 2026-07-22 (Dave):</strong> the 8-PR batch (#199–#206) is now <strong>merged to <code>dev/dave</code>, deployed, and QA'd on dev</strong>; the capability ledger is on trunk. Dave also found + fixed a phantom-<code>hostname</code> bug that 500'd form submissions on <code>*.sites.getalloro.com</code> subdomains — present on prod too (masked by custom domains), fix promoting to main now. <strong>Open question:</strong> which proof sites are on subdomains — their stage-3 submission history has a gap during the bug window. Draft PRs left: #198 (promote — the merged ledger references its roadmap file), #180 (Dave's), #176 (park — out of the get-found lane).</p>
     </section>
 
+    <section class="card flag" id="scorecard">
+      <h2>The DoD scorecard — has an owner seen and felt it yet?</h2>
+      <p>The real finish line (Corey, 2026-07-22): a local business owner — struggling, starting new, or dominating — <strong>sees and feels undeniable results through the work Alloro did for them.</strong> Per‑customer, not one trophy. Five checkpoints, ending at the person: <strong>1</strong> work landed on their Google · <strong>2</strong> a number that matters moved · <strong>3</strong> attributed to Alloro · <strong>4</strong> they can see it · <strong>5</strong> they feel it as undeniable.</p>
+      <table>
+        <thead><tr><th>Owner</th><th>Situation</th><th>1 landed</th><th>2 moved</th><th>3 attrib.</th><th>4 seen</th><th>5 felt</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Garrison</strong> · Garrison Orthodontics (org 5)</td><td>new location / climbing</td><td>⬜ merged, not enabled</td><td>⬜</td><td>⬜</td><td>⬜</td><td>⬜</td></tr>
+          <tr><td><strong>Pawlak</strong> · Artful Orthodontics (org 8)</td><td>at‑risk / relief (silence)</td><td>⬜ merged, not enabled</td><td>⬜</td><td>⬜</td><td>⬜</td><td>⬜</td></tr>
+          <tr><td><strong>Saif</strong> · 1Endo — Woodbridge (org 39; 5 locs)</td><td>new loc climbing; practice dominating</td><td>⬜ merged, not enabled</td><td>⬜</td><td>⬜</td><td>⬜</td><td>⬜</td></tr>
+          <tr><td><strong>Olson</strong> · Surf City Endo</td><td>TBD</td><td>⬜ org unverified</td><td>⬜</td><td>⬜</td><td>⬜</td><td>⬜</td></tr>
+          <tr><td><strong>Malhan</strong> · Tri‑Cities Endo</td><td>TBD</td><td>⬜ org unverified</td><td>⬜</td><td>⬜</td><td>⬜</td><td>⬜</td></tr>
+          <tr><td><strong>Pawlak</strong> · Art of Sleep Dentistry</td><td>TBD (Pawlak's 2nd practice)</td><td>⬜ org unverified</td><td>⬜</td><td>⬜</td><td>⬜</td><td>⬜</td></tr>
+          <tr><td><strong>Alloro</strong> · own presence</td><td>dogfood — funnel applies; dental‑category lever N/A</td><td>⬜ org unverified</td><td>⬜</td><td>⬜</td><td>⬜</td><td>⬜</td></tr>
+        </tbody>
+      </table>
+      <p><strong>Top line, honestly:</strong> no owner has cleared past checkpoint 1 — the machine is built and merging to prod, but nothing has landed on a single practice's Google yet. The first cell flips when Dave enables (zero‑Maps + GF5). Garrison (5), Pawlak/Artful (8), and Saif/1Endo (39) have custom domains (verified 2026-07-22), so their stage‑3 submission data is clean. Olson/Surf City, Malhan/Tri‑Cities, Pawlak/Art of Sleep, and Alloro still need their org IDs confirmed (a Dave query add‑on).</p>
+      <h3>The first‑checkpoint watch (grounded in the recording rail)</h3>
+      <ul>
+        <li><strong>CP1 signal (work landed):</strong> a <code>metric_action_events</code> row for the org — <code>gbp_completeness_fill</code> / <code>seo_meta_update</code>, source <code>gbp_business_info_writeback</code>, with an <code>occurred_at</code>. For the <em>category</em> lever, watch the GBP write‑back record directly (see gap below).</li>
+        <li><strong>CP2 signal (a number moved):</strong> <code>stageReaders.readImpressions</code> (org‑wide GSC + Maps‑from‑7/21) vs the <strong>frozen baseline</strong>, over 1–3 weeks, with the control/slope guard.</li>
+        <li><strong>⛔ Baseline must freeze BEFORE Dave enables GF5</strong> — once the lever publishes, the clean "before" is gone. The freeze is a DB read (Dave / a computer‑use agent), not runnable from a code checkout. Trigger: capture the before, <em>then</em> enable.</li>
+      </ul>
+      <h3>⚠️ Surfacing gap found (affects CP4 · "seen") — <code>config/metricActions.ts</code></h3>
+      <p>The rail records only <code>seo_meta_update</code> + <code>gbp_completeness_fill</code>, on the <code>impressions</code> stage only. <strong>No category action type; no CTR/leads stage.</strong> So when the category lever (the #1 impressions lever) publishes, the owner may not <em>see</em> "Alloro changed your category" — CP4 has no surface for it. Closing CP4 for category/CTR/CRO needs a <code>gbp_category_update</code> type + the CTR/leads stages added to the rail.</p>
+    </section>
+
     <section class="card">
       <h2>Stage 1 — Get Found · impressions</h2>
       <table>
