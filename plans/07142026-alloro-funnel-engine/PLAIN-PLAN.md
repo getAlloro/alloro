@@ -6,6 +6,27 @@
 
 ---
 
+## Where the build is right now — for Dave (updated 2026-07-21)
+
+**Authoritative PR state = `PR-LOG.md` (regenerate: `bash scripts/pr-log.sh`).** This session added four PRs off `dev/dave`, all **reachable** (each wires a caller / edits running code — not dead code):
+
+| PR | What it does | Verified |
+|---|---|---|
+| **#202** | Wire the GBP category value‑source — owner‑approved primary‑category proposal (strongest get‑found lever; was built‑not‑wired) | tsc 0 · conv 0 · 23/23 |
+| **#203** | Dashboard calm state shows "what Alloro did for you" (consumes the live proof‑receipt endpoint #177) | tsc 0 · fe‑tsc clean · §17 clean |
+| **#204** | Confirmation receipt to form submitters + rate‑limit the form endpoint via Alloro Protect | tsc 0 · conv 0 · 43/43 |
+| **#205** | CTR‑opportunity diagnosis — brick 1 of the CTR self‑optimization loop (on the deployed GSC pipeline) | tsc 0 · conv 0 · 6/6 |
+
+**Suggested merge order:** #199 → #202 → #203 → #204 → #205. All additive, off `dev/dave`; the code PRs don't depend on #199 (that's the docs stack). Each PR body carries full context + verification.
+
+**Strategic reprioritization (Owner.com reframe, verified by a Fable adversary against the code):** fast results come from **converting existing demand (CTR + CRO)**, not new impressions (weeks, Google‑bound). **GSC Search data works today** — only the Maps term is broken (zero‑Maps, Dave's), so a GSC‑measured lever is provable now. New lead lever = the **CTR/meta rewrite off GSC demand** (un‑gated, fast, measurable now); #205 is its brick 1. The category lever (#202) is the strongest single found lever but its metric (Maps impressions) reads zero until zero‑Maps lands, so it compounds underneath rather than headlining.
+
+**CTR self‑optimization loop (staged):** brick 1 diagnose ✅ (#205) → brick 2 educated hypothesis (framework‑grounded rewrite + logged hypothesis) → brick 3 recorded experiment (before/after CTR) → brick 4 fleet learning (learned expected‑CTR replaces the static baseline — the data moat).
+
+**Still Dave's / externally gated:** merge the queue; root‑cause zero‑Maps (Maps = 0 across 9 months); enable the write‑back flag per practice for the category run. Renderer access unlocks the site‑serve/CRO levers; Sika unlocks review velocity + reactivation.
+
+---
+
 ## The finish line (what "done" means)
 
 There are two halves, and they move at different speeds:
