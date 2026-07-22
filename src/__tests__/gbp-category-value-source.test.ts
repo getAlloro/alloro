@@ -23,6 +23,9 @@ vi.mock("../database/connection", () => mockDb());
 vi.mock("../workers/queues", () => ({
   getGbpAutomationQueue: vi.fn(() => ({ add: vi.fn(async () => ({ id: "job-1" })) })),
 }));
+vi.mock("../services/ai-seo-audit/organizationAuditContextService", () => ({
+  resolveOrganizationAuditContext: vi.fn(),
+}));
 
 import { CategoryRecommendationService } from "../controllers/gbp-automation/feature-services/CategoryRecommendationService";
 import { CategoryValueSourceService } from "../controllers/gbp-automation/feature-services/CategoryValueSourceService";
@@ -31,6 +34,8 @@ import { GbpReadinessService } from "../controllers/gbp-automation/feature-servi
 import { GbpAutomationSettingsModel } from "../models/GbpAutomationSettingsModel";
 import { GbpWorkItemModel, type IGbpWorkItem } from "../models/GbpWorkItemModel";
 import { GbpWorkEventModel } from "../models/GbpWorkEventModel";
+import { mapAiReadyGbpToCategoryInput } from "../controllers/gbp-automation/feature-utils/mapAiReadyGbpToCategoryInput";
+import { resolveOrganizationAuditContext } from "../services/ai-seo-audit/organizationAuditContextService";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -298,5 +303,110 @@ describe("CategoryValueSourceService.proposeCategoryDraft — write is unbypassa
       },
       updateMask: ["categories"],
     });
+  });
+});
+
+describe("mapAiReadyGbpToCategoryInput", () => {
+  it("extracts the current primary category and free-text signals from the AI-ready profile", () => {
+    const input = mapAiReadyGbpToCategoryInput({
+      profile: {
+        primaryCategory: "Dentist",
+        additionalCategories: ["Dental clinic"],
+        title: "Bright Smiles",
+        description: "We offer braces and Invisalign orthodontics.",
+      },
+    });
+
+    expect(input).not.toBeNull();
+    expect(input?.currentPrimaryCategory).toEqual({ displayName: "Dentist", name: null });
+    expect(input?.signals).toContain("Dentist");
+    expect(input?.signals).toContain("Dental clinic");
+    expect(input?.signals).toContain("We offer braces and Invisalign orthodontics.");
+  });
+
+  it("returns null when there is no gradable profile", () => {
+    expect(mapAiReadyGbpToCategoryInput(null)).toBeNull();
+    expect(mapAiReadyGbpToCategoryInput({})).toBeNull();
+    expect(mapAiReadyGbpToCategoryInput({ profile: null })).toBeNull();
+  });
+
+  it("yields a null current category (but keeps other signals) when primaryCategory is absent", () => {
+    const input = mapAiReadyGbpToCategoryInput({ profile: { description: "orthodontics" } });
+    expect(input).not.toBeNull();
+    expect(input?.currentPrimaryCategory).toBeNull();
+    expect(input?.signals).toContain("orthodontics");
+  });
+});
+
+describe("CategoryValueSourceService.proposeCategoryDraftForLocation", () => {
+  const baseParams = {
+    organizationId: 7,
+    locationId: 3,
+    userId: 11,
+    actorEmail: "owner@example.com",
+  };
+
+  const contextWith = (locations: Array<{ id: number; gbpData: unknown }>) =>
+    vi.mocked(resolveOrganizationAuditContext).mockResolvedValue({
+      locations,
+    } as unknown as Awaited<ReturnType<typeof resolveOrganizationAuditContext>>);
+
+  it("throws LOCATION_ACCESS_DENIED when the location is not in the org's audit context (§11.7)", async () => {
+    contextWith([{ id: 999, gbpData: {} }]);
+
+    await expect(
+      CategoryValueSourceService.proposeCategoryDraftForLocation(baseParams)
+    ).rejects.toMatchObject({ code: "LOCATION_ACCESS_DENIED" });
+  });
+
+  it("stages a category proposal draft derived from the location's live GBP data", async () => {
+    contextWith([
+      {
+        id: 3,
+        gbpData: {
+          profile: {
+            primaryCategory: "Dentist",
+            description: "We are a braces and Invisalign orthodontics practice.",
+          },
+        },
+      },
+    ]);
+    const createDraft = vi
+      .spyOn(GbpBusinessInfoDraftService, "createDraft")
+      .mockResolvedValue({ id: "wi-1", status: "draft" } as unknown as IGbpWorkItem);
+
+    const result = await CategoryValueSourceService.proposeCategoryDraftForLocation(baseParams);
+
+    expect(result.proposed).toBe(true);
+    expect(createDraft).toHaveBeenCalledTimes(1);
+    expect(createDraft.mock.calls[0][0].updateMask).toEqual(["categories"]);
+    expect(createDraft.mock.calls[0][0].patch).toEqual({
+      categories: { primaryCategory: { name: ORTHO_NAME, displayName: "Orthodontist" } },
+    });
+  });
+
+  it("stages nothing when the location has no gradable GBP profile", async () => {
+    contextWith([{ id: 3, gbpData: {} }]);
+    const createDraft = vi.spyOn(GbpBusinessInfoDraftService, "createDraft");
+
+    const result = await CategoryValueSourceService.proposeCategoryDraftForLocation(baseParams);
+
+    expect(result.proposed).toBe(false);
+    expect(createDraft).not.toHaveBeenCalled();
+  });
+
+  it("stages nothing when no better category is warranted (Value #6)", async () => {
+    contextWith([
+      {
+        id: 3,
+        gbpData: { profile: { primaryCategory: "Dentist", description: "general family dentistry" } },
+      },
+    ]);
+    const createDraft = vi.spyOn(GbpBusinessInfoDraftService, "createDraft");
+
+    const result = await CategoryValueSourceService.proposeCategoryDraftForLocation(baseParams);
+
+    expect(result.proposed).toBe(false);
+    expect(createDraft).not.toHaveBeenCalled();
   });
 });
