@@ -21,29 +21,29 @@
       "id": "T2",
       "title": "#177 \u2014 an owner reads their OWN org's receipt",
       "surface": "api",
-      "precondition": "A valid JWT for a user in org 39 (One Endodontics).",
+      "precondition": "A valid JWT for a user in the pilot practice.",
       "steps": [
-        "1. GET /api/proof-receipt?organization_id=39&locationId=<an accessible location> with the org-39 JWT",
+        "1. GET /api/proof-receipt?organization_id=<pilot>&locationId=<an accessible location> with the pilot-org JWT",
         "2. Inspect the body"
       ],
       "expected": "200, and the body is exactly { success: true, data: {...}, error: null } (\u00a78.1). Items are location-tagged.",
       "status": "pending",
       "evidence": "",
-      "notes": "BLOCKED \u2014 needs a valid org-39 JWT (auth). Not runnable from Claude Code without credentials."
+      "notes": "BLOCKED \u2014 needs a valid pilot-org JWT (auth). Not runnable from Claude Code without credentials."
     },
     {
       "id": "T3",
       "title": "#177 \u2014 TENANT ISOLATION: org A cannot read org B's receipt",
       "surface": "api",
-      "precondition": "A valid JWT for org 39.",
+      "precondition": "A valid JWT for the pilot org.",
       "steps": [
-        "1. GET /api/proof-receipt?organization_id=5 with the org-39 JWT",
+        "1. GET /api/proof-receipt?organization_id=<other> with the pilot-org JWT",
         "2. Repeat for two or three other org ids"
       ],
       "expected": "403 every time, with no data body. This is the defect the PR existed to close \u2014 before the fix it returned 200 with the other org's data.",
       "status": "pending",
       "evidence": "",
-      "notes": "BLOCKED \u2014 needs a valid org-39 JWT. This is the security-critical tenant-isolation check (org A must 403 on org B's receipt). Run this one first once auth is available."
+      "notes": "BLOCKED \u2014 needs a valid pilot-org JWT. This is the security-critical tenant-isolation check (org A must 403 on org B's receipt). Run this one first once auth is available."
     },
     {
       "id": "T4",
@@ -62,7 +62,7 @@
       "id": "T5",
       "title": "#183 \u2014 Get Found impressions renders without contradicting its own card",
       "surface": "ui",
-      "precondition": "Signed in to dev as a user with a GSC-connected org (org 39).",
+      "precondition": "Signed in to dev as a user with a GSC-connected org (the pilot org).",
       "steps": [
         "1. Open the Dashboard and find the Patient Journey / Get Found stage",
         "2. Note the impressions figure",
@@ -71,7 +71,7 @@
       ],
       "expected": "clicks \u00f7 impressions equals the displayed CTR, and every metric's label states the source it actually comes from. No metric is labelled 'Search Console + Business Profile' while showing a Search-only number.",
       "status": "pass",
-      "evidence": "Pilot into org 39 (One Endodontics), Patient Journey Insights. Pipeline: 23,798 Google Visibility -> 6% -> 1,432 Website Visitors -> 2% -> 25 Website Leads. Math consistent: 1432/23798=6.02% (shown 6%); 25/1432=1.75% (shown 2% in arrow, 1.7% in callout \u2014 both correct roundings). Source labels honest: 'How often you showed up on Google' / 'Rybbit website visitors' / 'Verified submissions'. No metric mislabeled. 2026-07-21.",
+      "evidence": "Pilot into the pilot practice, Patient Journey Insights. Pipeline: 23,798 Google Visibility -> 6% -> 1,432 Website Visitors -> 2% -> 25 Website Leads. Math consistent: 1432/23798=6.02% (shown 6%); 25/1432=1.75% (shown 2% in arrow, 1.7% in callout \u2014 both correct roundings). Source labels honest: 'How often you showed up on Google' / 'Rybbit website visitors' / 'Verified submissions'. No metric mislabeled. 2026-07-21.",
       "notes": "Cosmetic nit (not a failure): same 25/1432 ratio renders as 2% (arrow) and 1.7% (callout) \u2014 different rounding precision, both truthful."
     },
     {
@@ -93,7 +93,7 @@
       "id": "T7",
       "title": "#183 \u2014 the nightly agent skips unmapped locations instead of writing zeros",
       "surface": "api",
-      "precondition": "Read-only DB access. Orgs 42/44/46/47 have locations with no google_properties row.",
+      "precondition": "Read-only DB access. Test orgs (unmapped locations) have locations with no google_properties row.",
       "steps": [
         "1. Note the current max(created_at) in the Proofline insight table for one of those locations",
         "2. Wait for, or trigger, the next daily agent run",
@@ -102,7 +102,7 @@
       "expected": "No new insight row is written for an unmapped location, and no Claude call is spent on it. Pre-fix, it ran on an empty payload and could persist an insight built entirely on zeros.",
       "status": "pending",
       "evidence": "",
-      "notes": "BLOCKED \u2014 needs read-only dev DB access (orgs 42/44/46/47 unmapped locations). Dave's side."
+      "notes": "BLOCKED \u2014 needs read-only dev DB access (test orgs unmapped locations). Dave's side."
     },
     {
       "id": "T8",
@@ -116,7 +116,7 @@
       "expected": "No '#N of M' fraction anywhere. The denominator was removed from the contract entirely, so the shape is unrepresentable \u2014 not merely hidden.",
       "status": "pending",
       "evidence": "",
-      "notes": "RUN 2026-07-21, org 39 pilot: client rank card shows 'YOU RANK #1 of 11 nearby' + 'You lead all 10 tracked competitors' (11 = you + 10 mapped competitors \u2014 self-consistent, NOT the impossible '#15 of 5' cross-universe bug #175 fixed). AMBIGUOUS vs T8's literal wording ('no #N of M fraction anywhere; denominator removed from contract entirely'). '#1 of 11' is textually an N-of-M. NEEDS DAVE'S RULING \u2014 he owns #175 and the acceptance wording. CC read: intended map-pack count, not the bug. Not stamped pass or fail."
+      "notes": "RUN 2026-07-21, the pilot org pilot: client rank card shows 'YOU RANK #1 of 11 nearby' + 'You lead all 10 tracked competitors' (11 = you + 10 mapped competitors \u2014 self-consistent, NOT the impossible '#15 of 5' cross-universe bug #175 fixed). AMBIGUOUS vs T8's literal wording ('no #N of M fraction anywhere; denominator removed from contract entirely'). '#1 of 11' is textually an N-of-M. NEEDS DAVE'S RULING \u2014 he owns #175 and the acceptance wording. CC read: intended map-pack count, not the bug. Not stamped pass or fail."
     },
     {
       "id": "T9",
@@ -129,7 +129,7 @@
       "expected": "Reads 'Not in the local top 20 yet' \u2014 not a zero, not a blank, and not 'Run a ranking' for a practice that already ran one.",
       "status": "pending",
       "evidence": "",
-      "notes": "CANNOT VERIFY on org 39 \u2014 One Endodontics ranks #1, so the 'Not in the local top 20 yet' empty state cannot render here. Needs a DIFFERENT org whose latest ranking has no top-20 match. 2026-07-21."
+      "notes": "CANNOT VERIFY on the pilot org \u2014 the pilot practice ranks #1, so the 'Not in the local top 20 yet' empty state cannot render here. Needs a DIFFERENT org whose latest ranking has no top-20 match. 2026-07-21."
     },
     {
       "id": "T10",
