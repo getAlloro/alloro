@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Get-Found DoD — the true state (sweep 2026-07-22)</title>
+  <style>
+    :root { color-scheme: light; --paper:#fff; --ink:#080808; --muted:#5f5f5f; --line:#d8d8d8; --soft:#f5f5f5; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--paper); color:var(--ink); font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; line-height:1.5; }
+    .shell { width:min(1080px,calc(100% - 32px)); margin:0 auto; padding:44px 0; }
+    .hero,.card { border:1px solid var(--line); border-radius:8px; background:var(--paper); }
+    .hero { border-color:var(--ink); padding:30px; margin-bottom:18px; }
+    .card { padding:26px; margin-top:16px; }
+    .card.flag { border-color:var(--ink); border-width:2px; }
+    .topline { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px; }
+    .eyebrow { margin:0; color:var(--muted); font-size:0.76rem; font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
+    .pill { display:inline-flex; align-items:center; min-height:32px; padding:0 13px; border:1px solid var(--ink); border-radius:999px; background:var(--ink); color:#fff; font-size:0.74rem; font-weight:800; text-transform:uppercase; }
+    h1 { margin:0 0 10px; font-size:clamp(1.9rem,4.5vw,3rem); line-height:1; }
+    h2 { font-size:1.25rem; margin:0 0 6px; } h3 { font-size:1rem; margin:16px 0 6px; }
+    p { margin:8px 0; } code { background:var(--soft); border:1px solid var(--line); border-radius:4px; padding:.05rem .3rem; font-size:0.9em; }
+    table { width:100%; border-collapse:collapse; margin-top:12px; font-size:0.86rem; }
+    th,td { border:1px solid var(--line); padding:8px 10px; text-align:left; vertical-align:top; }
+    th { background:var(--soft); font-size:0.68rem; text-transform:uppercase; color:var(--muted); }
+    .st { font-family:ui-monospace,monospace; font-size:0.7rem; font-weight:800; white-space:nowrap; }
+    ul { margin:8px 0; padding-left:20px; } li { margin:5px 0; }
+    ol.path { padding-left:20px; } ol.path li { margin:8px 0; }
+    @media (max-width:640px){ .shell{width:min(100% - 20px,1080px);} .hero,.card{padding:20px;} }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="hero">
+      <div class="topline">
+        <p class="eyebrow">Alloro · Get-Found DoD · Grounded State Map</p>
+        <span class="pill">Recover + Unblock, not Build</span>
+      </div>
+      <h1>The get-found engine is mostly already built</h1>
+      <p style="color:var(--muted);max-width:75ch">Produced by a four-angle autonomous sweep, 2026-07-22 (branch <code>claude/get-found-baseline-capture</code>). Every state below is tool-verified (git ancestry, PR status, file:line, spec hero) — not recalled. <strong>This is a synthesis that POINTS at the canonical build-state (<code>docs/capability-ledger.md</code>, #201) and the build order (<code>funnel-feature-sequence.md</code>); it is not a competing source.</strong> Its net-new contribution is the full <em>stranded</em> inventory + the per-stage critical path the ledger doesn't yet carry.</p>
+    </header>
+
+    <section class="card flag">
+      <h2>The verdict</h2>
+      <p>For the three-stage DoD (impressions → CTR/traffic → submissions), almost nothing needs fresh construction. The pieces exist in four states: <strong>live-on-trunk</strong>, <strong>open PR</strong>, <strong>stranded on a branch with no PR</strong>, or <strong>specced-but-blocked</strong>. The critical path is <strong>merge + recover + unblock</strong>, with exactly <strong>one genuine net-new build</strong> (the Taste Profile production writer).</p>
+      <p><strong>What this sweep prevented:</strong> I was about to write a baseline spec (twins <code>gate1-impressions</code> #183 + <code>m0-submission-source-capture</code> #156) and build a CRO lever (twins the full <code>cro-lift-rewrite</code> spec, already <em>escalated to Corey</em>) — and rebuild three stranded features from scratch (lift-attribution, countBySource, the stage-1 owner surface). All caught before a keystroke of duplicate code.</p>
+    </section>
+
+    <section class="card">
+      <h2>Stage 1 — Get Found · impressions</h2>
+      <table>
+        <thead><tr><th>Piece</th><th>State</th><th>Where (verified)</th><th>Next action</th></tr></thead>
+        <tbody>
+          <tr><td>Impressions counting (GSC organic + whole-practice Maps, <strong>org-wide</strong>)</td><td class="st">LIVE</td><td>PR #183 <strong>MERGED</strong> 2026-07-20; <code>stageReaders.readImpressions</code> on dev/dave</td><td>Nothing — done. NB org-wide, not per-location.</td></tr>
+          <tr><td>Impressions gauge reads 0</td><td class="st">BLOCKED</td><td><code>MAPS_IMPRESSIONS_TRUSTED_FROM="2026-07-21"</code> (config:34); GF1 in ledger</td><td>Fix zero-Maps — <strong>spec ready</strong>: <code>plans/07202026-zero-maps-fix</code> (Pending). Dave.</td></tr>
+          <tr><td>Category lever (strongest single lever)</td><td class="st">OPEN PR</td><td>#202 wires route→controller→service→taxonomy (verified); GF2 was BUILT-NOT-WIRED</td><td>Merge #202, then enable.</td></tr>
+          <tr><td>Publish path (write to Google)</td><td class="st">GATED-OFF</td><td>GF5, migration default <code>false</code></td><td>Enable per practice. Dave.</td></tr>
+          <tr><td>Completeness → owner-approved fill, owner surface</td><td class="st">STRANDED</td><td><code>claude/seam-completeness-publish-trigger</code> (1,034 lines, tests; no PR)</td><td>Recover → PR.</td></tr>
+          <tr><td>Phone/hours fill</td><td class="st">FROM-SCRATCH</td><td>GF4 stubs return <code>no-value-source</code></td><td>Build later (floor, not a climb lever).</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="card">
+      <h2>Stage 2 — Get Considered · CTR / traffic</h2>
+      <table>
+        <thead><tr><th>Piece</th><th>State</th><th>Where (verified)</th><th>Next action</th></tr></thead>
+        <tbody>
+          <tr><td>Meta title/description columns</td><td class="st">LIVE</td><td>GC1 machinery exists (migration <code>20260308000001</code>)</td><td>—</td></tr>
+          <tr><td>CTR diagnosis + educated-hypothesis rewrite (the flow)</td><td class="st">OPEN PR</td><td>#205 (diagnosis) + #206 (rewrite) — verified, overwatch-checked</td><td>Merge #205 → #206, then the wiring follow-up.</td></tr>
+          <tr><td>Scheduled GBP posts (un-neuter)</td><td class="st">STRANDED</td><td><code>claude/seam-scheduled-post-unneuter</code> (dev/dave still writes empty drafts)</td><td>Recover → PR (low priority; posts ≠ rank).</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="card">
+      <h2>Stage 3 — Get Chosen · submissions / CRO</h2>
+      <table>
+        <thead><tr><th>Piece</th><th>State</th><th>Where (verified)</th><th>Next action</th></tr></thead>
+        <tbody>
+          <tr><td>Submission source capture (attribution)</td><td class="st">DONE</td><td>#156 (<code>source</code>/<code>source_method</code>), spec <code>07152026-m0-submission-source-capture</code></td><td>Merge #156 (awaiting Dave).</td></tr>
+          <tr><td>Submissions-by-source reader (<code>countBySource</code>)</td><td class="st">STRANDED</td><td><code>claude/seam-source-to-reader</code> (verified exists)</td><td>Recover → PR (the read half of attribution).</td></tr>
+          <tr><td>M0-SENDER (hosted forms forward the source)</td><td class="st">BLOCKED</td><td>Lives in the <strong>website-renderer</strong> repo (cross-repo)</td><td>Get renderer access, then wire. Else <code>source</code> stays null.</td></tr>
+          <tr><td>Confirmation receipt to submitter + rate-limit</td><td class="st">OPEN PR</td><td>#204 (verified)</td><td>Merge #204.</td></tr>
+          <tr><td><strong>CRO lever (Taste-Profile-driven copy rewrite)</strong></td><td class="st">ESCALATED</td><td><code>plans/07152026-cro-lift-rewrite</code> — "build withdrawn; PR reduced to research record. Escalated to Corey (Rev 6)"</td><td><strong>Corey's decision.</strong> Blocked on the writer below.</td></tr>
+          <tr><td>CRO lift attribution (DiD + ITS)</td><td class="st">STRANDED</td><td><code>claude/proving-simulation-spec</code> (<code>attributionMath.ts</code>, 7 adversary rounds; verified)</td><td>Recover → PR (the "prove lift" half of the DoD).</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="card flag">
+      <h2>The one genuine net-new build — the Taste Profile production writer</h2>
+      <p>The CRO lever reads an <em>approved</em> Taste Profile, but <strong>the table is empty in production</strong>: the compose→gate→persist pieces exist and are tested (<code>composeFromExtractors</code>, <code>enforceHonesty</code>, <code>TasteProfileModel.create</code>), but <strong>no production path composes or persists a profile</strong> — it's a "dormant internal foundation" (spec <code>07162026-taste-profile-spine</code>, Completed #160). This is the single blocker under the entire CRO stage — and the likely reason a real client (Artful/Caroline) sees generic copy. Everything else in get-found is recover/merge/unblock; <strong>this is the one place that needs building.</strong> Scope: wire the extractors → compose → persist-as-draft → owner-approval, per org/location. Small-to-medium; the hard parts (compose + honesty gate) are already built and tested.</p>
+    </section>
+
+    <section class="card">
+      <h2>The critical path to the DoD (ordered)</h2>
+      <ol class="path">
+        <li><strong>Dave: fix zero-Maps</strong> (spec <code>07202026-zero-maps-fix</code> ready) — unblocks the impressions gauge; without it, stage 1 can't be <em>proven</em>.</li>
+        <li><strong>Dave: merge the batch</strong> — #202 (category), #205/#206 (CTR), #204 (confirmation), #156 (source), + docs #199→#201.</li>
+        <li><strong>Recover the 5 stranded branches → PRs</strong> — completeness-publish-trigger, source-to-reader, proving-simulation (lift math), review-reply-autodraft, scheduled-post-unneuter. (Each is real, tested code; the "recovery" is: rebase → adversary → PR.)</li>
+        <li><strong>Dave: enable GF5</strong> (write-back) per proof practice — makes the category proposal actually publish.</li>
+        <li><strong>Build the one net-new piece</strong> — the Taste Profile production writer — then the CRO lever (its spec) unblocks.</li>
+        <li><strong>Baseline capture is nearly free</strong> — call <code>readImpressions</code> / <code>metadata.gsc.ctr</code> / <code>readLeads</code> (all exist) + freeze a dated snapshot; <code>proving-simulation</code> adds the honest lift math on top.</li>
+      </ol>
+      <p class="eyebrow" style="margin-top:14px">Most of the path is Dave (zero-Maps, merges, enable) + cross-repo (renderer). The Claude-buildable net-new is small: one writer + recovering stranded PRs.</p>
+    </section>
+
+    <section class="card">
+      <h2>Reconciliation — where this feeds</h2>
+      <ul>
+        <li><strong>The ledger (<code>docs/capability-ledger.md</code>, #201) is canonical build-state</strong> and was verified accurate (no lying rows). It should <strong>absorb the 5 stranded rows</strong> as <code>STRANDED</code> capabilities — today it lists only a couple; the sweep found 5 with real funnel code. That's a Dave/ledger-owner edit, not a fork here.</li>
+        <li><strong>The build order lives in <code>funnel-feature-sequence.md</code></strong> — this map doesn't reorder it; it reports current state against it.</li>
+        <li>The "WO18 review-request engine on <code>checkout-upgrade</code>" cited in memory/roadmap <strong>could not be verified</strong> — no such ref on origin. The live analog is <code>claude/seam-review-reply-autodraft</code> (stranded). Flag to correct the memory.</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>
