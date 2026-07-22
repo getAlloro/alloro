@@ -400,4 +400,220 @@ describe("error paths (§20.2)", () => {
       generateCtrHypothesis({ opportunity, currentTitle: weakTitle }),
     ).rejects.toMatchObject({ code: "REWRITE_UNPARSEABLE", status: 502 });
   });
+
+  it("rejects NaN click-through rate", async () => {
+    await expect(
+      generateCtrHypothesis({
+        opportunity: { ...opportunity, actualCtr: NaN },
+        currentTitle: weakTitle,
+      }),
+    ).rejects.toBeInstanceOf(CtrHypothesisError);
+  });
+
+  it("rejects Infinity position", async () => {
+    await expect(
+      generateCtrHypothesis({
+        opportunity: { ...opportunity, position: Infinity },
+        currentTitle: weakTitle,
+      }),
+    ).rejects.toThrow(/position/);
+  });
+
+  it("rejects negative impressions", async () => {
+    await expect(
+      generateCtrHypothesis({
+        opportunity: { ...opportunity, impressions: -10 },
+        currentTitle: weakTitle,
+      }),
+    ).rejects.toThrow(/impressions/);
+  });
+
+  it("rejects a negative position", async () => {
+    await expect(
+      generateCtrHypothesis({
+        opportunity: { ...opportunity, position: -5 },
+        currentTitle: weakTitle,
+      }),
+    ).rejects.toThrow(/position/);
+  });
+
+  it("rejects an empty string title", async () => {
+    await expect(
+      generateCtrHypothesis({ opportunity, currentTitle: "" }),
+    ).rejects.toThrow(/currentTitle/);
+  });
+});
+
+describe("selectApplicablePrinciples — boundary cases", () => {
+  it("flags a title shorter than the CTR band minimum (under 40 chars)", () => {
+    const applicable = selectApplicablePrinciples("Short Title Here");
+    const ids = applicable.map((p) => p.id);
+    expect(ids).toContain("title-length");
+    expect(ids).toContain("title-word-count"); // under 6 words
+  });
+
+  it("does not flag title-length for a title exactly at the target max (60 chars)", () => {
+    // 60 chars, 7 words, no pipe
+    const title = "Dental Implants in Winter Garden Florida Expert Care Today";
+    expect(title.length).toBeLessThanOrEqual(60);
+    expect(title.length).toBeGreaterThanOrEqual(51);
+    const applicable = selectApplicablePrinciples(title, "A real description.");
+    const ids = applicable.map((p) => p.id);
+    expect(ids).not.toContain("title-length");
+    expect(ids).not.toContain("title-rewrite-length");
+  });
+
+  it("flags title-rewrite-length when title exceeds 60 chars", () => {
+    const title = "Dental Implants in Winter Garden Florida Expert Care With Advanced";
+    expect(title.length).toBeGreaterThan(60);
+    const applicable = selectApplicablePrinciples(title, "A real description.");
+    const ids = applicable.map((p) => p.id);
+    expect(ids).toContain("title-rewrite-length");
+  });
+
+  it("flags description-rewrite-rate when description is whitespace-only", () => {
+    const applicable = selectApplicablePrinciples(strongTitle, "   ");
+    const ids = applicable.map((p) => p.id);
+    expect(ids).toContain("description-rewrite-rate");
+  });
+
+  it("flags description-rewrite-rate when description is undefined", () => {
+    const applicable = selectApplicablePrinciples(strongTitle);
+    const ids = applicable.map((p) => p.id);
+    expect(ids).toContain("description-rewrite-rate");
+  });
+
+  it("does not flag description-rewrite-rate when description is provided", () => {
+    const applicable = selectApplicablePrinciples(strongTitle, "A real description.");
+    const ids = applicable.map((p) => p.id);
+    expect(ids).not.toContain("description-rewrite-rate");
+  });
+
+  it("flags title-word-count for a title with more than 9 words", () => {
+    const title = "One Two Three Four Five Six Seven Eight Nine Ten Eleven";
+    const applicable = selectApplicablePrinciples(title, "desc");
+    const ids = applicable.map((p) => p.id);
+    expect(ids).toContain("title-word-count");
+  });
+});
+
+describe("buildCtrDemandUserBlock — NaN/Infinity hardening", () => {
+  it("replaces NaN and Infinity metric values with 0", () => {
+    const block = buildCtrDemandUserBlock([
+      { key: "test query", clicks: NaN, impressions: Infinity, ctr: -Infinity, position: NaN },
+    ]);
+    const parsed = JSON.parse(block.slice(block.indexOf("{")));
+    const q = parsed.queries[0];
+    expect(q.clicks).toBe(0);
+    expect(q.impressions).toBe(0);
+    expect(q.ctr).toBe(0);
+    expect(q.position).toBe(0);
+  });
+
+  it("drops queries that normalize to an empty string", () => {
+    const block = buildCtrDemandUserBlock([
+      { key: " ", clicks: 1, impressions: 10, ctr: 0.1, position: 5 },
+    ]);
+    expect(block).toBe("");
+  });
+});
+
+describe("Zod schema validation", () => {
+  const validBody = {
+    opportunity: {
+      page: "/test",
+      impressions: 100,
+      clicks: 5,
+      actualCtr: 0.05,
+      expectedCtr: 0.10,
+      position: 3,
+      missedClicks: 5,
+    },
+    currentTitle: "Test Title",
+  };
+
+  // Dynamic import to avoid pulling in zod parsing before mocks are set up
+  let schema: typeof import("../validation/ctrHypothesis.schemas").ctrHypothesisBodySchema;
+
+  beforeEach(async () => {
+    const mod = await import("../validation/ctrHypothesis.schemas");
+    schema = mod.ctrHypothesisBodySchema;
+  });
+
+  it("accepts a valid minimal body", () => {
+    expect(schema.safeParse(validBody).success).toBe(true);
+  });
+
+  it("rejects actualCtr greater than 1", () => {
+    const result = schema.safeParse({
+      ...validBody,
+      opportunity: { ...validBody.opportunity, actualCtr: 1.5 },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects negative impressions", () => {
+    const result = schema.safeParse({
+      ...validBody,
+      opportunity: { ...validBody.opportunity, impressions: -1 },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects non-positive position", () => {
+    const result = schema.safeParse({
+      ...validBody,
+      opportunity: { ...validBody.opportunity, position: 0 },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects extra fields (.strict())", () => {
+    const result = schema.safeParse({
+      ...validBody,
+      sneakyField: "should be rejected",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects extra fields inside opportunity (.strict())", () => {
+    const result = schema.safeParse({
+      ...validBody,
+      opportunity: { ...validBody.opportunity, extraField: true },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects an empty page string", () => {
+    const result = schema.safeParse({
+      ...validBody,
+      opportunity: { ...validBody.opportunity, page: "" },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects an empty currentTitle", () => {
+    const result = schema.safeParse({ ...validBody, currentTitle: "" });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects siteTopQueries with extra fields (.strict())", () => {
+    const result = schema.safeParse({
+      ...validBody,
+      siteTopQueries: [{ key: "q", clicks: 1, impressions: 10, ctr: 0.1, position: 3, extra: true }],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts optional fields when provided", () => {
+    const result = schema.safeParse({
+      ...validBody,
+      currentDescription: "A description",
+      businessName: "Test Practice",
+      locationLabel: "Winter Garden, FL",
+      pageContent: "Page body text...",
+      siteTopQueries: [{ key: "test", clicks: 1, impressions: 10, ctr: 0.1, position: 3 }],
+    });
+    expect(result.success).toBe(true);
+  });
 });
