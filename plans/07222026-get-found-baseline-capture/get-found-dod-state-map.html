@@ -43,6 +43,7 @@
       <h2>The verdict</h2>
       <p>For the three-stage DoD (impressions → CTR/traffic → submissions), almost nothing needs fresh construction. The pieces exist in four states: <strong>live-on-trunk</strong>, <strong>open PR</strong>, <strong>stranded on a branch with no PR</strong>, or <strong>specced-but-blocked</strong>. The critical path is <strong>merge + recover + unblock</strong>, with exactly <strong>one genuine net-new build</strong> (the Taste Profile production writer).</p>
       <p><strong>What this sweep prevented:</strong> I was about to write a baseline spec (twins <code>gate1-impressions</code> #183 + <code>m0-submission-source-capture</code> #156) and build a CRO lever (twins the full <code>cro-lift-rewrite</code> spec, already <em>escalated to Corey</em>) — and rebuild three stranded features from scratch (lift-attribution, countBySource, the stage-1 owner surface). All caught before a keystroke of duplicate code.</p>
+      <p style="border-top:1px solid var(--line);margin-top:14px;padding-top:12px"><strong>Update 2026-07-22 (Dave):</strong> the 8-PR batch (#199–#206) is now <strong>merged to <code>dev/dave</code>, deployed, and QA'd on dev</strong>; the capability ledger is on trunk. Dave also found + fixed a phantom-<code>hostname</code> bug that 500'd form submissions on <code>*.sites.getalloro.com</code> subdomains — present on prod too (masked by custom domains), fix promoting to main now. <strong>Open question:</strong> which proof sites are on subdomains — their stage-3 submission history has a gap during the bug window. Draft PRs left: #198 (promote — the merged ledger references its roadmap file), #180 (Dave's), #176 (park — out of the get-found lane).</p>
     </section>
 
     <section class="card">
@@ -52,7 +53,7 @@
         <tbody>
           <tr><td>Impressions counting (GSC organic + whole-practice Maps, <strong>org-wide</strong>)</td><td class="st">LIVE</td><td>PR #183 <strong>MERGED</strong> 2026-07-20; <code>stageReaders.readImpressions</code> on dev/dave</td><td>Nothing — done. NB org-wide, not per-location.</td></tr>
           <tr><td>Impressions gauge reads 0</td><td class="st">BLOCKED</td><td><code>MAPS_IMPRESSIONS_TRUSTED_FROM="2026-07-21"</code> (config:34); GF1 in ledger</td><td>Fix zero-Maps — <strong>spec ready</strong>: <code>plans/07202026-zero-maps-fix</code> (Pending). Dave.</td></tr>
-          <tr><td>Category lever (strongest single lever)</td><td class="st">OPEN PR</td><td>#202 wires route→controller→service→taxonomy (verified); GF2 was BUILT-NOT-WIRED</td><td>Merge #202, then enable.</td></tr>
+          <tr><td>Category lever (strongest single lever)</td><td class="st">MERGED→DEV</td><td>#202 <strong>merged + QA'd on dev</strong> 2026-07-22; GF2 now wired</td><td>Enable GF5 + fix zero-Maps to prove it.</td></tr>
           <tr><td>Publish path (write to Google)</td><td class="st">GATED-OFF</td><td>GF5, migration default <code>false</code></td><td>Enable per practice. Dave.</td></tr>
           <tr><td>Completeness → owner-approved fill, owner surface</td><td class="st">STRANDED</td><td><code>claude/seam-completeness-publish-trigger</code> (1,034 lines, tests; no PR)</td><td>Recover → PR.</td></tr>
           <tr><td>Phone/hours fill</td><td class="st">FROM-SCRATCH</td><td>GF4 stubs return <code>no-value-source</code></td><td>Build later (floor, not a climb lever).</td></tr>
@@ -66,7 +67,7 @@
         <thead><tr><th>Piece</th><th>State</th><th>Where (verified)</th><th>Next action</th></tr></thead>
         <tbody>
           <tr><td>Meta title/description columns</td><td class="st">LIVE</td><td>GC1 machinery exists (migration <code>20260308000001</code>)</td><td>—</td></tr>
-          <tr><td>CTR diagnosis + educated-hypothesis rewrite (the flow)</td><td class="st">OPEN PR</td><td>#205 (diagnosis) + #206 (rewrite) — verified, overwatch-checked</td><td>Merge #205 → #206, then the wiring follow-up.</td></tr>
+          <tr><td>CTR diagnosis + educated-hypothesis rewrite (the flow)</td><td class="st">MERGED→DEV</td><td>#205 + #206 <strong>merged + QA'd on dev</strong> 2026-07-22 (routes responding)</td><td>Wiring follow-up (findCtrOpportunities→engine); bricks 3-4 later.</td></tr>
           <tr><td>Scheduled GBP posts (un-neuter)</td><td class="st">STRANDED</td><td><code>claude/seam-scheduled-post-unneuter</code> (dev/dave still writes empty drafts)</td><td>Recover → PR (low priority; posts ≠ rank).</td></tr>
         </tbody>
       </table>
@@ -80,7 +81,7 @@
           <tr><td>Submission source capture (attribution)</td><td class="st">DONE</td><td>#156 (<code>source</code>/<code>source_method</code>), spec <code>07152026-m0-submission-source-capture</code></td><td>Merge #156 (awaiting Dave).</td></tr>
           <tr><td>Submissions-by-source reader (<code>countBySource</code>)</td><td class="st">STRANDED</td><td><code>claude/seam-source-to-reader</code> (verified exists)</td><td>Recover → PR (the read half of attribution).</td></tr>
           <tr><td>M0-SENDER (hosted forms forward the source)</td><td class="st">BLOCKED</td><td>Lives in the <strong>website-renderer</strong> repo (cross-repo)</td><td>Get renderer access, then wire. Else <code>source</code> stays null.</td></tr>
-          <tr><td>Confirmation receipt to submitter + rate-limit</td><td class="st">OPEN PR</td><td>#204 (verified)</td><td>Merge #204.</td></tr>
+          <tr><td>Confirmation receipt to submitter + rate-limit</td><td class="st">MERGED→DEV</td><td>#204 <strong>merged</strong>; Dave QA'd rate-limit (20 req/15min) on dev</td><td>Done for dev.</td></tr>
           <tr><td><strong>CRO lever (Taste-Profile-driven copy rewrite)</strong></td><td class="st">ESCALATED</td><td><code>plans/07152026-cro-lift-rewrite</code> — "build withdrawn; PR reduced to research record. Escalated to Corey (Rev 6)"</td><td><strong>Corey's decision.</strong> Blocked on the writer below.</td></tr>
           <tr><td>CRO lift attribution (DiD + ITS)</td><td class="st">STRANDED</td><td><code>claude/proving-simulation-spec</code> (<code>attributionMath.ts</code>, 7 adversary rounds; verified)</td><td>Recover → PR (the "prove lift" half of the DoD).</td></tr>
         </tbody>
@@ -96,7 +97,7 @@
       <h2>The critical path to the DoD (ordered)</h2>
       <ol class="path">
         <li><strong>Dave: fix zero-Maps</strong> (spec <code>07202026-zero-maps-fix</code> ready) — unblocks the impressions gauge; without it, stage 1 can't be <em>proven</em>.</li>
-        <li><strong>Dave: merge the batch</strong> — #202 (category), #205/#206 (CTR), #204 (confirmation), #156 (source), + docs #199→#201.</li>
+        <li><strong>✅ Dave: merged the batch</strong> — #199–#206 merged + deployed + QA'd on dev 2026-07-22. Still to merge: #156 (source-capture) + #198 (roadmap the ledger references).</li>
         <li><strong>Recover the 5 stranded branches → PRs</strong> — completeness-publish-trigger, source-to-reader, proving-simulation (lift math), review-reply-autodraft, scheduled-post-unneuter. (Each is real, tested code; the "recovery" is: rebase → adversary → PR.)</li>
         <li><strong>Dave: enable GF5</strong> (write-back) per proof practice — makes the category proposal actually publish.</li>
         <li><strong>Build the one net-new piece</strong> — the Taste Profile production writer — then the CRO lever (its spec) unblocks.</li>
