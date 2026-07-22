@@ -32,6 +32,7 @@ const h = vi.hoisted(() => ({
   loggerWarn: vi.fn(),
   findProjectByOrg: vi.fn(),
   recordCompletenessFill: vi.fn(),
+  expireCompletenessFill: vi.fn(),
   trx: { __sentinelTrx: true } as unknown,
 }));
 
@@ -102,7 +103,10 @@ vi.mock("../models/website-builder/ProjectModel", () => ({
   ProjectModel: { findByOrganizationId: h.findProjectByOrg },
 }));
 vi.mock("../services/MetricActionService", () => ({
-  MetricActionService: { recordGbpCompletenessFill: h.recordCompletenessFill },
+  MetricActionService: {
+    recordGbpCompletenessFill: h.recordCompletenessFill,
+    expireGbpCompletenessFill: h.expireCompletenessFill,
+  },
 }));
 vi.mock("../lib/logger", () => ({
   default: { error: h.loggerError, warn: h.loggerWarn, info: vi.fn(), debug: vi.fn() },
@@ -159,6 +163,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   h.notificationCreate.mockResolvedValue(1);
   h.eventCreate.mockResolvedValue({ id: "ev-1" });
+  // Every revert path calls this; default it so tests that don't care about the
+  // owner surface still get a promise back rather than undefined.
+  h.expireCompletenessFill.mockResolvedValue(0);
   h.assertActive.mockResolvedValue(undefined);
   h.getReadiness.mockResolvedValue(READY);
   h.findEffectiveSettings.mockResolvedValue({ business_info_writeback_enabled: true });
@@ -632,5 +639,32 @@ describe("revert claim states", () => {
     expect(inProgress.code).toBe("REVERT_IN_PROGRESS");
     expect(alreadyDone.code).toBe("ALREADY_REVERTED");
     expect(h.queueAdd).not.toHaveBeenCalled();
+  });
+});
+
+describe("completeness-fill owner surface — revert half (seam 11)", () => {
+  beforeEach(() => {
+    h.findWorkItem.mockResolvedValue(revertableItem());
+    h.updateWorkItem.mockResolvedValue(undefined);
+    h.expireCompletenessFill.mockResolvedValue(1);
+  });
+
+  it("stops reporting the fill once it is reverted on Google", async () => {
+    await GbpBusinessInfoDeploymentService.revertNow("wi-1", 5);
+
+    // The note must not outlive the thing it describes: the value is gone from
+    // Google, so the owner's surface stops claiming Alloro put it there.
+    expect(h.expireCompletenessFill).toHaveBeenCalledWith("wi-1");
+    expect(h.patchBusinessInfo).toHaveBeenCalled();
+  });
+
+  it("does not fail a revert that already landed when the surface update fails", async () => {
+    h.expireCompletenessFill.mockRejectedValue(new Error("db down"));
+
+    await expect(
+      GbpBusinessInfoDeploymentService.revertNow("wi-1", 5)
+    ).resolves.toBeDefined();
+
+    expect(h.loggerError).toHaveBeenCalled();
   });
 });

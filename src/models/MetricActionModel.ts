@@ -43,9 +43,41 @@ export interface ActiveMetricActionQuery {
   periodEnd: Date;
 }
 
+/** Identifies one recorded action by its unique source key, to close its window. */
+export interface ExpireMetricActionQuery {
+  actionType: MetricActionType;
+  sourceType: MetricActionSource;
+  sourceId: string;
+  expiredAt: Date;
+}
+
 export class MetricActionModel extends BaseModel {
   protected static tableName = "metric_action_events";
   protected static jsonFields = ["metadata"];
+
+  /**
+   * Close an action's visible window because the thing Alloro did has been
+   * undone (e.g. a reverted profile write). The row is kept for history — only
+   * `active_until` is pulled in — so the owner's surface stops reporting an
+   * action that no longer holds, instead of quietly claiming it for the rest of
+   * the 30-day window.
+   *
+   * Idempotent: a second call finds nothing still active and updates nothing.
+   * Returns the number of rows expired.
+   */
+  static async expireBySource(
+    params: ExpireMetricActionQuery,
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.table(trx)
+      .where({
+        action_type: params.actionType,
+        source_type: params.sourceType,
+        source_id: params.sourceId,
+      })
+      .where("active_until", ">", params.expiredAt)
+      .update({ active_until: params.expiredAt, updated_at: new Date() });
+  }
 
   static async upsertBySource(
     data: MetricActionEventInput,

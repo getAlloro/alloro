@@ -237,4 +237,42 @@ export class GbpBusinessInfoReconcileService {
       filledFields: businessInfoFieldLabels(payload.updateMask),
     });
   }
+
+  /**
+   * All owner-facing bookkeeping for a completed revert, in one place: tell the
+   * owner it happened, and stop reporting the fill it undid.
+   *
+   * The second half is the other half of seam 11. Without it the dashboard keeps
+   * showing "Alloro did this: filled in your website" — and a "watching how often
+   * you show up" line beside it — for the rest of the 30-day window, describing a
+   * value no longer on the profile. The note must not outlive the thing it describes.
+   *
+   * Both halves are best-effort and non-blocking: the revert already landed on
+   * Google, and neither a failed notification nor a failed surface update may undo
+   * it (§3.2 — logged, never swallowed). The expiry is idempotent.
+   */
+  static async recordRevertForOwner(item: IGbpWorkItem): Promise<void> {
+    const revertedNotification = "gbp_business_info_reverted";
+    await GbpNotificationService.create({
+      organizationId: item.organization_id,
+      locationId: item.location_id,
+      workItemId: item.id,
+      kind: revertedNotification,
+      title: "Alloro reverted your Google profile update",
+      message:
+        "Your Business Profile information was restored to its previous values on Google.",
+    }).catch((notifyError) => {
+      logger.error(
+        { err: notifyError, workItemId: item.id, kind: revertedNotification },
+        "[GBP] business-info revert notification write failed"
+      );
+    });
+
+    await MetricActionService.expireGbpCompletenessFill(item.id).catch((expireError) => {
+      logger.error(
+        { err: expireError, workItemId: item.id },
+        "[GBP] completeness-fill owner-surface expiry failed after revert"
+      );
+    });
+  }
 }
