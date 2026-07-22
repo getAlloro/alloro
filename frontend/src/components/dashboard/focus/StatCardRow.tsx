@@ -18,6 +18,7 @@ import {
   rankTone,
   reviewTone,
   formSubsTone,
+  withFreshness,
   type StatusTone,
 } from "./statusRules";
 import { useLabels } from "../../../hooks/useLabels";
@@ -137,6 +138,13 @@ export function StatCardRow() {
     const priorRef = sortedMonths.at(-2)?.totalReferrals ?? null;
     const refStatus = referralStatus(thisRef, priorRef);
     const referralsMonth = formatDataMonth(latestMonth?.month);
+    // The SAME freshness gate the verdict uses (useStageTones), applied to the dot
+    // so the two can never disagree on one screen. This tile already prints the
+    // data month underneath, so a green dot sitting over "January 2026" is exactly
+    // the half-truth the guard exists to remove. The trailing delta text stays —
+    // "31 up" is a true statement about January — but the dot stops calling it
+    // current.
+    const refDotTone = withFreshness(refStatus.tone, latestMonth?.month);
 
     const position = ranking?.position ?? null;
     const rating = reviews?.current_rating ?? null;
@@ -164,7 +172,7 @@ export function StatCardRow() {
         value: thisRef != null ? String(thisRef) : "—",
         trailing: refStatus.text,
         trailingTone: refStatus.tone,
-        dotTone: refStatus.tone,
+        dotTone: refDotTone,
         sub: referralsMonth || null,
         href: REFERRALS_HREF,
       },

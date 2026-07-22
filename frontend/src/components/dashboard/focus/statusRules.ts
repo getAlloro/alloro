@@ -10,6 +10,8 @@
  * Spec: plans/06092026-practice-hub-simplification/spec.html (T3)
  */
 
+import { parseYM } from "../../PMS/dashboard/pmsPeriod";
+
 /**
  * Status tones.
  *
@@ -43,6 +45,85 @@ export type StatusTone =
  * and a practice ranked #10 was told it was healthy. Keep the two states
  * distinct in every helper here, forever.
  */
+
+/**
+ * STALE_AFTER_DAYS — how old a stage's data may be before its tone stops
+ * meaning anything.
+ *
+ * Why 35: monthly PMS data lands a few weeks after a month closes, so on July 22
+ * the June file (~22 days past month-end) is normal and healthy, while May
+ * (~52 days) means a feed has stopped. 35 sits in that gap — past a full month
+ * of ordinary lag, short of two.
+ *
+ * The bug this exists to kill: a practice whose PMS feed stopped in January was
+ * told "your practice is healthy this month", because January's referral count
+ * still produced a perfectly real `positive` tone and nothing checked its age.
+ * This is the freshness half of UNKNOWN_IS_NOT_FINE — old data is not a
+ * measurement of now, it is the absence of one. Tunable heuristic, not a product
+ * band (see the file header).
+ */
+export const STALE_AFTER_DAYS = 35;
+
+const MS_PER_DAY = 86_400_000;
+
+/**
+ * Days elapsed since the END of a data month — NOT since its start, and NOT
+ * since it was uploaded.
+ *
+ * End-of-month is the only honest anchor: June's data is complete on June 30, so
+ * on July 22 it is ~22 days old (fresh), while May is ~52 (stale). Measuring
+ * from the start of the month would age June by 52 days and condemn data that is
+ * perfectly current.
+ *
+ * Built from parseYM, never `new Date(monthKey)` — that parses "2026-05" as UTC
+ * midnight and shifts the month backwards in western timezones (the documented
+ * bug at timeframe.ts:34). Returns null for an unreadable key, which callers must
+ * treat as unknown age, never as fresh.
+ */
+export function monthDataAgeDays(
+  monthKey: string | null | undefined,
+  now: Date = new Date(),
+): number | null {
+  if (!monthKey) return null;
+  const p = parseYM(monthKey);
+  if (!p || p.month < 1 || p.month > 12) return null;
+  // Day 1 of the NEXT month = the instant this one ends, in UTC.
+  const monthEnd = Date.UTC(p.year, p.month, 1);
+  return Math.floor((now.getTime() - monthEnd) / MS_PER_DAY);
+}
+
+/**
+ * Is this month's data too old to say anything about now?
+ *
+ * A missing or unreadable month counts as stale: we will not show a confident
+ * tone on data whose age we cannot establish (abstain over guess). A future-dated
+ * month has a negative age and is not stale.
+ */
+export function isMonthStale(
+  monthKey: string | null | undefined,
+  now: Date = new Date(),
+): boolean {
+  const age = monthDataAgeDays(monthKey, now);
+  if (age === null) return true;
+  return age > STALE_AFTER_DAYS;
+}
+
+/**
+ * The freshness gate: a tone derived from stale data becomes `unknown`.
+ *
+ * `unknown` is the right downgrade rather than `warn` — we are not claiming the
+ * stage got worse, only that we cannot see it. Downstream, buildHealthVerdict
+ * drops `unknown` stages from `measured`. That kills the FULL all-clear, but not
+ * the hedged one — see the staleNote branch in verdict.ts, which the falsifier
+ * test caught.
+ */
+export function withFreshness(
+  tone: StatusTone,
+  monthKey: string | null | undefined,
+  now: Date = new Date(),
+): StatusTone {
+  return isMonthStale(monthKey, now) ? "unknown" : tone;
+}
 
 /**
  * Dot / status-text colors per tone (warm palette, matches focus cards).

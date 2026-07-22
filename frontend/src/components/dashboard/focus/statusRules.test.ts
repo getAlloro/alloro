@@ -2,10 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import {
   formSubsTone,
+  isMonthStale,
+  monthDataAgeDays,
   rankTone,
   referralStatus,
   reviewTone,
+  STALE_AFTER_DAYS,
   TONE_COLOR,
+  withFreshness,
   type StatusTone,
 } from "./statusRules";
 
@@ -127,5 +131,86 @@ describe("TONE_COLOR", () => {
     for (const tone of tones) {
       expect(TONE_COLOR[tone]).toMatch(/^#[0-9A-Fa-f]{6}$/);
     }
+  });
+});
+
+/**
+ * Freshness — the second half of UNKNOWN_IS_NOT_FINE.
+ *
+ * A tone is only as current as the data under it. These pin the age arithmetic
+ * that decides whether a stage still gets to speak, including the two traps:
+ * age runs from the END of a data month (not its start), and month keys are
+ * never parsed with `new Date()` (the documented UTC-shift bug).
+ */
+describe("monthDataAgeDays — age from the END of the data month", () => {
+  // Mid-July, the shape of the real incident: June is normal PMS lag, May is not.
+  const JULY_22 = new Date("2026-07-22T12:00:00Z");
+
+  it("treats last month's data as young — normal PMS lag, not staleness", () => {
+    // June ends July 1 → 21 days old on July 22. Measuring from the START of June
+    // would give ~51 and wrongly condemn perfectly current data.
+    expect(monthDataAgeDays("2026-06", JULY_22)).toBe(21);
+    expect(isMonthStale("2026-06", JULY_22)).toBe(false);
+  });
+
+  it("flags a month whose successor has already closed", () => {
+    // May ends June 1 → 51 days old. A feed that skipped a month.
+    expect(monthDataAgeDays("2026-05", JULY_22)).toBe(51);
+    expect(isMonthStale("2026-05", JULY_22)).toBe(true);
+  });
+
+  it("flags the live incident: January data read in July", () => {
+    expect(monthDataAgeDays("2026-01", JULY_22)).toBe(171);
+    expect(isMonthStale("2026-01", JULY_22)).toBe(true);
+  });
+
+  it("accepts display-label keys, and never shifts the month via new Date()", () => {
+    // `new Date("2026-06")` is UTC midnight and shifts backwards in western
+    // timezones (timeframe.ts:34). parseYM must give the same answer either way.
+    expect(monthDataAgeDays("Jun 2026", JULY_22)).toBe(
+      monthDataAgeDays("2026-06", JULY_22),
+    );
+  });
+
+  it("holds the boundary exactly at STALE_AFTER_DAYS", () => {
+    const monthEnd = Date.UTC(2026, 6, 1); // June closes
+    const atLimit = new Date(monthEnd + STALE_AFTER_DAYS * 86_400_000);
+    const pastLimit = new Date(monthEnd + (STALE_AFTER_DAYS + 1) * 86_400_000);
+    expect(isMonthStale("2026-06", atLimit)).toBe(false);
+    expect(isMonthStale("2026-06", pastLimit)).toBe(true);
+  });
+
+  it("treats an unreadable or missing month as stale, never as fresh", () => {
+    // Abstain over guess: we cannot show a confident tone on data whose age we
+    // cannot establish.
+    expect(monthDataAgeDays(null, JULY_22)).toBeNull();
+    expect(isMonthStale(null, JULY_22)).toBe(true);
+    expect(isMonthStale("not-a-month", JULY_22)).toBe(true);
+    expect(isMonthStale("2026-13", JULY_22)).toBe(true);
+  });
+
+  it("does not call future-dated data stale", () => {
+    expect(isMonthStale("2026-08", JULY_22)).toBe(false);
+  });
+});
+
+describe("withFreshness — stale data cannot hold a confident tone", () => {
+  const JULY_22 = new Date("2026-07-22T12:00:00Z");
+
+  it("downgrades a real positive tone to unknown when its month is stale", () => {
+    // The live bug in one line: January referrals produced a genuine `positive`.
+    expect(withFreshness("positive", "2026-01", JULY_22)).toBe("unknown");
+  });
+
+  it("leaves a fresh tone untouched", () => {
+    expect(withFreshness("positive", "2026-06", JULY_22)).toBe("positive");
+    expect(withFreshness("warn", "2026-06", JULY_22)).toBe("warn");
+  });
+
+  it("downgrades rather than escalates — staleness is not a claim of decline", () => {
+    // `unknown`, never `warn`: we are not saying the stage got worse, only that
+    // we cannot see it.
+    expect(withFreshness("positive", "2026-01", JULY_22)).not.toBe("warn");
+    expect(withFreshness("critical", "2026-01", JULY_22)).toBe("unknown");
   });
 });

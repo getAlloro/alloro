@@ -42,7 +42,9 @@ export function OneThingBanner() {
 
   // FIX 2: the 30-second health/leak verdict, from the SAME tones as the stat
   // dots (real-data path only; the wizard tour drives its own demo hero).
-  const verdict = isWizardActive ? null : buildHealthVerdict(stageTones);
+  const verdict = isWizardActive
+    ? null
+    : buildHealthVerdict(stageTones.tones, stageTones.staleNote);
 
   if (!isWizardActive && isLoading) {
     return (
