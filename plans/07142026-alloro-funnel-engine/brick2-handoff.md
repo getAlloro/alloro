@@ -86,7 +86,7 @@ The decoupled engine must not import #205. To satisfy "every export has a consum
 - **Code Constitution.** Mirror §6.1 (`src/controllers/gbp-automation/`). DB access through `models/` (§7.4). Thin response builders (§8.2) + typed domain error with centralized status mapping (§8.3). Pino, no `console.*` (§9.1). No `any` (§4.5). Run `npm run check:conventions --strict`; cite the precise `§N.M` for any violation; fix must‑fix before done.
 - **Additive & isolated.** Don't change #205's or `generateAllSeoSections`'s behavior. One PR. **Never commit to `dev/dave` or `main`** — branch off `origin/dev/dave` as `claude/ctr-brick2-hypothesis` (match the batch's `claude/` prefix), PR to `dev/dave`, Dave reviews/merges (CD SOP).
 - **Repo is public** — sanitize the PR body: product behavior only, no codenames, no attack framing.
-- **Attribution:** `coreyw22 <corey@hamiltonwise.com>`.
+- **Attribution:** `the project's standard commit attribution`.
 
 ## Definition of done
 

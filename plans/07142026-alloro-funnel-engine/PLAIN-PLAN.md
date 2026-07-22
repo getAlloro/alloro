@@ -45,7 +45,7 @@ There are two halves, and they move at different speeds:
 
 1. **Fix the impressions number that reads zero.** *(Dave's.)* It's stuck at zero for everyone — the data's there, it's not summed right. Nothing else in Track A can be proven until this number is real. This is the one blocker, and it lives here in the plan, not off to the side.
 2. **Wire the category lever.** Today the only thing Alloro auto‑does is fill in a website URL — and every Google profile already has one, so it changes nothing. The business *category* is the strongest lever; it's built but not connected. Connect it so Alloro proposes a better category and, once the owner approves, sets it.
-3. **Turn it on for a dental proof site — Garrison (ortho) or One Endo (endo)** — both already covered by the category catalog. Guardrails make this safe to run straight on a real customer: the owner approves each change, the master switch stays off until enabled per practice, and the prior value is captured for rollback. *(Retired the old "test on our own account first": Alloro isn't a dental business, so the dental category lever can't propose for it — and the guardrails mean we don't need it as a buffer.)*
+3. **Turn it on for a dental proof site (an ortho or endo practice already in the category catalog)** — both already covered by the category catalog. Guardrails make this safe to run straight on a real customer: the owner approves each change, the master switch stays off until enabled per practice, and the prior value is captured for rollback. *(Retired the old "test on our own account first": Alloro isn't a dental business, so the dental category lever can't propose for it — and the guardrails mean we don't need it as a buffer.)*
 
 **Category verticals — decision (Corey, 2026-07-21):** the category engine is vertical‑agnostic; dental is seeded now (Dentist → Orthodontist/Endodontist/…). Other ICP verticals (veterinary, optometry, chiropractic, physician) get seeded **as a customer in that vertical lands**, not up front — each needs resolver family‑scoping (the loop isn't vertical‑scoped today, `gbpCategoryTaxonomy.ts:219‑229`) + verified Google category IDs. Dental is the proven template that makes each next vertical cheap.
 
@@ -69,7 +69,7 @@ There are two halves, and they move at different speeds:
 
 ## The next machine (named, not now): Sika
 
-The PMS/EMR bridge. It ends the manual report pulls, fixes the inaccurate numbers, and unlocks the two things we can't do today: **review requests** (the fastest‑acting lever) and **referral‑conversion tracking** (did the referral actually *start*). Gated on the sales call + the practice connecting + cash. Dave can pilot it on Garrison (Ortho2). This is a separate machine — it does not belong inside the get‑found steps above.
+The PMS/EMR bridge. It ends the manual report pulls, fixes the inaccurate numbers, and unlocks the two things we can't do today: **review requests** (the fastest‑acting lever) and **referral‑conversion tracking** (did the referral actually *start*). Gated on the sales call + the practice connecting + cash. Dave can pilot it on a proof-of-concept practice. This is a separate machine — it does not belong inside the get‑found steps above.
 
 ---
 

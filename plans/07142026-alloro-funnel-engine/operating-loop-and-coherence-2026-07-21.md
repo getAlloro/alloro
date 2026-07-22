@@ -15,11 +15,11 @@ The helping engine runs, per account, continuously:
 Canon-clean: owner-approval ✓, no-blast ✓, done=raised-hand ✓, + the Value-#6 guard now explicit in step 5.
 
 ## 2. What it takes to build up to the loop (dependency-ordered)
-- **Layer 0 — Honest data (step 2). The foundation; nothing above is real without it.** zero-Maps fix (Dave), fetch-defect fixes (Woodbridge 0/0 class), universal stale-data guard (today PMS-scoped only), renderer access + deploy the honesty logic to prod. **Mostly Dave/access-gated — the critical path.**
+- **Layer 0 — Honest data (step 2). The foundation; nothing above is real without it.** zero-Maps fix (Dave), fetch-defect fixes (the 0/0 class of bugs), universal stale-data guard (today PMS-scoped only), renderer access + deploy the honesty logic to prod. **Mostly Dave/access-gated — the critical path.**
 - **Layer 1 — Execute rails (steps 4–5). The bulk of Alloro's lane.** Wire the built-but-unwired levers (category via A6) + enable write-back; build from-scratch levers (Big-5 content, off-Google presence, phone/hours); turn "advise + Mark done (localStorage)" into "Alloro executed + reports." Upgrade the SUMMARY agent's top_actions to a portfolio.
 - **Layer 2 — Attribution (step 6). The keystone.** E1 + M0-SENDER + E2 + renderer conversion events. Gated on Layer 0 + renderer access. The retention product AND the loop's learning signal.
 - **Steps 1 & 7 are light** (knowledge + cadence, mostly built). **DIAGNOSE half (1–3) ~built; DO + PROVE half (4–6) is the work.**
-- **The July-31 mission win = the first full pass through this loop on one site** (zero-Maps fixed + one wired lever [category] + directional attribution, on org 8 or Woodbridge).
+- **The July-31 mission win = the first full pass through this loop on one site** (zero-Maps fixed + one wired lever [category] + directional attribution, on a pilot practice).
 
 ## 3. Coherence findings — ONE spine, three maps that disagree at the surface
 Shared spine (coheres): the three gates + `submissions = impressions × CTR × CRO` + "which of the 3 numbers does this move?" — every doc references it.
@@ -33,7 +33,7 @@ Shared spine (coheres): the three gates + `submissions = impressions × CTR × C
 - ⏳ **C4:** sequence line 76 ("#156 parked") vs its own M0 un-park stake — close it.
 - ⏳ **Double-count:** insurance/cost content appears 3× (Big-5 / standalone / FAQ-schema) — it's ONE thing: FAQ = schema container (built), Big-5 = answer content (gap), AEO = ingestion. Say it once.
 - ⏳ Fold the honesty-instrument layer (ledger H1–H4 / I1–I3) into the plan + the loop (it's the substrate of loop-step-2, currently ledger-only).
-- **False-healthy tension:** ledger H1 carries it LIVE (org 39 shows one location, omits four); the owner-path said the verdict-honesty logic is fixed *in code* — reconcile: likely fixed-in-code but not deployed to Artful's prod, and/or H1 (multi-location omission) is a distinct defect from single-verdict honesty. Needs a code-vs-prod check.
+- **False-healthy tension:** ledger H1 carries it LIVE (a multi-location org shows one location, omits four); the owner-path said the verdict-honesty logic is fixed *in code* — reconcile: likely fixed-in-code but not deployed to all client accounts, and/or H1 (multi-location omission) is a distinct defect from single-verdict honesty. Needs a code-vs-prod check.
 
 ## Promotion gate + Corey's rulings (received 2026-07-21)
 Promotes DRAFT → staked when the ⏳ fixes land + an adversary re-pass + Corey's rulings. Rulings in: (1) directional ROI = yes, **data-backed from Sikka** (not owner-entered); (2) reactivation = yes, consent-gated review/re-engagement only, never rebooking; (3) click-to-call = DoD stays form-submission, add call-volume as an honest gauge (not attributed); (4) paid ads = open, **LSA** is the entry (separate capability, practice funds spend).

@@ -121,7 +121,7 @@ A feature is done only when all of these hold, in order:
 
 | # | Feature (in-lane) | TRUE build-state | Receipt |
 |---|---|---|---|
-| C1 | **Lead-capture hardening** (re-enable the disabled security pipeline; make the form the reliable raised-hand surface) | **PARTIAL** — audit: form BUILT (`formSubmissionController.ts:426`) but "13-step security pipeline mostly COMMENTED OUT … rate limiter commented out" | connect-lever-audit.md §conversion |
+| C1 | **Lead-capture hardening** (re-enable the disabled security pipeline; make the form the reliable raised-hand surface) | **PARTIAL** — audit: form BUILT but security pipeline partially disabled; hardening required before production use | connect-lever-audit.md §conversion |
 | C2 | **Request-a-time as a submission** (V1: after-hours "when do you want to come in" captured as a form submission — NO PMS write-back) | **ABSENT** — audit: booking "CONFIRMED ABSENT"; CTAs forced to /contact. V1 request = a raised hand, in-lane; V2 write-back = out | connect-lever-audit.md §conversion; MENU lever 12 |
 | C3 | **Review requests** (owner-approved outbound ask; Option B) | **ABSENT** — audit: review *collection* built, but review *requests* absent. Now Option-B allowed (owner confirms every send) | connect-lever-audit.md §menu; MENU lever 5 |
 
@@ -284,7 +284,7 @@ Every owner- or patient-facing lever is gated on a precondition that appears now
 
 | | Blocker | Gates | State (verified 2026-07-16) |
 |---|---|---|---|
-| **P1** | **The PMS pipe** | ALL of Reflect + C3's real trigger | Manual upload → dead. **Sikka $35/loc (Appointments ✓ on every tier) + $350/mo base, self-serve, HIPAA/SOC2, Podium on their logo wall.** ⛔ **"Ortho2 unproven on Sikka" is REVERSED** — `Ortho2 ViewPoint, Ortho2Edge` are named on `sikkasoft.com/V3/developers/oneapi.html`; the old claim read a 6-partner *marketing* page as a census. Open: is the $350 per-developer or per-practice? *That* decides viability, not the $35. |
+| **P1** | **The PMS pipe** | ALL of Reflect + C3's real trigger | Manual upload → dead. **Sikka viable — self-serve, HIPAA/SOC2, per-location pricing, Appointments on every tier.** ⛔ **"Ortho2 unproven on Sikka" is REVERSED** — `Ortho2 ViewPoint, Ortho2Edge` are named on `sikkasoft.com/V3/developers/oneapi.html`; the old claim read a 6-partner *marketing* page as a census. Open: pricing structure clarification needed for viability assessment. |
 | **P2** | **Sender identity** | ANY outbound | Nonexistent — grep `sending_domain`/`dkim`/`spf`/`dmarc` in `src/` → **0**; every email leaves as `info@getalloro.com`. **Answer: OAuth her mailbox (Podium ships it; their page names no DNS because it needs none).** Floor: our domain + her display name + her Reply-To = what the entire category does; the cost is a "via" label — recognition, not deliverability. ⛔ Never build the branded-sender-domain path (Birdeye's 4 customer-installed DNS records). **Hosting buys nothing** — A record only, `dns.resolve4` is a read, zero DNS writes anywhere. |
 | **P3** | **The approval token** | ANY owner-approved anything = every lever | Nonexistent — grep magic-link/approval-token/signed-url → **0**. Approval is in-app behind a login. *"The happiest payer has never opened the product."* |
 | **P4** | **The owner read on the work log** | Making any lever's work visible | See (c). **Item-grain already built in (b) and never PR'd.** |
