@@ -177,7 +177,7 @@ async function handleNewsletterSignup(
   });
 
   // Send branded confirmation email
-  const siteUrl = getSiteUrl(project.hostname, project.custom_domain);
+  const siteUrl = getSiteUrl(project.generated_hostname, project.custom_domain);
   const businessName = getBusinessName(project);
 
   try {
@@ -462,7 +462,7 @@ export async function handleFormSubmission(req: Request, res: Response): Promise
       project.generated_hostname
         ? `${project.generated_hostname}.sites.getalloro.com`
         : null,
-      project.hostname ? `${project.hostname}.sites.getalloro.com` : null,
+      null,
       project.custom_domain || null,
       project.custom_domain_alt || null,
     ].filter((h): h is string => Boolean(h));

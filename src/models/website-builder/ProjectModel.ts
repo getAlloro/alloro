@@ -11,7 +11,6 @@ export interface IProject {
   organization_id: number | null;
   name: string;
   display_name?: string | null;
-  hostname: string | null;
   generated_hostname: string | null;
   custom_domain: string | null;
   custom_domain_alt?: string | null;
@@ -311,7 +310,7 @@ export class ProjectModel extends BaseModel {
   }
 
   /**
-   * Preview-provisioning projection: identity + both hostnames + custom domain +
+   * Preview-provisioning projection: identity + generated hostname + custom domain +
    * lifecycle (status, archived_at). Used to gate + derive the preview domain for
    * on-demand Rybbit provisioning of *.sites.getalloro.com sites.
    */
@@ -321,7 +320,6 @@ export class ProjectModel extends BaseModel {
   ): Promise<
     | {
         id: string;
-        hostname: string | null;
         generated_hostname: string | null;
         custom_domain: string | null;
         status: string | null;

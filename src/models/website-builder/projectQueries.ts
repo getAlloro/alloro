@@ -374,7 +374,6 @@ export function findPreviewProvisioningContextByIdQuery(
 ): Promise<
   | {
       id: string;
-      hostname: string | null;
       generated_hostname: string | null;
       custom_domain: string | null;
       status: string | null;
@@ -391,7 +390,6 @@ export function findPreviewProvisioningContextByIdQuery(
     )
     .select(
       "website_builder.projects.id",
-      "website_builder.projects.hostname",
       "website_builder.projects.generated_hostname",
       "website_builder.projects.custom_domain",
       "website_builder.projects.status",
@@ -416,10 +414,7 @@ export function findByHostnameOrDomainQuery(
   return table(trx)
     .where(function () {
       if (hostname) {
-        this.where("hostname", hostname).orWhere(
-          "generated_hostname",
-          hostname,
-        );
+        this.where("generated_hostname", hostname);
       }
       this.orWhere("custom_domain", cleanHost).orWhere(
         "custom_domain_alt",
@@ -446,10 +441,7 @@ export function findActiveByHostnameOrDomainQuery(
     .select("website_builder.projects.*")
     .where(function () {
       if (hostname) {
-        this.where("website_builder.projects.hostname", hostname).orWhere(
-          "website_builder.projects.generated_hostname",
-          hostname,
-        );
+        this.where("website_builder.projects.generated_hostname", hostname);
       }
       this.orWhere("website_builder.projects.custom_domain", cleanHost).orWhere(
         "website_builder.projects.custom_domain_alt",

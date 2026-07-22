@@ -35,7 +35,7 @@ export async function handleNewsletterConfirm(req: Request, res: Response): Prom
 
   const project = await ProjectModel.findPublicActiveById(signup.project_id);
   const siteUrl = project
-    ? getSiteUrl(project.hostname, project.custom_domain)
+    ? getSiteUrl(project.generated_hostname, project.custom_domain)
     : "https://getalloro.com";
 
   if (!project) {

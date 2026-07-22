@@ -18,9 +18,9 @@ interface ConfirmEmailParams {
 /**
  * Derive the public site URL for a project.
  */
-export function getSiteUrl(hostname: string | null, customDomain: string | null): string {
+export function getSiteUrl(generatedHostname: string | null, customDomain: string | null): string {
   if (customDomain) return `https://${customDomain}`;
-  if (hostname) return `https://${hostname}.sites.getalloro.com`;
+  if (generatedHostname) return `https://${generatedHostname}.sites.getalloro.com`;
   return "https://getalloro.com";
 }
 
