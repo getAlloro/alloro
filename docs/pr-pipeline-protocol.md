@@ -42,8 +42,9 @@ Rules below are active for agent compliance via CLAUDE.md.
 2. Format ownership: Dave's side owns the acceptance spec format and can reject a spec as insufficient. CC owns passing it. CC never grades its own homework format.
 3. The PR body may only claim what an acceptance item proved. "Read-only," "no writes," "sanitizes" are claims; each needs a passing item behind it. Unproven claims stay out of the body.
 4. **Data-first corollary:** before scheduling any validation window, confirm the underlying data exists (one read-only query, like the zero-Maps check). A correct fix on empty data proves nothing and burns an afternoon.
+5. **v1.2 — the metric line (added 2026-07-21).** Every PR body's `## What this is` must name the **business metric the change moves** — impressions, CTR, submissions, retention, cost — **and how we'll observe it moved** (the screen or number a non-engineer can watch), or state **"internal / no metric"** explicitly. A PR that can't say which number it moves is either mis-scoped or mislabeled; both get returned, not reviewed. This exists because a week-plus of merged work produced a skeleton whose one live action moved no number, and neither operator could tell from the code — the metric line makes that failure visible in the PR body instead of a month later.
 
-**Achieves:** Kills the overclaim class at the source ("read-only" PRs that write, "sanitizing" commits that reject). This is the same defect BUG-04 was: no predicted signal, so a wrong output looked fine for six weeks.
+**Achieves:** Kills the overclaim class at the source ("read-only" PRs that write, "sanitizing" commits that reject) and the no-op class (merged work that moves no number). This is the same defect BUG-04 was: no predicted signal, so a wrong output looked fine for six weeks.
 
 The PR body follows the repo template (.github/PULL_REQUEST_TEMPLATE.md). A PR the reviewer cannot situate in plain language — what it is, where it's seen, who it touches — is not reviewable and is returned, not reviewed.
 
