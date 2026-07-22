@@ -13,6 +13,7 @@ import {
 import { formatGeneratedCopyForOrg } from "../../../utils/generatedCopy";
 import { STAGE_LABEL, buildHealthVerdict, resolveActionStage } from "./verdict";
 import { useStageTones } from "./useStageTones";
+import { AlloroActivitySummary } from "./AlloroActivitySummary";
 
 /**
  * OneThingBanner — the "1 thing that matters" strip for the simplified
@@ -58,10 +59,7 @@ export function OneThingBanner() {
     return (
       <ActionBannerShell wizardTarget="dashboard-hero">
         <ActionBannerEyebrow>This month</ActionBannerEyebrow>
-        <h3 className="font-display text-xl text-alloro-navy">You're all caught up.</h3>
-        <p className="mt-1 text-[13.5px] text-ink-muted">
-          No urgent action right now. We'll surface the next priority as it appears.
-        </p>
+        <AlloroActivitySummary orgId={orgId} locationId={locationId} />
       </ActionBannerShell>
     );
   }
