@@ -6,8 +6,8 @@
  */
 
 import express from "express";
-import rateLimit from "express-rate-limit";
 import multer from "multer";
+import { contactSubmissionLimiter } from "../middleware/websiteContactProtection";
 import { handleContactSubmission } from "../controllers/websiteContact/websiteContactController";
 import { handleFormSubmission } from "../controllers/websiteContact/formSubmissionController";
 import { handleNewsletterConfirm } from "../controllers/websiteContact/newsletterConfirmController";
@@ -20,14 +20,6 @@ import {
 } from "../validation/websiteContact.schemas";
 
 const router = express.Router();
-
-const formSubmissionLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 50,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: "Too many submissions. Please try again later." },
-});
 
 const formUpload = multer({
   storage: multer.memoryStorage(),
@@ -46,7 +38,11 @@ router.post(
   validate(contactSubmissionSchema, { mode: "enforce" }),
   handleContactSubmission,
 );
-// TODO: Re-enable formSubmissionLimiter once protections are restored.
+// The public form endpoint is rate-limited by Alloro Protect
+// (`contactSubmissionLimiter`, applied first on the route below) — the same
+// per-IP cap that guards /contact. This is what keeps the confirmation receipt
+// (sent to the submitter from formSubmissionController) from being usable as a
+// backscatter amplifier.
 // `validate` runs AFTER multer so req.body is populated from the multipart
 // payload (contents may still be a JSON string — the schema tolerates that).
 //
@@ -64,7 +60,7 @@ router.post(
 // fails for an unrelated reason.
 router.post(
   "/form-submission",
-  // formSubmissionLimiter,
+  contactSubmissionLimiter, // Alloro Protect — per-IP cap (§11.3), same gate as /contact
   formUpload.array("files", 10),
   validate(formSubmissionSchema, { mode: "warn" }),
   sanitize(attributionInputSchema, ATTRIBUTION_FIELDS),
