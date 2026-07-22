@@ -54,16 +54,9 @@ export async function getKeyData(req: AuthenticatedRequest, res: express.Respons
       ),
     ]);
 
-    // Calls (try Business Calls API first; if not available, fallback to CALL_CLICKS)
     const getCalls = async (start: string, end: string) => {
-      try {
-        // Fallback to CALL_CLICKS (always available if Performance API is enabled)
-        const fallback = await getCallClicksTotal(perf, locationId, start, end);
-        return { source: "performance_call_clicks", ...fallback };
-      } catch {
-        const fallback = await getCallClicksTotal(perf, locationId, start, end);
-        return { source: "performance_call_clicks", ...fallback };
-      }
+      const result = await getCallClicksTotal(perf, locationId, start, end);
+      return { source: "performance_call_clicks", ...result };
     };
 
     const [pmCalls, ppmCalls] = await Promise.all([
