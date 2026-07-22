@@ -117,6 +117,11 @@ router.get(
   ...adminGscAuth,
   integrationsController.getGscPerformance,
 );
+router.get(
+  "/:id/integrations/:integrationId/gsc/ctr-opportunities",
+  ...adminGscAuth,
+  integrationsController.getCtrOpportunities,
+);
 
 // GET    /:id/detected-forms — List website forms derived from submissions
 router.get("/:id/detected-forms", integrationsController.listDetectedForms);
