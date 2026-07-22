@@ -206,7 +206,7 @@ export async function restoreBackup(
     }
 
     // Confirmation gate — must type the project name
-    const projectName = project.name || project.hostname || project.id;
+    const projectName = project.name || project.generated_hostname || project.id;
     if (!confirmation || confirmation.trim() !== projectName.trim()) {
       return res.status(400).json({
         success: false,

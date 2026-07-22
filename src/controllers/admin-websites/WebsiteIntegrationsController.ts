@@ -35,6 +35,7 @@ import * as formDetection from "./feature-services/service.form-detection";
 import * as clarityIntegration from "./feature-services/service.clarity-integration";
 import * as gscIntegration from "./feature-services/service.gsc-integration";
 import * as gscPerformance from "./feature-services/service.gsc-performance";
+import { findCtrOpportunities } from "./feature-utils/ctrOpportunity";
 import * as harvestLogInspector from "./feature-services/service.harvest-log-inspector";
 import * as rybbitHistory from "./feature-services/service.rybbit-history";
 import * as rybbitIntegration from "./feature-services/service.rybbit-integration";
@@ -741,5 +742,40 @@ export async function getGscPerformance(req: Request, res: Response): Promise<Re
   } catch (error) {
     logger.error({ err: error }, `${LOG_PREFIX} getGscPerformance failed:`);
     return fail(res, 500, "FETCH_ERROR", "Failed to fetch GSC performance");
+  }
+}
+
+export async function getCtrOpportunities(req: Request, res: Response): Promise<Response> {
+  try {
+    const integration = await loadIntegrationForProject(req, res);
+    if (!integration) return res;
+
+    if (integration.platform !== "gsc") {
+      return fail(
+        res,
+        400,
+        "UNSUPPORTED_PLATFORM",
+        "CTR opportunities require a Search Console integration",
+      );
+    }
+
+    const dashboard = await gscPerformance.getDashboard(
+      integration,
+      req.query.rangeDays,
+    );
+    // Brick 1 of the CTR self-optimization loop: which already-ranking pages are
+    // under-clicked for their position — where a sharper title wins clicks from
+    // demand that already exists (the fast, existing-demand lever). Diagnosis only;
+    // it stages nothing and writes nothing.
+    const opportunities = findCtrOpportunities(dashboard.topPages);
+    return ok(res, {
+      opportunities,
+      rangeDays: dashboard.rangeDays,
+      fromDate: dashboard.fromDate,
+      toDate: dashboard.toDate,
+    });
+  } catch (error) {
+    logger.error({ err: error }, `${LOG_PREFIX} getCtrOpportunities failed:`);
+    return fail(res, 500, "FETCH_ERROR", "Failed to compute CTR opportunities");
   }
 }

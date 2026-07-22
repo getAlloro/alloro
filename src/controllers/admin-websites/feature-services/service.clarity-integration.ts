@@ -429,7 +429,6 @@ function resolvePublishedUrl(project: IProject): string | null {
     project.custom_domain ||
     project.custom_domain_alt ||
     project.generated_hostname ||
-    project.hostname ||
     null;
   if (!host) return null;
   return /^https?:\/\//i.test(host) ? host : `https://${host}`;

@@ -107,6 +107,15 @@ router.post(
   "/business-info/completeness-fill",
   GbpAutomationController.createCompletenessFillDraft
 );
+// Manual category value-source trigger. Like completeness-fill, no request body: the
+// recommendation is derived from the caller's own location, so there is nothing to
+// validate. Inherits the authenticateToken → rbac → locationScope chain and the
+// write-role gate above (§5.4, §11.7). Nothing auto-publishes — an owner-approval
+// draft only.
+router.post(
+  "/business-info/category-proposal",
+  GbpAutomationController.createCategoryProposalDraft
+);
 router.post("/reviews/:reviewId/draft", GbpAutomationController.generateDraft);
 router.post("/reviews/:reviewId/post-draft", GbpAutomationController.createPostDraftFromReview);
 router.patch("/reviews/:reviewId/draft-slot", GbpAutomationController.saveReviewDraftSlot);

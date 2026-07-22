@@ -38,7 +38,6 @@ const findPreviewProvisioningContextById = vi.fn<
   (projectId: string) => Promise<
     | {
         id: string;
-        hostname: string | null;
         generated_hostname: string | null;
         custom_domain: string | null;
         status: string | null;
@@ -187,7 +186,6 @@ async function loadService() {
 
 const LIVE_PREVIEW = {
   id: "proj-a",
-  hostname: null,
   generated_hostname: "smiles-of-austin-123",
   custom_domain: null,
   status: "LIVE",
@@ -297,17 +295,18 @@ describe("provisionPreviewAnalytics — happy path", () => {
     expect(Object.keys(body).sort()).toEqual(["blockBots", "domain", "name"]);
   });
 
-  it("prefers a set custom hostname over the generated one", async () => {
+  it("defers to custom_domain path when a custom domain is set", async () => {
     findPreviewProvisioningContextById.mockResolvedValue({
       ...LIVE_PREVIEW,
-      hostname: "chosen-name",
-      generated_hostname: "auto-generated-999",
+      custom_domain: "smilesofaustin.com",
     });
     const { provisionPreviewAnalytics } = await loadService();
 
     const result = await provisionPreviewAnalytics("proj-a");
 
-    expect(result.previewDomain).toBe("chosen-name.sites.getalloro.com");
+    expect(result.reason).toBe("has_custom_domain");
+    expect(result.provisioned).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 
@@ -443,7 +442,6 @@ describe("provisionPreviewAnalytics — guards (no provisioning, no beacon)", ()
   it("skips a project with no hostname", async () => {
     findPreviewProvisioningContextById.mockResolvedValue({
       ...LIVE_PREVIEW,
-      hostname: null,
       generated_hostname: null,
     });
     const { provisionPreviewAnalytics } = await loadService();
@@ -480,10 +478,9 @@ describe("provisionPreviewAnalytics — guards (no provisioning, no beacon)", ()
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("falls back to the generated hostname when hostname is an empty string", async () => {
+  it("uses generated_hostname for the preview domain", async () => {
     findPreviewProvisioningContextById.mockResolvedValue({
       ...LIVE_PREVIEW,
-      hostname: "",
       generated_hostname: "fallback-999",
     });
     const { provisionPreviewAnalytics } = await loadService();

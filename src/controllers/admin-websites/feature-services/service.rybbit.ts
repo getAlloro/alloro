@@ -229,9 +229,7 @@ function previewProjectBlock(
 
 function getPreviewDomain(project: PreviewProject): string | null {
   const previewHost =
-    project.hostname && project.hostname.trim()
-      ? project.hostname
-      : project.generated_hostname;
+    project.generated_hostname;
   if (!previewHost || !previewHost.trim()) return null;
   return `${previewHost}${PREVIEW_HOST_SUFFIX}`;
 }

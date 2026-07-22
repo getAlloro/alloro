@@ -114,6 +114,36 @@ function parseIdentity(value: unknown): any {
 }
 
 /**
+ * Branded "we received your message" receipt sent to the submitter. A fixed
+ * transactional acknowledgment — no AI, no owner approval — distinct from the
+ * responder's substantive reply. Reflects NO submitter input (only the practice's
+ * own name/branding), so it carries no injection surface. Mirrors the newsletter
+ * confirmation body style.
+ */
+function buildConfirmationReceiptBody(
+  businessName: string | undefined,
+  headerColor: string,
+  logoUrl: string | null,
+): string {
+  const name = businessName || "the practice";
+  const color = headerColor || "#0e8988";
+  const logo = logoUrl
+    ? `<img src="${logoUrl}" alt="" style="max-height:48px;margin-bottom:16px;" />`
+    : "";
+  return `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;">
+    <div style="height:4px;background:${color};border-radius:2px;margin-bottom:20px;"></div>
+    ${logo}
+    <h2 style="color:#1a1a1a;font-size:18px;margin:0 0 12px;">Thanks — we got your message.</h2>
+    <p style="color:#444;font-size:15px;line-height:1.6;margin:0 0 12px;">
+      ${name} has received your message and will be in touch soon. There's nothing else you need to do.
+    </p>
+    <p style="color:#888;font-size:13px;line-height:1.6;margin:16px 0 0;">
+      If you didn't submit this, you can safely ignore this email.
+    </p>
+  </div>`;
+}
+
+/**
  * Handle newsletter signup: debounce, upsert, send confirmation email.
  */
 async function handleNewsletterSignup(
@@ -147,7 +177,7 @@ async function handleNewsletterSignup(
   });
 
   // Send branded confirmation email
-  const siteUrl = getSiteUrl(project.hostname, project.custom_domain);
+  const siteUrl = getSiteUrl(project.generated_hostname, project.custom_domain);
   const businessName = getBusinessName(project);
 
   try {
@@ -432,7 +462,7 @@ export async function handleFormSubmission(req: Request, res: Response): Promise
       project.generated_hostname
         ? `${project.generated_hostname}.sites.getalloro.com`
         : null,
-      project.hostname ? `${project.hostname}.sites.getalloro.com` : null,
+      null,
       project.custom_domain || null,
       project.custom_domain_alt || null,
     ].filter((h): h is string => Boolean(h));
@@ -572,6 +602,38 @@ export async function handleFormSubmission(req: Request, res: Response): Promise
       logger.warn(
         `[Form Submission] No recipients resolved for project ${projectId}; saved submission without sending email.`
       );
+    }
+
+    // ── 16. Confirmation receipt to the SUBMITTER (transactional; separate from
+    // the responder's substantive reply). Gated on !flagged (spam) + a valid
+    // submitter email. Backscatter amplification is prevented by Alloro Protect's
+    // per-IP cap on this route (routes/websiteContact.ts). Non-blocking: a receipt
+    // failure never affects the visitor response or the persisted lead.
+    if (!flagged) {
+      const submitterEmail = extractEmail(textContents);
+      if (submitterEmail) {
+        try {
+          const receiptContext = await resolveFormSubmissionEmailContext(project);
+          await sendEmailWebhook({
+            cc: [],
+            bcc: [],
+            body: buildConfirmationReceiptBody(
+              getBusinessName(project),
+              receiptContext.headerColor,
+              receiptContext.logoUrl,
+            ),
+            from: process.env.CONTACT_FORM_FROM || "info@getalloro.com",
+            subject: "We received your message",
+            fromName: receiptContext.fromName,
+            recipients: [submitterEmail],
+          });
+        } catch (err) {
+          logger.error(
+            { err: err },
+            "[Form Submission] Confirmation receipt send failed (non-blocking):"
+          );
+        }
+      }
     }
 
     return res.json({ success: true });

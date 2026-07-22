@@ -12,6 +12,9 @@
 
 import express from "express";
 import * as controller from "../../../controllers/admin-websites/SeoController";
+import * as ctrHypothesisController from "../../../controllers/admin-websites/CtrHypothesisController";
+import { validate } from "../../../middleware/validate";
+import { ctrHypothesisBodySchema } from "../../../validation/ctrHypothesis.schemas";
 
 const router = express.Router();
 
@@ -66,5 +69,13 @@ router.post("/:id/pages/:pageId/seo/analyze", controller.analyzePageSeo);
 
 // POST /:id/posts/:postId/seo/analyze — AI analyze existing SEO for post section
 router.post("/:id/posts/:postId/seo/analyze", controller.analyzePostSeo);
+
+// POST /:id/seo/ctr-hypothesis — Propose a metadata rewrite for one diagnosed
+// CTR opportunity. Read-only: returns a proposal, writes nothing.
+router.post(
+  "/:id/seo/ctr-hypothesis",
+  validate(ctrHypothesisBodySchema, { target: "body", mode: "enforce" }), // §11.2
+  ctrHypothesisController.proposeCtrHypothesis,
+);
 
 export default router;

@@ -158,7 +158,7 @@ export async function processWebsiteBackup(
     appendJson("manifest.json", manifest);
     appendJson("project.json", {
       name: project.name,
-      hostname: project.hostname,
+      generated_hostname: project.generated_hostname,
       custom_domain: project.custom_domain,
       template_id: project.template_id,
       status: project.status,
@@ -232,7 +232,7 @@ export async function processWebsiteBackup(
     log(`Uploaded to S3: ${s3Key}`);
 
     // --- Mark completed ---
-    const sanitizedName = (project.name || project.hostname || projectId)
+    const sanitizedName = (project.name || project.generated_hostname || projectId)
       .replace(/[^a-zA-Z0-9-_ ]/g, "")
       .replace(/\s+/g, "-")
       .toLowerCase();

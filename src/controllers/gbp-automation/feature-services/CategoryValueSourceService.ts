@@ -2,6 +2,9 @@ import { IGbpWorkItem } from "../../../models/GbpWorkItemModel";
 import { CategoryRecommendationInput } from "../feature-utils/gbpCategoryTaxonomy";
 import type { CategoryRecommendation } from "../feature-utils/gbpCategoryTaxonomy";
 import { BusinessInfoField, BusinessInfoPatch } from "../feature-utils/gbpBusinessInfo";
+import { GbpAutomationError } from "../feature-utils/GbpAutomationError";
+import { mapAiReadyGbpToCategoryInput } from "../feature-utils/mapAiReadyGbpToCategoryInput";
+import { resolveOrganizationAuditContext } from "../../../services/ai-seo-audit/organizationAuditContextService";
 import { GbpBusinessInfoDraftService } from "./GbpBusinessInfoDraftService";
 import { CategoryRecommendationService } from "./CategoryRecommendationService";
 
@@ -16,6 +19,19 @@ interface ProposeCategoryDraftParams {
   accessibleLocationIds?: number[];
   /** Current primary category + context signals (from client_gbp). */
   recommendationInput: CategoryRecommendationInput;
+}
+
+/**
+ * Same tenant context as ProposeCategoryDraftParams, but WITHOUT a caller-built
+ * recommendationInput: proposeCategoryDraftForLocation derives it from the location's
+ * live AI-ready GBP data.
+ */
+interface ProposeCategoryDraftForLocationParams {
+  organizationId: number;
+  locationId: number;
+  userId: number | null;
+  actorEmail?: string | null;
+  accessibleLocationIds?: number[];
 }
 
 /** Either nothing was warranted, or a draft was staged for the owner to approve. */
@@ -68,5 +84,46 @@ export class CategoryValueSourceService {
     });
 
     return { proposed: true, recommendation, workItem };
+  }
+
+  /**
+   * The MANUAL, owner/operator-triggered production caller — the runtime invocation
+   * proposeCategoryDraft had lacked (it took a pre-built input). Resolves the location's
+   * live AI-ready GBP data, derives the recommendation input, and delegates. Thin by
+   * design; mirrors GbpCompletenessDraftService.stageFillForLocation (§6.1).
+   *
+   * Safety: writes NOTHING to Google. §11.7 tenant scope is enforced twice — the audit
+   * context is org-scoped here, and createDraft re-checks downstream. No better category
+   * (or no gradable profile) → stages nothing (Value #6), returned as { proposed: false }.
+   */
+  static async proposeCategoryDraftForLocation(
+    params: ProposeCategoryDraftForLocationParams
+  ): Promise<ProposeCategoryDraftResult> {
+    // §11.7 — the audit context is org-scoped, so only locations this org owns are
+    // present. A locationId the caller does not own is absent → access denied.
+    const context = await resolveOrganizationAuditContext(params.organizationId);
+    const location =
+      context.locations.find((candidate) => candidate.id === params.locationId) ?? null;
+    if (!location) {
+      throw new GbpAutomationError(
+        "LOCATION_ACCESS_DENIED",
+        "No access to this location."
+      );
+    }
+
+    const recommendationInput = mapAiReadyGbpToCategoryInput(location.gbpData);
+    if (!recommendationInput) {
+      // No gradable GBP profile — nothing to reason a category from (Value #6).
+      return { proposed: false };
+    }
+
+    return CategoryValueSourceService.proposeCategoryDraft({
+      organizationId: params.organizationId,
+      locationId: params.locationId,
+      userId: params.userId,
+      actorEmail: params.actorEmail ?? null,
+      accessibleLocationIds: params.accessibleLocationIds,
+      recommendationInput,
+    });
   }
 }
