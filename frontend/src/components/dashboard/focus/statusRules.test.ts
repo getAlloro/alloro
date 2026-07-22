@@ -4,10 +4,11 @@ import {
   formSubsTone,
   isMonthStale,
   monthDataAgeDays,
+  monthsBehind,
   rankTone,
   referralStatus,
   reviewTone,
-  STALE_AFTER_DAYS,
+  STALE_GRACE_DAYS,
   TONE_COLOR,
   withFreshness,
   type StatusTone,
@@ -143,25 +144,14 @@ describe("TONE_COLOR", () => {
  * never parsed with `new Date()` (the documented UTC-shift bug).
  */
 describe("monthDataAgeDays — age from the END of the data month", () => {
-  // Mid-July, the shape of the real incident: June is normal PMS lag, May is not.
   const JULY_22 = new Date("2026-07-22T12:00:00Z");
 
-  it("treats last month's data as young — normal PMS lag, not staleness", () => {
+  it("measures from month-end, not month-start", () => {
     // June ends July 1 → 21 days old on July 22. Measuring from the START of June
-    // would give ~51 and wrongly condemn perfectly current data.
+    // would give 51 and wrongly age perfectly current data.
     expect(monthDataAgeDays("2026-06", JULY_22)).toBe(21);
-    expect(isMonthStale("2026-06", JULY_22)).toBe(false);
-  });
-
-  it("flags a month whose successor has already closed", () => {
-    // May ends June 1 → 51 days old. A feed that skipped a month.
     expect(monthDataAgeDays("2026-05", JULY_22)).toBe(51);
-    expect(isMonthStale("2026-05", JULY_22)).toBe(true);
-  });
-
-  it("flags the live incident: January data read in July", () => {
     expect(monthDataAgeDays("2026-01", JULY_22)).toBe(171);
-    expect(isMonthStale("2026-01", JULY_22)).toBe(true);
   });
 
   it("accepts display-label keys, and never shifts the month via new Date()", () => {
@@ -172,25 +162,73 @@ describe("monthDataAgeDays — age from the END of the data month", () => {
     );
   });
 
-  it("holds the boundary exactly at STALE_AFTER_DAYS", () => {
-    const monthEnd = Date.UTC(2026, 6, 1); // June closes
-    const atLimit = new Date(monthEnd + STALE_AFTER_DAYS * 86_400_000);
-    const pastLimit = new Date(monthEnd + (STALE_AFTER_DAYS + 1) * 86_400_000);
-    expect(isMonthStale("2026-06", atLimit)).toBe(false);
-    expect(isMonthStale("2026-06", pastLimit)).toBe(true);
+  it("returns null for a missing key", () => {
+    expect(monthDataAgeDays(null, JULY_22)).toBeNull();
+    expect(monthDataAgeDays(undefined, JULY_22)).toBeNull();
+  });
+});
+
+describe("isMonthStale — counted in whole months, not days", () => {
+  /**
+   * Counting months is what makes this insensitive to upload lag. A flat day
+   * threshold assumes uploads land within a few days of month close; with a
+   * two-week lag the newest file's age peaks past any 35-day line just before
+   * the next upload, so a healthy client would be marked stale for part of every
+   * month. These pin that this cannot happen.
+   */
+  it("accepts this month's and last month's data all month long", () => {
+    for (const day of [1, 10, 11, 22, 28]) {
+      const now = new Date(Date.UTC(2026, 6, day)); // July
+      expect(isMonthStale("2026-07", now), `July data on Jul ${day}`).toBe(false);
+      expect(isMonthStale("2026-06", now), `June data on Jul ${day}`).toBe(false);
+    }
   });
 
-  it("treats an unreadable or missing month as stale, never as fresh", () => {
-    // Abstain over guess: we cannot show a confident tone on data whose age we
-    // cannot establish.
-    expect(monthDataAgeDays(null, JULY_22)).toBeNull();
-    expect(isMonthStale(null, JULY_22)).toBe(true);
-    expect(isMonthStale("not-a-month", JULY_22)).toBe(true);
-    expect(isMonthStale("2026-13", JULY_22)).toBe(true);
+  it("does NOT cry stale on a client whose books simply close late", () => {
+    // 22-day lag: June's file lands ~July 23. Right before it arrives, May is the
+    // newest data and is 51 days old — a flat 35-day rule would have flagged this
+    // healthy client for over two weeks, every single month.
+    const justBeforeJuneUpload = new Date(Date.UTC(2026, 6, 22));
+    expect(monthDataAgeDays("2026-05", justBeforeJuneUpload)).toBeGreaterThan(35);
+    expect(isMonthStale("2026-05", justBeforeJuneUpload)).toBe(true);
+    // ...but the same client one month behind at the START of a month is fine:
+    const earlyJuly = new Date(Date.UTC(2026, 6, 5));
+    expect(isMonthStale("2026-05", earlyJuly)).toBe(false);
+  });
+
+  it("gives two-months-behind a grace window early in the month, then flags it", () => {
+    const withinGrace = new Date(Date.UTC(2026, 6, STALE_GRACE_DAYS));
+    const pastGrace = new Date(Date.UTC(2026, 6, STALE_GRACE_DAYS + 1));
+    expect(isMonthStale("2026-05", withinGrace)).toBe(false);
+    expect(isMonthStale("2026-05", pastGrace)).toBe(true);
+  });
+
+  it("always flags three or more months behind, even on the 1st", () => {
+    const firstOfMonth = new Date(Date.UTC(2026, 6, 1));
+    expect(isMonthStale("2026-04", firstOfMonth)).toBe(true);
+    expect(isMonthStale("2026-01", firstOfMonth)).toBe(true);
+  });
+
+  it("flags the live incident: January data read in July", () => {
+    expect(isMonthStale("2026-01", new Date("2026-07-22T12:00:00Z"))).toBe(true);
+  });
+
+  it("handles the December to January rollover", () => {
+    const jan15 = new Date(Date.UTC(2026, 0, 15));
+    expect(monthsBehind("2025-12", jan15)).toBe(1);
+    expect(isMonthStale("2025-12", jan15)).toBe(false);
+    expect(isMonthStale("2025-10", jan15)).toBe(true);
+  });
+
+  it("treats a missing month as stale, never as fresh", () => {
+    const now = new Date("2026-07-22T12:00:00Z");
+    expect(isMonthStale(null, now)).toBe(true);
+    expect(isMonthStale(undefined, now)).toBe(true);
+    expect(isMonthStale("", now)).toBe(true);
   });
 
   it("does not call future-dated data stale", () => {
-    expect(isMonthStale("2026-08", JULY_22)).toBe(false);
+    expect(isMonthStale("2026-08", new Date("2026-07-22T12:00:00Z"))).toBe(false);
   });
 });
 

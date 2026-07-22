@@ -47,22 +47,34 @@ export type StatusTone =
  */
 
 /**
- * STALE_AFTER_DAYS — how old a stage's data may be before its tone stops
- * meaning anything.
- *
- * Why 35: monthly PMS data lands a few weeks after a month closes, so on July 22
- * the June file (~22 days past month-end) is normal and healthy, while May
- * (~52 days) means a feed has stopped. 35 sits in that gap — past a full month
- * of ordinary lag, short of two.
+ * Freshness is measured in MONTHS BEHIND, not in a flat number of days.
  *
  * The bug this exists to kill: a practice whose PMS feed stopped in January was
  * told "your practice is healthy this month", because January's referral count
  * still produced a perfectly real `positive` tone and nothing checked its age.
  * This is the freshness half of UNKNOWN_IS_NOT_FINE — old data is not a
- * measurement of now, it is the absence of one. Tunable heuristic, not a product
- * band (see the file header).
+ * measurement of now, it is the absence of one.
+ *
+ * WHY NOT A FLAT DAY COUNT. The first version used "older than 35 days". That
+ * silently assumes uploads land within ~5 days of a month closing, because the
+ * newest file's age PEAKS just before the next one arrives: with an upload lag
+ * of L days the peak age is about daysInNextMonth + L. So a client whose books
+ * simply close two weeks late (L = 14) would be marked stale for ~9 days of
+ * EVERY month, then flip healthy again — and a guard that cries wolf monthly is
+ * a guard someone turns off. Counting whole months removes the dependence on
+ * upload lag entirely: we only ask "is a month you should already have missing?"
+ *
+ * The rule:
+ *   0-1 months behind → fresh   (this month's or last month's file)
+ *   2 months behind   → fresh only in the first STALE_GRACE_DAYS of the month,
+ *                       because last month's file may not have landed yet
+ *   3+ months behind  → stale   (a file you should already have never arrived)
+ *
+ * Tunable heuristic, not a product band (see the file header). It has never been
+ * checked against real upload timestamps — that is a calibration gate, and it is
+ * why the rule is built to be insensitive to lag rather than tuned to a guess.
  */
-export const STALE_AFTER_DAYS = 35;
+export const STALE_GRACE_DAYS = 10;
 
 const MS_PER_DAY = 86_400_000;
 
@@ -93,19 +105,47 @@ export function monthDataAgeDays(
 }
 
 /**
+ * Whole calendar months between a data month and the current one. 0 = this
+ * month's data, 1 = last month's, and so on. Negative for a future month.
+ * Null when the key cannot be read.
+ */
+export function monthsBehind(
+  monthKey: string | null | undefined,
+  now: Date = new Date(),
+): number | null {
+  if (!monthKey) return null;
+  const p = parseYM(monthKey);
+  if (!p || p.month < 1 || p.month > 12) return null;
+  const nowIndex = now.getUTCFullYear() * 12 + (now.getUTCMonth() + 1);
+  return nowIndex - (p.year * 12 + p.month);
+}
+
+/**
  * Is this month's data too old to say anything about now?
  *
  * A missing or unreadable month counts as stale: we will not show a confident
- * tone on data whose age we cannot establish (abstain over guess). A future-dated
- * month has a negative age and is not stale.
+ * tone on data whose age we cannot establish (abstain over guess). A future month
+ * is not stale — it is not old, it is odd, and the tone is not the place to
+ * report that.
+ *
+ * ⚠️ parseYM is lenient: it falls back to `new Date(\`${month} 1\`)`, so a
+ * garbage key does NOT reliably return null. "not-a-month" happens to parse to
+ * 2001 and reads stale by sheer distance, but a key containing a future year
+ * ("Total 2027") would parse fresh. This is why the caller in useStageTones
+ * gates on a real month record existing, and why unreadable-is-stale is enforced
+ * here by the null check rather than trusted from parseYM.
  */
 export function isMonthStale(
   monthKey: string | null | undefined,
   now: Date = new Date(),
 ): boolean {
-  const age = monthDataAgeDays(monthKey, now);
-  if (age === null) return true;
-  return age > STALE_AFTER_DAYS;
+  const behind = monthsBehind(monthKey, now);
+  if (behind === null) return true;
+  if (behind <= 1) return false;
+  // Exactly two months behind is still normal early in a month: last month's
+  // file has not necessarily landed yet.
+  if (behind === 2) return now.getUTCDate() > STALE_GRACE_DAYS;
+  return true;
 }
 
 /**

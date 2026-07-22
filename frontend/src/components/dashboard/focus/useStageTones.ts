@@ -17,6 +17,16 @@ import type { StageTones } from "./verdict";
 export interface StageToneResult {
   tones: StageTones;
   /**
+   * True while the underlying data is still in flight.
+   *
+   * Load order matters here: until the PMS query resolves there is no month to
+   * check, so a stale-feed practice looks momentarily like a never-connected one
+   * and the hedged all-clear ("...your practice is healthy this month") can flash
+   * on screen before the real state arrives. Callers must not render a verdict
+   * while this is true.
+   */
+  isLoading: boolean;
+  /**
    * The data month behind a stage whose tone was downgraded for age, e.g.
    * "January 2026" — null when nothing was stale. The banner states this instead
    * of a verdict when every stage is stale, so an owner sees WHY Alloro went
@@ -81,6 +91,12 @@ export function useStageTones(): StageToneResult {
         latestMonth?.month,
       ),
     },
-    staleNote: referralsStale ? formatDataMonth(latestMonth?.month) : null,
+    staleNote: referralsStale
+      ? // formatDataMonth returns "" for a blank key, which would read as
+        // not-stale downstream. Fall back to the raw key so a downgraded tone is
+        // never paired with an empty note.
+        formatDataMonth(latestMonth?.month) || (latestMonth?.month ?? null)
+      : null,
+    isLoading: metrics.isLoading || keyData.isLoading || timeseries.isLoading,
   };
 }

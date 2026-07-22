@@ -251,9 +251,14 @@ describe("buildHealthVerdict — stale data can never read as healthy", () => {
    * that sentence, in code: no combination of tones containing a stale-downgraded
    * stage may produce an all-clear.
    */
-  it("FALSIFIER: no all-clear string survives a stale stage, in any combination", () => {
+  it("FALSIFIER: no health claim survives a stale stage, in any combination", () => {
     const TONES = ["positive", "warn", "critical", "neutral"] as const;
-    const ALL_CLEAR = /healthy this month/i;
+    // Hunt the CLAIM, not one sentence. The first version of this regex was
+    // /healthy this month/i, which let "Healthy overall, with one gap Alloro
+    // caught: your Findable stage." through — and since rankTone marks #4+ as
+    // warn, that was the COMMON case, not a corner one. An owner reads either
+    // word as "you're fine".
+    const ALL_CLEAR = /healthy/i;
 
     for (const a of TONES) {
       for (const b of TONES) {
@@ -272,5 +277,37 @@ describe("buildHealthVerdict — stale data can never read as healthy", () => {
         }
       }
     }
+  });
+});
+
+describe("buildHealthVerdict — a named gap still admits the stale data", () => {
+  it("does not say 'Healthy overall' when a stage is stale", () => {
+    // The adversary's case, and the likeliest real one: rank #4+ is `warn`, so
+    // most practices land here. Before the fix this read "Healthy overall, with
+    // one gap..." while the PMS feed had been dead for six months.
+    const verdict = buildHealthVerdict(
+      { ...ALL_POSITIVE, findable: "warn", memorable: "unknown" },
+      "January 2026",
+    );
+
+    expect(verdict.text).not.toMatch(/healthy/i);
+    expect(verdict.text).toContain("Findable");
+    expect(verdict.text).toContain("January 2026");
+    expect(verdict.leakStage).toBe("findable");
+  });
+
+  it("keeps 'Healthy overall' when the data is current", () => {
+    const verdict = buildHealthVerdict({ ...ALL_POSITIVE, findable: "warn" });
+    expect(verdict.text).toMatch(/Healthy overall/i);
+  });
+
+  it("drops the 'this month' freshness claim from a critical verdict when stale", () => {
+    const verdict = buildHealthVerdict(
+      { ...ALL_POSITIVE, choosable: "critical", memorable: "unknown" },
+      "January 2026",
+    );
+    expect(verdict.text).not.toMatch(/this month/i);
+    expect(verdict.text).toContain("January 2026");
+    expect(verdict.leakStage).toBe("choosable");
   });
 });

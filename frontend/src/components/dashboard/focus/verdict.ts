@@ -156,11 +156,25 @@ export function buildHealthVerdict(
     };
   }
 
+  // Staleness qualifies EVERY verdict below, not just the all-clear.
+  //
+  // The first version of this fix only guarded the all-clear branches, so a
+  // stale-feed practice ranked #4 or worse — which is most practices, since
+  // rankTone marks 4+ as `warn` — still read "Healthy overall, with one gap
+  // Alloro caught: your Findable stage" while its PMS feed had been dead for
+  // months. "Healthy overall" is a whole-practice claim, and it must not be made
+  // over a stage nobody can see. Same for "this month" on the critical branch:
+  // that is a freshness claim about data that isn't fresh.
+  const staleSuffix = staleNote
+    ? ` Some of your data is from ${staleNote}, so this isn't a full picture.`
+    : "";
+
   // Critical wins.
   const critical = STAGE_ORDER.find((s) => tones[s] === "critical");
   if (critical) {
+    const opener = staleNote ? "Alloro spotted one gap" : "Alloro spotted one gap this month";
     return {
-      text: `Alloro spotted one gap this month: your ${STAGE_LABEL[critical]} stage is slipping.${moveSuffix(critical)}`,
+      text: `${opener}: your ${STAGE_LABEL[critical]} stage is slipping.${moveSuffix(critical)}${staleSuffix}`,
       leakStage: critical,
     };
   }
@@ -168,8 +182,11 @@ export function buildHealthVerdict(
   // Then a single warn gap.
   const warn = STAGE_ORDER.find((s) => tones[s] === "warn");
   if (warn) {
+    const opener = staleNote
+      ? "One gap Alloro caught"
+      : "Healthy overall, with one gap Alloro caught";
     return {
-      text: `Healthy overall, with one gap Alloro caught: your ${STAGE_LABEL[warn]} stage.${moveSuffix(warn)}`,
+      text: `${opener}: your ${STAGE_LABEL[warn]} stage.${moveSuffix(warn)}${staleSuffix}`,
       leakStage: warn,
     };
   }
