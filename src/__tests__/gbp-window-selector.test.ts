@@ -7,6 +7,8 @@ import {
 } from "../controllers/agents/feature-utils/dateHelpers";
 import {
   collectCoveredDays,
+  IMPRESSION_METRICS,
+  INTERACTION_METRICS,
   metricValue,
   selectRecentDaysWithData,
 } from "../controllers/agents/feature-utils/gbpWindowSelector";
@@ -216,7 +218,9 @@ describe("T3 payload distinguishes '0 interactions' from 'no recent data'", () =
       domain: "example.com",
       googleAccountId: 1,
       window,
-      resolvedDays: selectRecentDaysWithData(data, 2),
+      impressionDays: selectRecentDaysWithData(data, 2, IMPRESSION_METRICS),
+      interactionDays: selectRecentDaysWithData(data, 2, INTERACTION_METRICS),
+      reviewsSince: "2026-07-20",
       windowData: data,
     });
 
@@ -238,7 +242,9 @@ describe("T3 payload distinguishes '0 interactions' from 'no recent data'", () =
       domain: "example.com",
       googleAccountId: 1,
       window,
-      resolvedDays: selectRecentDaysWithData(empty, 2),
+      impressionDays: selectRecentDaysWithData(empty, 2, IMPRESSION_METRICS),
+      interactionDays: selectRecentDaysWithData(empty, 2, INTERACTION_METRICS),
+      reviewsSince: "2026-07-20",
       windowData: empty,
     });
 
@@ -255,7 +261,9 @@ describe("T3 payload distinguishes '0 interactions' from 'no recent data'", () =
       domain: "example.com",
       googleAccountId: 1,
       window,
-      resolvedDays: selectRecentDaysWithData(data, 2),
+      impressionDays: selectRecentDaysWithData(data, 2, IMPRESSION_METRICS),
+      interactionDays: selectRecentDaysWithData(data, 2, INTERACTION_METRICS),
+      reviewsSince: "2026-07-20",
       windowData: data,
     });
 
@@ -271,7 +279,12 @@ describe("T3 stored shape keeps the dashboard's reader honest", () => {
       { date: "2026-07-17", maps: 55 },
       { date: "2026-07-18", maps: 63 },
     ]);
-    const stored = flattenDailyGbpData(selectRecentDaysWithData(data, 2), data);
+    const stored = flattenDailyGbpData(
+      selectRecentDaysWithData(data, 2, IMPRESSION_METRICS),
+      selectRecentDaysWithData(data, 2, INTERACTION_METRICS),
+      data,
+      "2026-07-20",
+    );
 
     expect(stored.yesterday.data_date).toBe("2026-07-18");
     expect(stored.yesterday.visibility.impressions_maps_desktop).toBe(63);
@@ -285,7 +298,12 @@ describe("T3 stored shape keeps the dashboard's reader honest", () => {
     // present-but-zero one. Writing zeros here would relaunch the bug one layer
     // lower, where it is much harder to see.
     const empty = gbpResponse([]);
-    const stored = flattenDailyGbpData(selectRecentDaysWithData(empty, 2), empty);
+    const stored = flattenDailyGbpData(
+      selectRecentDaysWithData(empty, 2, IMPRESSION_METRICS),
+      selectRecentDaysWithData(empty, 2, INTERACTION_METRICS),
+      empty,
+      "2026-07-20",
+    );
 
     expect(stored.yesterday.visibility).toBeUndefined();
     expect(stored.yesterday.data_date).toBeNull();
@@ -294,11 +312,166 @@ describe("T3 stored shape keeps the dashboard's reader honest", () => {
 
   it("keeps a present-but-zero day as a present visibility object", () => {
     const data = gbpResponse([{ date: "2026-07-18", omitValue: true }]);
-    const stored = flattenDailyGbpData(selectRecentDaysWithData(data, 2), data);
+    const stored = flattenDailyGbpData(
+      selectRecentDaysWithData(data, 2, IMPRESSION_METRICS),
+      selectRecentDaysWithData(data, 2, INTERACTION_METRICS),
+      data,
+      "2026-07-20",
+    );
 
     expect(stored.yesterday.visibility).toBeDefined();
     expect(stored.yesterday.visibility.impressions_maps_desktop).toBe(0);
     // Only one day reported, so the second side is honestly empty.
     expect(stored.dayBefore.visibility).toBeUndefined();
+  });
+});
+
+// =====================================================================
+// Cross-metric lag skew — the adversary's finding
+// =====================================================================
+
+/** A response where the interaction metrics publish AHEAD of the impressions. */
+function skewedResponse(): unknown {
+  const dv = (date: string, n: number) => {
+    const [year, month, day] = date.split("-").map(Number);
+    return { date: { year, month, day }, value: String(n) };
+  };
+  return {
+    gbpData: {
+      locations: [
+        {
+          data: {
+            performance: {
+              series: [
+                {
+                  dailyMetricTimeSeries: [
+                    {
+                      // impressions published only through 07-18
+                      dailyMetric: "BUSINESS_IMPRESSIONS_DESKTOP_MAPS",
+                      timeSeries: { datedValues: [dv("2026-07-17", 55), dv("2026-07-18", 63)] },
+                    },
+                    {
+                      // interactions published through 07-20 — two days ahead
+                      dailyMetric: "CALL_CLICKS",
+                      timeSeries: {
+                        datedValues: [dv("2026-07-19", 3), dv("2026-07-20", 4)],
+                      },
+                    },
+                  ],
+                },
+              ],
+            },
+            profile: { title: "Test Practice" },
+            reviews: { allTime: { totalReviewCount: 10, averageRating: 4.8 } },
+          },
+        },
+      ],
+    },
+  };
+}
+
+describe("cross-metric lag skew must not fabricate a zero", () => {
+  /**
+   * The original bug, re-entering through an assumption: if "covered" means
+   * "ANY metric reported", the newest covered day is 07-20 (interactions only),
+   * impressions are ABSENT for it and read 0, and we stamp a measured zero on a
+   * real date — which looks verified. Each family must resolve on its own dates.
+   */
+  it("resolves impressions on the impressions' own newest published day", () => {
+    const days = selectRecentDaysWithData(skewedResponse(), 2, IMPRESSION_METRICS);
+    expect(days[0].date).toBe("2026-07-18");
+    expect(metricValue(days[0], "BUSINESS_IMPRESSIONS_DESKTOP_MAPS")).toBe(63);
+  });
+
+  it("resolves interactions on their own newest day, which may be later", () => {
+    const days = selectRecentDaysWithData(skewedResponse(), 2, INTERACTION_METRICS);
+    expect(days[0].date).toBe("2026-07-20");
+    expect(metricValue(days[0], "CALL_CLICKS")).toBe(4);
+  });
+
+  it("never reports zero impressions for an interactions-only day", () => {
+    const data = skewedResponse();
+    const payload = buildProoflinePayload({
+      domain: "example.com",
+      googleAccountId: 1,
+      window: { startDate: "2026-07-15", endDate: "2026-07-21" },
+      impressionDays: selectRecentDaysWithData(data, 2, IMPRESSION_METRICS),
+      interactionDays: selectRecentDaysWithData(data, 2, INTERACTION_METRICS),
+      reviewsSince: "2026-07-20",
+      windowData: data,
+    });
+
+    const latest = payload.additional_data.visibility.latest;
+    expect(latest.date).toBe("2026-07-18");
+    expect(latest.impressions_maps_desktop).toBe(63);
+    // The interactions-only day must never appear as an impressions date.
+    expect(latest.date).not.toBe("2026-07-20");
+    expect(payload.additional_data.engagement.latest.date).toBe("2026-07-20");
+  });
+
+  it("stores the impressions day as the row's date, not the interactions day", () => {
+    const data = skewedResponse();
+    const stored = flattenDailyGbpData(
+      selectRecentDaysWithData(data, 2, IMPRESSION_METRICS),
+      selectRecentDaysWithData(data, 2, INTERACTION_METRICS),
+      data,
+      "2026-07-20",
+    );
+    expect(stored.yesterday.data_date).toBe("2026-07-18");
+    expect(stored.yesterday.visibility.impressions_maps_desktop).toBe(63);
+    expect(stored.yesterday.engagement.data_date).toBe("2026-07-20");
+  });
+});
+
+describe("the review window keeps its pre-change meaning", () => {
+  function withReviews(details: unknown[]): unknown {
+    return {
+      gbpData: {
+        locations: [
+          {
+            data: {
+              performance: { series: [] },
+              profile: { title: "Test Practice" },
+              reviews: {
+                allTime: { totalReviewCount: 10, averageRating: 4.8 },
+                window: { reviewDetails: details },
+              },
+            },
+          },
+        ],
+      },
+    };
+  }
+
+  it("drops reviews older than the 2-day cutoff the 7-day fetch dragged in", () => {
+    const data = withReviews([
+      { createdAt: "2026-07-16T10:00:00Z", comment: "old, inside the 7-day fetch" },
+      { createdAt: "2026-07-20T10:00:00Z", comment: "genuinely new" },
+      { createdAt: "2026-07-21T10:00:00Z", comment: "genuinely new" },
+    ]);
+    const payload = buildProoflinePayload({
+      domain: "example.com",
+      googleAccountId: 1,
+      window: { startDate: "2026-07-15", endDate: "2026-07-21" },
+      impressionDays: [],
+      interactionDays: [],
+      reviewsSince: "2026-07-20",
+      windowData: data,
+    });
+    expect(payload.additional_data.reviews.newReviews).toHaveLength(2);
+  });
+
+  it("keeps a review whose date cannot be read rather than dropping a real one", () => {
+    const data = withReviews([{ comment: "no createdAt" }]);
+    const payload = buildProoflinePayload({
+      domain: "example.com",
+      googleAccountId: 1,
+      window: { startDate: "2026-07-15", endDate: "2026-07-21" },
+      impressionDays: [],
+      interactionDays: [],
+      reviewsSince: "2026-07-20",
+      windowData: data,
+    });
+    expect(payload.additional_data.reviews.newReviews).toHaveLength(1);
   });
 });

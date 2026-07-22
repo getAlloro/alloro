@@ -21,7 +21,11 @@ import {
   getDailyDates,
   getDailyTrailingWindow,
 } from "../feature-utils/dateHelpers";
-import { selectRecentDaysWithData } from "../feature-utils/gbpWindowSelector";
+import {
+  IMPRESSION_METRICS,
+  INTERACTION_METRICS,
+  selectRecentDaysWithData,
+} from "../feature-utils/gbpWindowSelector";
 import {
   buildGbpImpressionsDiagnostic,
   summarizeGbpImpressionsDiagnostic,
@@ -146,7 +150,26 @@ export async function processDailyAgent(
       ),
     );
 
-    const resolvedDays = selectRecentDaysWithData(windowData, RESOLVED_DAYS_KEPT);
+    // Resolve the two metric families INDEPENDENTLY. Google is not promised to
+    // publish them for the same date, and treating an interactions-only date as
+    // "covered" would report a fabricated zero for impressions on a real date —
+    // the original bug with a verified-looking timestamp.
+    const impressionDays = selectRecentDaysWithData(
+      windowData,
+      RESOLVED_DAYS_KEPT,
+      IMPRESSION_METRICS,
+    );
+    const interactionDays = selectRecentDaysWithData(
+      windowData,
+      RESOLVED_DAYS_KEPT,
+      INTERACTION_METRICS,
+    );
+    const resolvedDays = impressionDays;
+    if (impressionDays[0] && interactionDays[0] && impressionDays[0].date !== interactionDays[0].date) {
+      log(
+        `  [DAILY] Note: impressions newest=${impressionDays[0].date}, interactions newest=${interactionDays[0].date} — families published on different days, resolved separately`,
+      );
+    }
     if (resolvedDays.length === 0) {
       // Honest, and load-bearing: nothing downstream may read this as a zero.
       log(
@@ -178,7 +201,9 @@ export async function processDailyAgent(
       domain,
       googleAccountId,
       window,
-      resolvedDays,
+      impressionDays,
+      interactionDays,
+      reviewsSince: dates.dayBeforeYesterday,
       windowData,
       locationName: locationDisplayName,
       websiteAnalytics,
@@ -239,7 +264,12 @@ export async function processDailyAgent(
       date_start: (resolvedDays[resolvedDays.length - 1]?.date ?? window.startDate),
       date_end: resolvedDays[0]?.date ?? window.endDate,
       run_type: "daily",
-      gbp_data: flattenDailyGbpData(resolvedDays, windowData),
+      gbp_data: flattenDailyGbpData(
+        impressionDays,
+        interactionDays,
+        windowData,
+        dates.dayBeforeYesterday,
+      ),
       created_at: new Date(),
       updated_at: new Date(),
     };
