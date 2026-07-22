@@ -34,6 +34,23 @@ vi.mock("../models/website-builder/WebsiteIntegrationModel", () => ({
 vi.mock("../services/formRecipientRoutingService", () => ({
   resolveWebsiteFormRecipients: vi.fn(),
 }));
+vi.mock(
+  "../controllers/websiteContact/websiteContact-services/formSubmissionEmailContextService",
+  () => ({
+    resolveFormSubmissionEmailContext: vi.fn(async () => ({
+      fromName: "Test Practice",
+      headerColor: "#0e8988",
+      logoUrl: "https://cdn.example/logo.png",
+    })),
+  }),
+);
+vi.mock(
+  "../controllers/websiteContact/websiteContact-services/emailWebhookService",
+  () => ({
+    sendEmailWebhook: vi.fn(),
+    WebhookError: class WebhookError extends Error {},
+  }),
+);
 
 import { app } from "./helpers/app";
 import { ProjectModel } from "../models/website-builder/ProjectModel";
