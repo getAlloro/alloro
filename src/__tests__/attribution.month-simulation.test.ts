@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
-  measureAttribution,
+  measureCtrAttribution,
   type AttributionVerdict,
   type DailyMetricPoint,
-} from "../controllers/patient-journey/feature-utils/attributionMath";
+} from "../controllers/patient-journey/feature-utils/ctrAttributionMath";
 
 /**
  * E2 "endures a month simulation" harness (spec T5, Layer 1) — Rev 3.
@@ -202,6 +202,18 @@ const SCENARIOS: Scenario[] = [
     expected: "no_detectable_change",
   },
   {
+    id: "F_beyond_noise_but_immaterial",
+    label:
+      "high volume, CTR 5.0%→5.5%: clears the noise band but not the materiality bar — a real wiggle is not a result",
+    // The gap the materiality check exists to close. At 20k views/day the band is ~0.15pp,
+    // so +0.5pp IS beyond noise — but materiality is 20% relative (1pp at this baseline), so
+    // it must NOT become a directional verdict. Deleting the materiality condition from
+    // treatedMoved flips this to trending_up; that regression is what this fixture pins.
+    treated: rawSeries("2026-06-01", TOTAL_DAYS, constImpr(20000), stepClk(1000, 1100)),
+    control: [],
+    expected: "no_detectable_change",
+  },
+  {
     id: "F_bad_dates_abstain",
     label: "unreadable dataEndDate must abstain, never measure the wrong window",
     treated: rawSeries("2026-06-01", TOTAL_DAYS, constImpr(2000), constClk(100)),
@@ -221,7 +233,7 @@ const SCENARIOS: Scenario[] = [
 ];
 
 function run(s: Scenario): AttributionVerdict {
-  return measureAttribution({
+  return measureCtrAttribution({
     treated: s.treated,
     control: s.control,
     interventionDate: s.interventionDate ?? INTERVENTION,
@@ -279,7 +291,7 @@ describe("E2 attribution — month simulation, count-based Rev 3 (survives)", ()
     for (let bucket = 0; bucket < 3; bucket += 1) {
       for (let i = 0; i < rising.length; i += 1) if (i % 3 === bucket) scrambled.push(rising[i]);
     }
-    const v = measureAttribution({
+    const v = measureCtrAttribution({
       treated: scrambled,
       control: [],
       interventionDate: INTERVENTION,
@@ -288,8 +300,23 @@ describe("E2 attribution — month simulation, count-based Rev 3 (survives)", ()
     expect(v.rung).toBe("not_enough_data");
   });
 
+  it("MUTATION GUARD: a real-but-immaterial move says so, and never becomes a direction", () => {
+    // Pins REASON_IMMATERIAL, which had no coverage: the suite could not tell "moved
+    // slightly" from "nothing beyond noise", so dropping the materiality bar went unnoticed.
+    const v = measureCtrAttribution({
+      treated: rawSeries("2026-06-01", TOTAL_DAYS, constImpr(20000), stepClk(1000, 1100)),
+      control: [],
+      interventionDate: INTERVENTION,
+      dataEndDate: DATA_END,
+    });
+    expect(v.rung).toBe("no_detectable_change");
+    expect(v.reason).toMatch(/moved slightly, but not by a meaningful amount/i);
+    // It must NOT claim the move was inside noise — it wasn't; it was just too small to matter.
+    expect(v.reason).not.toMatch(/none showed up beyond normal day-to-day noise/i);
+  });
+
   it("states an HONEST reason when treated moved but underperformed the site (never 'moved no differently')", () => {
-    const v = measureAttribution({
+    const v = measureCtrAttribution({
       treated: rawSeries("2026-06-01", TOTAL_DAYS, constImpr(2000), stepClk(100, 130)),
       control: rawSeries("2026-06-01", TOTAL_DAYS, constImpr(2000), stepClk(100, 160)),
       interventionDate: INTERVENTION,
@@ -302,7 +329,7 @@ describe("E2 attribution — month simulation, count-based Rev 3 (survives)", ()
   it("abstains on duplicate calendar dates — double-counted rows must not halve the band", () => {
     const clean = rawSeries("2026-06-01", TOTAL_DAYS, constImpr(2000), stepClk(100, 160));
     const doubled = [...clean, ...clean]; // every date twice (an ORDER-BY-less JOIN)
-    const v = measureAttribution({
+    const v = measureCtrAttribution({
       treated: doubled, control: [], interventionDate: INTERVENTION, dataEndDate: DATA_END,
     });
     expect(v.rung).toBe("not_enough_data");
@@ -310,7 +337,7 @@ describe("E2 attribution — month simulation, count-based Rev 3 (survives)", ()
   });
 
   it("abstains on an impossible date (2026-02-30) instead of silently rolling it over", () => {
-    const v = measureAttribution({
+    const v = measureCtrAttribution({
       treated: rawSeries("2026-06-01", TOTAL_DAYS, constImpr(2000), constClk(100)),
       control: [], interventionDate: INTERVENTION, dataEndDate: "2026-02-30",
     });
@@ -318,7 +345,7 @@ describe("E2 attribution — month simulation, count-based Rev 3 (survives)", ()
   });
 
   it("names a real cushioning effect honestly (treated fell LESS than the site)", () => {
-    const v = measureAttribution({
+    const v = measureCtrAttribution({
       treated: rawSeries("2026-06-01", TOTAL_DAYS, constImpr(2000), stepClk(100, 80)), // 5%→4%
       control: rawSeries("2026-06-01", TOTAL_DAYS, constImpr(2000), stepClk(100, 50)), // 5%→2.5%
       interventionDate: INTERVENTION, dataEndDate: DATA_END,
@@ -329,7 +356,7 @@ describe("E2 attribution — month simulation, count-based Rev 3 (survives)", ()
   });
 
   it("states the confound truthfully when the control moved the OTHER way", () => {
-    const v = measureAttribution({
+    const v = measureCtrAttribution({
       treated: rawSeries("2026-06-01", TOTAL_DAYS, constImpr(2000), stepClk(100, 160)), // 5%→8%
       control: rawSeries("2026-06-01", TOTAL_DAYS, constImpr(2000), stepClk(100, 40)), // 5%→2%
       interventionDate: INTERVENTION, dataEndDate: DATA_END,
@@ -344,7 +371,7 @@ describe("E2 attribution — month simulation, count-based Rev 3 (survives)", ()
     // OFF, those 2 days would pull the post window over the materiality bar and fake a rise —
     // so this fixture genuinely pins UNSETTLED_TRAILING_DAYS downward.
     const treated = rawSeries("2026-06-01", 30, constImpr(2000), (i) => (i >= 28 ? 400 : 100));
-    const v = measureAttribution({
+    const v = measureCtrAttribution({
       treated, control: [], interventionDate: INTERVENTION, dataEndDate: "2026-06-30",
     });
     expect(v.rung).toBe("no_detectable_change");
@@ -352,7 +379,7 @@ describe("E2 attribution — month simulation, count-based Rev 3 (survives)", ()
 
   it("on the DiD path, an immaterial NET move is described as net — never 'moved slightly' about a big raw jump", () => {
     // Treated jumps 5%→7% (a big RAW move), site rose almost as much, so the NET is immaterial.
-    const v = measureAttribution({
+    const v = measureCtrAttribution({
       treated: rawSeries("2026-06-01", TOTAL_DAYS, constImpr(50000), stepClk(2500, 3500)),
       control: rawSeries("2026-06-01", TOTAL_DAYS, constImpr(50000), stepClk(2500, 3400)),
       interventionDate: INTERVENTION, dataEndDate: DATA_END,
@@ -365,7 +392,7 @@ describe("E2 attribution — month simulation, count-based Rev 3 (survives)", ()
   it("drops an impossible or malformed point-date row instead of counting it", () => {
     const clean = rawSeries("2026-06-01", TOTAL_DAYS, constImpr(2000), constClk(100));
     const poisoned = [...clean, { date: "2026-02-30", impressions: 2000, clicks: 2000 }];
-    const v = measureAttribution({
+    const v = measureCtrAttribution({
       treated: poisoned, control: [], interventionDate: INTERVENTION, dataEndDate: DATA_END,
     });
     // The 100%-CTR impossible-date row is dropped, so the flat 5% series still reads flat.
@@ -373,7 +400,7 @@ describe("E2 attribution — month simulation, count-based Rev 3 (survives)", ()
   });
 
   it("uses ITS (not DiD) when the control is too thin to trust", () => {
-    const v = measureAttribution({
+    const v = measureCtrAttribution({
       treated: rawSeries("2026-06-01", TOTAL_DAYS, constImpr(2000), stepClk(100, 160)),
       control: rawSeries("2026-06-01", TOTAL_DAYS, constImpr(12), constClk(1)),
       interventionDate: INTERVENTION,

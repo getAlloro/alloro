@@ -25,7 +25,7 @@ export const METRIC_ACTION_DISPLAY_LIMIT = 1;
 /**
  * E2 attributed-lift measurement config (spec Rev 2). The real gate on whether a verdict
  * is offered is NOT a fixed impressions floor — it is the minimum-detectable-effect check
- * inside attributionMath, driven by the binomial standard error of the actual counts, so
+ * inside ctrAttributionMath, driven by the binomial standard error of the actual counts, so
  * it self-widens as views thin. These are structural minimums + a materiality definition,
  * not tuning knobs. Where a knob is guessed, wrong-conservative widens abstain (fails
  * silent). The customer surface stays dark until these are calibrated against real dev

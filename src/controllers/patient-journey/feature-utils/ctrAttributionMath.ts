@@ -1,6 +1,26 @@
 /**
  * E2 — pure attributed-lift measurement (proving-simulation spec T3, Rev 4).
  *
+ * ⛔ THIS MEASURES CLICK-THROUGH RATE, AND ONLY CLICK-THROUGH RATE.
+ *
+ * Impressions enter solely as the DENOMINATOR. That makes this the wrong instrument for
+ * any action whose goal is to raise impressions — and pointing it at one yields a confident
+ * verdict in the WRONG DIRECTION, which is worse than no verdict at all. Demonstrated by
+ * adversary review: impressions ×3 with clicks +80% (CTR 5% → 3%) returns `trending_down`,
+ * the engine blaming a get-found action that in fact worked.
+ *
+ * Before wiring this to live data:
+ *  1. NEVER point it at an impressions-targeted action (a GBP completeness fill, a primary-
+ *     category change). Those need an impressions mode this file does not have. Note that
+ *     `metricActions.ts` declares an IMPRESSIONS stage/metric — the config is broader than
+ *     this engine, and the config does not license the wiring.
+ *  2. NEVER feed it org-wide GBP impressions to score a SINGLE-LOCATION change. The
+ *     untreated locations dilute the treated series, so a real local move shrinks toward
+ *     zero and reads as "no detectable change" (the org-wide constraint from #183). Treated
+ *     and control series must both be scoped to exactly what the action touched.
+ *  3. NEVER pass "today" as `dataEndDate` when Search Console lag exceeds the trailing-day
+ *     guard — fresh days under-report clicks and manufacture a false `trending_down`.
+ *
  * No DB access, no model calls — takes an action's intervention date plus the daily
  * metric series (treated pages, and untreated pages as an OPTIONAL within-site control)
  * and returns an ORDINAL verdict: not enough data / no detectable change / trending up /
@@ -67,8 +87,12 @@ export interface AttributionVerdict {
 
 const CONFOUND_WITH_CONTROL =
   "A within-site control (page-vs-page) was used, but a change hitting only the treated pages in the same window cannot be fully separated out.";
+// "did not move DETECTABLY", not "did not move": a smaller control has a wider noise band,
+// so a shared site-wide shift can move it by the same relative amount and still land inside
+// that band. Saying it "did not move" would state as fact something the data cannot show —
+// and that case is exactly when a seasonal shift leaks through as attribution.
 const CONFOUND_CONTROL_FLAT =
-  "A within-site control was checked and did not move, but within-site confirmation is inherently weak (a change affecting only the treated pages is never fully excluded); single-practice measurement can't fully separate this from market shifts.";
+  "A within-site control was checked and did not move detectably, but within-site confirmation is inherently weak (a change affecting only the treated pages is never fully excluded, and a control with fewer views can move without clearing its own noise band); single-practice measurement can't fully separate this from market shifts.";
 const CONFOUND_CONTROL_OPPOSITE =
   "A within-site control moved the other way, which strengthens this reading, though single-practice measurement can't fully separate it from market shifts.";
 const CONFOUND_NO_CONTROL =
@@ -294,7 +318,7 @@ function controlQualifies(
  * and, for a directional verdict, the confound the design cannot rule out. Never returns a
  * causal magnitude. See the module header for the method and the honesty guarantee.
  */
-export function measureAttribution(input: AttributionInput): AttributionVerdict {
+export function measureCtrAttribution(input: AttributionInput): AttributionVerdict {
   // Unreadable dates would poison the settling cutoff (NaN sorts before every real date and
   // disables the unsettled-day guard) — abstain rather than measure the wrong window.
   if (!isValidIsoDate(input.dataEndDate) || !isValidIsoDate(input.interventionDate)) {
