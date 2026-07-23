@@ -15,6 +15,12 @@ import type { RankingResult } from "../RankingsDashboard";
 import { useLabels } from "../../../hooks/useLabels";
 import { useAuth } from "../../../hooks/useAuth";
 import { formatGeneratedCopyForOrg } from "../../../utils/generatedCopy";
+import {
+  formatRatingVsMarket,
+  resolveMarketRating,
+  resolveRankDisplay,
+  resolveReviewsLast30d,
+} from "./rankingsHubDerivation";
 
 /**
  * RankingsHubSurface — simplified Local Rankings surface (redesign).
@@ -54,10 +60,15 @@ export function RankingsHubSurface({
   const labels = useLabels();
   const { userProfile } = useAuth();
 
-  const status = result.searchStatus ?? "ok";
-  const rank = result.searchPosition;
-  const compCount = result.selectedCompetitorSearchResults?.length ?? 0;
-  const nearby = compCount > 0 ? compCount + 1 : result.totalCompetitors;
+  // The REAL status — no longer defaulted to "ok", which printed a confident
+  // rank on a status we never confirmed. Used only to pick the not-ranked message.
+  const status = result.searchStatus;
+  // The hero rank + denominator, resolved honestly: a rank shows only when
+  // SerpApi status is exactly "ok", and any "of M" comes from the SAME SerpApi
+  // result universe as the position — never the curated competitor count
+  // (stageReaders.readRank carries no denominator for exactly this reason).
+  const rankDisplay = resolveRankDisplay(result);
+  const rank = rankDisplay.position;
 
   // Canonical review total + rating (feedback #5 + cross-plan): read from
   // dashboard-metrics — the SAME source Practice Hub uses — so both surfaces
@@ -71,16 +82,14 @@ export function RankingsHubSurface({
   const reviewCount =
     metrics?.reviews?.total_review_count ?? clientGbp?.totalReviewCount ?? null;
   // 30-day review velocity keeps its existing source: dashboard-metrics has no
-  // rolling-30d field (reviews_this_month is a calendar-month count). Relabeled
-  // only — see the Reviews StatBox sub below.
-  const reviewsLast30d = clientGbp?.reviewsLast30d ?? 0;
+  // rolling-30d field (reviews_this_month is a calendar-month count). null when
+  // the scrape carried none — rendered as "—", never a measured "0".
+  const reviewsLast30d = resolveReviewsLast30d(clientGbp);
 
   const competitors = result.rawData?.competitors ?? [];
-  const marketAvgRating =
-    competitors.length > 0
-      ? competitors.reduce((sum, c) => sum + (c.averageRating || 0), 0) /
-        competitors.length
-      : null;
+  // null when there are no rated competitors — the UI shows "—", never the
+  // invented constant 4.5. Unrated competitors are skipped, not folded in as 0.
+  const marketAvgRating = resolveMarketRating(competitors);
 
   // Last GBP post age — same source GbpEngagementSummaryCard uses.
   const { data: publishedPosts } = useGbpPublishedLocalPosts(
@@ -130,7 +139,7 @@ export function RankingsHubSurface({
         className="grid grid-cols-1 gap-5 rounded-[14px] border border-line-soft bg-white p-5 shadow-premium lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:p-6"
       >
         <div className="flex flex-col justify-center">
-          {status === "ok" && rank !== null ? (
+          {rankDisplay.show && rank !== null ? (
             <>
               <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-ink-muted">
                 You rank
@@ -141,9 +150,11 @@ export function RankingsHubSurface({
                 >
                   #{rank}
                 </span>
-                <span className="text-[13px] font-semibold text-ink-muted">
-                  of {nearby} nearby
-                </span>
+                {rankDisplay.outOf !== null && (
+                  <span className="text-[13px] font-semibold text-ink-muted">
+                    of {rankDisplay.outOf} nearby
+                  </span>
+                )}
               </div>
               <p className="mt-3 text-[13px] font-medium leading-relaxed text-alloro-navy">
                 for{" "}
@@ -214,7 +225,11 @@ export function RankingsHubSurface({
         <StatBox
           label="Reviews"
           value={reviewsValue}
-          sub={`All-time total · ${reviewsLast30d} ${reviewsLast30d === 1 ? "review" : "reviews"} last 30 days`}
+          sub={
+            reviewsLast30d === null
+              ? "All-time total · recent activity not measured"
+              : `All-time total · ${reviewsLast30d} ${reviewsLast30d === 1 ? "review" : "reviews"} last 30 days`
+          }
         />
         <StatBox
           label="Last post"
@@ -224,11 +239,7 @@ export function RankingsHubSurface({
         />
         <StatBox
           label="Rating vs Market"
-          value={
-            avgRating !== null
-              ? `${avgRating.toFixed(1)} / ${(marketAvgRating ?? 4.5).toFixed(1)}`
-              : "—"
-          }
+          value={formatRatingVsMarket(avgRating, marketAvgRating)}
           sub="Google rating · you / market"
         />
       </div>

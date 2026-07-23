@@ -22,6 +22,7 @@ import {
 import { enrichSelectedCompetitorReviewVelocity } from "./service.ranking-stage-gbp-competitors";
 import { updateStatus, StatusDetail } from "./service.ranking-status";
 import { PracticeRankingModel } from "../../../models/PracticeRankingModel";
+import { buildClientGbpDisplayFields } from "../feature-utils/util.client-gbp-display";
 import {
   beginPipelineTiming,
   finishPipelineTiming,
@@ -261,12 +262,18 @@ export async function runScoringStage(
 
   const performanceMetrics = extractPerformanceMetrics(gbpData);
 
+  // Persist the REAL nullable review figures for DISPLAY, not the algorithm's
+  // coerced numbers — see util.client-gbp-display. The scoring input
+  // (clientPracticeData) still coerces to 0 for the ranking math; only the
+  // dashboard-facing fields become nullable. Historical rows keep their baked-in
+  // 0 — this is a forward fix.
+  const clientGbpDisplay = buildClientGbpDisplayFields(gbpData);
   const rawData = {
     client_gbp: {
-      totalReviewCount: clientPracticeData.totalReviews,
-      averageRating: clientPracticeData.averageRating,
+      totalReviewCount: clientGbpDisplay.totalReviewCount,
+      averageRating: clientGbpDisplay.averageRating,
       primaryCategory: clientPracticeData.primaryCategory,
-      reviewsLast30d: clientPracticeData.reviewsLast30d,
+      reviewsLast30d: clientGbpDisplay.reviewsLast30d,
       postsLast30d: clientPracticeData.postsLast30d,
       photosCount: clientPracticeData.photosCount || 0,
       hasWebsite: clientPracticeData.hasWebsite,
