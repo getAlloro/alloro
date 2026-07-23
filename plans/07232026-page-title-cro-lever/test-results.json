@@ -1,0 +1,52 @@
+{
+  "plan": "plans/07232026-page-title-cro-lever",
+  "generatedAt": "2026-07-23",
+  "status": "In Progress",
+  "items": [
+    {
+      "id": "T1",
+      "title": "Stage a proposal — captures live before-state, persists pending, tenant-scoped",
+      "surface": "api",
+      "precondition": "Super-admin session; a website project with a page carrying seo_data.",
+      "steps": [
+        "1. POST /api/admin/websites/:id/seo/metadata-proposals with { pageId, proposedTitle, proposedDescription, rationale }.",
+        "2. GET /api/admin/websites/:id/seo/metadata-proposals?status=pending."
+      ],
+      "expected": "201 with a pending row whose before_title/before_description come from the page's live seo_data; a pageId outside the project returns 404 PAGE_NOT_FOUND.",
+      "status": "pass",
+      "evidence": "Layer 1: src/__tests__/page-metadata-proposals.test.ts — stageProposal suite (live before-state, null before-state, EMPTY_PROPOSAL, tenant-scoped PAGE_NOT_FOUND) all pass.",
+      "notes": "Layer-1 verified. Layer-2 (live HTTP) pending — needs the running app.",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Approve stages the rewrite; reject closes it; review is idempotent",
+      "surface": "api",
+      "precondition": "A pending proposal id from T1.",
+      "steps": [
+        "1. POST .../metadata-proposals/:proposalId/approve.",
+        "2. POST .../metadata-proposals/:proposalId/approve again."
+      ],
+      "expected": "First call returns the row at status=approved with reviewed_by set; second call returns 409 PROPOSAL_ALREADY_REVIEWED; an unknown id returns 404 PROPOSAL_NOT_FOUND. No live page changes (publishing is a separate step).",
+      "status": "pass",
+      "evidence": "Layer 1: page-metadata-proposals.test.ts — approve/reject suite (approve records reviewer, reject, PROPOSAL_NOT_FOUND, 409 PROPOSAL_ALREADY_REVIEWED) all pass.",
+      "notes": "Layer-1 verified. Layer-2 (live HTTP) pending — needs the running app.",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "Boundary validation rejects malformed input",
+      "surface": "api",
+      "precondition": "Super-admin session.",
+      "steps": [
+        "1. POST .../metadata-proposals with a non-uuid pageId or an empty proposedTitle.",
+        "2. GET .../metadata-proposals?status=bogus."
+      ],
+      "expected": "400 VALIDATION_ERROR on the bad body and the bad status query (schemas are .strict(), enforce mode).",
+      "status": "pending",
+      "evidence": "",
+      "notes": "Schema unit is covered by tsc + the zod schema; live 400 behavior pending a running app.",
+      "waiver": ""
+    }
+  ]
+}

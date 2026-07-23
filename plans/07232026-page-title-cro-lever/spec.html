@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Page Title / Meta Review-and-Approve (GC1) Spec</title>
+  <style>
+    :root { color-scheme: light; --paper:#fff; --ink:#080808; --muted:#5f5f5f; --line:#d8d8d8; --soft:#f5f5f5; }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--paper); color:var(--ink); font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; line-height:1.5; }
+    .spec-shell { width:min(1120px,calc(100% - 32px)); margin:0 auto; padding:48px 0; }
+    .spec-hero,.spec-card,.task-card { border:1px solid var(--line); border-radius:8px; background:var(--paper); }
+    .spec-hero { border-color:var(--ink); padding:32px; margin-bottom:20px; }
+    .hero-topline { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px; }
+    .spec-card { padding:28px; margin-top:16px; }
+    .task-card { padding:20px; background:var(--soft); margin-top:12px; }
+    .eyebrow,dt { color:var(--muted); font-size:.78rem; font-weight:700; text-transform:uppercase; }
+    .eyebrow { margin:0; }
+    .status-pill { display:inline-flex; align-items:center; min-height:34px; padding:0 12px; border:1px solid var(--ink); border-radius:999px; background:var(--ink); color:var(--paper); font-size:.78rem; font-weight:800; text-transform:uppercase; }
+    .status-card { border-color:var(--ink); }
+    h1,h2,h3,p { margin-top:0; }
+    h1 { max-width:840px; margin-bottom:24px; font-size:clamp(2rem,5vw,3.5rem); line-height:.98; }
+    h2 { font-size:1.35rem; } h3 { font-size:1rem; }
+    code { padding:.1rem .3rem; border:1px solid var(--line); border-radius:4px; background:var(--soft); font-size:.92em; }
+    .meta-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; margin:0; }
+    .meta-grid div { border:1px solid var(--line); border-radius:8px; padding:16px; }
+    dd { margin:4px 0 0; font-weight:700; }
+    ul { margin:8px 0; }
+    .checklist { list-style:none; padding-left:0; }
+    .checklist li { display:flex; gap:10px; align-items:flex-start; padding:10px 0; border-top:1px solid var(--line); }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec · Funnel Engine · GC1 (get-considered / CTR)</p>
+        <span class="status-pill">In Progress — Backend Landed, UI Follow-up</span>
+      </div>
+      <h1>Page Title / Meta-Description Review-and-Approve</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Backend slice built + tested; owner UI is follow-up</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/07232026-page-title-cro-lever</dd></div>
+        <div><dt>Size</dt><dd>Medium (backend slice, ~8 files)</dd></div>
+        <div><dt>Risk</dt><dd>Level 2</dd></div>
+        <div><dt>Branch</dt><dd>codex/page-title-cro-lever (off origin/dev/dave)</dd></div>
+        <div><dt>Constitution</dt><dd>§6.1, §7, §8, §11.2, §11.7, §10.3, §20</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>Alloro is the CMO of the owner's local presence. Page title and meta description are the blue-link
+      snippet — the <strong>get-considered / CTR</strong> lever (GC1): whether a searcher who sees you clicks you.
+      A rewrite must never reach a live page without the owner reviewing current-vs-suggested and approving it
+      (Value #6 — "designed to improve how you're described," never "you'll rank higher").</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>A contained backend rail that <strong>persists and stages</strong> a produced title/meta rewrite as an
+      owner-reviewable proposal: stage → list (current-vs-suggested + plain rationale) → approve (stages) / reject.
+      Publishing the approved metadata onto the live page's <code>seo_data</code> stays a <strong>separate,
+      already-gated step</strong> and is out of scope here.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context — measure-twice findings</h2>
+      <ul>
+        <li><strong>Columns moved.</strong> Migration <code>20260308000001</code> <em>dropped</em>
+        <code>meta_title</code>/<code>meta_description</code> from <code>website_builder.pages</code>; SEO title/description
+        now live as <code>seo_data.meta_title</code> / <code>seo_data.meta_description</code> (JSONB).</li>
+        <li><strong>The propose engine already exists.</strong> <code>service.ctr-hypothesis.ts</code> produces
+        <code>{ before, proposed:{title,description}, rationale, prediction }</code> — honest by construction — via
+        <code>POST /:id/seo/ctr-hypothesis</code>. Its own header says: "Brick 3 owns the table; there is no
+        persistence here." This slice is brick 3.</li>
+        <li><strong>Surface is super-admin, not owner-facing.</strong> All <code>/api/admin/websites</code> routes
+        sit behind <code>[authenticateToken, superAdminMiddleware]</code> and use the domain's
+        <code>{ success, error, message }</code> shape. There is no owner (client-dashboard) website-SEO surface;
+        the cited <code>GbpCategoryProposalPanel</code> is not present in this branch's frontend. So the owner-facing
+        UI is a genuine follow-up, not a quick mirror.</li>
+      </ul>
+      <h3>Reference analogs</h3>
+      <ul>
+        <li><code>src/controllers/gbp-automation/</code> — §6.1 clean structure (thin controller, feature-services,
+        typed error + response helper).</li>
+        <li><code>service.get-found-write.ts</code> — the in-domain "produce a pending, human-approved record;
+        never publish" pattern.</li>
+        <li><code>AiCommandRecommendationModel</code> / <code>PageModel.findByIdAndProject</code> — model + scoped read.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <ul>
+        <li><strong>Must</strong> re-read the page server-side and scope every query by <code>project_id</code>
+        (§5.5/§11.7); validate at the route boundary in enforce mode (§11.2); keep the rewrite framed as
+        description-improvement, never a ranking promise (Value #6).</li>
+        <li><strong>Must not</strong> touch the publish / live-<code>seo_data</code>-write path; add a frontend surface
+        (deferred); duplicate the existing CTR-hypothesis producer.</li>
+        <li><strong>Out of scope:</strong> owner-facing UI; auto-producing proposals from a get-found/CTR audit run;
+        publishing.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk — Level 2</h2>
+      <ul>
+        <li><strong>New table on a hot schema.</strong> Additive, reversible, no data rewrite, no lock on an existing
+        table; <code>down</code> drops it cleanly. Mitigation: dedicated table + indexes only.</li>
+        <li><strong>Dangling half.</strong> A staged/approved proposal is inert until the separate publish step consumes
+        it — by design, matching <code>get-found-write</code>'s honest split. Named in code headers so no one reads it
+        as end-to-end.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> new files + one route file (<code>seo.routes.ts</code>) + one migration. No existing
+      handler changed. Router-loading smoke tests stay green.</p>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <article class="task-card"><h3>T1: Table</h3><p><code>migrations/20260723000000_create_page_metadata_proposals.ts</code> — <code>website_builder.page_metadata_proposals</code> (project/page FKs, before/proposed title+description, rationale JSONB, status, reviewer). Reversible.</p></article>
+      <article class="task-card"><h3>T2: Model</h3><p><code>PageMetadataProposalModel.ts</code> — every read/write scoped by <code>project_id</code> (§11.7); guarded status transition (idempotent).</p></article>
+      <article class="task-card"><h3>T3: Service</h3><p><code>service.page-metadata-proposals.ts</code> — stage (reads live before-state), list, approve/reject; typed <code>PageMetadataProposalError</code>. Publishing untouched.</p></article>
+      <article class="task-card"><h3>T4: Controller + responses + validation + route</h3><p>Thin <code>PageMetadataProposalsController.ts</code>; <code>util.page-metadata-proposal-responses.ts</code>; <code>pageMetadataProposal.schemas.ts</code>; four routes under <code>/:id/seo/metadata-proposals</code>.</p></article>
+      <article class="task-card"><h3>T5: Tests</h3><p><code>page-metadata-proposals.test.ts</code> — contract, error paths, tenant scope, idempotent review (11 tests).</p></article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" checked disabled> <code>tsc --noEmit</code> — 0 errors</li>
+        <li><input type="checkbox" checked disabled> <code>check:conventions --strict</code> — 0 backend structural violations</li>
+        <li><input type="checkbox" checked disabled> New tests pass (11); router-loading smoke tests stay green</li>
+        <li><input type="checkbox" checked disabled> No publish path touched; every query scoped by project</li>
+        <li><input type="checkbox" disabled> Behavioral run against a running app (Layer 2) — pending; needs the app</li>
+        <li><input type="checkbox" disabled> Owner-facing UI — follow-up (needs an owner website-SEO surface)</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>
