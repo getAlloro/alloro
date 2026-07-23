@@ -194,6 +194,24 @@ export class MetricActionService {
     });
   }
 
+  /**
+   * Stop reporting a completeness fill that has been reverted on Google.
+   *
+   * The note is written in the past tense ("Filled in your website…") and is
+   * paired with a "watching how often you show up" line, so leaving it visible
+   * after the owner undoes the fill would present an active, watched change that
+   * no longer exists. Honesty here is the product: we report what is true now,
+   * not what was true when we acted.
+   */
+  static async expireGbpCompletenessFill(workItemId: string): Promise<number> {
+    return MetricActionModel.expireBySource({
+      actionType: METRIC_ACTION_TYPE.GBP_COMPLETENESS_FILL,
+      sourceType: METRIC_ACTION_SOURCE.GBP_BUSINESS_INFO_WRITEBACK,
+      sourceId: workItemId,
+      expiredAt: new Date(),
+    });
+  }
+
   static async findLatestForJourney(
     input: FindJourneyMetricActionInput
   ): Promise<JourneyMetricAction | null> {

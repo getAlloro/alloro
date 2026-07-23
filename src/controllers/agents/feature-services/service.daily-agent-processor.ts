@@ -2,7 +2,7 @@
  * Daily Agent Processor
  *
  * Daily (Proofline) agent execution for a single client. Scopes GBP data to
- * the active location, fetches two single-day windows + Rybbit analytics,
+ * the active location, fetches ONE trailing window + Rybbit analytics,
  * builds the Proofline payload, runs the agent via Claude directly, validates,
  * and returns the output + flattened raw data in memory (no DB writes here —
  * persistence is owned by the Proofline executor).
@@ -17,7 +17,15 @@ import {
   GooglePropertyIds,
 } from "../../../utils/dataAggregation/dataAggregator";
 import { log, logError, isValidAgentOutput, logAgentOutput } from "../feature-utils/agentLogger";
-import { getDailyDates } from "../feature-utils/dateHelpers";
+import {
+  getDailyDates,
+  getDailyTrailingWindow,
+} from "../feature-utils/dateHelpers";
+import {
+  IMPRESSION_METRICS,
+  INTERACTION_METRICS,
+  selectRecentDaysWithData,
+} from "../feature-utils/gbpWindowSelector";
 import {
   buildGbpImpressionsDiagnostic,
   summarizeGbpImpressionsDiagnostic,
@@ -35,6 +43,14 @@ import { OrganizationModel } from "../../../models/OrganizationModel";
 import { fetchRybbitDailyComparison } from "../../../utils/rybbit/service.rybbit-data";
 
 /**
+ * How many published days the daily run keeps: the most-recent and the one
+ * before it, matching the two "sides" the Proofline payload and the stored row
+ * have always carried. They are now the two most-recent PUBLISHED days, not
+ * literal yesterday and the day before.
+ */
+const RESOLVED_DAYS_KEPT = 2;
+
+/**
  * Process daily agent (Proofline) for a single client
  * Returns output in memory without saving to DB
  */
@@ -42,6 +58,7 @@ export async function processDailyAgent(
   account: any,
   oauth2Client: any,
   dates: ReturnType<typeof getDailyDates>,
+  window: ReturnType<typeof getDailyTrailingWindow>,
   locationId?: number | null,
 ): Promise<{
   success: boolean;
@@ -49,6 +66,8 @@ export async function processDailyAgent(
   output?: any;
   payload?: any;
   rawData?: any;
+  /** The days Google actually published, for the executor's stored row (T3). */
+  resolvedDates?: { start: string; end: string; hasRecentData: boolean };
   error?: string;
 }> {
   const { id: googleAccountId, domain_name: domain, organization_id: organizationId } = account;
@@ -101,52 +120,67 @@ export async function processDailyAgent(
       };
     }
 
-    // Fetch data for day before yesterday (single day)
+    // ONE trailing-window fetch replaces the two single-day fetches.
+    //
+    // The GBP Performance API trails several days, so asking for yesterday alone
+    // returned an empty datedValues array, which the old code summed to 0 — that
+    // is the zero-Maps bug. We ask for a window and then pick the most-recent day
+    // Google actually published (never a fixed "skip N days" offset, which would
+    // break silently the day the lag changes).
     log(
-      `  [DAILY] Fetching data for ${dates.dayBeforeYesterday} (day before yesterday)`,
+      `  [DAILY] Fetching trailing window ${window.startDate} → ${window.endDate}`,
     );
-    const dayBeforeYesterdayData = await fetchAllServiceData(
+    const windowData = await fetchAllServiceData(
       oauth2Client,
       googleAccountId,
       domain,
       propertyIds,
-      dates.dayBeforeYesterday,
-      dates.dayBeforeYesterday,
+      window.startDate,
+      window.endDate,
     );
 
-    // DIAGNOSTIC (logging only, no behavior change): record the actual per-date
-    // impression values the GBP Performance API returned for this day, so the
-    // "zero-Maps" hypothesis can be confirmed/refuted from a real run.
-    // See plans/07202026-zero-maps-fix/spec.html.
+    // DIAGNOSTIC (logging only, no behavior change): the actual per-date values
+    // the API returned across the window. See plans/07202026-zero-maps-fix.
     log(
       summarizeGbpImpressionsDiagnostic(
         buildGbpImpressionsDiagnostic(
-          dayBeforeYesterdayData,
-          `dayBeforeYesterday ${dates.dayBeforeYesterday}`,
+          windowData,
+          `window ${window.startDate}..${window.endDate}`,
         ),
       ),
     );
 
-    // Fetch data for yesterday (single day)
-    log(`  [DAILY] Fetching data for ${dates.yesterday} (yesterday)`);
-    const yesterdayData = await fetchAllServiceData(
-      oauth2Client,
-      googleAccountId,
-      domain,
-      propertyIds,
-      dates.yesterday,
-      dates.yesterday,
+    // Resolve the two metric families INDEPENDENTLY. Google is not promised to
+    // publish them for the same date, and treating an interactions-only date as
+    // "covered" would report a fabricated zero for impressions on a real date —
+    // the original bug with a verified-looking timestamp.
+    const impressionDays = selectRecentDaysWithData(
+      windowData,
+      RESOLVED_DAYS_KEPT,
+      IMPRESSION_METRICS,
     );
-
-    // DIAGNOSTIC (logging only, no behavior change): same for yesterday.
-    log(
-      summarizeGbpImpressionsDiagnostic(
-        buildGbpImpressionsDiagnostic(
-          yesterdayData,
-          `yesterday ${dates.yesterday}`,
-        ),
-      ),
+    const interactionDays = selectRecentDaysWithData(
+      windowData,
+      RESOLVED_DAYS_KEPT,
+      INTERACTION_METRICS,
     );
+    const resolvedDays = impressionDays;
+    if (impressionDays[0] && interactionDays[0] && impressionDays[0].date !== interactionDays[0].date) {
+      log(
+        `  [DAILY] Note: impressions newest=${impressionDays[0].date}, interactions newest=${interactionDays[0].date} — families published on different days, resolved separately`,
+      );
+    }
+    if (resolvedDays.length === 0) {
+      // Honest, and load-bearing: nothing downstream may read this as a zero.
+      log(
+        `  [DAILY] ⚠ No GBP data published in ${window.startDate}..${window.endDate} — reporting "no recent data", not 0`,
+      );
+    } else {
+      log(
+        `  [DAILY] Most-recent published day: ${resolvedDays[0].date}` +
+          (resolvedDays[1] ? ` (previous: ${resolvedDays[1].date})` : ""),
+      );
+    }
 
     // Fetch Rybbit website analytics (optional, non-blocking)
     log(`  [DAILY] Fetching Rybbit website analytics for org ${organizationId}`);
@@ -166,9 +200,11 @@ export async function processDailyAgent(
     const payload = buildProoflinePayload({
       domain,
       googleAccountId,
-      dates,
-      dayBeforeYesterdayData,
-      yesterdayData,
+      window,
+      impressionDays,
+      interactionDays,
+      reviewsSince: dates.dayBeforeYesterday,
+      windowData,
       locationName: locationDisplayName,
       websiteAnalytics,
     });
@@ -221,10 +257,19 @@ export async function processDailyAgent(
       organization_id: organizationId,
       location_id: locationId || null,
       domain,
-      date_start: dates.dayBeforeYesterday,
-      date_end: dates.yesterday,
+      // The dates now describe the days Google ACTUALLY published, not calendar
+      // yesterday. When the window carried nothing they fall back to the window
+      // itself, and every visibility object is omitted, so a reader sees "no
+      // data for this row" rather than a measured zero (spec T3).
+      date_start: (resolvedDays[resolvedDays.length - 1]?.date ?? window.startDate),
+      date_end: resolvedDays[0]?.date ?? window.endDate,
       run_type: "daily",
-      gbp_data: flattenDailyGbpData(yesterdayData, dayBeforeYesterdayData),
+      gbp_data: flattenDailyGbpData(
+        impressionDays,
+        interactionDays,
+        windowData,
+        dates.dayBeforeYesterday,
+      ),
       created_at: new Date(),
       updated_at: new Date(),
     };
@@ -235,6 +280,11 @@ export async function processDailyAgent(
       output: agentOutput,
       payload,
       rawData,
+      resolvedDates: {
+        start: rawData.date_start,
+        end: rawData.date_end,
+        hasRecentData: resolvedDays.length > 0,
+      },
     };
   } catch (error: any) {
     logError("processDailyAgent", error);

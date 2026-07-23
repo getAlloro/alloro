@@ -103,7 +103,11 @@ export interface PatientJourneyConversion {
   pct: number | null;
   /** Step label, e.g. "Google Visibility → Website Visitors". */
   label: string;
-  /** True when this step is the lowest measured conversion rate. */
+  /**
+   * True when the diagnostic gait named this step the binding constraint. It is
+   * the funnel's worst step AND diagnosable — not merely the lowest rate. When
+   * the worst step cannot be diagnosed the gait abstains and no step is flagged.
+   */
   isLeak: boolean;
 }
 

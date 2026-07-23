@@ -2,10 +2,15 @@ import { describe, expect, it } from "vitest";
 
 import {
   formSubsTone,
+  isMonthStale,
+  monthDataAgeDays,
+  monthsBehind,
   rankTone,
   referralStatus,
   reviewTone,
+  STALE_GRACE_DAYS,
   TONE_COLOR,
+  withFreshness,
   type StatusTone,
 } from "./statusRules";
 
@@ -127,5 +132,123 @@ describe("TONE_COLOR", () => {
     for (const tone of tones) {
       expect(TONE_COLOR[tone]).toMatch(/^#[0-9A-Fa-f]{6}$/);
     }
+  });
+});
+
+/**
+ * Freshness — the second half of UNKNOWN_IS_NOT_FINE.
+ *
+ * A tone is only as current as the data under it. These pin the age arithmetic
+ * that decides whether a stage still gets to speak, including the two traps:
+ * age runs from the END of a data month (not its start), and month keys are
+ * never parsed with `new Date()` (the documented UTC-shift bug).
+ */
+describe("monthDataAgeDays — age from the END of the data month", () => {
+  const JULY_22 = new Date("2026-07-22T12:00:00Z");
+
+  it("measures from month-end, not month-start", () => {
+    // June ends July 1 → 21 days old on July 22. Measuring from the START of June
+    // would give 51 and wrongly age perfectly current data.
+    expect(monthDataAgeDays("2026-06", JULY_22)).toBe(21);
+    expect(monthDataAgeDays("2026-05", JULY_22)).toBe(51);
+    expect(monthDataAgeDays("2026-01", JULY_22)).toBe(171);
+  });
+
+  it("accepts display-label keys, and never shifts the month via new Date()", () => {
+    // `new Date("2026-06")` is UTC midnight and shifts backwards in western
+    // timezones (timeframe.ts:34). parseYM must give the same answer either way.
+    expect(monthDataAgeDays("Jun 2026", JULY_22)).toBe(
+      monthDataAgeDays("2026-06", JULY_22),
+    );
+  });
+
+  it("returns null for a missing key", () => {
+    expect(monthDataAgeDays(null, JULY_22)).toBeNull();
+    expect(monthDataAgeDays(undefined, JULY_22)).toBeNull();
+  });
+});
+
+describe("isMonthStale — counted in whole months, not days", () => {
+  /**
+   * Counting months is what makes this insensitive to upload lag. A flat day
+   * threshold assumes uploads land within a few days of month close; with a
+   * two-week lag the newest file's age peaks past any 35-day line just before
+   * the next upload, so a healthy client would be marked stale for part of every
+   * month. These pin that this cannot happen.
+   */
+  it("accepts this month's and last month's data all month long", () => {
+    for (const day of [1, 10, 11, 22, 28]) {
+      const now = new Date(Date.UTC(2026, 6, day)); // July
+      expect(isMonthStale("2026-07", now), `July data on Jul ${day}`).toBe(false);
+      expect(isMonthStale("2026-06", now), `June data on Jul ${day}`).toBe(false);
+    }
+  });
+
+  it("does NOT cry stale on a client whose books simply close late", () => {
+    // 22-day lag: June's file lands ~July 23. Right before it arrives, May is the
+    // newest data and is 51 days old — a flat 35-day rule would have flagged this
+    // healthy client for over two weeks, every single month.
+    const justBeforeJuneUpload = new Date(Date.UTC(2026, 6, 22));
+    expect(monthDataAgeDays("2026-05", justBeforeJuneUpload)).toBeGreaterThan(35);
+    expect(isMonthStale("2026-05", justBeforeJuneUpload)).toBe(true);
+    // ...but the same client one month behind at the START of a month is fine:
+    const earlyJuly = new Date(Date.UTC(2026, 6, 5));
+    expect(isMonthStale("2026-05", earlyJuly)).toBe(false);
+  });
+
+  it("gives two-months-behind a grace window early in the month, then flags it", () => {
+    const withinGrace = new Date(Date.UTC(2026, 6, STALE_GRACE_DAYS));
+    const pastGrace = new Date(Date.UTC(2026, 6, STALE_GRACE_DAYS + 1));
+    expect(isMonthStale("2026-05", withinGrace)).toBe(false);
+    expect(isMonthStale("2026-05", pastGrace)).toBe(true);
+  });
+
+  it("always flags three or more months behind, even on the 1st", () => {
+    const firstOfMonth = new Date(Date.UTC(2026, 6, 1));
+    expect(isMonthStale("2026-04", firstOfMonth)).toBe(true);
+    expect(isMonthStale("2026-01", firstOfMonth)).toBe(true);
+  });
+
+  it("flags the live incident: January data read in July", () => {
+    expect(isMonthStale("2026-01", new Date("2026-07-22T12:00:00Z"))).toBe(true);
+  });
+
+  it("handles the December to January rollover", () => {
+    const jan15 = new Date(Date.UTC(2026, 0, 15));
+    expect(monthsBehind("2025-12", jan15)).toBe(1);
+    expect(isMonthStale("2025-12", jan15)).toBe(false);
+    expect(isMonthStale("2025-10", jan15)).toBe(true);
+  });
+
+  it("treats a missing month as stale, never as fresh", () => {
+    const now = new Date("2026-07-22T12:00:00Z");
+    expect(isMonthStale(null, now)).toBe(true);
+    expect(isMonthStale(undefined, now)).toBe(true);
+    expect(isMonthStale("", now)).toBe(true);
+  });
+
+  it("does not call future-dated data stale", () => {
+    expect(isMonthStale("2026-08", new Date("2026-07-22T12:00:00Z"))).toBe(false);
+  });
+});
+
+describe("withFreshness — stale data cannot hold a confident tone", () => {
+  const JULY_22 = new Date("2026-07-22T12:00:00Z");
+
+  it("downgrades a real positive tone to unknown when its month is stale", () => {
+    // The live bug in one line: January referrals produced a genuine `positive`.
+    expect(withFreshness("positive", "2026-01", JULY_22)).toBe("unknown");
+  });
+
+  it("leaves a fresh tone untouched", () => {
+    expect(withFreshness("positive", "2026-06", JULY_22)).toBe("positive");
+    expect(withFreshness("warn", "2026-06", JULY_22)).toBe("warn");
+  });
+
+  it("downgrades rather than escalates — staleness is not a claim of decline", () => {
+    // `unknown`, never `warn`: we are not saying the stage got worse, only that
+    // we cannot see it.
+    expect(withFreshness("positive", "2026-01", JULY_22)).not.toBe("warn");
+    expect(withFreshness("critical", "2026-01", JULY_22)).toBe("unknown");
   });
 });

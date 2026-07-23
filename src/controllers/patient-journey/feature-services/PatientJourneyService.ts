@@ -283,16 +283,30 @@ export async function assemblePatientJourney(
     ),
   ];
 
-  const { conversions, leakStageKey } = buildConversions(stages);
-  const headline = buildHeadline(stages, conversions, leakStageKey);
+  const { conversions, leakStageKey, diagnosis } = buildConversions(stages);
+  const headline = buildHeadline(stages, conversions, leakStageKey, diagnosis);
   const bookableCard = buildBookableCandidate(stages, leakStageKey);
 
+  // The gait's reasoning is logged, not returned: adding it to the payload is a
+  // two-repo contract change (the SPA mirrors `types.ts` verbatim) and is
+  // sequenced as brick 2. Logging it means a wrong verdict can be traced to the
+  // step that produced it instead of being re-guessed from the number.
   logger.info(
     {
       organizationId: input.organizationId,
       locationId: input.locationId,
       reportMonth: input.reportMonth,
       leakStageKey,
+      diagnosisBasis: diagnosis.basis,
+      abstainedBecause: diagnosis.abstainedBecause ?? null,
+      steps: diagnosis.assessments.map((assessment) => ({
+        step: `${assessment.fromKey}>${assessment.toKey}`,
+        pct: assessment.pct,
+        denominator: assessment.denominator,
+        eligible: assessment.eligible,
+        excludedBy: assessment.excludedBy ?? null,
+        corroboration: assessment.corroboration,
+      })),
       availableStages: stages
         .filter((stage) => stage.available)
         .map((stage) => stage.key),

@@ -118,26 +118,63 @@ function moveSuffix(stage: JourneyStage): string {
  * (stats carry no authored `stage` field), so the verdict and the eyebrow agree
  * on one screen.
  */
-export function buildHealthVerdict(tones: StageTones): HealthVerdict {
+export function buildHealthVerdict(
+  tones: StageTones,
+  /**
+   * The data month behind a stage that was downgraded for age ("January 2026"),
+   * or null when nothing was stale.
+   *
+   * Only consulted when NOTHING is measured. Without it, a client whose feed
+   * stopped is told to "connect more of your data" — which reads as "you never
+   * connected any". That is false, and it points the owner at the wrong problem.
+   */
+  staleNote: string | null = null,
+): HealthVerdict {
   // "Measured" means we HAVE a reading — including a bad one. Only `unknown` is
   // absent. Filtering on `neutral` here was the reviewed bug: a weak rank was
   // stored as neutral, dropped out of this list, and the practice was called
   // healthy. See UNKNOWN_IS_NOT_FINE in statusRules.ts.
+  //
+  // A stage whose data went stale arrives here already downgraded to `unknown`
+  // (withFreshness), so it drops out of `measured` — which is what defuses BOTH
+  // all-clear branches below without either of them needing a freshness check.
   const measured = STAGE_ORDER.filter((s) => tones[s] !== "unknown");
 
-  // Nothing measured yet → honest "connect more data", never a fabricated all-clear.
+  // Nothing measured yet. Two very different reasons, and telling them apart is
+  // the whole point: data that never arrived vs data that stopped arriving.
   if (measured.length === 0) {
+    if (staleNote) {
+      return {
+        text: `Alloro can't call this month yet — your most recent data is from ${staleNote}.`,
+        leakStage: null,
+      };
+    }
+    // Genuinely unconnected → honest "connect more data", never a fabricated all-clear.
     return {
       text: "Connect more of your data so Alloro can see your full health picture.",
       leakStage: null,
     };
   }
 
+  // Staleness qualifies EVERY verdict below, not just the all-clear.
+  //
+  // The first version of this fix only guarded the all-clear branches, so a
+  // stale-feed practice ranked #4 or worse — which is most practices, since
+  // rankTone marks 4+ as `warn` — still read "Healthy overall, with one gap
+  // Alloro caught: your Findable stage" while its PMS feed had been dead for
+  // months. "Healthy overall" is a whole-practice claim, and it must not be made
+  // over a stage nobody can see. Same for "this month" on the critical branch:
+  // that is a freshness claim about data that isn't fresh.
+  const staleSuffix = staleNote
+    ? ` Some of your data is from ${staleNote}, so this isn't a full picture.`
+    : "";
+
   // Critical wins.
   const critical = STAGE_ORDER.find((s) => tones[s] === "critical");
   if (critical) {
+    const opener = staleNote ? "Alloro spotted one gap" : "Alloro spotted one gap this month";
     return {
-      text: `Alloro spotted one gap this month: your ${STAGE_LABEL[critical]} stage is slipping.${moveSuffix(critical)}`,
+      text: `${opener}: your ${STAGE_LABEL[critical]} stage is slipping.${moveSuffix(critical)}${staleSuffix}`,
       leakStage: critical,
     };
   }
@@ -145,8 +182,11 @@ export function buildHealthVerdict(tones: StageTones): HealthVerdict {
   // Then a single warn gap.
   const warn = STAGE_ORDER.find((s) => tones[s] === "warn");
   if (warn) {
+    const opener = staleNote
+      ? "One gap Alloro caught"
+      : "Healthy overall, with one gap Alloro caught";
     return {
-      text: `Healthy overall, with one gap Alloro caught: your ${STAGE_LABEL[warn]} stage.${moveSuffix(warn)}`,
+      text: `${opener}: your ${STAGE_LABEL[warn]} stage.${moveSuffix(warn)}${staleSuffix}`,
       leakStage: warn,
     };
   }
@@ -155,6 +195,21 @@ export function buildHealthVerdict(tones: StageTones): HealthVerdict {
   // is earned ONLY when all four stages were actually measured; otherwise the
   // claim stays explicitly scoped to what Alloro can see, because the stages we
   // can't see might not be fine — we simply don't know.
+  // Staleness has to be SAID, not just subtracted.
+  //
+  // Downgrading a stale stage to `unknown` kills the full all-clear (it needs all
+  // four stages), but it does NOT kill the hedged one — that branch fires exactly
+  // BECAUSE fewer than four stages were measured. So a practice whose feed died in
+  // January still read "Based on what Alloro can see, your practice is healthy this
+  // month", which is the same reassurance in a quieter voice. Caught by this file's
+  // own falsifier test; do not collapse this branch back into the hedge.
+  if (staleNote) {
+    return {
+      text: `Some of your data is from ${staleNote}, so Alloro can't call this month. Nothing slipped in what it can still see.`,
+      leakStage: null,
+    };
+  }
+
   const allSeen = measured.length === STAGE_ORDER.length;
   return {
     text: allSeen

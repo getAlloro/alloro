@@ -626,20 +626,7 @@ export class GbpBusinessInfoDeploymentService {
         "[GBP] business-info revert event write failed"
       );
     });
-    const revertedNotification = "gbp_business_info_reverted";
-    await GbpNotificationService.create({
-      organizationId: item.organization_id,
-      locationId: item.location_id,
-      workItemId: item.id,
-      kind: revertedNotification,
-      title: "Alloro reverted your Google profile update",
-      message: "Your Business Profile information was restored to its previous values on Google.",
-    }).catch((notifyError) => {
-      logger.error(
-        { err: notifyError, workItemId: item.id, kind: revertedNotification },
-        "[GBP] business-info revert notification write failed"
-      );
-    });
+    await GbpBusinessInfoReconcileService.recordRevertForOwner(item);
     return (await GbpWorkItemModel.findById(item.id))!;
   }
 

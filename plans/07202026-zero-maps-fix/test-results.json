@@ -1,0 +1,97 @@
+{
+  "plan": "plans/07202026-zero-maps-fix",
+  "generatedAt": "2026-07-23",
+  "status": "Not Run",
+  "items": [
+    {
+      "id": "T1",
+      "title": "Get Found gauge shows real non-zero Maps impressions for an active location",
+      "surface": "ui",
+      "precondition": "PR #211 deployed to dev AND at least one daily Proofline run has completed since that deploy. Until a post-deploy run lands, the gauge legitimately still reads 0 — that is the run not having happened, not a fix failure.",
+      "steps": [
+        "1. Log into https://dev.getalloro.com as One Endodontics / Woodbridge (org 39, location 20).",
+        "2. Open Patient Journey Insights -> Get Found (Google Visibility).",
+        "3. Read the impressions figure on the gauge.",
+        "4. Manually pull the GBP Performance API for that listing's most-recent published day and compare."
+      ],
+      "expected": "Gauge shows a real non-zero impressions number that matches (within rounding) the API's most-recent published day. Not 0.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "This read-only review session cannot deploy or run the daily agent; operator or computer-use agent runs this after deploy. Alt proof sites: Garrison org 5, Artful org 8."
+    },
+    {
+      "id": "T2",
+      "title": "Stored row carries the day Google actually published, not calendar yesterday",
+      "surface": "api",
+      "precondition": "Daily run completed post-deploy; read access to the dev DB (this session has none).",
+      "steps": [
+        "1. Read the latest google_data_store row for org 39 / location 20.",
+        "2. Inspect gbp_data.yesterday.data_date and gbp_data.yesterday.visibility.impressions_maps_desktop.",
+        "3. Read the matching agent_results proofline row's date_end.",
+        "4. Compare data_date against calendar yesterday."
+      ],
+      "expected": "data_date is the real published day (typically ~3-4 days before yesterday), never calendar yesterday; impressions_maps_desktop is that day's measured value; agent_results.date_end equals the same published day.",
+      "status": "pending",
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "T3",
+      "title": "Empty-window location reads \"no recent data\", never 0",
+      "surface": "ui",
+      "precondition": "A location whose GBP published nothing across the trailing 7-day window (or forced via a reference date), fix deployed.",
+      "steps": [
+        "1. Open Get Found (Google Visibility) for a location with no recently-published GBP data.",
+        "2. Observe the empty state on the gauge.",
+        "3. Backstop: inspect its google_data_store row — gbp_data.yesterday.data_date and the visibility object."
+      ],
+      "expected": "Gauge shows an honest 'no recent data' / missing-metric state, NOT a 0. Stored row has data_date: null and the visibility object OMITTED, so stageReaders excludes it from day-coverage rather than counting a measured zero.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "This is the load-bearing distinction — a false 0 here is the exact bug being fixed."
+    },
+    {
+      "id": "T4",
+      "title": "A genuine measured zero stays a zero (distinct from no-data)",
+      "surface": "api",
+      "precondition": "A covered day whose GBP impression entry has value omitted (a real reported zero).",
+      "steps": [
+        "1. Identify a covered day in the window whose impression value is a reported 0 (entry present, value omitted).",
+        "2. Inspect that day's stored visibility object."
+      ],
+      "expected": "visibility object is PRESENT reading 0 (a real measured zero) — distinct from the omitted-object no-data case in T3. '0 impressions' and 'no recent data' stay different all the way to the dashboard.",
+      "status": "pending",
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "T5",
+      "title": "Cross-metric skew cannot fabricate a zero; divergence is logged",
+      "surface": "api",
+      "precondition": "First daily run after deploy; PM2/server logs accessible.",
+      "steps": [
+        "1. On the first post-deploy run, read the [DAILY] log lines for an active org.",
+        "2. Find the 'impressions newest=... interactions newest=...' note if the families diverged.",
+        "3. Cross-check the stored gbp_data.yesterday.data_date vs engagement.data_date."
+      ],
+      "expected": "When interactions publish ahead of impressions, the impressions row resolves to impressions' OWN newest day (never the interactions-only day), engagement carries its own later data_date, and the divergence is logged rather than silently assumed.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "This is the single assumption the merged impressions-only diagnostic is blind to; the log line settles it against the live API."
+    },
+    {
+      "id": "T6",
+      "title": "Daily narrative 'new reviews' not inflated by the wider fetch",
+      "surface": "api",
+      "precondition": "Daily run completed for a location with recent reviews.",
+      "steps": [
+        "1. Read the proofline agent_results.agent_input JSON for the location.",
+        "2. Inspect additional_data.reviews.newReviews."
+      ],
+      "expected": "newReviews reflects only the prior ~2-day meaning (reviewsSince = dayBeforeYesterday), not 7 days; the same review is not re-reported across the week; a review with an unreadable timestamp is kept.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "Widening the GBP fetch to 7 days silently widened the review window; this confirms the re-narrowing held."
+    }
+  ]
+}

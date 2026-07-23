@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sikka ONE API — Evaluation &amp; Integration Starting Point</title>
+<style>
+  :root{
+    --bg:#ffffff; --ink:#111214; --muted:#5b5e63; --line:#e3e4e7; --card:#fafafa;
+    --good:#1f7a3d; --warn:#8a6d1e; --stop:#9a2b25; --chip:#f0f0f1;
+    --mono:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{--bg:#131417;--ink:#ecedef;--muted:#a2a5ab;--line:#2a2c31;--card:#1a1c20;--chip:#22242a;}
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.55;font-size:16px;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:860px;margin:0 auto;padding:0 24px 96px}
+  .hero{min-height:46vh;display:flex;flex-direction:column;justify-content:center;padding:64px 0 40px;border-bottom:1px solid var(--line)}
+  .pill{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--chip);width:max-content}
+  .pill .dot{width:8px;height:8px;border-radius:50%;background:var(--warn)}
+  h1{font-size:36px;line-height:1.12;letter-spacing:-.02em;margin:20px 0 10px;text-wrap:balance}
+  .sub{font-size:18px;color:var(--muted);max-width:66ch}
+  .meta{margin-top:26px;font-size:13px;color:var(--muted);font-family:var(--mono)}
+  .meta b{color:var(--ink);font-weight:600}
+  section{padding:40px 0;border-bottom:1px solid var(--line)}
+  h2{font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0 0 18px;font-weight:700}
+  h3{font-size:19px;margin:26px 0 8px;letter-spacing:-.01em}
+  p{margin:0 0 14px}
+  ul{margin:0 0 14px;padding-left:22px}
+  li{margin:6px 0}
+  strong{font-weight:650}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin:14px 0}
+  table{width:100%;border-collapse:collapse;font-size:14px;margin:14px 0}
+  th,td{border:1px solid var(--line);padding:10px 12px;text-align:left;vertical-align:top}
+  th{background:var(--chip);font-size:12px;letter-spacing:.06em;text-transform:uppercase}
+  code{font-family:var(--mono);font-size:.86em;background:var(--chip);padding:1px 6px;border-radius:5px}
+  .guard{border-left:3px solid var(--stop);padding:10px 0 10px 16px;margin:14px 0}
+  .guard b{color:var(--stop)}
+  .note{border-left:3px solid var(--good);padding:10px 0 10px 16px;margin:14px 0}
+  .note b{color:var(--good)}
+  ol.tasks{counter-reset:t;list-style:none;padding-left:0}
+  ol.tasks>li{counter-increment:t;position:relative;padding:14px 0 14px 44px;border-top:1px solid var(--line)}
+  ol.tasks>li:before{content:counter(t);position:absolute;left:0;top:12px;width:28px;height:28px;border:1px solid var(--line);border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:13px;font-weight:700}
+  .done li{list-style:none}
+  .done li:before{content:"\2610\00a0\00a0";font-family:var(--mono);color:var(--muted)}
+  .accept li{margin:8px 0}
+  .rev h3{font-family:var(--mono);font-size:14px;margin:18px 0 6px}
+  a{color:var(--ink)}
+  @media(max-width:560px){h1{font-size:28px}.hero{min-height:auto;padding:44px 0 28px}table{font-size:13px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <span class="pill"><span class="dot"></span>Pending Execution &middot; Rev 1</span>
+    <h1>Sikka ONE API — Evaluation &amp; Integration Starting Point</h1>
+    <p class="sub">Research dump and evaluation plan from vendor calls (Jul 21–22, 2026), email thread, and Gemini notes. No Alloro code yet — this spec gates sandbox access, API proof, and the first live pilot before any production integration lands.</p>
+    <div class="meta">
+      <div><b>Plan:</b> 07232026-sikka-evaluation &nbsp;&middot;&nbsp; <b>Owner:</b> Dave (technical) + Corey (vendor + DentalEMR intro)</div>
+      <div><b>Phase:</b> Evaluation only — implementation spec follows after sandbox sign-off</div>
+      <div><b>Sources:</b> Jul 21 Corey/Javier call notes, Jul 22 technical call (Javier + Sanjay), Javier email thread, Slack DM/group context</div>
+    </div>
+  </header>
+
+  <section>
+    <h2>Why</h2>
+    <p>Alloro needs a single pipe into practice management systems (PMS) so we can pull patient, appointment, production, and referral data without building dozens of per-PMS integrations. Sikka's <strong>ONE API</strong> claims standardized access to <strong>550+ PMS</strong> systems via an on-prem <strong>SPU</strong> (Sikka Platform Utility) and a unified REST API.</p>
+    <p><strong>Alloro use cases (priority order):</strong></p>
+    <ul>
+      <li><strong>Review requests</strong> — patient list from PMS to send review requests on behalf of the practice (Garrison pilot; Birdeye replacement ~$300/location).</li>
+      <li><strong>Reflect / Referrals Hub</strong> — referral source + treatment status for endodontic practices (One Endodontics org 39; DentalEMR is the gating PMS).</li>
+      <li><strong>End-to-end superapp</strong> — replace point solutions (BirdEye, Swell, PatientPop, etc.) that each own one workflow on the same Sikka data layer.</li>
+    </ul>
+    <p><strong>Funnel lane:</strong> Sikka moves the <em>patients</em> gate indirectly (review requests, referral attribution) and supports operator workflows outside the impressions/visits/leads instrumentation Alloro already owns for map/search/form data.</p>
+  </section>
+
+  <section>
+    <h2>What — this plan covers</h2>
+    <div class="card">
+      <h3>In scope (evaluation phase)</h3>
+      <ul>
+        <li>Sandbox account setup and team access</li>
+        <li>API exploration against demo Dentrix/Eaglesoft data</li>
+        <li>Endpoint mapping for review requests + referrals</li>
+        <li>Commercial/onboarding checklist (NDA, BAA, SPU, tile link)</li>
+        <li>Pilot candidate selection (Garrison first; DentalEMR track for One Endo)</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Out of scope (until evaluation passes)</h3>
+      <ul>
+        <li>Production code in <code>src/</code> or <code>frontend/</code></li>
+        <li>Live patient data pulls</li>
+        <li>Writeback (appointments, payments, notes) — available from Sikka but not phase 1</li>
+        <li>Replacing Stripe/billing flows for Sikka pass-through costs</li>
+      </ul>
+    </div>
+  </section>
+
+  <section>
+    <h2>Vendor snapshot (as of Jul 22–23, 2026)</h2>
+    <table>
+      <thead><tr><th>Topic</th><th>Confirmed detail</th></tr></thead>
+      <tbody>
+        <tr><td>Company</td><td>Sikka Software / sikka.ai — ~22 years; 55k+ practice installations; 187M patients (vendor claim)</td></tr>
+        <tr><td>API coverage</td><td>550+ PMS (dental, vet, optometry, chiro, physician); ~90% market coverage (vendor claim)</td></tr>
+        <tr><td>Phase 1 access</td><td><strong>Read-only</strong> (confirmed in Jul 21 Javier email)</td></tr>
+        <tr><td>Sandbox</td><td>Free — demo PMS data (Dentrix, Eaglesoft); self-service account at portal</td></tr>
+        <tr><td>SPU install</td><td>~20 min; auto PMS detection; may already exist if practice uses BirdEye/Swell/PatientPop</td></tr>
+        <tr><td>Refresh</td><td>Configurable daily → hourly → <strong>15 min</strong>, no extra cost</td></tr>
+        <tr><td>Rate limits (Silver)</td><td>120 calls/min/location; 5,000 records/call</td></tr>
+        <tr><td>KPIs</td><td>100+ pre-aggregated KPIs (AR, active patients, adjusted production/collections, etc.)</td></tr>
+        <tr><td>Multi-location</td><td>Practice ID + sub-IDs per location; historical data as long as PMS retains it</td></tr>
+        <tr><td>Referrals</td><td>Sanjay confirmed: referral source + treatment status available via API</td></tr>
+        <tr><td>Compliance</td><td>NDA + BAA required before live data; SOC 2 + HIPAA (vendor claim)</td></tr>
+        <tr><td>Contacts</td><td>Javier Carlos (sales) javier.carlos@sikka.ai · Sanjay Rajak (CTO) sanjay.rajak@sikka.ai</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Pricing — Silver plan (confirmed)</h3>
+    <table>
+      <thead><tr><th>Item</th><th>Cost</th></tr></thead>
+      <tbody>
+        <tr><td>Monthly license fee</td><td><strong>$350/mo</strong> (access to all integrations)</td></tr>
+        <tr><td>Per practice (Silver)</td><td><strong>$35/practice/mo</strong></td></tr>
+        <tr><td>License fee waived</td><td>At <strong>50 active locations</strong> (Jul 22 call)</td></tr>
+        <tr><td>Per-practice discount</td><td>At <strong>100+ locations</strong> — Javier to send tier breakdown</td></tr>
+        <tr><td>Veteran discount</td><td>Javier checking with licensing team</td></tr>
+      </tbody>
+    </table>
+    <p>Example: Garrison with 2 locations ≈ <code>$350 + (2 × $35) = $420/mo</code> before volume discounts.</p>
+
+    <h3>DentalEMR strategy (One Endo / org 39)</h3>
+    <ul>
+      <li><strong>Custom bridge:</strong> 2–4 weeks if a friendly practice grants remote access (One Endo candidate; Corey identified 7 potential DentalEMR locations).</li>
+      <li><strong>Formal agreement:</strong> Corey introduces Sikka to DentalEMR CEO (Meredith); Sikka uses existing DentalEMR APIs if partnership exists.</li>
+      <li>Javier action: email intro summary for Meredith connection.</li>
+    </ul>
+
+    <h3>Target practices named (Jul 22 call)</h3>
+    <ul>
+      <li>One Ortho 2 / Ortho Edge practice</li>
+      <li>Virginia practice — 5 locations on DentalEMR</li>
+      <li>Florida practice — Ortho Edge + Simply Console</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Resources</h2>
+    <ul>
+      <li>API docs: <a href="https://apidocs.sikkasoft.com/">apidocs.sikkasoft.com</a></li>
+      <li>Sandbox portal: <a href="https://api.sikkasoft.com/v4/portal">api.sikkasoft.com/v4/portal</a></li>
+      <li>Login / create account: <a href="https://api.sikkasoft.com/v4/portal/authentication/login">api.sikkasoft.com/v4/portal/authentication/login</a></li>
+      <li>Pricing: <a href="https://sikka.ai/api-packages">sikka.ai/api-packages</a></li>
+      <li>Marketplace: <a href="https://sikka.ai/Marketplace">sikka.ai/Marketplace</a></li>
+      <li>ONE API overview: <a href="https://sikka.ai/oneapi">sikka.ai/oneapi</a></li>
+    </ul>
+    <p><strong>Local reference files (not in repo):</strong></p>
+    <ul>
+      <li><code>Alloro - Technical Questions - 2026_07_22 09_30 PDT - Notes by Gemini.pdf</code></li>
+      <li><code>Corey Wise and Javier Carlos - 2026_07_21 10_30 PDT - Notes by Gemini.pdf</code></li>
+      <li>Gmail thread: Javier follow-up Jul 22 (sandbox + pricing summary)</li>
+      <li>Google Doc transcript (Sanjay): shared by Corey in Slack Jul 23 — requires sign-in</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Context</h2>
+    <p><strong>Alloro org roster (for pilot mapping):</strong> org 5 = Garrison · org 8 = Artful · org 39 = One Endodontics · org 47 = Falls Church.</p>
+    <p><strong>Repo state:</strong> zero Sikka references in <code>src/</code> or <code>frontend/</code> as of this plan — greenfield integration.</p>
+    <p><strong>Vendor posture:</strong> Sikka gave "zero steering" on Alloro building overlapping workflows on their API; marketplace partners (BirdEye, etc.) are reference points, not blockers.</p>
+    <p><strong>Meeting timeline:</strong></p>
+    <ul>
+      <li>Jul 21 — Intro call (Corey + Javier/Sanjay): read-only phase, Silver pricing, DentalEMR priority.</li>
+      <li>Jul 22 AM — Javier email: docs, sandbox, pricing summary, Sanjay availability Jul 23 9:30 AM PST.</li>
+      <li>Jul 22 — Technical call (Corey, Jo, Dave, Javier, Sanjay): sandbox, SPU, writeback options, KPIs, referrals, tier pricing, onboarding tile flow.</li>
+    </ul>
+    <div class="note">
+      <p><b>API access today:</b> Sandbox is <em>self-service</em> — create an account at the portal. No shared Alloro login exists yet. Live data requires NDA/BAA + practice onboarding.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Constraints</h2>
+    <div class="guard">
+      <p><b>HIPAA / PHI.</b> No production patient data in dev logs, commits, or public repo artifacts. Sandbox demo data only until BAA is executed. Credentials live in server env or secrets manager — never Git.</p>
+    </div>
+    <div class="guard">
+      <p><b>Public repo.</b> This plan and any follow-on code must not commit API keys, Request-Key values, or patient payloads.</p>
+    </div>
+    <ul>
+      <li><strong>Constitution (future implementation):</strong> backend integration will follow §6.1 controller pattern (<code>src/controllers/gbp-automation/</code> analog); frontend triad §12.1 when dashboard surfaces exist. Cite precisely at implementation time.</li>
+      <li><strong>Third-party transcription:</strong> Sikka does not allow Fireflies/third-party recorders on calls.</li>
+      <li><strong>Billing pass-through:</strong> Sikka costs ($350 + $35/location) are an Alloro business expense; Garrison Birdeye replacement is the ROI story for pilot 1.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Risk</h2>
+    <ul>
+      <li><strong>DentalEMR not in standard 550.</strong> One Endo blocked until bridge or formal agreement — do not promise Reflect referral data for DentalEMR until bridge is live.</li>
+      <li><strong>SPU already present vs net-new install.</strong> Garrison may already have SPU via BirdEye — verify before promising 20-min setup.</li>
+      <li><strong>PMS integration mechanics unclear.</strong> Team asked how Sikka connects without vendor partnerships — ask Sanjay directly; do not assume.</li>
+      <li><strong>Pending from Sikka:</strong> tier pricing breakdown, veteran discount, Meredith intro email.</li>
+      <li><strong>Writeback temptation.</strong> API supports writeback; phase 1 stays read-only to reduce scope and compliance surface.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Acceptance (evaluation phase)</h2>
+    <p>Behavioral items Dave must prove before opening an implementation spec:</p>
+    <ol class="accept">
+      <li><strong>A1 — Portal access:</strong> At least Dave + Corey can log into the Sikka sandbox portal; API keys / Request-Key generated.</li>
+      <li><strong>A2 — Patient pull:</strong> Sandbox returns patient records with fields sufficient for review-request targeting (name + contact channel identifier).</li>
+      <li><strong>A3 — Appointment pull:</strong> Sandbox returns appointments with patient linkage and date/status.</li>
+      <li><strong>A4 — Referral fields:</strong> Document which endpoints/fields expose referral source and treatment status on supported demo PMS — or honestly record "not in demo data" with follow-up question for Sanjay.</li>
+      <li><strong>A5 — PMS compatibility check:</strong> Confirm Garrison's PMS is on Sikka's compatibility list; note install path (net-new SPU vs activate existing).</li>
+      <li><strong>A6 — DentalEMR path:</strong> Corey confirms CEO intro or friendly-practice access timeline for org 39.</li>
+      <li><strong>A7 — Legal gate:</strong> NDA + BAA status tracked (sent / signed / blocking live pilot).</li>
+    </ol>
+    <p><strong>Predicted signals:</strong> Slack post with sandbox receipt (HTTP 200 + redacted JSON shape); compatibility screenshot from portal; go/no-go note for Garrison pilot.</p>
+  </section>
+
+  <section>
+    <h2>Tasks</h2>
+    <ol class="tasks">
+      <li><strong>Sandbox setup (Dave)</strong> — Create/configure portal account under company email; invite Corey + Jo; store credentials in approved secrets location (not repo).</li>
+      <li><strong>First API calls (Dave)</strong> — Authenticate; call patients, appointments, and referral-related endpoints against demo Dentrix/Eaglesoft; record request/response shapes in evaluation notes (Rev 2 append or sibling doc in plan folder if needed).</li>
+      <li><strong>Garrison PMS check (Dave + Jo)</strong> — Identify Garrison PMS; verify Sikka compatibility list; check if BirdEye implies existing SPU.</li>
+      <li><strong>Marketplace overlap snapshot (Dave)</strong> — Compare Sikka marketplace apps vs Alloro capabilities; one-page "replace vs integrate" matrix for Corey.</li>
+      <li><strong>Legal kickoff (Corey)</strong> — Execute NDA + BAA with Sikka.</li>
+      <li><strong>DentalEMR intro (Corey)</strong> — Meredith CEO intro or One Endo friendly-practice consent.</li>
+      <li><strong>Vendor follow-ups (Corey → Javier)</strong> — Tier pricing breakdown; veteran discount; Meredith intro email.</li>
+      <li><strong>Implementation spec (after A1–A7 pass)</strong> — New plan folder for <code>sikka-integration</code> with §6.1/§12.1 citations, acceptance block, and Garrison pilot scope.</li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>Done</h2>
+    <ul class="done">
+      <li>Evaluation spec committed to <code>dev/dave</code> as research starting point (this file).</li>
+      <li>Sandbox account created; team invited (A1).</li>
+      <li>Patient + appointment endpoints tested; shapes documented (A2, A3).</li>
+      <li>Referral field mapping documented or escalated to Sanjay (A4).</li>
+      <li>Garrison PMS compatibility confirmed (A5).</li>
+      <li>DentalEMR access path confirmed with dates (A6).</li>
+      <li>NDA + BAA status recorded (A7).</li>
+      <li>Go/no-go decision for Garrison live pilot posted to team.</li>
+      <li>Implementation spec opened (separate plan) — only after evaluation acceptance passes.</li>
+    </ul>
+  </section>
+
+  <section id="revision-log">
+    <h2>Revision Log</h2>
+    <article class="rev">
+      <h3>Rev 1 — 2026-07-23</h3>
+      <p><strong>Change:</strong> Initial evaluation spec — consolidated Jul 21–22 vendor calls, Javier email thread, Gemini PDF notes, and Slack context into a single starting-point plan. No code; gates sandbox work and first pilot.</p>
+      <p><strong>Reason:</strong> Dave requested a documented starting point committed to <code>dev/dave</code> before API exploration begins.</p>
+      <p><strong>Updated Done criteria:</strong> As listed above (evaluation phase only).</p>
+    </article>
+  </section>
+
+</div>
+</body>
+</html>

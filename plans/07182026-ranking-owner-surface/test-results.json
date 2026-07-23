@@ -1,6 +1,6 @@
 {
   "plan": "plans/07182026-ranking-owner-surface",
-  "generatedAt": "2026-07-18",
+  "generatedAt": "2026-07-23",
   "status": "In Progress",
   "items": [
     {
@@ -14,7 +14,7 @@
       "expected": "all guardrail tests green",
       "status": "pass",
       "evidence": "27 tests passed (vitest, 2026-07-18); tsc 0 errors; check:conventions --strict 0 structural violations",
-      "notes": "",
+      "notes": "From the sibling ranking-owner-surface slice (PR #186), not PR #212.",
       "waiver": ""
     },
     {
@@ -29,7 +29,7 @@
       "expected": "copy uses the org's vocabulary tokens, not hardcoded healthcare terms",
       "status": "pending",
       "evidence": "",
-      "notes": "closes on dev after the dev/dave -> sandbox clone; sandbox has no ranking data to render",
+      "notes": "closes on dev after the dev/dave -> sandbox clone; sandbox has no ranking data to render. Sibling slice (PR #186), not PR #212.",
       "waiver": ""
     },
     {
@@ -44,7 +44,103 @@
       "expected": "banned generic homework is suppressed unless competitor-specific; no false state-claims in fallback copy",
       "status": "pending",
       "evidence": "Layer 1 covers the guardrail logic in unit (service.ranking-output-guardrails.test.ts); behavioral confirmation pending the clone",
-      "notes": "closes on dev after the clone",
+      "notes": "closes on dev after the clone. Sibling slice (PR #186), not PR #212.",
+      "waiver": ""
+    },
+    {
+      "id": "G1",
+      "title": "#212 gauge-accuracy — Layer 1 unit + gates pass",
+      "surface": "cli",
+      "precondition": "checkout claude/gauge-accuracy-rankings",
+      "steps": [
+        "1. npx vitest run frontend/src/components/dashboard/rankings-hub/rankingsHubDerivation.test.ts",
+        "2. npx vitest run src/__tests__/client-gbp-display.test.ts",
+        "3. npx tsc --noEmit  (backend)  &&  (cd frontend && npx tsc --noEmit)",
+        "4. npm run check:conventions -- --strict"
+      ],
+      "expected": "16/16 frontend derivation tests green; backend client-gbp-display tests green; tsc 0 new errors both trees; check:conventions --strict 0 backend structural violations",
+      "status": "pending",
+      "evidence": "",
+      "notes": "PR body reports green (16/16 derivation; 2204 backend tests; strict 0) and mutation-verified (reinstating 4.5 / default-ok / || 0 / one-business denominator each fails its falsifier). NOT re-run in this read-only review; code review corroborates the logic and the gbpData shape-match.",
+      "waiver": ""
+    },
+    {
+      "id": "G2",
+      "title": "#212 defect #1 — no invented 4.5 market rating",
+      "surface": "ui",
+      "precondition": "A client whose competitor set is empty or has no RATED competitors (identify via admin ranking data). One Endodontics if its set is thin.",
+      "steps": [
+        "1. Sign in to https://dev.getalloro.com as a user for the target client (or via admin impersonation).",
+        "2. Open the client dashboard -> Local Rankings (RankingsHubSurface).",
+        "3. Read the 'Rating vs Market' vital tile."
+      ],
+      "expected": "Market side renders '—' (e.g. '4.9 / —'), never '/ 4.5'. Unrated competitors are skipped, not folded in as 0. If the practice itself is unrated, the whole tile is '—'.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "G3",
+      "title": "#212 defect #2 — rank and denominator share one universe",
+      "surface": "ui",
+      "precondition": "A client with a confirmed Maps rank (searchStatus 'ok') whose SerpApi searchResults set is present. One Endodontics (has ranking data).",
+      "steps": [
+        "1. Sign in to https://dev.getalloro.com for the client.",
+        "2. Open Local Rankings.",
+        "3. Read the hero '#N of M nearby'.",
+        "4. Cross-check M against the SerpApi searchResults count, NOT the curated/selected competitor count."
+      ],
+      "expected": "'of M' shows only when M is the SerpApi searchResults universe and M>1 and M>=N. When that set is absent, one-business, or smaller than N, the rank shows alone with no 'of M'. The curated competitor count is never the denominator. (Disclosed limit: M is capped at the top-20 set.)",
+      "status": "pending",
+      "evidence": "",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "G4",
+      "title": "#212 defect #2 — a null Maps status prints no rank",
+      "surface": "ui",
+      "precondition": "A client whose latest ranking run has searchStatus null/unconfirmed (not 'ok').",
+      "steps": [
+        "1. Open that client's Local Rankings on https://dev.getalloro.com.",
+        "2. Read the hero."
+      ],
+      "expected": "No confident '#N' renders; the not-ranked message shows (e.g. 'Local search estimate pending'). A null status no longer defaults to 'ok'.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "G5",
+      "title": "#212 defect #9 — absent review data renders '—'; a measured 0 renders honestly",
+      "surface": "ui",
+      "precondition": "Two clients: (a) one whose GBP review scrape returned nothing (absent) AND whose ranking was re-run AFTER this deploy — the backend fix is forward-only, so pre-fix stored rows keep a baked-in 0; (b) one with a genuine measured 0 recent reviews.",
+      "steps": [
+        "1. Open client (a) Local Rankings on https://dev.getalloro.com.",
+        "2. Read the 'Reviews' StatBox sub-line and the 'Rating vs Market' tile.",
+        "3. Open client (b) and read the same fields."
+      ],
+      "expected": "(a) Absent -> sub-line reads 'All-time total · recent activity not measured' and the rating side shows '—'; never '0 reviews last 30 days' or '0.0'. (b) Measured 0 -> shows '0 reviews last 30 days' honestly and preserves a real 0 rating.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "Forward-only backend fix (util.client-gbp-display persists via realOrNull/?? null). Checking (a) on an existing row WITHOUT a post-deploy re-run will still show the old fabricated 0 — expected per the PR's disclosed scope, not a failure of this item.",
+      "waiver": ""
+    },
+    {
+      "id": "G6",
+      "title": "#212 no-regression — a fully populated primary still renders real numbers",
+      "surface": "ui",
+      "precondition": "One Endodontics (seeded, fully populated ranking data).",
+      "steps": [
+        "1. Open One Endodontics Local Rankings on https://dev.getalloro.com.",
+        "2. Read the hero rank, the Reviews StatBox, and Rating vs Market."
+      ],
+      "expected": "Real values still render: a real '#N (of M)', a real 'N reviews last 30 days', and a real 'you / market' rating. The honesty fix must NOT null-out data that is actually present.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "Guards against the shape-mismatch failure mode where buildClientGbpDisplayFields could over-null real data. Verified safe in code review (same source paths as clientPracticeData), pinned behaviorally here.",
       "waiver": ""
     }
   ]

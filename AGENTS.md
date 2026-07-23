@@ -36,6 +36,35 @@ GET FOUND        ──CTR──▶   GET CONSIDERED    ──CRO──▶   GET
 
 **Why this section exists:** a fresh agent asked "what is Alloro's funnel?" spent 25 tool calls, found **six** conflicting answers, and reported it would have been *"fluent and wrong."* Nothing in this repo pointed at the right one. That is now this section's job.
 
+## ⛔ AGENT KNOWLEDGE INJECTION — how a master's framework reaches a live agent
+
+**One fixed path. Do not re-derive it. Do not invent where it "should" live.**
+
+A validated master rubric (Cialdini, Schwartz, Sheridan…) only changes what an agent does when it lives where the prompt loader reads **and that agent's call site asks for the composed prompt**. Everything else — the lattice library, a private rubric doc, a wiki page — is reference that nothing loads.
+
+```
+library  held outside this repository        (source of truth; ask the owner, don't grep for it)
+   │  distilled + canon-checked
+   ▼
+loadout  src/agents/lattice/*.md              (validated fragments that ship with the product)
+   │
+registry src/agents/lattice/loadout.ts        (AGENT_LATTICE_LOADOUT: agentPath -> [fragmentKey])
+   │
+composer service.prompt-loader.ts             (loadAgentPrompt() = base prompt + mapped fragments)
+   │
+call site the agent's own runner              (MUST call loadAgentPrompt() / runComposedAgent())
+   │
+enforced src/__tests__/agent-prompt-composition.test.ts   (remove a mapping -> suite goes red)
+         src/__tests__/lattice-callsite-wiring.test.ts    (bypass the call site -> suite goes red)
+```
+
+**Entry point / full explanation:** `src/agents/lattice/README.md`.
+**To make a master live (four steps, nothing else):** (1) add a validated fragment `src/agents/lattice/{key}.md`, (2) add one registry row in `loadout.ts`, (3) add one assertion to the composition test, (4) switch that agent's production call site from `loadPrompt()` to `loadAgentPrompt()` / `runComposedAgent()`.
+
+⛔ **Step 4 is the one that gets skipped.** Steps 1–3 go green while the rubric never reaches the running agent — the composition test calls `loadAgentPrompt()` directly, and most call sites in `src/` still use bare `loadPrompt()`. That is a silent no-op, not a partial win. `lattice-callsite-wiring.test.ts` fails with the exact `file:line` if you skip it.
+
+**Why this section exists:** a session spent its first hour unable to find where agent knowledge lived — the lattices weren't in the product, nothing pointed at them, and that gap is exactly where an agent starts to assume and make things up. A place for everything; this is the place.
+
 ## Asking Another Agent A Question
 
 Questions between builders go in [`BUILD-QUESTIONS.md`](BUILD-QUESTIONS.md) at the repo root — not Slack, not

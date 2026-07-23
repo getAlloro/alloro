@@ -1,7 +1,11 @@
 import { GbpWorkEventModel } from "../../../models/GbpWorkEventModel";
 import { GbpWorkItemModel, IGbpWorkItem } from "../../../models/GbpWorkItemModel";
 import { GbpAutomationError } from "../feature-utils/GbpAutomationError";
-import { BusinessInfoField, BusinessInfoPatch } from "../feature-utils/gbpBusinessInfo";
+import {
+  BUSINESS_INFO_ORIGIN_COMPLETENESS_AUTOFILL,
+  BusinessInfoField,
+  BusinessInfoPatch,
+} from "../feature-utils/gbpBusinessInfo";
 import {
   assertGoogleReady,
   assertWritebackEnabled,
@@ -17,6 +21,11 @@ interface CreateDraftParams {
   patch: BusinessInfoPatch;
   updateMask: BusinessInfoField[];
   summary: string;
+  /**
+   * Set only by the completeness auto-fill path so the publish trigger can surface an
+   * owner-facing action for it; absent for a manual owner edit.
+   */
+  origin?: typeof BUSINESS_INFO_ORIGIN_COMPLETENESS_AUTOFILL;
 }
 
 export class GbpBusinessInfoDraftService {
@@ -61,7 +70,11 @@ export class GbpBusinessInfoDraftService {
           content_type: "business_info",
           status: "draft",
           draft_content: params.summary,
-          business_info_payload: { patch: params.patch, updateMask: params.updateMask },
+          business_info_payload: {
+            patch: params.patch,
+            updateMask: params.updateMask,
+            ...(params.origin ? { origin: params.origin } : {}),
+          },
           created_by_user_id: params.userId,
         },
         trx
