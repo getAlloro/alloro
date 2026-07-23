@@ -10,6 +10,7 @@ import {
   PERIOD_TOGGLE_ENABLED,
   RANKING_PERIODS,
   hasDatableMovement,
+  hasEnoughRankingHistory,
   rankDeltaForPeriod,
   type RankDelta,
   type RankingPeriod,
@@ -173,7 +174,7 @@ export function RankingsHubSurface({
     "6m",
   );
   const showPeriodToggle =
-    PERIOD_TOGGLE_ENABLED && (rankingHistory?.length ?? 0) > 0;
+    PERIOD_TOGGLE_ENABLED && hasEnoughRankingHistory(rankingHistory ?? []);
   const periodDelta = useMemo(
     () => rankDeltaForPeriod(rankingHistory ?? [], rankPeriod),
     [rankingHistory, rankPeriod],

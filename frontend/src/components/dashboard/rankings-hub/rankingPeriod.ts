@@ -30,15 +30,20 @@ export const PERIOD_LABELS: Record<RankingPeriod, string> = {
 
 export const PERIOD_DISABLED_TOOLTIP = "Not enough ranking history yet";
 
-/** Start of the selected period relative to `now`. */
+/**
+ * Start of the selected period relative to `now`, computed in UTC so it lines
+ * up with the UTC `observedAt` timestamps on the history points. Using local
+ * time here would classify points near a month/quarter/year boundary
+ * differently per viewer timezone (a real false-negative near boundaries).
+ */
 export function periodStart(period: RankingPeriod, now: Date): Date {
-  const year = now.getFullYear();
-  if (period === "YTD") return new Date(year, 0, 1);
+  const year = now.getUTCFullYear();
+  if (period === "YTD") return new Date(Date.UTC(year, 0, 1));
   if (period === "QTR") {
-    const quarterStartMonth = Math.floor(now.getMonth() / 3) * 3;
-    return new Date(year, quarterStartMonth, 1);
+    const quarterStartMonth = Math.floor(now.getUTCMonth() / 3) * 3;
+    return new Date(Date.UTC(year, quarterStartMonth, 1));
   }
-  return new Date(year, now.getMonth(), 1); // MONTH
+  return new Date(Date.UTC(year, now.getUTCMonth(), 1)); // MONTH
 }
 
 export interface RankDelta {
@@ -58,10 +63,14 @@ export interface RankDelta {
  * Compute the rank movement across the selected period from a history series.
  * Uses `searchPosition` (the owner-facing position); null-safe throughout.
  *
- * `startObservedAt` is the timestamp of the actual earliest point used — which
- * may be LATER than the calendar period start when the series does not reach
- * back that far (e.g. YTD in H2 against a 6-month window). Callers must date
- * the movement from it rather than implying the full calendar period.
+ * The baseline (`firstInPeriod`) is the earliest point AT OR AFTER the period
+ * start — so each period reflects its OWN window. When the series has no point
+ * inside the selected period there is no in-period baseline, the delta is null,
+ * and the surface reads "not enough history yet" for that period. It is never
+ * back-filled from an out-of-period point (which would make Month, Quarter and
+ * YTD render an identical, mislabelled line). `startObservedAt` is therefore
+ * always within the period; for YTD against a 6-month window it is the earliest
+ * point we hold this year, honestly dated ("since Jun 3"), never Jan 1.
  */
 export function rankDeltaForPeriod(
   history: RankingHistoryPoint[],
@@ -74,7 +83,7 @@ export function rankDeltaForPeriod(
   const latest = sorted.at(-1) ?? null;
   const start = periodStart(period, now).getTime();
   const firstInPeriod =
-    sorted.find((p) => new Date(p.observedAt).getTime() >= start) ?? sorted[0] ?? null;
+    sorted.find((p) => new Date(p.observedAt).getTime() >= start) ?? null;
 
   const startRank = firstInPeriod?.searchPosition ?? null;
   const latestRank = latest?.searchPosition ?? null;
@@ -102,4 +111,20 @@ export function hasDatableMovement(delta: RankDelta): boolean {
     delta.latestObservedAt !== null &&
     delta.startObservedAt !== delta.latestObservedAt
   );
+}
+
+/**
+ * Whether the toggle should render at all. Requires two DISTINCT observations
+ * that carry a known position — the minimum for any period to show a real
+ * movement. Without it (no runs, or an org that never cracks the top 20, so
+ * every `searchPosition` is null) the toggle would be permanently dead, so we
+ * hide it rather than ship a control that only ever says "not enough history".
+ */
+export function hasEnoughRankingHistory(history: RankingHistoryPoint[]): boolean {
+  const datedTimestamps = new Set(
+    history
+      .filter((p) => p.searchPosition !== null)
+      .map((p) => p.observedAt),
+  );
+  return datedTimestamps.size >= 2;
 }
