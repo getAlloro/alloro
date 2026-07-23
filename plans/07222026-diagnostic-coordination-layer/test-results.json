@@ -13,7 +13,7 @@
       ],
       "expected": "On an 8000 -> 4000 -> 200 funnel the leak is 'leads', exactly one conversion carries isLeak, and basis is not 'abstained'.",
       "status": "pass",
-      "evidence": "4 test files, 79 tests passed on Node 22.",
+      "evidence": "3 test files, 70 tests passed on Node 22.",
       "notes": ""
     },
     {
@@ -96,33 +96,6 @@
       "notes": ""
     },
     {
-      "id": "T6",
-      "title": "Clarity: rage clicks extracted, scroll-depth null preserved as null",
-      "surface": "cli",
-      "precondition": "as T1",
-      "steps": [
-        "1. npx vitest run src/__tests__/clarity-metrics-extraction.test.ts"
-      ],
-      "expected": "rageClicks reads RageClickCount.subTotal; a null averageScrollDepth yields null (never 0); a genuine 0 is distinguished from no reading; monthly rollup averages only days with a reading.",
-      "status": "pass",
-      "evidence": "Passed. Fixtures use the real response shape captured from a live project-live-insights call on 2026-07-22.",
-      "notes": ""
-    },
-    {
-      "id": "T7",
-      "title": "Clarity metrics available without an API change, and scroll-depth units confirmed",
-      "surface": "api",
-      "precondition": "A Clarity API token for an Alloro-owned project",
-      "steps": [
-        "1. GET https://www.clarity.ms/export-data/api/v1/project-live-insights with projectId and numOfDays=1, no metric filter",
-        "2. List the returned metricName values"
-      ],
-      "expected": "The unfiltered response includes both RageClickCount and ScrollDepth, confirming no API or harvest change is required.",
-      "status": "pass",
-      "evidence": "Ran 2026-07-22. Unfiltered response returns 16 metric entries including RageClickCount and ScrollDepth. On sdcendo.com (real traffic, 3-day window): 30 sessions, 5 bot sessions, ScrollDepth.averageScrollDepth = 44.42 (number, 0-100 scale). On a project with no captured sessions: averageScrollDepth = null. Confirms both the number path and the null path.",
-      "notes": "Read-only. Unit read as percent from range and Clarity UI convention, not from documentation."
-    },
-    {
       "id": "T8",
       "title": "TypeScript build gate (backend + frontend)",
       "surface": "cli",
@@ -178,21 +151,6 @@
       "status": "pending",
       "evidence": "",
       "notes": "Nobody has run this on production data. The abstention rate is UNKNOWN, not low. This item is a pass criterion, not an observation: 'it runs' does not close it."
-    },
-    {
-      "id": "T12",
-      "title": "FINDING (not a pass): Clarity captures nothing on 3 of 4 sampled client projects",
-      "surface": "api",
-      "precondition": "Clarity API tokens for Alloro-managed projects",
-      "steps": [
-        "1. GET project-live-insights with numOfDays=3 for garrison, artful, surfcity, sdcendo",
-        "2. Compare Traffic.totalSessionCount against known funnel traffic"
-      ],
-      "expected": "Projects with live sites and real funnel traffic should report non-zero sessions.",
-      "status": "fail",
-      "evidence": "garrisonorthodontics.com 0 sessions (1 bot), artfulorthodontics.com 0, surfcityendo.com 0, sdcendo.com 30. Garrison shows real traffic in the funnel (275 visits/month) while Clarity reports zero.",
-      "notes": "Cause NOT diagnosed. Candidates: missing/dropped tracking snippet, stale clarity_projectId, recreated Clarity project.",
-      "waiver": "Accepted as a finding rather than a blocker for THIS brick: it does not affect the gait, and the Clarity extraction is correct code that returns real data where capture works (sdcendo). It IS a blocker for the later brick that wires Clarity into the CRO constellation, and is recorded as such in the spec. Raised separately for Dave."
     }
   ]
 }

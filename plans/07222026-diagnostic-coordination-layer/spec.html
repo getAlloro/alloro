@@ -79,7 +79,7 @@
 
     <section class="spec-card" id="what">
       <h2>What</h2>
-      <p>A pure, tested <code>diagnoseFunnel()</code> that selects the binding constraint by the five-move gait instead of by minimum percentage, plus the Clarity extraction the CRO constellation needs.</p>
+      <p>A pure, tested <code>diagnoseFunnel()</code> that selects the binding constraint by the five-move gait instead of by minimum percentage.</p>
       <table>
         <tr><th>Move</th><th>What it does here</th></tr>
         <tr><td>1 — read the constellation</td><td>Each step is judged with the paired signals already on the stage metadata (GSC <code>top10QueryCount</code> + click-through, Rybbit pages-per-session + bounce), and the signals used are recorded. A GSC position of 0 is treated as a no-data sentinel, not a first-place ranking. A selection with no independent signal is marked <code>uncorroborated</code>, not dressed up.</td></tr>
@@ -99,9 +99,7 @@
         <li><code>src/controllers/patient-journey/feature-utils/funnelMath.ts</code> — <code>buildConversions</code> delegates constraint selection to the gait; <code>buildHeadline</code> gains reason-specific abstention copy.</li>
         <li><code>src/controllers/patient-journey/feature-services/PatientJourneyService.ts</code> — passes the diagnosis to the headline and logs the full reasoning.</li>
         <li><code>src/controllers/patient-journey/feature-services/stageReaders.ts</code> — unchanged. It is the source of the constellation the gait now reads (<code>StageReadMetadata</code>: gsc, rybbit, leads).</li>
-        <li><code>src/controllers/clarity/feature-utils/util.clarity-metrics-extraction.ts</code> — adds rage-clicks and scroll depth.</li>
-        <li><code>src/controllers/clarity/feature-services/service.clarity-metrics.ts</code> — aggregates them and exposes them on <code>KeyDataResult</code>.</li>
-      </ul>
+              </ul>
       <h3>Constitution articles this touches</h3>
       <ul>
         <li><code>§2.2</code> / <code>§13.2</code> — thin service, pure logic in feature-utils. The gait is a pure util; the service only orchestrates and logs.</li>
@@ -149,8 +147,8 @@
       <ul>
         <li><strong>Brick 2 (contract change):</strong> surface the constellation readout and the verdict to the owner; allow the constraint to route up to the impressions/ranking gate (<code>leakStageKey = "impressions"</code>), which no frontend has ever received for a leak.</li>
         <li><strong>Reverse-flywheel alarm:</strong> the doctor calls it first-class. It needs a prior period; this assembler reads one month. Named, deliberately not faked.</li>
-        <li><strong>Wiring Clarity into the journey:</strong> the extraction lands here; feeding rage-clicks and scroll depth into the CRO constellation is a later brick — and is now <em>blocked</em> behind diagnosing why Clarity captures nothing on most sites (see Evidence).</li>
-        <li><strong>Bot stripping:</strong> the Clarity payload carries <code>totalBotSessionCount</code> and nothing reads it. One live reading showed ~17% bots. The funnel rule says strip bots before optimizing. Worth its own small brick.</li>
+        <li><strong>Reading the CRO constellation from Clarity.</strong> The extraction of rage-clicks and scroll depth is split out to <code>plans/07222026-clarity-cro-signals</code> and held there — it cannot be proven while Clarity captures nothing on most sites (BUILD-QUESTIONS.md Q3). Feeding those signals into the gait is a later brick behind both.</li>
+        <li><strong>Bot stripping:</strong> the funnel rule says strip bots before optimizing. One live Clarity reading showed ~17% bot sessions. Its own brick, tracked with the Clarity workstream.</li>
       </ul>
     </section>
 
@@ -193,15 +191,6 @@
           <div><dt>Verify</dt><dd><code>npx vitest run src/__tests__/patient-journey.service.test.ts</code> — the pre-existing suite must pass untouched.</dd></div>
         </dl>
       </article>
-      <article class="task-card">
-        <h3>T3: Clarity rage-clicks and scroll depth</h3>
-        <dl>
-          <div><dt>Do</dt><dd>Extract <code>RageClickCount.subTotal</code> and <code>ScrollDepth.averageScrollDepth</code>; preserve a null scroll reading as null; sum rage clicks and average scroll depth across days that carried a reading; expose both on <code>KeyDataResult</code>. No API change and no trend-score change.</dd></div>
-          <div><dt>Files</dt><dd><code>util.clarity-metrics-extraction.ts</code>, <code>service.clarity-metrics.ts</code>, <code>src/__tests__/clarity-metrics-extraction.test.ts</code></dd></div>
-          <div><dt>Depends on</dt><dd>none</dd></div>
-          <div><dt>Verify</dt><dd><code>npx vitest run src/__tests__/clarity-metrics-extraction.test.ts</code></dd></div>
-        </dl>
-      </article>
     </section>
 
     <section class="spec-card" id="evidence">
@@ -209,18 +198,14 @@
       <h3>Verified — with a receipt</h3>
       <ul>
         <li>The naive selector and the untouched Clarity extractor were read on <code>origin/dev/dave</code> after a fetch, not on a local branch.</li>
-        <li><strong>The Clarity payload question was answered by live reads, not inferred.</strong> Read-only <code>project-live-insights</code> calls returned sixteen metric entries including <code>RageClickCount</code> and <code>ScrollDepth</code>. No API change is needed, and because the controller stores the raw payload, stored history already contains them.</li>
-        <li><code>ScrollDepth</code> carries a single field, <code>averageScrollDepth</code>, which is <strong>null</strong> when there is no reading — a different shape from the count metrics. On a project with real traffic it returned <code>44.42</code>, a number on a 0–100 scale. Coercing the null with <code>|| 0</code> would have reported "visitors scrolled 0%" on a month with no data.</li>
-        <li>Both typechecks exit clean (backend and frontend). 79 tests pass across four suites. <code>npm run check:conventions</code> reports zero structural violations.</li>
+        <li>Both typechecks exit clean (backend and frontend). 70 tests pass across the three affected suites. <code>npm run check:conventions</code> reports zero structural violations.</li>
         <li><strong>An independent cross-model adversary reviewed this diff and returned FIX-FIRST.</strong> It proved the inverted verdict with a passing test against the real code, caught the GSC position-0 sentinel being read as a first-place ranking, and refuted two of the three thresholds. All must-fix and should-fix findings are applied above. That review was the point: the same model wrote this code and its tests, and the first draft's test suite <em>asserted the central defect as correct</em>.</li>
       </ul>
       <h3>Not verified — stated, not hidden</h3>
       <ul>
-        <li><strong>Clarity is capturing almost nothing on most sampled sites.</strong> Over a 3-day window: <code>sdcendo.com</code> returned 30 sessions and a real scroll reading, but <code>garrisonorthodontics.com</code> (the largest account, with real traffic in the funnel), <code>artfulorthodontics.com</code> and <code>surfcityendo.com</code> all returned <strong>0 sessions</strong>. The API call succeeds; the instrument is dark. Cause not diagnosed — candidates are a missing or dropped tracking snippet, a stale <code>clarity_projectId</code>, or a recreated Clarity project. <strong>This changes sequencing:</strong> the extraction below is correct code, but wiring rage-clicks and scroll depth into the CRO constellation would read a dark instrument on most accounts. Diagnose the capture gap first.</li>
-        <li>The unit for <code>averageScrollDepth</code> is read as a percent from its range and Clarity's UI convention, not from documentation.</li>
+        <li><strong>Split out of this PR:</strong> the Clarity extraction that was originally bundled here now lives in <code>plans/07222026-clarity-cro-signals</code>, held as a draft. It could not be proven — three of four sampled Clarity projects capture no sessions at all — and this PR should not carry a piece nobody can show working.</li>
         <li>The gait has not been run against a production account. Nobody has yet seen how often it abstains on real data — that is the first thing the logs will answer after it lands.</li>
         <li>No claim is made that the gait's verdicts are <em>correct</em>. It is better-gated than what it replaces, and one class of wrong verdict has been removed and pinned by a test; whether its diagnoses hold up is exactly what the follow-on below exists to answer.</li>
-        <li>Bot traffic is still in the denominator. One live reading showed 5 bot sessions out of 30 (~17%), and <code>totalBotSessionCount</code> is in the payload with nothing reading it.</li>
       </ul>
     </section>
 
@@ -254,7 +239,7 @@
       <h2>Done</h2>
       <ul class="checklist">
         <li><input type="checkbox" checked disabled> <code>npx tsc --noEmit</code> backend and frontend — zero errors</li>
-        <li><input type="checkbox" checked disabled> <code>npx vitest run</code> on the four affected suites — 79 passing</li>
+        <li><input type="checkbox" checked disabled> <code>npx vitest run</code> on the three affected suites — 70 passing</li>
         <li><input type="checkbox" checked disabled> <code>npm run check:conventions</code> — zero clear structural violations</li>
         <li><input type="checkbox" checked disabled> Pre-existing <code>patient-journey.service.test.ts</code> passes unmodified</li>
         <li><input type="checkbox" checked disabled> Payload shape unchanged; the only frontend edit is a corrected doc comment</li>

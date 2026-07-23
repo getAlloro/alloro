@@ -68,6 +68,10 @@
  *     a leak. Brick 2.
  *   • The FOUND constellation proper (proximity, grid-not-one-point, matched
  *     competitors). This reads two scalar gates, not that constellation.
+ *   • The CRO constellation from Clarity (rage clicks, scroll depth). The
+ *     extraction for it is a separate branch, held because Clarity captures
+ *     nothing on most sites today — so wiring it here would read a dark
+ *     instrument. See BUILD-QUESTIONS.md Q3.
  */
 
 import type {
