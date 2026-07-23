@@ -42,7 +42,13 @@ export function OneThingBanner() {
 
   // FIX 2: the 30-second health/leak verdict, from the SAME tones as the stat
   // dots (real-data path only; the wizard tour drives its own demo hero).
-  const verdict = isWizardActive ? null : buildHealthVerdict(stageTones);
+  // Never render a verdict on half-loaded data: until the PMS query resolves, a
+  // stale-feed practice is indistinguishable from a never-connected one, and the
+  // hedged all-clear would flash before the real state arrives.
+  const verdict =
+    isWizardActive || stageTones.isLoading
+      ? null
+      : buildHealthVerdict(stageTones.tones, stageTones.staleNote);
 
   if (!isWizardActive && isLoading) {
     return (
@@ -59,6 +65,17 @@ export function OneThingBanner() {
     return (
       <ActionBannerShell wizardTarget="dashboard-hero">
         <ActionBannerEyebrow>This month</ActionBannerEyebrow>
+        {/*
+          The calm state is reassurance copy ("No fires to put out right now"),
+          and it does NOT route through buildHealthVerdict — so without this line
+          a practice whose feed died in January would sit in a quiet all-clear and
+          never learn why Alloro had gone silent. State the age first.
+        */}
+        {verdict && stageTones.staleNote && (
+          <p className="px-1 pb-2 text-[13.5px] font-medium leading-snug text-alloro-navy">
+            {verdict.text}
+          </p>
+        )}
         <AlloroActivitySummary orgId={orgId} locationId={locationId} />
       </ActionBannerShell>
     );

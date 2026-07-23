@@ -1,0 +1,78 @@
+{
+  "plan": "plans/07222026-stale-data-guard",
+  "generatedAt": "2026-07-23",
+  "status": "Not Run",
+  "items": [
+    {
+      "id": "T1",
+      "title": "Stale-data practice is NOT told it is healthy this month",
+      "surface": "ui",
+      "precondition": "PR #210 deployed to dev. A practice whose PMS/referral feed stopped 3+ months ago (Artful / Pawlak, org 8 — the reported case: last real data January, viewing in July).",
+      "steps": [
+        "1. Log into https://dev.getalloro.com and open the Practice Hub for Artful (org 8) — admin-impersonate if needed.",
+        "2. Read the 'one thing' health banner (OneThingBanner) at the top of the hub.",
+        "3. Read the stat cards for the stale stage (referrals/PMS)."
+      ],
+      "expected": "The banner does NOT say 'Your practice is healthy this month'. The stale stage renders an 'unknown' tone / an age statement (e.g. data is N months behind), never a 'positive' all-clear. No health verdict is claimed over data the app cannot currently see.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "This is the live false-verdict Corey flagged to land first. Cross-check the visible banner against the same screen's revenue tile (which showed the ~52% drop)."
+    },
+    {
+      "id": "T2",
+      "title": "Fresh-data practice still gets a real verdict (no over-suppression)",
+      "surface": "ui",
+      "precondition": "PR #210 deployed. A practice with current-month or last-month data (One Endodontics or another actively-syncing org).",
+      "steps": [
+        "1. Open that practice's Practice Hub on https://dev.getalloro.com.",
+        "2. Read the health banner and the four stat-card tones."
+      ],
+      "expected": "The banner renders a normal verdict (the clean-week exhale when clean, or a named warn/critical gap when earned). Fresh data is NOT downgraded to 'unknown' — the staleness guard only fires on genuinely old data.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "Guards against the guard: verify the fix did not blanket-mute healthy practices."
+    },
+    {
+      "id": "T3",
+      "title": "A weak-but-fresh signal shows warn/critical, not a stone 'unknown'",
+      "surface": "ui",
+      "precondition": "PR #210 deployed. A practice with fresh data whose rank/reviews signal is genuinely weak (low local rank or few recent reviews).",
+      "steps": [
+        "1. Open that practice's Practice Hub on https://dev.getalloro.com.",
+        "2. Read the tone of the weak stage's stat card and whether the verdict names it."
+      ],
+      "expected": "The weak stage reads 'warn' or 'critical' and the verdict NAMES the gap — it does not hide inside 'neutral'/'unknown'. (UNKNOWN_IS_NOT_FINE both directions: absent = unknown, measured-weak = warn/critical.)",
+      "status": "pending",
+      "evidence": "",
+      "notes": "Confirms the fix keeps 'no measurement' and 'measured and weak' distinct, per the file's honesty invariant."
+    },
+    {
+      "id": "T4",
+      "title": "Unreadable / future month key is treated as unknown, not fresh (no crash, no false healthy)",
+      "surface": "ui",
+      "precondition": "PR #210 deployed. A practice whose latest data month is missing/unreadable, or a period selection with no month record.",
+      "steps": [
+        "1. Open the Practice Hub for such a practice / period on https://dev.getalloro.com.",
+        "2. Observe the banner and stat cards."
+      ],
+      "expected": "The stage renders 'unknown' (abstain), the page does not crash, and no confident 'healthy' verdict is shown. A future/garbage month key never reads as fresh good news.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "parseYM is lenient (garbage can parse to a stray year); useStageTones gates on a real month record existing. Confirm that gate holds on dev."
+    },
+    {
+      "id": "T5",
+      "title": "Layer 1 — staleness + verdict unit suites pass",
+      "surface": "cli",
+      "precondition": "checkout claude/stale-data-guard; frontend deps installed",
+      "steps": [
+        "1. cd frontend && npx vitest run src/components/dashboard/focus/statusRules.test.ts src/components/dashboard/focus/verdict.test.ts",
+        "2. cd frontend && npx tsc --noEmit"
+      ],
+      "expected": "Both suites green (they pin monthDataAgeDays/monthsBehind/isMonthStale end-of-month math, unreadable-is-stale, future-not-stale, and the buildHealthVerdict abstain-on-unknown behavior); tsc 0 errors.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "PR body reports these green with 255 lines of new test. Not independently re-run in this read-only review."
+    }
+  ]
+}
