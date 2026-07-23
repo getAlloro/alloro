@@ -13,6 +13,7 @@ import type {
   PatientJourneyPeriod,
   BookableCard,
 } from "./types";
+import { diagnoseFunnel, type FunnelDiagnosis } from "./util.diagnostic-gait";
 
 /** Below this many monthly visitors the leak is an Awareness problem, not Bookable. */
 const BOOKABLE_VISITS_FLOOR = 10;
@@ -33,12 +34,18 @@ function stepLabel(
 /**
  * Per-step conversion percent for each adjacent pair of stages. A step is null
  * when either side is missing/unavailable or the source is zero (we never divide
- * by zero or imply a real 0% from absent data). `isLeak` is set on the single
- * smallest non-null ratio.
+ * by zero or imply a real 0% from absent data).
+ *
+ * `isLeak` is no longer "the smallest ratio wins." It is set by the diagnostic
+ * gait in `util.diagnostic-gait.ts`, which gates each step on sample size and on
+ * a feature-vs-bug check against the signals the stage readers already carry,
+ * and abstains when no step is diagnosable. The returned `diagnosis` carries the
+ * reasoning for logging and tests; it is deliberately NOT part of the payload.
  */
 export function buildConversions(stages: PatientJourneyStage[]): {
   conversions: PatientJourneyConversion[];
   leakStageKey: PatientJourneyStageKey | null;
+  diagnosis: FunnelDiagnosis;
 } {
   const conversions: PatientJourneyConversion[] = [];
   for (let i = 0; i < stages.length - 1; i += 1) {
@@ -61,34 +68,48 @@ export function buildConversions(stages: PatientJourneyStage[]): {
     });
   }
 
-  let leakIndex = -1;
-  let smallest = Number.POSITIVE_INFINITY;
-  conversions.forEach((conversion, index) => {
-    if (conversion.pct !== null && conversion.pct < smallest) {
-      smallest = conversion.pct;
-      leakIndex = index;
-    }
-  });
+  const diagnosis = diagnoseFunnel(stages, conversions);
 
-  if (leakIndex === -1) {
-    return { conversions, leakStageKey: null };
+  if (diagnosis.leakIndex === -1) {
+    return { conversions, leakStageKey: null, diagnosis };
   }
-  conversions[leakIndex].isLeak = true;
-  return { conversions, leakStageKey: conversions[leakIndex].toKey };
+  conversions[diagnosis.leakIndex].isLeak = true;
+  return { conversions, leakStageKey: diagnosis.leakStageKey, diagnosis };
 }
 
 /**
- * Descriptive (never predictive) headline naming the largest opportunity. Falls
- * back to a neutral message when no step has enough data to pick a step.
+ * Why the gait declined to name a step. Each sentence describes what was
+ * observed; none prescribes a fix, and none claims an opportunity that was not
+ * measured. The `no-data` wording is unchanged from before the gait landed.
+ */
+const ABSTAIN_TEXT: Record<string, string> = {
+  "no-data":
+    "Connect more of your data to see which growth gate needs attention.",
+  "insufficient-sample":
+    "Too few people moved through your funnel last month to point to a single drop-off with any confidence.",
+  // Names the ROOT (ranking), not the surface (click-through). Phrased off the
+  // per-query count, not GSC's impressions-weighted average position, so it
+  // claims only what was actually measured.
+  "expected-for-position":
+    "None of your top search terms are reaching the first page of Google yet, so the low click-through follows from where you rank rather than from your page titles.",
+};
+
+/**
+ * Descriptive (never predictive) headline naming the largest opportunity. When
+ * the gait abstains, this says what was observed and why no step was named —
+ * it never falls back to naming one anyway.
  */
 export function buildHeadline(
   stages: PatientJourneyStage[],
   conversions: PatientJourneyConversion[],
   leakStageKey: PatientJourneyStageKey | null,
+  diagnosis?: FunnelDiagnosis,
 ): { text: string; leakStageKey: PatientJourneyStageKey | null } {
   if (!leakStageKey) {
     return {
-      text: "Connect more of your data to see which growth gate needs attention.",
+      text:
+        ABSTAIN_TEXT[diagnosis?.abstainedBecause ?? "no-data"] ??
+        ABSTAIN_TEXT["no-data"],
       leakStageKey: null,
     };
   }
@@ -101,7 +122,7 @@ export function buildHeadline(
     : undefined;
   if (!leak || !fromStage || !toStage) {
     return {
-      text: "Connect more of your data to see which growth gate needs attention.",
+      text: ABSTAIN_TEXT["no-data"],
       leakStageKey: null,
     };
   }

@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Diagnostic Coordination Layer — Brick 1 Spec</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); margin-top: 14px; }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 840px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; letter-spacing: 0; }
+    h2 { font-size: 1.35rem; letter-spacing: 0; }
+    h3 { font-size: 1rem; letter-spacing: 0; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    .gate { border: 2px solid var(--ink); border-radius: 8px; padding: 20px; margin-top: 16px; background: var(--soft); }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; display: block; overflow-x: auto; }
+    th, td { border: 1px solid var(--line); padding: 8px 10px; text-align: left; font-size: 0.92rem; vertical-align: top; }
+    th { background: var(--soft); font-size: 0.78rem; text-transform: uppercase; color: var(--muted); }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill">In Progress</span>
+      </div>
+      <h1>Diagnostic Coordination Layer — Brick 1</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>In Progress — code written, not landed</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/07222026-diagnostic-coordination-layer</dd></div>
+        <div><dt>Size</dt><dd>Medium</dd></div>
+        <div><dt>Risk</dt><dd>Level 2</dd></div>
+        <div><dt>Branch</dt><dd>claude/diagnostic-gait-brick1</dd></div>
+        <div><dt>Base</dt><dd>dev/dave</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>Alloro is the CMO of the owner's local presence: it diagnoses, prescribes, runs the right mix of moves, and reports what actually moved. The diagnosis is the part everything else hangs off — get the binding constraint wrong and every downstream move is aimed at the wrong gate.</p>
+      <p>Today that diagnosis is one line of arithmetic. <code>funnelMath.ts</code> picked the binding constraint as <strong>the smallest non-null step percentage</strong>, and built the owner-facing headline straight off it. That reads a lone number with no context: it fires on three visitors, it blames page titles when the page ranks on page two, and it never declines to answer. Meanwhile the signals needed to read it properly — how many top queries actually rank on page one, click-through, pages-per-session, bounce — were <em>already assembled by the stage readers and never looked at</em>.</p>
+      <p>The trained-business-doctor synthesis names the fix precisely: a diagnostic coordination layer that runs the five-move gait across the stage engines and produces one honest verdict. This is brick 1 of that layer — the gait itself, replacing the naive selector behind the existing contract.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>A pure, tested <code>diagnoseFunnel()</code> that selects the binding constraint by the five-move gait instead of by minimum percentage, plus the Clarity extraction the CRO constellation needs.</p>
+      <table>
+        <tr><th>Move</th><th>What it does here</th></tr>
+        <tr><td>1 — read the constellation</td><td>Each step is judged with the paired signals already on the stage metadata (GSC <code>top10QueryCount</code> + click-through, Rybbit pages-per-session + bounce), and the signals used are recorded. A GSC position of 0 is treated as a no-data sentinel, not a first-place ranking. A selection with no independent signal is marked <code>uncorroborated</code>, not dressed up.</td></tr>
+        <tr><td>2 — trace surface to root</td><td>When the click-through step is weak because no top query reaches the first page, the root is ranking, not page titles — so the gait refuses to name the metadata and the sentence says where the loss actually is.</td></tr>
+        <tr><td>3 — feature-vs-bug</td><td>A weak click-through when none of the top search terms rank in the first ten results is what that model looks like working normally, not a defect. A step whose denominator is under the floor is a small-numbers artifact, not a finding.</td></tr>
+        <tr><td>4 — one binding constraint</td><td><strong>The worst step in the funnel is the candidate, and it is named only if it is diagnosable.</strong> Excluding a step never promotes a healthier one. See the global-minimum rule below.</td></tr>
+        <tr><td>5 — refuse to invent</td><td>When no step survives, it <strong>abstains</strong> and the headline says what was observed instead of naming an opportunity nobody measured.</td></tr>
+      </table>
+      <p><strong>Done looks like:</strong> the gait is unit-tested move by move, the payload shape is byte-identical, and a wrong verdict can be traced in the logs to the step that produced it.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant files</h3>
+      <ul>
+        <li><code>src/controllers/patient-journey/feature-utils/util.diagnostic-gait.ts</code> — new. The gait. Pure: no DB, no clock, no model call.</li>
+        <li><code>src/controllers/patient-journey/feature-utils/funnelMath.ts</code> — <code>buildConversions</code> delegates constraint selection to the gait; <code>buildHeadline</code> gains reason-specific abstention copy.</li>
+        <li><code>src/controllers/patient-journey/feature-services/PatientJourneyService.ts</code> — passes the diagnosis to the headline and logs the full reasoning.</li>
+        <li><code>src/controllers/patient-journey/feature-services/stageReaders.ts</code> — unchanged. It is the source of the constellation the gait now reads (<code>StageReadMetadata</code>: gsc, rybbit, leads).</li>
+        <li><code>src/controllers/clarity/feature-utils/util.clarity-metrics-extraction.ts</code> — adds rage-clicks and scroll depth.</li>
+        <li><code>src/controllers/clarity/feature-services/service.clarity-metrics.ts</code> — aggregates them and exposes them on <code>KeyDataResult</code>.</li>
+      </ul>
+      <h3>Constitution articles this touches</h3>
+      <ul>
+        <li><code>§2.2</code> / <code>§13.2</code> — thin service, pure logic in feature-utils. The gait is a pure util; the service only orchestrates and logs.</li>
+        <li><code>§7.4</code> — no inline db/knex. The gait touches no data source at all.</li>
+        <li><code>§8.1</code> — the response envelope and the <code>PatientJourney</code> contract are unchanged.</li>
+        <li><code>§5.5</code> / <code>§11.7</code> — tenant scope still arrives from the request context; the gait never derives identity.</li>
+        <li><code>§20.5</code> — acceptance artifact ships with this plan.</li>
+      </ul>
+      <p><strong>Reference analog:</strong> <code>src/controllers/admin-websites/feature-services/service.ctr-hypothesis.ts</code> — the correct existing stage-engine. Its three honesty properties are the pattern being extended, not twinned: the prediction is never model-generated, the applied-principle list is deterministic, and <strong>it refuses when nothing measurable is wrong</strong>. The gait's abstention path is that same refusal, moved up to the funnel level.</p>
+      <h3>The global-minimum rule</h3>
+      <p>The candidate is the lowest rate across <strong>all</strong> steps that have one — not the lowest among the steps that survived the gates. It is named only if it is itself diagnosable; otherwise the gait abstains and reports the exclusion that applied to <em>that worst step</em>.</p>
+      <p>This is the part that was wrong in the first draft and it is worth recording why, because the failure was invisible from the inside. Selecting the lowest <em>survivor</em> means excluding a step promotes a healthier one. On a realistic account — 1% click-through with nothing on page one, plus a healthy 50% visit-to-lead step — the catastrophic step was correctly excluded and the <em>healthy</em> step was then named "your largest opportunity, only 50% moved through," at which point <code>buildBookableCandidate</code> fired and told the owner the booking step was "where you're losing the most" while 7,920 people were being lost upstream. A wrong verdict plus a false sentence, in the owner-facing payload, on an ordinary account shape. There is now a test named for this that fails if it returns.</p>
+      <h3>Thresholds, and what they claim</h3>
+      <p>One threshold, honestly labelled. The two that were dressed up as "structural facts" are gone:</p>
+      <ul>
+        <li><code>MIN_DIAGNOSABLE_DENOMINATOR = 10</code> — an operational floor, matching the value <code>buildBookableCandidate</code> already applies, so the project carries one argued number rather than two.</li>
+        <li><strong>Removed — average-position &gt; 10.</strong> "Ten results per page" is structural; applying it to GSC's <em>impressions-weighted average across every query</em> is not. A practice ranking #1 for its money terms plus one high-impression generic term on page three averages past 10 while ranking perfectly well. The gate now uses <code>top10QueryCount</code> — how many top queries actually reach the first ten results — which is already on the stage metadata and answers the question the average only appeared to answer.</li>
+        <li><strong>Removed — pages-per-session ≤ 1.05.</strong> Invented, with a perverse failure mode: Alloro's own bookable advice is "make your booking form the first thing visitors see," which structurally produces single-page sessions, so following the product's advice would have permanently suppressed diagnosis of that step. Pages-per-session and bounce are now read as corroboration only. Separating a conversion problem from a traffic problem is a real doctor move and it is <strong>deferred until there is a sourced threshold</strong>, not approximated with a plausible one.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Keep the <code>PatientJourney</code> payload shape identical — the SPA mirrors <code>types.ts</code> verbatim.</li>
+            <li>Preserve the existing no-data headline string exactly.</li>
+            <li>Preserve <code>calculateTrendScore</code> exactly.</li>
+            <li>Abstain rather than name a constraint that is not supported.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must not</h3>
+          <ul>
+            <li>Add an owner-facing field — that is the two-repo change, sequenced as brick 2.</li>
+            <li>Invent a benchmark and present it as evidence.</li>
+            <li>Coerce a missing measurement into a real-looking zero.</li>
+            <li>Fold new metrics into a score clients already see.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out of scope — named so it is not lost</h3>
+      <ul>
+        <li><strong>Brick 2 (contract change):</strong> surface the constellation readout and the verdict to the owner; allow the constraint to route up to the impressions/ranking gate (<code>leakStageKey = "impressions"</code>), which no frontend has ever received for a leak.</li>
+        <li><strong>Reverse-flywheel alarm:</strong> the doctor calls it first-class. It needs a prior period; this assembler reads one month. Named, deliberately not faked.</li>
+        <li><strong>Wiring Clarity into the journey:</strong> the extraction lands here; feeding rage-clicks and scroll depth into the CRO constellation is a later brick — and is now <em>blocked</em> behind diagnosing why Clarity captures nothing on most sites (see Evidence).</li>
+        <li><strong>Bot stripping:</strong> the Clarity payload carries <code>totalBotSessionCount</code> and nothing reads it. One live reading showed ~17% bots. The funnel rule says strip bots before optimizing. Worth its own small brick.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 2 — backend-only and contract-preserving. Unit-tested at the level that matters (selection, exclusion, abstention, headline copy, and the bookable-card interaction); not exercised against production data.</p>
+      <h3>Risks identified</h3>
+      <ul>
+        <li><strong>Owner-visible copy changes even though the contract does not.</strong> When the gait abstains, the headline sentence differs from what an owner saw last month, and in some months no step will be named at all. <strong>Mitigation:</strong> every abstention sentence is descriptive and explains what was observed; this is the honest outcome, but Dave should expect it and not read a null <code>leakStageKey</code> as a bug.</li>
+        <li><strong>The gait can abstain more often than expected on thin accounts.</strong> That is the intent — a diagnosis on 6 visitors was never real. <strong>Mitigation:</strong> the reasoning is in the logs, so frequency is measurable before anyone tunes a threshold.</li>
+        <li><strong>Thresholds are judgment, not evidence.</strong> <strong>Mitigation:</strong> there is now one, it reuses the project's existing floor, and its comment says it is operational rather than a benchmark. The two invented ones were removed rather than re-argued.</li>
+        <li><strong>Exclusions redirect the verdict, and that is the dangerous direction.</strong> Corroboration only strengthens or withholds confidence, but an <em>exclusion</em> changes which step gets named — which is exactly how the inverted verdict happened. <strong>Mitigation:</strong> the global-minimum rule means an exclusion can only ever produce an abstention, never a different named step.</li>
+        <li><strong>The remaining organic signals are site-level.</strong> <code>top10QueryCount</code> counts queries, not per-page performance. <strong>Mitigation:</strong> it is used only to withhold a click-through diagnosis, never to assert one, and the abstain copy claims only what the count supports.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> <code>buildConversions</code> and <code>buildHeadline</code> are called from exactly one place, <code>PatientJourneyService.assemblePatientJourney</code>. <code>buildConversions</code>'s return type gains a field (additive; the destructuring caller is updated). <code>extractMetrics</code> is consumed only by <code>aggregateMetrics</code>; <code>KeyDataResult</code> gains two optional-to-ignore fields that no current frontend consumer reads.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li><strong>The gait keeps min-rate as its final tie-break, which looks like it changed nothing.</strong> It is worth being honest about this: on a multiplicative funnel, lowest rate genuinely is highest improvement-per-point, so the old rule was not wrong about the tie-break — it was wrong about answering at all without gating on sample size, baseline, and corroboration, and about never abstaining. Replacing the ranking metric on a hunch would have been the re-derivation trap. The gates are the change.</li>
+        <li><strong>The reasoning is logged, not returned.</strong> That keeps this Level 2 but means the owner still cannot see why. That is the whole point of brick 2, and brick 1 is worth little if brick 2 never lands.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <article class="task-card">
+        <h3>T1: The diagnostic gait</h3>
+        <dl>
+          <div><dt>Do</dt><dd>New pure module implementing the five moves, exporting <code>diagnoseFunnel()</code>, the three named thresholds, and the <code>FunnelDiagnosis</code> reasoning record.</dd></div>
+          <div><dt>Files</dt><dd><code>util.diagnostic-gait.ts</code>, <code>src/__tests__/diagnostic-gait.test.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>npx vitest run src/__tests__/diagnostic-gait.test.ts</code></dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T2: Wire it behind the unchanged contract</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>buildConversions</code> delegates to the gait and returns the diagnosis; <code>buildHeadline</code> takes it and emits reason-specific abstention copy; the service passes it through and logs per-step reasoning.</dd></div>
+          <div><dt>Files</dt><dd><code>funnelMath.ts</code>, <code>PatientJourneyService.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd><code>npx vitest run src/__tests__/patient-journey.service.test.ts</code> — the pre-existing suite must pass untouched.</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T3: Clarity rage-clicks and scroll depth</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Extract <code>RageClickCount.subTotal</code> and <code>ScrollDepth.averageScrollDepth</code>; preserve a null scroll reading as null; sum rage clicks and average scroll depth across days that carried a reading; expose both on <code>KeyDataResult</code>. No API change and no trend-score change.</dd></div>
+          <div><dt>Files</dt><dd><code>util.clarity-metrics-extraction.ts</code>, <code>service.clarity-metrics.ts</code>, <code>src/__tests__/clarity-metrics-extraction.test.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>npx vitest run src/__tests__/clarity-metrics-extraction.test.ts</code></dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="evidence">
+      <h2>What was verified, and what was not</h2>
+      <h3>Verified — with a receipt</h3>
+      <ul>
+        <li>The naive selector and the untouched Clarity extractor were read on <code>origin/dev/dave</code> after a fetch, not on a local branch.</li>
+        <li><strong>The Clarity payload question was answered by live reads, not inferred.</strong> Read-only <code>project-live-insights</code> calls returned sixteen metric entries including <code>RageClickCount</code> and <code>ScrollDepth</code>. No API change is needed, and because the controller stores the raw payload, stored history already contains them.</li>
+        <li><code>ScrollDepth</code> carries a single field, <code>averageScrollDepth</code>, which is <strong>null</strong> when there is no reading — a different shape from the count metrics. On a project with real traffic it returned <code>44.42</code>, a number on a 0–100 scale. Coercing the null with <code>|| 0</code> would have reported "visitors scrolled 0%" on a month with no data.</li>
+        <li>Both typechecks exit clean (backend and frontend). 79 tests pass across four suites. <code>npm run check:conventions</code> reports zero structural violations.</li>
+        <li><strong>An independent cross-model adversary reviewed this diff and returned FIX-FIRST.</strong> It proved the inverted verdict with a passing test against the real code, caught the GSC position-0 sentinel being read as a first-place ranking, and refuted two of the three thresholds. All must-fix and should-fix findings are applied above. That review was the point: the same model wrote this code and its tests, and the first draft's test suite <em>asserted the central defect as correct</em>.</li>
+      </ul>
+      <h3>Not verified — stated, not hidden</h3>
+      <ul>
+        <li><strong>Clarity is capturing almost nothing on most sampled sites.</strong> Over a 3-day window: <code>sdcendo.com</code> returned 30 sessions and a real scroll reading, but <code>garrisonorthodontics.com</code> (the largest account, with real traffic in the funnel), <code>artfulorthodontics.com</code> and <code>surfcityendo.com</code> all returned <strong>0 sessions</strong>. The API call succeeds; the instrument is dark. Cause not diagnosed — candidates are a missing or dropped tracking snippet, a stale <code>clarity_projectId</code>, or a recreated Clarity project. <strong>This changes sequencing:</strong> the extraction below is correct code, but wiring rage-clicks and scroll depth into the CRO constellation would read a dark instrument on most accounts. Diagnose the capture gap first.</li>
+        <li>The unit for <code>averageScrollDepth</code> is read as a percent from its range and Clarity's UI convention, not from documentation.</li>
+        <li>The gait has not been run against a production account. Nobody has yet seen how often it abstains on real data — that is the first thing the logs will answer after it lands.</li>
+        <li>No claim is made that the gait's verdicts are <em>correct</em>. It is better-gated than what it replaces, and one class of wrong verdict has been removed and pinned by a test; whether its diagnoses hold up is exactly what the follow-on below exists to answer.</li>
+        <li>Bot traffic is still in the denominator. One live reading showed 5 bot sessions out of 30 (~17%), and <code>totalBotSessionCount</code> is in the payload with nothing reading it.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="followon">
+      <h2>Follow-on: the exam gate (named here so it is not lost — do not build it in this brick)</h2>
+      <p><code>the-engine.md</code> is blunt about this: a diagnosis engine that is never scored against known outcomes is a plausible-but-wrong pattern waiting to happen, and the exam is "the part that matters most and doesn't exist yet."</p>
+      <p>The question this brick cannot answer about itself: <strong>when the gait names a binding constraint and that constraint is treated, does the number actually move?</strong> Answering it requires, per the plan's own terms:</p>
+      <ul>
+        <li><strong>Out-of-sample validity</strong> — no pattern drives a verdict until it holds on a different account and time than it was found on.</li>
+        <li><strong>Prospective, blind-locked cases</strong> — a dated, locked diagnosis on each account <em>before</em> the outcome is known. Certification begins with prospective, not retrospective.</li>
+        <li><strong>Anti-contamination</strong> — the treatment's author cannot also be its judge. The plan names this its sharpest trap, and the session that produced this brick has direct evidence for it: a same-author judge returned 7-0-1 for a change that a neutral cross-model judge reversed to 0-2-6.</li>
+      </ul>
+      <p>The cheap first step, when someone picks this up: the gait already logs a structured, dated diagnosis on every assembly. That log is the raw material for a prospective answer key — it exists from the moment this lands, and costs nothing extra to start accumulating.</p>
+    </section>
+
+    <div class="gate">
+      <h2>Landing gate — this is not done until it runs unattended</h2>
+      <p>Code written, tests green and typecheck clean is <strong>not</strong> the finish line. A spec that dies in a chat is a failure, not a deliverable. This brick is done when all of the following are true, in order:</p>
+      <ol>
+        <li>PR opened against <code>dev/dave</code> from <code>claude/diagnostic-gait-brick1</code>.</li>
+        <li>Dave reviews and merges it.</li>
+        <li>Deployed to dev; <code>GET /api/patient-journey</code> returns a real account's funnel with the payload shape unchanged.</li>
+        <li>The <code>[patient-journey] assembled funnel</code> log line shows the per-step reasoning on a real account — <code>diagnosisBasis</code>, <code>excludedBy</code>, <code>corroboration</code> populated.</li>
+        <li>It runs unattended across a full assembly cycle with no error, and the abstention rate on real accounts is observed rather than assumed.</li>
+      </ol>
+      <p>Until step 5, the status pill above stays <strong>In Progress</strong>. Anyone updating it to Completed without step 5 is reporting a story instead of a result.</p>
+    </div>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" checked disabled> <code>npx tsc --noEmit</code> backend and frontend — zero errors</li>
+        <li><input type="checkbox" checked disabled> <code>npx vitest run</code> on the four affected suites — 79 passing</li>
+        <li><input type="checkbox" checked disabled> <code>npm run check:conventions</code> — zero clear structural violations</li>
+        <li><input type="checkbox" checked disabled> Pre-existing <code>patient-journey.service.test.ts</code> passes unmodified</li>
+        <li><input type="checkbox" checked disabled> Payload shape unchanged; the only frontend edit is a corrected doc comment</li>
+        <li><input type="checkbox" checked disabled> Independent cross-model adversary run; all must-fix findings applied</li>
+        <li><input type="checkbox" disabled> PR opened against <code>dev/dave</code></li>
+        <li><input type="checkbox" disabled> Dave merged</li>
+        <li><input type="checkbox" disabled> Verified on dev: real account, shape unchanged, reasoning in the logs</li>
+        <li><input type="checkbox" disabled> Runs unattended for a full cycle; abstention rate observed</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>
