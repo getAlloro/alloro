@@ -1,6 +1,6 @@
 {
   "plan": "plans/07222026-lattice-agent-wiring",
-  "generatedAt": "2026-07-22",
+  "generatedAt": "2026-07-23",
   "status": "Passed",
   "items": [
     {
@@ -57,7 +57,7 @@
       ],
       "expected": "Throws. No silent degrade to base prompt.",
       "status": "pass",
-      "evidence": "Asserted in the composition test (3rd case), green.",
+      "evidence": "Asserted in the composition test (3rd case), green. Confirmed at PR ref: loadPrompt throws '[PromptLoader] Agent prompt not found: <path>'.",
       "notes": "",
       "waiver": ""
     },
@@ -74,7 +74,7 @@
       "expected": "tsc exit 0 / 0 errors; full suite 0 failed; 0 backend structural violations.",
       "status": "pass",
       "evidence": "tsc exit 0, 0 errors. Full suite: 2146 passed, 0 failed. Conventions: 0 backend structural violations (VOCAB-BYPASS advisory only, same class as all agent prompts).",
-      "notes": "",
+      "notes": "Author-run Layer-1 evidence; CI-verifiable. Not independently re-run in this read-only review.",
       "waiver": ""
     },
     {
@@ -89,7 +89,7 @@
       "expected": "A fresh session asking 'how does master knowledge reach agents?' lands on the path without a search.",
       "status": "pass",
       "evidence": "AGENTS.md pointer section added (same pattern as THE FUNNEL); README.md entry-point index present with the fixed path and the 3-step workflow.",
-      "notes": "The anti-hallucination layer: a place for everything, everything in its place.",
+      "notes": "Reviewer caveat: the 3-step workflow it documents is incomplete for agents whose call site still calls loadPrompt() directly — see T8.",
       "waiver": ""
     },
     {
@@ -103,7 +103,22 @@
       "expected": "If a composed prompt returns unparseable output, runComposedAgent degrades to the base prompt (help-or-no-op, never break). Unmapped agents and clean parses do not retry.",
       "status": "pass",
       "evidence": "3 passed: degrade-on-break (2 model calls, onDegrade fired, fallback used base prompt), no-retry-when-unmapped (1 call), no-retry-when-clean (1 call). Full suite 2149 passed / 0 failed.",
-      "notes": "Closes the JSON-regression risk the adversary surfaced; removes downside, not yet upside.",
+      "notes": "Closes the JSON-regression risk. On degrade the pillar makes 2 LLM calls (composed + base retry) — extra cost only on the failure path.",
+      "waiver": ""
+    },
+    {
+      "id": "T8",
+      "title": "Pilot's LIVE call site composes — rubric reaches the running agent, not only the isolated unit",
+      "surface": "cli",
+      "precondition": "PR head claude/lattice-agent-wiring.",
+      "steps": [
+        "1. grep -nE 'runComposedAgent|loadPrompt' src/workers/processors/auditLeadgen.processor.ts",
+        "2. Confirm the callPillar helper (used for the TrustEngagement pillar) routes through runComposedAgent, not loadPrompt."
+      ],
+      "expected": "The GBP-audit callPillar path calls runComposedAgent(agentPath), so loadAgentPrompt composition is exercised at the live TrustEngagement run — not just in the loadAgentPrompt unit test.",
+      "status": "pass",
+      "evidence": "Verified by reading the processor at the PR ref: callPillar (line ~518) calls runComposedAgent for all 5 GBP pillars (invoked lines 542-562), incl. TrustEngagement.",
+      "notes": "GAP for queued follow-ups: WebsiteAnalysis (processor:257) and CompetitorStringBuilder (:310) still call loadPrompt() directly. The '3 steps, nothing else' recipe would turn the composition test GREEN for Sheridan->WebsiteAnalysis while the LIVE agent still loads base-only. Follow-ups need a 4th step: switch the agent's call site to runComposedAgent/loadAgentPrompt.",
       "waiver": ""
     }
   ]
