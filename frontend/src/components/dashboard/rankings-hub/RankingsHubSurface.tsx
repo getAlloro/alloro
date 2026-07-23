@@ -15,6 +15,7 @@ import type { RankingResult } from "../RankingsDashboard";
 import { useLabels } from "../../../hooks/useLabels";
 import { useAuth } from "../../../hooks/useAuth";
 import { formatGeneratedCopyForOrg } from "../../../utils/generatedCopy";
+import { formatDataMonth } from "../../../utils/timeframe";
 import {
   formatRatingVsMarket,
   resolveMarketRating,
@@ -112,8 +113,12 @@ export function RankingsHubSurface({
     );
   }, [result, userProfile?.organizationType]);
 
-  const rankColorClass =
-    rank !== null && rank <= 3
+  // A stale rank loses its confident color: the "#3 = great, current" green is
+  // exactly the half-truth the freshness guard exists to strip. The number
+  // stays (it is a real, if old, measurement) but reads muted and dated.
+  const rankColorClass = rankDisplay.stale
+    ? "text-alloro-navy/45"
+    : rank !== null && rank <= 3
       ? "text-alloro-orange"
       : rank !== null && rank <= 10
         ? "text-alloro-navy"
@@ -162,6 +167,11 @@ export function RankingsHubSurface({
                   {result.searchQuery ?? "your tracked search"}
                 </span>
               </p>
+              {rankDisplay.stale && rankDisplay.checkedAt && (
+                <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
+                  Last checked {formatDataMonth(rankDisplay.checkedAt)} · may be out of date
+                </p>
+              )}
             </>
           ) : (
             <div className="flex flex-col gap-2">

@@ -24,6 +24,9 @@ const okResult = (over: Partial<Parameters<typeof resolveRankDisplay>[0]> = {}) 
   searchPosition: 4,
   // A SerpApi Maps set of 12 businesses, client included.
   searchResults: Array.from({ length: 12 }, (_, i) => ({ isClient: i === 3 })),
+  // Checked this month by default so the existing (freshness-agnostic) cases
+  // stay fresh — the stale-reach suite below overrides this with an old date.
+  searchCheckedAt: new Date().toISOString().slice(0, 10),
   ...over,
 });
 
@@ -74,6 +77,67 @@ describe("#2 resolveRankDisplay — position and denominator share a universe", 
 
   it("shows no rank when status is ok but the position is null", () => {
     expect(resolveRankDisplay(okResult({ searchPosition: null })).show).toBe(false);
+  });
+});
+
+describe("I2 resolveRankDisplay — freshness reaches the rank hero", () => {
+  it("a rank checked this month is fresh — the guard does not over-fire", () => {
+    const d = resolveRankDisplay(okResult());
+    expect(d.show).toBe(true);
+    expect(d.stale).toBe(false);
+  });
+
+  it("FALSIFIER: a rank last checked months ago is stale, not silently current", () => {
+    // The bug this closes: a scheduled ranking run that stopped leaves "#4"
+    // reading as today's rank. The SAME isMonthStale the focus surface uses
+    // now flags it — the position still shows, but the surface strips its
+    // confident color and dates it.
+    const d = resolveRankDisplay(okResult({ searchCheckedAt: "2020-01-15" }));
+    expect(d.show).toBe(true);
+    expect(d.position).toBe(4);
+    expect(d.stale).toBe(true);
+    expect(d.checkedAt).toBe("2020-01-15");
+  });
+
+  it("a missing check date is unknown age, never invented as stale", () => {
+    // Mirrors useStageTones' `latestMonth != null && isMonthStale`: a null date
+    // must not hide a fresh rank behind a missing timestamp.
+    const d = resolveRankDisplay(okResult({ searchCheckedAt: null }));
+    expect(d.show).toBe(true);
+    expect(d.stale).toBe(false);
+    expect(d.checkedAt).toBeNull();
+  });
+
+  it("an empty check date is unknown age too — no silent mute without a caption", () => {
+    // "" is falsy: isMonthStale("") would say stale, but the hero caption only
+    // renders on a truthy date, so a bare `!== null` guard would mute the rank
+    // with no explanation. Treat empty as unknown age, like null.
+    const d = resolveRankDisplay(okResult({ searchCheckedAt: "" }));
+    expect(d.stale).toBe(false);
+  });
+
+  it("handles the PRODUCTION full-ISO datetime format, not just date-only", () => {
+    // res.json serializes searchCheckedAt as a full ISO datetime with Z
+    // (e.g. "2020-01-15T08:30:00.000Z"); parseYM's unanchored regex reads the
+    // month off the prefix. Pin the real contract, not only the date-only form.
+    const staleIso = resolveRankDisplay(
+      okResult({ searchCheckedAt: "2020-01-15T08:30:00.000Z" }),
+    );
+    expect(staleIso.stale).toBe(true);
+    expect(staleIso.checkedAt).toBe("2020-01-15T08:30:00.000Z");
+
+    const freshIso = resolveRankDisplay(
+      okResult({ searchCheckedAt: new Date().toISOString() }),
+    );
+    expect(freshIso.stale).toBe(false);
+  });
+
+  it("carries stale=false when no rank is shown at all", () => {
+    const d = resolveRankDisplay(
+      okResult({ searchStatus: null, searchCheckedAt: "2020-01-15" }),
+    );
+    expect(d.show).toBe(false);
+    expect(d.stale).toBe(false);
   });
 });
 

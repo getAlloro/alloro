@@ -8,6 +8,12 @@
  * is never shown as a measured one.
  */
 
+// The SAME shared freshness guard the focus dashboard uses (invariant I2 — one
+// code path, never re-implemented per surface). A rank is a latest-snapshot: if
+// the ranking run that produced it stopped months ago, "#4" reads as current
+// when it is not. isMonthStale answers that on month cadence.
+import { isMonthStale } from "../focus/statusRules";
+
 /** The client's Maps rank, and — only when it shares a universe — a denominator. */
 export interface RankDisplay {
   /**
@@ -24,6 +30,15 @@ export interface RankDisplay {
    * when we cannot pair honestly. Never the curated competitor count.
    */
   outOf: number | null;
+  /**
+   * True when the run behind this position is 2+ whole months old (the same
+   * month-cadence staleness the focus surface applies via isMonthStale). The
+   * rank still shows — the surface strips its confident color and dates it —
+   * because hiding it entirely would lose a real, if old, measurement.
+   */
+  stale: boolean;
+  /** The check date behind the shown position (searchCheckedAt), or null. */
+  checkedAt: string | null;
 }
 
 interface RankResultInput {
@@ -31,6 +46,8 @@ interface RankResultInput {
   searchPosition: number | null;
   /** The full SerpApi Maps result set, client included (isClient). */
   searchResults: Array<{ isClient?: boolean }> | null;
+  /** When the shown position was last checked — the freshness anchor. */
+  searchCheckedAt: string | null;
 }
 
 /**
@@ -51,7 +68,7 @@ interface RankResultInput {
  */
 export function resolveRankDisplay(result: RankResultInput): RankDisplay {
   if (result.searchStatus !== "ok" || result.searchPosition === null) {
-    return { show: false, position: null, outOf: null };
+    return { show: false, position: null, outOf: null, stale: false, checkedAt: null };
   }
 
   const position = result.searchPosition;
@@ -65,7 +82,15 @@ export function resolveRankDisplay(result: RankResultInput): RankDisplay {
   // practice itself — absurd, so show the rank alone.
   const outOf = universe !== null && universe > 1 && universe >= position ? universe : null;
 
-  return { show: true, position, outOf };
+  // Only call it stale when there IS a readable check date. A null or empty date
+  // is "unknown age", not "old" — inventing staleness there would hide a fresh
+  // rank behind a missing timestamp (and mute it with no caption, since the
+  // caption gates on a truthy date). Mirrors useStageTones' own
+  // `latestMonth != null && isMonthStale(...)` discipline.
+  const checkedAt = result.searchCheckedAt;
+  const stale = Boolean(checkedAt) && isMonthStale(checkedAt);
+
+  return { show: true, position, outOf, stale, checkedAt };
 }
 
 /**
