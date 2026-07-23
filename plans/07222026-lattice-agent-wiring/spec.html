@@ -234,6 +234,16 @@ loadAgentPrompt(agentPath)  =  loadPrompt(agentPath)  +  mapped fragments  ─�
           <div><dt>Verify</dt><dd>Manual: a fresh session asking "how does master knowledge reach agents?" lands on the path in one hop.</dd></div>
         </dl>
       </article>
+
+      <article class="task-card">
+        <h3>T7: Safety net — an injected rubric can never break an agent (Rev 3)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Extract <code>runComposedAgent</code> (<code>src/agents/service.composed-agent-runner.ts</code>): if a composed prompt returns unparseable output, degrade to the base prompt. Wire it into the GBP audit's <code>callPillar</code>. A rubric can only help or no-op — never break a pillar.</dd></div>
+          <div><dt>Files</dt><dd><code>src/agents/service.composed-agent-runner.ts</code>, <code>src/__tests__/composed-agent-runner.test.ts</code>, <code>auditLeadgen.processor.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T3</dd></div>
+          <div><dt>Verify</dt><dd>3 unit tests (model mocked): degrade-on-break, no-retry-when-unmapped, no-retry-when-clean. Full suite green.</dd></div>
+        </dl>
+      </article>
     </section>
 
     <section class="spec-card" id="done">
@@ -248,6 +258,7 @@ loadAgentPrompt(agentPath)  =  loadPrompt(agentPath)  +  mapped fragments  ─�
         <li><input type="checkbox" disabled checked> The three-step "make a master live" path is written into <code>loadout.ts</code></li>
         <li><input type="checkbox" disabled checked> (Rev 2) Discoverability pointer added to <code>AGENTS.md</code> (⛔ Agent Knowledge Injection)</li>
         <li><input type="checkbox" disabled checked> (Rev 2) <code>src/agents/lattice/README.md</code> entry-point index exists and names the one path</li>
+        <li><input type="checkbox" disabled checked> (Rev 3) Safety net: a composed prompt that breaks JSON degrades to base (tested) — an injected rubric can only help or no-op, never break a pillar</li>
       </ul>
     </section>
 
@@ -264,6 +275,12 @@ loadAgentPrompt(agentPath)  =  loadPrompt(agentPath)  +  mapped fragments  ─�
         <p><strong>Change:</strong> Added T6 — discoverability. A ⛔ "Agent Knowledge Injection" pointer at the top of <code>AGENTS.md</code> (same pattern as THE FUNNEL) and <code>src/agents/lattice/README.md</code> as the entry-point index, both naming the one fixed path (library → loadout → registry → composer → test).</p>
         <p><strong>Reason:</strong> User direction: an unfindable substrate is a hallucination vector — "a place for everything, everything in its place." A fresh session or an adversary must reach the system in one hop, not twenty-five.</p>
         <p><strong>Updated Done criteria:</strong> added two items — the AGENTS.md pointer and the README index must exist and name the fixed path.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 3 - 2026-07-22</h3>
+        <p><strong>Change:</strong> Execution-time hardening. Added T7 — a safety net (<code>runComposedAgent</code>) that degrades a composed prompt to the base prompt if the injected rubric makes a JSON-strict agent emit unparseable output. Extracted as a tested helper (3 unit tests, model mocked) and wired into the GBP audit's <code>callPillar</code>.</p>
+        <p><strong>Reason:</strong> Adversary + User QA: the pilot shipped an untested regression path — a bad fragment could break a JSON-strict pillar (the processor throws on a parse failure). Fix the system, don't scrap it: make the injection mechanism unbreakable so it can scale safely.</p>
+        <p><strong>Updated Done criteria:</strong> added — a composed prompt that breaks JSON degrades to base (tested); an injected rubric can only help or no-op.</p>
       </article>
     </section>
   </main>

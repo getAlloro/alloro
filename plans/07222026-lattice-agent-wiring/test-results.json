@@ -91,6 +91,20 @@
       "evidence": "AGENTS.md pointer section added (same pattern as THE FUNNEL); README.md entry-point index present with the fixed path and the 3-step workflow.",
       "notes": "The anti-hallucination layer: a place for everything, everything in its place.",
       "waiver": ""
+    },
+    {
+      "id": "T7",
+      "title": "Safety net — an injected rubric can never break an agent",
+      "surface": "cli",
+      "precondition": "node 22.",
+      "steps": [
+        "1. npx vitest run src/__tests__/composed-agent-runner.test.ts"
+      ],
+      "expected": "If a composed prompt returns unparseable output, runComposedAgent degrades to the base prompt (help-or-no-op, never break). Unmapped agents and clean parses do not retry.",
+      "status": "pass",
+      "evidence": "3 passed: degrade-on-break (2 model calls, onDegrade fired, fallback used base prompt), no-retry-when-unmapped (1 call), no-retry-when-clean (1 call). Full suite 2149 passed / 0 failed.",
+      "notes": "Closes the JSON-regression risk the adversary surfaced; removes downside, not yet upside.",
+      "waiver": ""
     }
   ]
 }
