@@ -1,0 +1,125 @@
+{
+  "plan": "plans/07222026-lattice-agent-wiring",
+  "generatedAt": "2026-07-23",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "T1",
+      "title": "Composition wires the Cialdini rubric into the TrustEngagement prompt",
+      "surface": "cli",
+      "precondition": "node 22; node_modules symlinked to primary checkout.",
+      "steps": [
+        "1. npx vitest run src/__tests__/agent-prompt-composition.test.ts"
+      ],
+      "expected": "loadAgentPrompt('auditAgents/gbp/TrustEngagement') contains both the base prompt ('Headless GBP Pillar Scorer') and the fragment signature ('CIALDINI HONEST-INFLUENCE RUBRIC'), and is strictly longer than the base.",
+      "status": "pass",
+      "evidence": "3 passed (3). Composed prompt contains both anchors; length > base.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Enforcement is real — mutation proof",
+      "surface": "cli",
+      "precondition": "T1 passing.",
+      "steps": [
+        "1. Remove the TrustEngagement row from AGENT_LATTICE_LOADOUT.",
+        "2. Re-run the composition test.",
+        "3. Restore the row; re-run."
+      ],
+      "expected": "Row removed -> suite fails ('expected ...Headless GBP Pillar Sco... to contain CIALDINI HONEST-INFLUENCE RUBRIC'). Row restored -> 3 passed.",
+      "status": "pass",
+      "evidence": "Removed: 1 failed | 2 passed, exact expected assertion. Restored: 3 passed. This is what makes the rubric enforced, not decorative.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "Unmapped agent is byte-identical to loadPrompt()",
+      "surface": "cli",
+      "precondition": "T1 passing.",
+      "steps": [
+        "1. Assert loadAgentPrompt('auditAgents/gbp/ProfileIntegrity') === loadPrompt('auditAgents/gbp/ProfileIntegrity')."
+      ],
+      "expected": "Equal. Blast radius is contained to the one mapped agent.",
+      "status": "pass",
+      "evidence": "Asserted in the composition test (2nd case), green.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T4",
+      "title": "Missing fragment fails loud",
+      "surface": "cli",
+      "precondition": "T1 passing.",
+      "steps": [
+        "1. Assert loadPrompt('lattice/this-fragment-does-not-exist') throws /Agent prompt not found/."
+      ],
+      "expected": "Throws. No silent degrade to base prompt.",
+      "status": "pass",
+      "evidence": "Asserted in the composition test (3rd case), green. Confirmed at PR ref: loadPrompt throws '[PromptLoader] Agent prompt not found: <path>'.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T5",
+      "title": "Typecheck + full backend suite + conventions gate",
+      "surface": "cli",
+      "precondition": "node 22.",
+      "steps": [
+        "1. npx tsc --noEmit",
+        "2. npx vitest run (full)",
+        "3. npm run check:conventions --strict"
+      ],
+      "expected": "tsc exit 0 / 0 errors; full suite 0 failed; 0 backend structural violations.",
+      "status": "pass",
+      "evidence": "tsc exit 0, 0 errors. Full suite: 2146 passed, 0 failed. Conventions: 0 backend structural violations (VOCAB-BYPASS advisory only, same class as all agent prompts).",
+      "notes": "Author-run Layer-1 evidence; CI-verifiable. Not independently re-run in this read-only review.",
+      "waiver": ""
+    },
+    {
+      "id": "T6",
+      "title": "Discoverability — one fixed, findable path",
+      "surface": "none",
+      "precondition": "none",
+      "steps": [
+        "1. Confirm AGENTS.md has the 'Agent Knowledge Injection' pointer at the top.",
+        "2. Confirm src/agents/lattice/README.md exists and names library -> loadout -> registry -> composer -> test."
+      ],
+      "expected": "A fresh session asking 'how does master knowledge reach agents?' lands on the path without a search.",
+      "status": "pass",
+      "evidence": "AGENTS.md pointer section added (same pattern as THE FUNNEL); README.md entry-point index present with the fixed path and the 3-step workflow.",
+      "notes": "Reviewer caveat: the 3-step workflow it documents is incomplete for agents whose call site still calls loadPrompt() directly — see T8.",
+      "waiver": ""
+    },
+    {
+      "id": "T7",
+      "title": "Safety net — an injected rubric can never break an agent",
+      "surface": "cli",
+      "precondition": "node 22.",
+      "steps": [
+        "1. npx vitest run src/__tests__/composed-agent-runner.test.ts"
+      ],
+      "expected": "If a composed prompt returns unparseable output, runComposedAgent degrades to the base prompt (help-or-no-op, never break). Unmapped agents and clean parses do not retry.",
+      "status": "pass",
+      "evidence": "3 passed: degrade-on-break (2 model calls, onDegrade fired, fallback used base prompt), no-retry-when-unmapped (1 call), no-retry-when-clean (1 call). Full suite 2149 passed / 0 failed.",
+      "notes": "Closes the JSON-regression risk. On degrade the pillar makes 2 LLM calls (composed + base retry) — extra cost only on the failure path.",
+      "waiver": ""
+    },
+    {
+      "id": "T8",
+      "title": "Pilot's LIVE call site composes — rubric reaches the running agent, not only the isolated unit",
+      "surface": "cli",
+      "precondition": "PR head claude/lattice-agent-wiring.",
+      "steps": [
+        "1. grep -nE 'runComposedAgent|loadPrompt' src/workers/processors/auditLeadgen.processor.ts",
+        "2. Confirm the callPillar helper (used for the TrustEngagement pillar) routes through runComposedAgent, not loadPrompt."
+      ],
+      "expected": "The GBP-audit callPillar path calls runComposedAgent(agentPath), so loadAgentPrompt composition is exercised at the live TrustEngagement run — not just in the loadAgentPrompt unit test.",
+      "status": "pass",
+      "evidence": "Verified by reading the processor at the PR ref: callPillar (line ~518) calls runComposedAgent for all 5 GBP pillars (invoked lines 542-562), incl. TrustEngagement.",
+      "notes": "GAP for queued follow-ups: WebsiteAnalysis (processor:257) and CompetitorStringBuilder (:310) still call loadPrompt() directly. The '3 steps, nothing else' recipe would turn the composition test GREEN for Sheridan->WebsiteAnalysis while the LIVE agent still loads base-only. Follow-ups need a 4th step: switch the agent's call site to runComposedAgent/loadAgentPrompt.",
+      "waiver": ""
+    }
+  ]
+}

@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lattice → Agent Wiring Spec</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); margin-top: 14px; }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 840px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 4rem); line-height: 0.95; letter-spacing: 0; }
+    h2 { font-size: 1.35rem; letter-spacing: 0; }
+    h3 { font-size: 1rem; letter-spacing: 0; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    ul { margin: 0; padding-left: 20px; }
+    li { margin: 4px 0; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    .flow { border: 1px solid var(--ink); border-radius: 8px; padding: 16px; background: var(--soft); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.86rem; overflow-x: auto; }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill">Completed</span>
+      </div>
+      <h1>Lattice → Agent Wiring</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/07222026-lattice-agent-wiring</dd></div>
+        <div><dt>Size</dt><dd>Medium</dd></div>
+        <div><dt>Risk</dt><dd>Level 2</dd></div>
+      </dl>
+      <dl class="meta-grid" style="margin-top:12px;">
+        <div><dt>Worktree</dt><dd><code>alloro-worktrees/lattice-agent-wiring</code></dd></div>
+        <div><dt>Branch</dt><dd><code>claude/lattice-agent-wiring</code></dd></div>
+        <div><dt>Source Branch</dt><dd><code>claude/ctr-brick2-hypothesis</code></dd></div>
+        <div><dt>Source HEAD</dt><dd><code>e107a7556</code></dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>Alloro's product agents each read a single instruction file (<code>src/agents/{agent}.md</code>) through <code>loadPrompt()</code>. That is the only channel by which knowledge reaches a running agent. Everything <em>outside</em> that channel — the knowledge lattice, the sentiment lattice, the compiled master rubrics — is read by <strong>no code</strong> (<code>git grep lattice</code> in <code>src/</code> returns zero). A 845-line knowledge lattice that nothing loads changes no agent's behavior. It is a well-bound dusty book.</p>
+      <p>This is also the fix for a second, larger problem: decisions that live as prose get re-litigated every session. The durable fix for both is one move — <strong>encode a principle where it is enforced (a loader the agent can't skip), not where it is re-read (a doc).</strong> This spec builds the first, smallest instance of that: a validated lattice fragment, wired into one agent's prompt, proven by a test that fails if the wiring is removed. It is the reference implementation of the repeatable path <em>{new knowledge} → encoded → enforced → live</em>.</p>
+      <p><strong>Done when:</strong> one pilot agent's assembled system prompt provably contains a validated master's rubric, a test mutation-proves the wiring (delete the mapping → suite fails), and adding the next master is a three-line change (fragment + mapping row + test).</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>A small, backward-compatible composition layer over the existing prompt loader, plus the first curated fragment and the registry that maps agents to fragments.</p>
+      <div class="flow">library (git lattice — alloro-brain/*; Notion retired)  ── validated + distilled ──▶  src/agents/lattice/*.md   (the shipped loadout: canon-conformant fragments)
+                                                                          │
+AGENT_LATTICE_LOADOUT  { "auditAgents/gbp/TrustEngagement": ["cialdini-honest-influence"] }
+                                                                          │
+loadAgentPrompt(agentPath)  =  loadPrompt(agentPath)  +  mapped fragments  ──▶  systemPrompt  ──▶  live agent
+                                                                          │
+                                          test: assembled prompt CONTAINS the fragment  (remove mapping → FAIL)</div>
+      <p>Pilot pairing: <strong>Cialdini (honest influence — surface real proof, strip manufactured signals)</strong> → <code>auditAgents/gbp/TrustEngagement</code> (the GBP trust/engagement audit). Chosen because the source row already exists in the lattice (least authoring risk), the fit is exact, and it does not collide with the active CtrHypothesis Brick work.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>src/agents/service.prompt-loader.ts</code> — the sole prompt-load channel. <code>loadPrompt(agentPath)</code> reads <code>src/agents/{agentPath}.md</code>, trims, caches in prod. The new <code>loadAgentPrompt()</code> composition helper lands here.</li>
+        <li><code>src/controllers/admin-websites/feature-utils/util.seo-section-runner.ts:105-106</code> — <strong>the reference analog for composition.</strong> Already loads a <code>base</code> prompt plus a mapped section fragment and combines them. The wiring mirrors this exactly; it invents no new pattern.</li>
+        <li><code>src/agents/auditAgents/gbp/TrustEngagement.md</code> — the pilot agent instruction file (read before touching its call site).</li>
+        <li>The GBP audit caller that runs <code>TrustEngagement</code> — the single call site to switch from <code>loadPrompt(...)</code> to <code>loadAgentPrompt(...)</code> (located during execution via <code>git grep "auditAgents/gbp/TrustEngagement"</code>).</li>
+        <li><code>~/code/alloro-brain/library/lattices/knowledge-lattice.md</code> (Cialdini row) — the <em>library</em> source. Not read at runtime; distilled by hand into the shipped fragment. Status <code>provisional</code> / drift-flagged — only validated, canon-conformant content crosses into the product.</li>
+      </ul>
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li>Prompt composition = <code>base + fragments</code>, mirroring <code>util.seo-section-runner.ts</code>. Fragments are loaded through the existing <code>loadPrompt("lattice/{key}")</code> — <code>src/agents/lattice/</code> sits under the same <code>AGENTS_DIR</code>, so no new file-reading code.</li>
+        <li>The agent→fragment mapping is a single named <code>const</code> registry (§4.2), the one place that declares which principle wires into which agent.</li>
+        <li>Backward-compatible: an agent with no registry entry gets output byte-identical to <code>loadPrompt()</code>. Blast radius is exactly the mapped agent.</li>
+      </ul>
+      <p><strong>Reference analog:</strong> <code>§6.1</code> <code>src/controllers/gbp-automation/</code> for structure; <code>util.seo-section-runner.ts:105-106</code> for the composition shape.</p>
+      <h3>Code Constitution Articles this work touches</h3>
+      <ul>
+        <li><code>§6.2</code> Every file has a home — new fragment dir <code>src/agents/lattice/</code>, registry beside the loader.</li>
+        <li><code>§2.2</code> Functions under ~50 lines — <code>loadAgentPrompt()</code> stays small.</li>
+        <li><code>§4.2</code> No magic strings — the loadout mapping is a named registry const.</li>
+        <li><code>§3.1 / §3.2</code> Error handling — reuse the loader's existing throw-on-missing-file; a mapped fragment that doesn't exist must fail loud, never silently drop.</li>
+        <li><code>§20</code> Tests — the mutation-proven composition test is the enforcement artifact, not an afterthought.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Keep <code>loadPrompt()</code> unchanged and backward-compatible; add composition alongside it.</li>
+            <li>Ship the fragment <em>inside</em> the alloro repo (<code>src/agents/lattice/</code>). Deploy has no access to the sibling <code>alloro-brain</code> repo — a runtime read of it would break in prod.</li>
+            <li>Author the fragment fresh and canon-conformant: no retired vocabulary, no ad/campaign/impressions-as-vanity language, no guarantees (Value #6). Validate against START HERE canon before it ships.</li>
+            <li>Fail loud if a mapped fragment key is missing (reuse the loader's existing throw).</li>
+            <li>Wire exactly ONE pilot agent. Prove it. Generalize later.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>Copy the provisional lattice wholesale into any agent prompt (drift → live agents).</li>
+            <li>Read <code>alloro-brain</code> or <code>alloro-artifacts</code> at runtime.</li>
+            <li>Modify more than the one pilot call site.</li>
+            <li>Add a dependency, or hand-fold the same principle into multiple agent files (that recreates the duplication this replaces).</li>
+            <li>Touch <code>CtrHypothesis</code> (active Brick surface).</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Wiring the other agents (Schwartz→CRO/SeoGeneration, Sheridan→WebsiteAnalysis) — trivial follow-ups once the mechanism is proven, each a fragment + mapping row + test.</li>
+        <li>Landing Sheridan/Schwartz/Cialdini rows into the git lattice library (human-staked, separate; Notion is being retired).</li>
+        <li>Any runtime measurement of whether the wired principle improves agent output quality (that needs the measurement build; this spec only proves the principle reaches the agent).</li>
+        <li>Deleting <code>~/alloro-private/master-rubrics.md</code> (housekeeping, done once its net-new rows land in the library).</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 2 — Concern. Scoped, backward-compatible, one call site.</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><strong>Drift injection</strong> — the lattice is drift-flagged; a stale fragment would push retired positioning into a live agent. <strong>Mitigation:</strong> fragments are authored fresh and canon-checked, never copied from the provisional mirror; the fragment is the rubric (heuristic + falsifier), not the essay.</li>
+        <li><strong>Token cost</strong> — appending a fragment grows every call's system prompt. <strong>Mitigation:</strong> fragments are tight; measure the token delta on the pilot and record it before generalizing.</li>
+        <li><strong>Silent no-op</strong> — a mapping that points at a missing/misnamed fragment could degrade to the base prompt unnoticed. <strong>Mitigation:</strong> reuse the loader's throw-on-missing; the test asserts the fragment's signature line is present in the assembled prompt.</li>
+        <li><strong>Prod cache</strong> — <code>loadPrompt</code> caches per-key in prod. Composition must cache correctly or read fresh; confirm no stale-fragment bug across the base+fragment keys.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> <code>loadPrompt()</code> has ~15 callers; the composition helper is additive and only the single pilot call site changes behavior. All other callers keep calling <code>loadPrompt()</code> and are byte-for-byte unaffected.</p>
+      <h3>Pushback — the design decision, and why this path</h3>
+      <ul>
+        <li><strong>Option A (rejected):</strong> <code>loadPrompt</code> appends lattice rows to <em>all</em> agents. Over-broad, injects drift everywhere, uncontrolled token cost.</li>
+        <li><strong>Option B (rejected):</strong> hand-fold heuristics into each agent <code>.md</code>. No single source; the same principle duplicated across N files — the exact duplication this is meant to end.</li>
+        <li><strong>Option C (chosen):</strong> curated fragments + a mapping registry + a composition helper. One source per principle, composed at load, canon-gated, test-enforced, generalizes one mapping-row at a time. This is what Musk (simplest that works), sequential-build (pilot one, prove, then scale), and the drift caveat (curated, not raw) jointly point to.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+
+      <article class="task-card">
+        <h3>T1: Curated fragment — <code>cialdini-honest-influence.md</code></h3>
+        <dl>
+          <div><dt>Do</dt><dd>Author <code>src/agents/lattice/cialdini-honest-influence.md</code>: the 7 principles scored <code>present-honest / absent / MISUSED</code>, with the falsifier "fails on any manufactured signal (fake scarcity, invented social proof, false authority)." Tight rubric, canon-conformant, distinct signature line for the test to anchor on. Distilled from the existing Cialdini lattice row, re-checked against canon.</dd></div>
+          <div><dt>Files</dt><dd><code>src/agents/lattice/cialdini-honest-influence.md</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: no retired vocabulary; no guarantees; reads as an audit rubric a GBP trust agent applies.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: Composition helper + registry</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add <code>loadAgentPrompt(agentPath)</code> to the prompt loader: load base via <code>loadPrompt(agentPath)</code>, look up <code>AGENT_LATTICE_LOADOUT[agentPath]</code>, and if present append each fragment (loaded via <code>loadPrompt("lattice/{key}")</code>) under a clear header. No entry → return base unchanged. Define the <code>AGENT_LATTICE_LOADOUT</code> registry const as the single source of agent→fragment mappings.</dd></div>
+          <div><dt>Files</dt><dd><code>src/agents/service.prompt-loader.ts</code> (or a sibling <code>service.agent-prompt.ts</code> if the loader file nears its tier), <code>src/agents/lattice/loadout.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code>; helper under ~50 lines (§2.2).</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: Wire the pilot call site</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Read <code>TrustEngagement.md</code> and its caller. Add the registry row <code>"auditAgents/gbp/TrustEngagement": ["cialdini-honest-influence"]</code>. Switch that one call site from <code>loadPrompt(...)</code> to <code>loadAgentPrompt(...)</code>. No other call site changes.</dd></div>
+          <div><dt>Files</dt><dd><code>src/agents/lattice/loadout.ts</code>, the TrustEngagement caller (found via grep)</dd></div>
+          <div><dt>Depends on</dt><dd>T2</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code>; grep confirms only one call site changed.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: The enforcement test (mutation-proven)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Test that <code>loadAgentPrompt("auditAgents/gbp/TrustEngagement")</code> contains both the base prompt and the Cialdini fragment's signature line, and that an unmapped agent's output equals <code>loadPrompt()</code>. <strong>Mutation-prove it:</strong> temporarily remove the registry row and confirm the suite FAILS. This failing-on-removal is what makes the wiring a system, not a doc.</dd></div>
+          <div><dt>Files</dt><dd><code>src/__tests__/agent-prompt-composition.test.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T3</dd></div>
+          <div><dt>Verify</dt><dd>Backend suite green; documented mutation proof (remove row → red).</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T5: Record the repeatable workflow</h3>
+        <dl>
+          <div><dt>Do</dt><dd>A short header comment in <code>loadout.ts</code>: to make any master live — (1) add a validated fragment to <code>src/agents/lattice/</code>, (2) add one registry row, (3) add one assertion to the composition test. Name the queued follow-ups (Schwartz→SeoGeneration/CRO, Sheridan→WebsiteAnalysis). This is the systems-level artifact — the path itself, encoded next to the enforcement.</dd></div>
+          <div><dt>Files</dt><dd><code>src/agents/lattice/loadout.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T4</dd></div>
+          <div><dt>Verify</dt><dd>Manual: the three-step path is written where the next author will see it.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T6: Discoverability — the fixed path a fresh session can find (Rev 2)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add a ⛔ "Agent Knowledge Injection" pointer at the top of <code>AGENTS.md</code> (same pattern as THE FUNNEL) and <code>src/agents/lattice/README.md</code> as the entry-point index, both naming the one fixed path: library → loadout → registry → composer → test.</dd></div>
+          <div><dt>Files</dt><dd><code>AGENTS.md</code>, <code>src/agents/lattice/README.md</code></dd></div>
+          <div><dt>Depends on</dt><dd>T5</dd></div>
+          <div><dt>Verify</dt><dd>Manual: a fresh session asking "how does master knowledge reach agents?" lands on the path in one hop.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T7: Safety net — an injected rubric can never break an agent (Rev 3)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Extract <code>runComposedAgent</code> (<code>src/agents/service.composed-agent-runner.ts</code>): if a composed prompt returns unparseable output, degrade to the base prompt. Wire it into the GBP audit's <code>callPillar</code>. A rubric can only help or no-op — never break a pillar.</dd></div>
+          <div><dt>Files</dt><dd><code>src/agents/service.composed-agent-runner.ts</code>, <code>src/__tests__/composed-agent-runner.test.ts</code>, <code>auditLeadgen.processor.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T3</dd></div>
+          <div><dt>Verify</dt><dd>3 unit tests (model mocked): degrade-on-break, no-retry-when-unmapped, no-retry-when-clean. Full suite green.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled checked> <code>npx tsc --noEmit</code> — exit 0, zero errors</li>
+        <li><input type="checkbox" disabled checked> Full backend suite green (2146 passed, 0 failed); <code>npm run check:conventions --strict</code> — 0 backend structural violations (VOCAB-BYPASS is advisory, same false-positive class as all agent prompts)</li>
+        <li><input type="checkbox" disabled checked> <code>loadAgentPrompt("auditAgents/gbp/TrustEngagement")</code> provably contains the Cialdini fragment (composition test, 3/3)</li>
+        <li><input type="checkbox" disabled checked> Mutation proof recorded: removing the registry row turns the suite red; restoring returns green</li>
+        <li><input type="checkbox" disabled checked> Unmapped agent (<code>ProfileIntegrity</code>) byte-identical to <code>loadPrompt()</code> — asserted in test</li>
+        <li><input type="checkbox" disabled checked> Fragment canon-conformant (no retired vocab, no guarantees); composed prompt strictly longer than base (added cost ≈ one short rubric, ~300 tokens — estimate, not benchmarked)</li>
+        <li><input type="checkbox" disabled checked> The three-step "make a master live" path is written into <code>loadout.ts</code></li>
+        <li><input type="checkbox" disabled checked> (Rev 2) Discoverability pointer added to <code>AGENTS.md</code> (⛔ Agent Knowledge Injection)</li>
+        <li><input type="checkbox" disabled checked> (Rev 2) <code>src/agents/lattice/README.md</code> entry-point index exists and names the one path</li>
+        <li><input type="checkbox" disabled checked> (Rev 3) Safety net: a composed prompt that breaks JSON degrades to base (tested) — an injected rubric can only help or no-op, never break a pillar</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-07-22</h3>
+        <p><strong>Change:</strong> Source of truth for the lattice library moved from Notion to the git-tracked lattices (<code>alloro-brain/library/lattices</code>). <code>loadout.ts</code>, the README, and the AGENTS.md pointer name the git library, not Notion.</p>
+        <p><strong>Reason:</strong> User direction: Notion is being retired.</p>
+        <p><strong>Updated Done criteria:</strong> none — the product side already ships fragments into the repo and never reads Notion at runtime, so the change is provenance-only.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 2 - 2026-07-22</h3>
+        <p><strong>Change:</strong> Added T6 — discoverability. A ⛔ "Agent Knowledge Injection" pointer at the top of <code>AGENTS.md</code> (same pattern as THE FUNNEL) and <code>src/agents/lattice/README.md</code> as the entry-point index, both naming the one fixed path (library → loadout → registry → composer → test).</p>
+        <p><strong>Reason:</strong> User direction: an unfindable substrate is a hallucination vector — "a place for everything, everything in its place." A fresh session or an adversary must reach the system in one hop, not twenty-five.</p>
+        <p><strong>Updated Done criteria:</strong> added two items — the AGENTS.md pointer and the README index must exist and name the fixed path.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 3 - 2026-07-22</h3>
+        <p><strong>Change:</strong> Execution-time hardening. Added T7 — a safety net (<code>runComposedAgent</code>) that degrades a composed prompt to the base prompt if the injected rubric makes a JSON-strict agent emit unparseable output. Extracted as a tested helper (3 unit tests, model mocked) and wired into the GBP audit's <code>callPillar</code>.</p>
+        <p><strong>Reason:</strong> Adversary + User QA: the pilot shipped an untested regression path — a bad fragment could break a JSON-strict pillar (the processor throws on a parse failure). Fix the system, don't scrap it: make the injection mechanism unbreakable so it can scale safely.</p>
+        <p><strong>Updated Done criteria:</strong> added — a composed prompt that breaks JSON degrades to base (tested); an injected rubric can only help or no-op.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>
