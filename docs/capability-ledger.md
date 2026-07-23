@@ -13,7 +13,7 @@
 
 **State legend:** `LIVE` = live & wired · `BUILT–NOT-WIRED` = code exists, nothing calls it · `FROM-SCRATCH` = not built · `GATED-OFF` = built, master switch default-off · `SHIPPED–VERIFY` = shipped, confirm it still runs · `BLOCKED` = live but blocked upstream · `DEFECT` = built wrong · `STRANDED` = merged to the wrong branch, not on trunk.
 
-**Verified against `dev/dave` @ `66f1bf7af`, 2026-07-21.**
+**Verified against `dev/dave` @ `b33f65ec3`, 2026-07-23.** *(Rows not touched by this pass still carry their 2026-07-21 grounding against `66f1bf7af`; the GF2 and CH3 rows were re-verified against trunk today.)*
 
 > **The test for any work item: "does this change what happens to account fifty?"** If it doesn't change what a real client experiences, question whether it belongs in the mission.
 
@@ -43,7 +43,7 @@
 | # | Capability | Moves | State | Where you see it | Lives (receipt) |
 |---|---|---|---|---|---|
 | GF1 | **Impressions gauge** (Google Visibility) | Impressions | **BLOCKED** — reads 0 (zero-Maps) | Patient Journey Insights | `service.daily-agent-processor` / `dateHelpers`; #192 diagnostic merged. **Not a one-day lag: Dave's local prod-clone check (07-20) found the Maps term = 0 in ALL 1,229 daily rows, across 7 orgs / 9 months.** So #183 (merged to prod) can't move the gauge until the source defect is fixed + backfilled. Root-cause + backfill is Dave's; #192 confirms cause on the next daily run after deploy. **This is the top-of-funnel blocker to the July-31 mission.** |
-| GF2 | **GBP primary category** (specialty, most-specific) — strongest lever | Impressions | **BUILT–NOT-WIRED** | (would be) GBP Automation | `gbpCategoryTaxonomy.ts` (#193) imported only by its own services; no running caller |
+| GF2 | **GBP primary category** (specialty, most-specific) — strongest lever | Impressions | **WIRED–MANUAL ONLY** | GBP Automation approvals (via API, no UI) | Updated 2026-07-23: #202 added the caller this row said did not exist — `POST /business-info/category-proposal` (`src/routes/gbpAutomation.ts:116`) → `GbpAutomationController.createCategoryProposalDraft` → `CategoryValueSourceService.proposeCategoryDraftForLocation`. It stages an owner-approval A6 draft; it does **not** publish. Two things still gate real impact: no UI calls the route (zero hits in `frontend/`), and the publish path is GF5, default-off. So: a human can trigger it, nothing runs it on a schedule. |
 | GF3 | **GBP completeness fill — website URL** | Impressions (≈no-op) | **LIVE** | GBP Automation drafts | `gbpCompletenessFill.ts:106` — only field it fills; profiles already have websites |
 | GF4 | **GBP completeness fill — phone / hours** | Impressions | **FROM-SCRATCH** | — | `gbpCompletenessFill.ts:115` empty stubs; comment L20 "no-value-source" |
 | GF5 | **GBP business-info write-back (A6)** — the publish path | Impressions (when fed) | **GATED-OFF** | GBP Automation approvals | `gbpBusinessInfo.ts`; migration `20260716000000` `business_info_writeback_enabled defaultTo(false)` |
@@ -64,7 +64,7 @@
 |---|---|---|---|---|---|
 | CH1 | **Review REPLIES** (respond to existing reviews) | Prominence | **LIVE** | Reviews & Posts | `GbpReviewReplyService` + siblings (merged) |
 | CH2 | **Review REQUESTS / velocity** (get more, fresher reviews) — top competitive lever | Prominence → impressions | **STRANDED + Sikka-gated** | — | `ReviewRequestModel.ts` + `ReviewRequestEmail.ts` exist **stranded on `origin/checkup-upgrade`** (not on trunk) — NOT greenfield; PMS-trigger substrate = Sikka ([[project_sikka_integration]]); sandbox free-to-start, paid trigger = cash |
-| CH3 | **Form-submission confirmation email** (lead reassurance) | Submissions (trust) | **FROM-SCRATCH** | hosted lead forms | none — verified missing on Alloro's own site (M6) |
+| CH3 | **Form-submission confirmation email** (lead reassurance) | Submissions (trust) | **LIVE — conditional** | hosted lead forms | Updated 2026-07-23: built by #204, contrary to this row's "none". `formSubmissionController.ts` `buildConfirmationReceiptBody` sends *"We received your message"* to the submitter on the **form** path (distinct from the newsletter double-opt-in). Two conditions must hold or nothing sends: the form carries an email-like field, and the submission is not spam-flagged. |
 
 ## Send infrastructure
 
