@@ -36,6 +36,30 @@ GET FOUND        ──CTR──▶   GET CONSIDERED    ──CRO──▶   GET
 
 **Why this section exists:** a fresh agent asked "what is Alloro's funnel?" spent 25 tool calls, found **six** conflicting answers, and reported it would have been *"fluent and wrong."* Nothing in this repo pointed at the right one. That is now this section's job.
 
+## ⛔ AGENT KNOWLEDGE INJECTION — how a master's framework reaches a live agent
+
+**One fixed path. Do not re-derive it. Do not invent where it "should" live.**
+
+A validated master rubric (Cialdini, Schwartz, Sheridan…) only changes what an agent does when it lives where the prompt loader reads. Everything else — the lattice library, a private rubric doc, a Notion page — is reference that nothing loads.
+
+```
+library  alloro-brain/library/lattices/*.md   (git-tracked source of truth; Notion is being retired)
+   │  distilled + canon-checked
+   ▼
+loadout  src/agents/lattice/*.md              (validated fragments that ship with the product)
+   │
+registry src/agents/lattice/loadout.ts        (AGENT_LATTICE_LOADOUT: agentPath -> [fragmentKey])
+   │
+composer service.prompt-loader.ts             (loadAgentPrompt() = base prompt + mapped fragments)
+   │
+enforced src/__tests__/agent-prompt-composition.test.ts   (remove a mapping -> suite goes red)
+```
+
+**Entry point / full explanation:** `src/agents/lattice/README.md`.
+**To make a master live (three steps, nothing else):** (1) add a validated fragment `src/agents/lattice/{key}.md`, (2) add one registry row in `loadout.ts`, (3) add one assertion to the composition test.
+
+**Why this section exists:** a session spent its first hour unable to find where agent knowledge lived — the lattices weren't in the product, nothing pointed at them, and that gap is exactly where an agent starts to assume and make things up. A place for everything; this is the place.
+
 ## Asking Another Agent A Question
 
 Questions between builders go in [`BUILD-QUESTIONS.md`](BUILD-QUESTIONS.md) at the repo root — not Slack, not

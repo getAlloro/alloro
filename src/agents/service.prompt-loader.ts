@@ -13,6 +13,7 @@
 
 import path from "path";
 import fs from "fs";
+import { AGENT_LATTICE_LOADOUT } from "./lattice/loadout";
 
 const IS_PROD = process.env.NODE_ENV === "production";
 
@@ -51,6 +52,30 @@ export function loadPrompt(agentPath: string): string {
   const content = fs.readFileSync(filePath, "utf-8").trim();
   if (IS_PROD) cache.set(agentPath, content);
   return content;
+}
+
+/**
+ * Header that introduces appended lattice fragments in a composed prompt.
+ */
+const LATTICE_HEADER =
+  "GOVERNING RUBRICS (validated master frameworks; apply as hard constraints on your output):";
+
+/**
+ * Load an agent prompt AND compose any lattice fragment(s) mapped to it in
+ * AGENT_LATTICE_LOADOUT. An agent with no mapping returns output identical to
+ * loadPrompt(). A mapped-but-missing fragment throws (fail loud) via loadPrompt.
+ *
+ * This is the single wiring point that turns a validated master rubric from a
+ * document nothing reads into an enforced part of a live agent's system prompt.
+ * See src/agents/lattice/loadout.ts for the registry and the 3-step workflow.
+ */
+export function loadAgentPrompt(agentPath: string): string {
+  const base = loadPrompt(agentPath);
+  const latticeKeys = AGENT_LATTICE_LOADOUT[agentPath];
+  if (!latticeKeys || latticeKeys.length === 0) return base;
+
+  const fragments = latticeKeys.map((key) => loadPrompt(`lattice/${key}`));
+  return [base, LATTICE_HEADER, ...fragments].join("\n\n");
 }
 
 /**

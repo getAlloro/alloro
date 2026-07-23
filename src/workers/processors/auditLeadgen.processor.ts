@@ -39,7 +39,7 @@ import {
   scrapeCompetitorGBPs,
 } from "../../controllers/audit/audit-services/service.audit-apify";
 import { runAgent } from "../../agents/service.llm-runner";
-import { loadPrompt } from "../../agents/service.prompt-loader";
+import { loadPrompt, loadAgentPrompt } from "../../agents/service.prompt-loader";
 import { stripMarkupForLLM } from "../../controllers/audit/audit-utils/markupStripper";
 import { settleWebsiteBranchNonFatal } from "../../controllers/audit/audit-utils/settleWebsiteBranchNonFatal";
 import {
@@ -511,7 +511,9 @@ export async function processAuditLeadgen(
       userMessage: string,
       label: string
     ): Promise<T> => {
-      const prompt = loadPrompt(promptPath);
+      // loadAgentPrompt composes any lattice rubric mapped to this pillar in
+      // AGENT_LATTICE_LOADOUT; unmapped pillars are byte-identical to loadPrompt.
+      const prompt = loadAgentPrompt(promptPath);
       const res = await runAgent({
         systemPrompt: prompt,
         userMessage,
