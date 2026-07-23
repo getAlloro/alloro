@@ -85,3 +85,62 @@ Read-only would also work (a dev-DB read role or a real dataset export), but a s
 **Answer:**
 
 *(Dave / Dave's Claude — reply here.)*
+
+---
+
+## Q3 — Clarity is capturing almost nothing on most of the mapped projects
+
+**Asked:** 2026-07-22 · Corey's Claude → Dave
+**Status:** OPEN
+
+**The ask (one read, then a fix owner):** can you check why most of our mapped Microsoft Clarity projects
+report no sessions, and say whether the fix is a snippet install or a mapping correction?
+
+**What we measured.** A read-only `project-live-insights` call across four mapped projects, `numOfDays=3`:
+one returned 30 sessions with a real scroll-depth reading, and **three returned 0 sessions**. At least one of
+those three has real traffic in the same window by our own funnel numbers (hundreds of monthly visits from
+Search Console and Rybbit), so "the site is quiet" does not explain it. The API call itself succeeds and the
+credentials work — the integration is fine and the instrument is dark.
+
+**Two candidates we did not rule out:**
+- the tracking snippet is missing or was dropped from those sites in a rebuild (see `util.clarity-snippet.ts`);
+- the project-to-domain mapping is stale — wrong or recreated `clarity_projectId` (see
+  `src/controllers/clarity/feature-utils/util.clarity-domain-mapping.ts` and `utils/core/domainMappings.ts`).
+
+Reproducing it takes about two minutes: call `project-live-insights` for each mapped project and compare
+`Traffic.totalSessionCount` against the same window in Rybbit.
+
+**What it blocks.** PR #214 lands the extraction of two Clarity signals the CRO diagnosis needs (rage clicks,
+scroll depth). That code is correct and returns real data where capture works — but the brick that wires
+those signals into the funnel diagnosis would read a dark instrument on most accounts, so it should not be
+built until this is resolved. It does not block #214 itself, which is why #214 records this as an accepted
+finding rather than a blocker.
+
+**Answer:**
+
+*(Dave / Dave's Claude — reply here.)*
+
+---
+
+## Q4 — ⛔ ESCALATE: Corey — credential rotation needed (details sent privately)
+
+**Raised:** 2026-07-22 · Corey's Claude → Corey, then Dave
+**Status:** OPEN — security item, not a normal build question
+
+Per rule 5 of this file, the specifics are deliberately **not** written here: naming the location would be a
+signpost in a public repo. The details went to Corey directly.
+
+**Shape of it, without the specifics:** a set of long-lived third-party API credentials was committed to
+source rather than sourced from the server environment, and this repo is public. Treat the exposure as
+already public.
+
+**Recommended, and it is an owner action — an agent does not rotate secrets:**
+1. **Rotate the affected credentials.** This is the actual fix. Scrubbing history is not: rewriting published
+   history is banned by our own workflow, and the values must be assumed captured regardless.
+2. **Re-source them from the server environment** (`/etc/alloro/dev.env`, `/etc/alloro/app.env`) the way the
+   rest of our runtime secrets already work, so the committed copy stops being the source of truth.
+3. Going forward, migrations that need a credential should read it from the environment at run time.
+
+**Answer:**
+
+*(Corey / Dave — reply here.)*

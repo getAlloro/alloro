@@ -166,17 +166,18 @@
     },
     {
       "id": "T11",
-      "title": "Landing gate: runs unattended and the abstention rate is observed",
+      "title": "Landing gate: runs unattended AND the abstention rate is confirmed acceptable",
       "surface": "api",
       "precondition": "T10 passed",
       "steps": [
         "1. Let a full assembly cycle run across connected accounts",
-        "2. Count how often the gait abstains and which exclusion drove it"
+        "2. From the '[patient-journey] assembled funnel' logs, count assemblies where basis == 'abstained', broken down by abstainedBecause",
+        "3. Compare against the accounts that a human agrees were genuinely undiagnosable"
       ],
-      "expected": "No errors across the cycle, and a real measured abstention rate rather than an assumed one.",
+      "expected": "No errors across the cycle, AND the abstention rate is acceptable — the gait names a constraint on accounts that genuinely have a diagnosable one. A coordinator that abstains on most accounts is a dead feature, not a safe one. If abstentions are dominated by 'insufficient-sample' or 'expected-for-position' on accounts a human would diagnose, the gates are mis-set and this brick needs revision before brick 2 builds on it.",
       "status": "pending",
       "evidence": "",
-      "notes": "Nobody has yet seen how often this abstains on production data. Until this runs, that number is unknown, not low."
+      "notes": "Nobody has run this on production data. The abstention rate is UNKNOWN, not low. This item is a pass criterion, not an observation: 'it runs' does not close it."
     },
     {
       "id": "T12",

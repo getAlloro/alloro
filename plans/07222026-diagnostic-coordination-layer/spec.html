@@ -244,7 +244,8 @@
         <li>Dave reviews and merges it.</li>
         <li>Deployed to dev; <code>GET /api/patient-journey</code> returns a real account's funnel with the payload shape unchanged.</li>
         <li>The <code>[patient-journey] assembled funnel</code> log line shows the per-step reasoning on a real account — <code>diagnosisBasis</code>, <code>excludedBy</code>, <code>corroboration</code> populated.</li>
-        <li>It runs unattended across a full assembly cycle with no error, and the abstention rate on real accounts is observed rather than assumed.</li>
+        <li>It runs unattended across a full assembly cycle with no error.</li>
+        <li><strong>The abstention rate on real accounts is confirmed acceptable</strong> — not merely observed. A coordinator that abstains on most accounts is a dead feature, not a safe one. If abstentions are dominated by <code>insufficient-sample</code> or <code>expected-for-position</code> on accounts a human would happily diagnose, the gates are mis-set and this brick needs revision before brick 2 builds on it.</li>
       </ol>
       <p>Until step 5, the status pill above stays <strong>In Progress</strong>. Anyone updating it to Completed without step 5 is reporting a story instead of a result.</p>
     </div>
@@ -261,7 +262,8 @@
         <li><input type="checkbox" disabled> PR opened against <code>dev/dave</code></li>
         <li><input type="checkbox" disabled> Dave merged</li>
         <li><input type="checkbox" disabled> Verified on dev: real account, shape unchanged, reasoning in the logs</li>
-        <li><input type="checkbox" disabled> Runs unattended for a full cycle; abstention rate observed</li>
+        <li><input type="checkbox" disabled> Runs unattended for a full cycle with no errors</li>
+        <li><input type="checkbox" disabled> Abstention rate on real accounts confirmed <em>acceptable</em> (not merely measured)</li>
       </ul>
     </section>
   </main>
