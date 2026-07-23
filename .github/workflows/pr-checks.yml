@@ -16,6 +16,17 @@ name: PR Checks
 on:
   pull_request:
     branches: [dev/dave, main]
+    # `edited` is load-bearing, not tidiness. Without it GitHub defaults to
+    # [opened, synchronize, reopened] -- so the first step below, which reads ONLY the PR body,
+    # can never re-run after someone fixes the PR body. On 2026-07-22 that stranded three PRs
+    # (#208, #209, #210) as red for six hours: their bodies were corrected at 20:55-21:04 and
+    # the failing runs were from 15:12-20:17, with no event able to re-fire them. A gate that
+    # stays red after the fix is worse than no gate -- it teaches the reviewer to ignore red.
+    # Cost, stated plainly: a title/body edit now re-runs the whole job (install, tsc, both test
+    # suites), not just the body check. Triggers are workflow-level, so the cheap alternative is
+    # a separate legibility-only workflow -- deliberately NOT done here, because that would create
+    # a second check name that branch protection does not require, quietly turning a hard gate soft.
+    types: [opened, synchronize, reopened, edited]
 
 # Read-only by default: no step here writes to the repo, posts a comment, or publishes anything.
 # `pull_request` (not pull_request_target) runs fork PRs WITHOUT repo secrets, which is the correct
