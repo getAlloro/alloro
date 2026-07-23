@@ -1,9 +1,9 @@
 /**
  * The diagnostic gait — brick 1 of the diagnostic coordination layer.
  *
- * Each test pins one move of the gait described in
- * `alloro-artifacts/strategy/trained-business-doctor.md`. Two things this suite
- * exists to prevent, both found by adversarial review of an earlier version:
+ * Each test pins one move of the gait described in the business-doctor strategy
+ * reference (held outside this repository). Two things this suite exists to
+ * prevent, both found by adversarial review of an earlier version:
  *
  *   1. THE INVERTED VERDICT — excluding the worst step must never promote a
  *      healthier step to "your largest opportunity." The earlier code did, and
