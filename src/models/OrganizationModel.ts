@@ -254,6 +254,30 @@ export class OrganizationModel extends BaseModel {
   }
 
   /**
+   * Ids of organizations eligible for the weekly owner digest: a real, live
+   * customer — not archived, not a sandbox, and with a subscription
+   * (status 'active' OR any non-null tier). Ordered by id for a stable batch.
+   * The digest send itself is still gated by the OWNER_WEEKLY_DIGEST_ENABLED
+   * kill-switch (config/ownerWeeklyDigest.ts) and per-org recipient resolution;
+   * this is only the candidate set the batch iterates.
+   */
+  static async findWeeklyDigestEligibleIds(
+    trx?: QueryContext
+  ): Promise<number[]> {
+    const rows = await this.table(trx)
+      .whereNull("archived_at")
+      .where("is_sandbox", false)
+      .where(function (this: Knex.QueryBuilder) {
+        this.where("subscription_status", "active").orWhereNotNull(
+          "subscription_tier"
+        );
+      })
+      .select("id")
+      .orderBy("id");
+    return rows.map((row: { id: number }) => Number(row.id));
+  }
+
+  /**
    * (id) projection for organizations counting toward MRR: subscription_status
    * 'active' OR any non-null subscription_tier. Mirrors the inline query in
    * services/businessMetrics.getMRRFromDB verbatim.

@@ -11,6 +11,10 @@ import {
   processDeadLetterCheck,
 } from "./processors/skillTrigger.processor";
 import { processWorksDigest } from "./processors/worksDigest.processor";
+import {
+  processOwnerWeeklyDigest,
+  registerOwnerWeeklyDigestSchedule,
+} from "./processors/ownerWeeklyDigest.processor";
 import { processSeoBulkGenerate } from "./processors/seoBulkGenerate.processor";
 import { processExtractPracticeFacts } from "./processors/extractPracticeFacts.processor";
 import { processReviewSync } from "./processors/reviewSync.processor";
@@ -156,6 +160,19 @@ const worksDigestWorker = new Worker(
   "minds-works-digest",
   async (job) => {
     await processWorksDigest(job);
+  },
+  {
+    connection: makeConnection(),
+    concurrency: 1,
+    prefix: '{minds}',
+  }
+);
+
+// Owner Weekly Digest worker (weekly owner-facing recap email)
+const ownerWeeklyDigestWorker = new Worker(
+  "minds-owner-weekly-digest",
+  async (job) => {
+    await processOwnerWeeklyDigest(job);
   },
   {
     connection: makeConnection(),
@@ -496,7 +513,7 @@ const osWorkers = osWorkerDefs.map(
 );
 
 // Event handlers
-for (const worker of [scrapeCompareWorker, compilePublishWorker, discoveryWorker, skillTriggerWorker, worksDigestWorker, seoBulkGenerateWorker, extractPracticeFactsWorker, reviewSyncWorker, schedulerWorker, scheduleExecWorker, wbBackupWorker, wbRestoreWorker, wbIdentityWarmupWorker, wbAiSeoAuditWorker, wbLayoutsWorker, wbProjectScrapeWorker, wbPageGenerateWorker, wbPostImportWorker, auditLeadgenWorker, crmHubspotPushWorker, crmMappingValidationWorker, crmSyncLogPruneWorker, dataHarvestWorker, gbpAutomationWorker, ...osWorkers]) {
+for (const worker of [scrapeCompareWorker, compilePublishWorker, discoveryWorker, skillTriggerWorker, worksDigestWorker, ownerWeeklyDigestWorker, seoBulkGenerateWorker, extractPracticeFactsWorker, reviewSyncWorker, schedulerWorker, scheduleExecWorker, wbBackupWorker, wbRestoreWorker, wbIdentityWarmupWorker, wbAiSeoAuditWorker, wbLayoutsWorker, wbProjectScrapeWorker, wbPageGenerateWorker, wbPostImportWorker, auditLeadgenWorker, crmHubspotPushWorker, crmMappingValidationWorker, crmSyncLogPruneWorker, dataHarvestWorker, gbpAutomationWorker, ...osWorkers]) {
   worker.on("completed", (job) => {
     logger.info(`[MINDS-WORKER] Job ${job?.id} completed on queue ${worker.name}`);
   });
@@ -518,6 +535,7 @@ async function shutdown(): Promise<void> {
   await discoveryWorker.close();
   await skillTriggerWorker.close();
   await worksDigestWorker.close();
+  await ownerWeeklyDigestWorker.close();
   await seoBulkGenerateWorker.close();
   await extractPracticeFactsWorker.close();
   await reviewSyncWorker.close();
@@ -552,6 +570,7 @@ process.on("SIGTERM", shutdown);
 setupDiscoverySchedule();
 setupSkillTriggerSchedule();
 setupWorksDigestSchedule();
+registerOwnerWeeklyDigestSchedule(getMindsQueue("owner-weekly-digest"));
 setupReviewSyncSchedule();
 setupSchedulerTick();
 setupLocationCancellationFinalizer();
