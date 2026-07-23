@@ -1,0 +1,114 @@
+{
+  "plan": "plans/07222026-clarity-cro-signals",
+  "generatedAt": "2026-07-22",
+  "status": "In Progress",
+  "items": [
+    {
+      "id": "T1",
+      "title": "Rage clicks extracted from RageClickCount.subTotal",
+      "surface": "cli",
+      "precondition": "Node 22",
+      "steps": [
+        "1. npx vitest run src/__tests__/clarity-metrics-extraction.test.ts -t 'rage clicks'"
+      ],
+      "expected": "rageClicks reads subTotal; absent metric yields 0; existing sessions/deadClicks/bounceRate are untouched.",
+      "status": "pass",
+      "evidence": "Passed. Fixtures use the real response shape captured from live project-live-insights calls on 2026-07-22.",
+      "notes": ""
+    },
+    {
+      "id": "T2",
+      "title": "Scroll depth: a null reading is preserved as null, never 0",
+      "surface": "cli",
+      "precondition": "Node 22",
+      "steps": [
+        "1. npx vitest run src/__tests__/clarity-metrics-extraction.test.ts -t 'scroll depth'"
+      ],
+      "expected": "null averageScrollDepth yields null; a genuine 0 stays 0 and is distinguishable from no reading; a missing ScrollDepth metric yields null.",
+      "status": "pass",
+      "evidence": "Passed. This is the load-bearing case: `|| 0` would report 'visitors scrolled 0%' on a month with no reading.",
+      "notes": ""
+    },
+    {
+      "id": "T3",
+      "title": "Monthly rollup averages only days that carried a reading",
+      "surface": "cli",
+      "precondition": "Node 22",
+      "steps": [
+        "1. npx vitest run src/__tests__/clarity-metrics-extraction.test.ts -t 'rollup'"
+      ],
+      "expected": "Rage clicks sum; scroll depth over readings of 40, null, 60 averages to 50 (not 33.3); a month with no readings returns null.",
+      "status": "pass",
+      "evidence": "Passed, including rows stored as JSON strings.",
+      "notes": ""
+    },
+    {
+      "id": "T4",
+      "title": "No API change, no harvest change, no trend-score change",
+      "surface": "cli",
+      "precondition": "Node 22",
+      "steps": [
+        "1. git diff origin/dev/dave...HEAD --stat"
+      ],
+      "expected": "Only the extractor, the metrics service and its test change. service.clarity-api.ts, clarityHarvestAdapter.ts and ClarityController.ts are untouched, and calculateTrendScore's formula is unchanged.",
+      "status": "pass",
+      "evidence": "Diff limited to util.clarity-metrics-extraction.ts, service.clarity-metrics.ts, the new test file and this plan folder.",
+      "notes": "Reweighting the trend score would silently move a number clients already see."
+    },
+    {
+      "id": "T5",
+      "title": "TypeScript build gate",
+      "surface": "cli",
+      "precondition": "Node 22",
+      "steps": [
+        "1. npx tsc --noEmit"
+      ],
+      "expected": "Exit 0, no errors.",
+      "status": "pass",
+      "evidence": "Exit code 0, no output.",
+      "notes": ""
+    },
+    {
+      "id": "T6",
+      "title": "Metrics are available without an API change (live read)",
+      "surface": "api",
+      "precondition": "A Clarity token for an Alloro-managed project",
+      "steps": [
+        "1. GET project-live-insights with no metric filter",
+        "2. List returned metricName values and inspect information[0] shapes"
+      ],
+      "expected": "RageClickCount and ScrollDepth are both present in the unfiltered response.",
+      "status": "pass",
+      "evidence": "Ran 2026-07-22. 16 metric entries returned. On a project with real traffic: 30 sessions, ScrollDepth.averageScrollDepth = 44.42 (number, 0-100). On projects with no captured sessions: null. Both paths observed.",
+      "notes": "Read-only. Unit read as percent from range and Clarity UI convention, not documentation."
+    },
+    {
+      "id": "T7",
+      "title": "BLOCKER: Clarity captures nothing on most mapped projects",
+      "surface": "api",
+      "precondition": "Clarity tokens for the mapped projects",
+      "steps": [
+        "1. Call project-live-insights with numOfDays=3 across the mapped projects",
+        "2. Compare Traffic.totalSessionCount to the same window in Rybbit/Search Console"
+      ],
+      "expected": "Projects with live sites and real traffic report non-zero sessions.",
+      "status": "fail",
+      "evidence": "Three of four sampled projects returned 0 sessions over 3 days; one returned 30. At least one silent project has real traffic in the same window by our own funnel numbers.",
+      "notes": "Cause NOT diagnosed. Candidates: missing/dropped tracking snippet, or stale project-to-domain mapping. Recorded as BUILD-QUESTIONS.md Q3."
+    },
+    {
+      "id": "T8",
+      "title": "Prove the code path end to end on live data",
+      "surface": "api",
+      "precondition": "Q3 resolved; Clarity capture restored on at least one proof site",
+      "steps": [
+        "1. Call /clarity/getKeyData for a project with restored capture",
+        "2. Compare rageClicks and scrollDepth against Clarity's own dashboard for the same window"
+      ],
+      "expected": "Non-zero rage clicks and a real scroll reading, matching Clarity's dashboard.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "This is why the PR is held as a draft. It does NOT close on unit tests: this code path has never returned a non-zero value end to end."
+    }
+  ]
+}

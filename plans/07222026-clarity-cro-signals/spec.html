@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Clarity CRO Signals Spec</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); margin-top: 14px; }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 840px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; letter-spacing: 0; }
+    h2 { font-size: 1.35rem; letter-spacing: 0; }
+    h3 { font-size: 1rem; letter-spacing: 0; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    .gate { border: 2px solid var(--ink); border-radius: 8px; padding: 20px; margin-top: 16px; background: var(--soft); }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill">Blocked</span>
+      </div>
+      <h1>Clarity CRO Signals — rage clicks and scroll depth</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Blocked — code ready, cannot be proven</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/07222026-clarity-cro-signals</dd></div>
+        <div><dt>Size</dt><dd>Small</dd></div>
+        <div><dt>Risk</dt><dd>Level 2</dd></div>
+        <div><dt>Branch</dt><dd>claude/clarity-cro-signals</dd></div>
+        <div><dt>Blocked by</dt><dd>BUILD-QUESTIONS.md Q3</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>Reading whether a website converts means reading a constellation, not one number. Microsoft Clarity is already connected and already harvested, but the extractor pulls only three metrics — sessions, dead clicks, and quickbacks — so two of the signals that actually describe visitor frustration were being thrown away on arrival: <strong>rage clicks</strong> and <strong>scroll depth</strong>.</p>
+      <p>Nothing needed to be requested differently to get them. The harvest already calls <code>project-live-insights</code> with no metric filter and the controller stores the raw payload, so the values have been landing in stored history all along and were simply never read out.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p><code>extractMetrics</code> reads two more metrics; <code>aggregateMetrics</code> rolls them up honestly; both appear on the <code>/clarity/getKeyData</code> response. No API change, no harvest change, no trend-score change.</p>
+      <h3>The honesty detail that drove the design</h3>
+      <p>The two metrics do not share a shape, and the difference matters. <code>RageClickCount</code> mirrors <code>DeadClickCount</code> — a plain count. <code>ScrollDepth</code> carries a single field, <code>averageScrollDepth</code>, and it is <strong>null</strong> when Clarity has no reading.</p>
+      <p>The reflex — <code>Number(x || 0)</code>, which is how every other metric in that file is read — would turn "we have no reading" into "visitors scrolled 0%". That is a fabricated measurement pointing the wrong way: it reads as a catastrophic engagement problem when the truth is an absent instrument. So the null is preserved as null through extraction and through the monthly rollup, which averages only the days that actually carried a reading. Counts still coerce to 0, because an absent count genuinely means none were recorded.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <ul>
+        <li><code>src/controllers/clarity/feature-utils/util.clarity-metrics-extraction.ts</code> — the pure extractor.</li>
+        <li><code>src/controllers/clarity/feature-services/service.clarity-metrics.ts</code> — aggregation and the <code>KeyDataResult</code> shape.</li>
+        <li><code>src/controllers/clarity/ClarityController.ts</code> — unchanged. It stores the raw payload, which is why this is retroactive.</li>
+        <li><code>src/services/integrations/clarityHarvestAdapter.ts</code> — unchanged. Fetches unfiltered.</li>
+      </ul>
+      <p><strong>Constitution:</strong> <code>§2.2</code>/<code>§13.2</code> (pure logic in feature-utils, thin service), <code>§7.4</code> (no inline db), <code>§20.5</code> (acceptance artifact).</p>
+      <p><strong>Reference analog:</strong> the existing <code>extractMetrics</code>/<code>aggregateMetrics</code> pair in these same two files — this extends their shape rather than introducing a new one.</p>
+      <p><strong>Not a twin of:</strong> <code>plans/07152026-instrument-site</code>, which provisions Rybbit and references the Clarity integration only in passing. No prior plan owns Clarity metric extraction.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Preserve a missing scroll reading as <code>null</code>, never 0.</li>
+            <li>Preserve <code>calculateTrendScore</code> exactly.</li>
+            <li>Stay additive on <code>KeyDataResult</code>.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must not</h3>
+          <ul>
+            <li>Change the Clarity API request or the harvest adapter.</li>
+            <li>Fold the new metrics into a score clients already see.</li>
+            <li>Claim a CRO diagnosis off these signals — that is a later brick.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out of scope</h3>
+      <ul>
+        <li><strong>Wiring these into the funnel diagnosis.</strong> The diagnostic gait (PR #214) is where a CRO constellation would eventually be read; feeding it these signals is a separate brick, downstream of the blocker below.</li>
+        <li><strong>Bot stripping.</strong> <code>Traffic.totalBotSessionCount</code> is in the payload and nothing reads it. One live reading showed 5 bot sessions in 30 (~17%). The funnel rule says strip bots before optimizing anything. Its own brick.</li>
+      </ul>
+    </section>
+
+    <div class="gate">
+      <h2>Blocked — why this is not merging yet</h2>
+      <p>The code is finished and its unit tests pass. It is being held anyway, deliberately, because <strong>it cannot be proven where it matters.</strong></p>
+      <p>A read-only sweep of four mapped Clarity projects over a 3-day window found <strong>three returning zero sessions</strong> and one returning thirty. At least one of the silent three has real traffic in the same window by our own Search Console and Rybbit numbers, so "the site is quiet" does not explain it. The API call succeeds and the credentials work — the integration is fine and the instrument is dark. Cause is not diagnosed; the two candidates are a missing tracking snippet or a stale project-to-domain mapping. That is <strong>BUILD-QUESTIONS.md Q3</strong>, open for Dave.</p>
+      <p>So on the sites this most needs to work on, this change would return <code>rageClicks: 0</code> and <code>scrollDepth: null</code> indefinitely, and look like working code. Merging it now would mean shipping a piece nobody can show working, and quietly building a CRO diagnosis on top of a dead instrument.</p>
+      <p><strong>This lands when Q3 is resolved and a real receipt exists:</strong> capture restored on at least one proof site, and non-zero rage clicks plus a real scroll reading observed there through this code path. Not before.</p>
+    </div>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <article class="task-card">
+        <h3>T1: Extract rage clicks and scroll depth</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Read <code>RageClickCount.subTotal</code> and <code>ScrollDepth.averageScrollDepth</code>; preserve a null reading as null; expose both on <code>ClarityMetrics</code>.</dd></div>
+          <div><dt>Files</dt><dd><code>util.clarity-metrics-extraction.ts</code>, <code>src/__tests__/clarity-metrics-extraction.test.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>npx vitest run src/__tests__/clarity-metrics-extraction.test.ts</code></dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T2: Roll them up and expose them</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Sum rage clicks; average scroll depth across only the days carrying a reading; return null for a month with none. Add both to <code>KeyDataResult</code>. Leave <code>calculateTrendScore</code> untouched.</dd></div>
+          <div><dt>Files</dt><dd><code>service.clarity-metrics.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>Same suite; monthly rollup cases.</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T3: Prove it on live data — BLOCKED, and it does not close on unit tests</h3>
+        <dl>
+          <div><dt>Do</dt><dd>After Q3 is resolved, observe non-zero rage clicks and a real scroll reading on a proof site through this code path.</dd></div>
+          <div><dt>Files</dt><dd>none — verification only</dd></div>
+          <div><dt>Depends on</dt><dd>BUILD-QUESTIONS.md Q3</dd></div>
+          <div><dt>Verify</dt><dd>Call <code>/clarity/getKeyData</code> for a project with restored capture; confirm the values are non-zero and match Clarity's own dashboard.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="evidence">
+      <h2>What was verified, and what was not</h2>
+      <h3>Verified — with a receipt</h3>
+      <ul>
+        <li>The unfiltered <code>project-live-insights</code> response carries sixteen metric entries including <code>RageClickCount</code> and <code>ScrollDepth</code>, so no API or harvest change is required and stored history already contains them.</li>
+        <li>Both shapes, from live reads: <code>RageClickCount</code> mirrors the count metrics; <code>ScrollDepth.averageScrollDepth</code> returned <code>44.42</code> on a project with real traffic and <code>null</code> on projects with no captured sessions. Both paths observed, not inferred.</li>
+        <li>Typecheck clean; the unit suite passes, including the case distinguishing a genuine 0% from no reading.</li>
+      </ul>
+      <h3>Not verified — the reason this is blocked</h3>
+      <ul>
+        <li><strong>This code path has never returned a non-zero value end to end.</strong> The live confirmation came from calling Clarity directly, not through <code>getKeyData</code>. T3 exists to close that, and cannot be closed until Q3 is.</li>
+        <li>The unit for <code>averageScrollDepth</code> is read as a percent from its range and Clarity's UI convention, not from documentation.</li>
+        <li>Whether these two signals actually improve a CRO diagnosis is untested and out of scope. This lands the data, not a conclusion drawn from it.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" checked disabled> <code>npx tsc --noEmit</code> — zero errors</li>
+        <li><input type="checkbox" checked disabled> Unit suite passes, including null-vs-zero scroll depth</li>
+        <li><input type="checkbox" checked disabled> <code>calculateTrendScore</code> unchanged</li>
+        <li><input type="checkbox" checked disabled> No API or harvest change</li>
+        <li><input type="checkbox" disabled> BUILD-QUESTIONS.md Q3 answered; Clarity capture restored on a proof site</li>
+        <li><input type="checkbox" disabled> Non-zero rage clicks and a real scroll reading observed through <code>/clarity/getKeyData</code></li>
+        <li><input type="checkbox" disabled> Reviewed and merged by Dave</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>
