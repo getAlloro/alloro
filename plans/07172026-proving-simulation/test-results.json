@@ -1,0 +1,18 @@
+{
+  "plan": "plans/07172026-proving-simulation",
+  "generatedAt": "2026-07-23",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "T0",
+      "title": "No behavioral surface — dark engine, zero callers; verified by Layer 1 unit tests",
+      "surface": "none",
+      "precondition": "",
+      "steps": [],
+      "expected": "Unit suite covers DiD/ITS math; no runtime path exists until later calibration/wiring",
+      "status": "pass",
+      "evidence": "Read-only verify: ctrAttributionMath.ts imports only config/metricActions (no DB/Express/fetch/env/console); git grep across src/ (excluding the engine + its test) finds zero importers/callers — only a doc-comment mention. Layer-1 suite present: src/__tests__/attribution.month-simulation.test.ts (37 sim cases + adversary/mutation guards).",
+      "notes": "Dark by design; no api/ui/cli surface until a separate gated calibration task wires it."
+    }
+  ]
+}
