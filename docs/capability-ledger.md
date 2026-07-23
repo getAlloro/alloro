@@ -48,6 +48,7 @@
 | GF6 | **NAP consistency read** (floor / hygiene, not a climb lever) | — (table-stakes) | **LIVE** | GBP / NAP surface | nap-consistency controller (#187 merged) |
 | GF7 | **Organic content — GSC→content loop (A1)** | Impressions (organic) | **SHIPPED–VERIFY** | new/updated site pages | `util.keyword-selection.ts:11` "A1's shipped GSC→content loop" + `service.gsc-performance` + `dataHarvest` worker; confirm schedule on |
 | GF8 | **AEO — FAQ / schema (JSON-LD) on hosted pages** | AI-answer visibility | **PARTLY BUILT** | hosted pages / site audit | detect: `service.website-audit.ts hasFaqSchema`; insert+verify: `admin-websites/util.ai-command-verify.ts` |
+| GF9 | **Completeness fill → owner's get-found surface** (the publish trigger — owner sees "Alloro did this") | — (reports the work; claims no lift) | **OPEN PR** (was stranded off-trunk) | Patient Journey Insights, get-found stage | `MetricActionService.recordGbpCompletenessFill` merged with **#184 but had zero callers on trunk** — dead code. This PR adds the only caller (`GbpBusinessInfoReconcileService`) on the publish path, plus the revert half that closes the note when the fill is undone. |
 
 ## Get Considered — CTR
 

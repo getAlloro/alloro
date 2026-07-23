@@ -9,6 +9,7 @@ import {
 } from "../../../services/ai-seo-audit/gbpCompletenessScoring";
 import { resolveOrganizationAuditContext } from "../../../services/ai-seo-audit/organizationAuditContextService";
 import { GbpAutomationError } from "../feature-utils/GbpAutomationError";
+import { BUSINESS_INFO_ORIGIN_COMPLETENESS_AUTOFILL } from "../feature-utils/gbpBusinessInfo";
 import {
   buildCompletenessFillPatch,
   CompletenessFillSkip,
@@ -104,6 +105,9 @@ export class GbpCompletenessDraftService {
       patch: fill.patch,
       updateMask: fill.updateMask,
       summary: fill.summary,
+      // Tag the draft so the publish path surfaces it to the owner as Alloro's fill,
+      // and a manual business-info edit (same publish path) never claims the same.
+      origin: BUSINESS_INFO_ORIGIN_COMPLETENESS_AUTOFILL,
     });
 
     logger.info(

@@ -30,6 +30,9 @@ const h = vi.hoisted(() => ({
   queueGetJob: vi.fn(),
   loggerError: vi.fn(),
   loggerWarn: vi.fn(),
+  findProjectByOrg: vi.fn(),
+  recordCompletenessFill: vi.fn(),
+  expireCompletenessFill: vi.fn(),
   trx: { __sentinelTrx: true } as unknown,
 }));
 
@@ -96,6 +99,15 @@ vi.mock("../models/GbpWorkEventModel", () => ({
 vi.mock("../models/GooglePropertyModel", () => ({
   GooglePropertyModel: { findById: h.findProperty },
 }));
+vi.mock("../models/website-builder/ProjectModel", () => ({
+  ProjectModel: { findByOrganizationId: h.findProjectByOrg },
+}));
+vi.mock("../services/MetricActionService", () => ({
+  MetricActionService: {
+    recordGbpCompletenessFill: h.recordCompletenessFill,
+    expireGbpCompletenessFill: h.expireCompletenessFill,
+  },
+}));
 vi.mock("../lib/logger", () => ({
   default: { error: h.loggerError, warn: h.loggerWarn, info: vi.fn(), debug: vi.fn() },
 }));
@@ -151,6 +163,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   h.notificationCreate.mockResolvedValue(1);
   h.eventCreate.mockResolvedValue({ id: "ev-1" });
+  // Every revert path calls this; default it so tests that don't care about the
+  // owner surface still get a promise back rather than undefined.
+  h.expireCompletenessFill.mockResolvedValue(0);
   h.assertActive.mockResolvedValue(undefined);
   h.getReadiness.mockResolvedValue(READY);
   h.findEffectiveSettings.mockResolvedValue({ business_info_writeback_enabled: true });
@@ -180,6 +195,8 @@ beforeEach(() => {
   h.releaseRevertClaim.mockResolvedValue(1);
   h.queueAdd.mockResolvedValue({ id: "job-1" });
   h.queueGetJob.mockResolvedValue(undefined);
+  h.findProjectByOrg.mockResolvedValue({ id: "proj-1" });
+  h.recordCompletenessFill.mockResolvedValue({ id: "ma-1" });
 });
 
 describe("queue compensation audit failures", () => {
@@ -534,6 +551,72 @@ describe("deployNow claim states and reconciliation", () => {
   });
 });
 
+describe("completeness-fill owner surface (seam 11)", () => {
+  function completenessFillItem(overrides: Record<string, unknown> = {}) {
+    return deployingItem({
+      draft_content: "Add your website to your Google Business Profile",
+      approved_content: "Add your website to your Google Business Profile",
+      business_info_payload: {
+        patch: { websiteUri: "https://example.com" },
+        updateMask: ["websiteUri"],
+        origin: "completeness_autofill",
+      },
+      ...overrides,
+    });
+  }
+
+  it("surfaces a completeness auto-fill to the owner once it publishes, with plain labels", async () => {
+    h.findWorkItem.mockResolvedValue(completenessFillItem());
+
+    await GbpBusinessInfoDeploymentService.deployNow("wi-1", 5);
+
+    expect(h.findProjectByOrg).toHaveBeenCalledWith(1);
+    expect(h.recordCompletenessFill).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: 1,
+        locationId: 2,
+        projectId: "proj-1",
+        workItemId: "wi-1",
+        filledFields: ["website"],
+      })
+    );
+  });
+
+  it("does not surface a manual owner edit as an Alloro fill", async () => {
+    // deployingItem() carries no origin marker — a manual business-info edit.
+    h.findWorkItem.mockResolvedValue(deployingWithSnapshot());
+
+    await GbpBusinessInfoDeploymentService.deployNow("wi-1", 5);
+
+    expect(h.recordCompletenessFill).not.toHaveBeenCalled();
+  });
+
+  it("skips the record when the org has no project — nothing to surface it against", async () => {
+    h.findWorkItem.mockResolvedValue(completenessFillItem());
+    h.findProjectByOrg.mockResolvedValue(null);
+
+    await GbpBusinessInfoDeploymentService.deployNow("wi-1", 5);
+
+    expect(h.recordCompletenessFill).not.toHaveBeenCalled();
+  });
+
+  it("still publishes when the owner-surface record fails, and logs it", async () => {
+    h.findWorkItem.mockResolvedValue(completenessFillItem());
+    h.recordCompletenessFill.mockRejectedValue(new Error("metric write failed"));
+
+    await expect(
+      GbpBusinessInfoDeploymentService.deployNow("wi-1", 5)
+    ).resolves.toBeDefined();
+
+    expect(h.markPublished).toHaveBeenCalledWith("wi-1", expect.anything(), h.trx);
+    expect(
+      h.loggerError.mock.calls.find((call) =>
+        String(call[1]).includes("completeness-fill owner-surface record failed")
+      )
+    ).toBeDefined();
+  });
+});
+
 describe("revert claim states", () => {
   it("distinguishes in-progress from already-reverted and enqueues neither", async () => {
     const params = {
@@ -556,5 +639,32 @@ describe("revert claim states", () => {
     expect(inProgress.code).toBe("REVERT_IN_PROGRESS");
     expect(alreadyDone.code).toBe("ALREADY_REVERTED");
     expect(h.queueAdd).not.toHaveBeenCalled();
+  });
+});
+
+describe("completeness-fill owner surface — revert half (seam 11)", () => {
+  beforeEach(() => {
+    h.findWorkItem.mockResolvedValue(revertableItem());
+    h.updateWorkItem.mockResolvedValue(undefined);
+    h.expireCompletenessFill.mockResolvedValue(1);
+  });
+
+  it("stops reporting the fill once it is reverted on Google", async () => {
+    await GbpBusinessInfoDeploymentService.revertNow("wi-1", 5);
+
+    // The note must not outlive the thing it describes: the value is gone from
+    // Google, so the owner's surface stops claiming Alloro put it there.
+    expect(h.expireCompletenessFill).toHaveBeenCalledWith("wi-1");
+    expect(h.patchBusinessInfo).toHaveBeenCalled();
+  });
+
+  it("does not fail a revert that already landed when the surface update fails", async () => {
+    h.expireCompletenessFill.mockRejectedValue(new Error("db down"));
+
+    await expect(
+      GbpBusinessInfoDeploymentService.revertNow("wi-1", 5)
+    ).resolves.toBeDefined();
+
+    expect(h.loggerError).toHaveBeenCalled();
   });
 });

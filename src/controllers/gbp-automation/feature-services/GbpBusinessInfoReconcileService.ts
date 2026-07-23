@@ -7,11 +7,15 @@ import {
 import { GooglePropertyModel, IGoogleProperty } from "../../../models/GooglePropertyModel";
 import { GbpWorkEventModel } from "../../../models/GbpWorkEventModel";
 import { GbpWorkItemModel, IGbpWorkItem } from "../../../models/GbpWorkItemModel";
+import { ProjectModel } from "../../../models/website-builder/ProjectModel";
+import { MetricActionService } from "../../../services/MetricActionService";
 import { getLocationProfileForRanking } from "../../gbp/gbp-services/location-handler.service";
 import { GbpAutomationError } from "../feature-utils/GbpAutomationError";
 import {
+  BUSINESS_INFO_ORIGIN_COMPLETENESS_AUTOFILL,
   BusinessInfoPatch,
   BusinessInfoPayload,
+  businessInfoFieldLabels,
   businessInfoLocationName,
   liveMatchesDesired,
 } from "../feature-utils/gbpBusinessInfo";
@@ -191,6 +195,84 @@ export class GbpBusinessInfoReconcileService {
       );
     });
 
+    // Seam 11: surface a completeness auto-fill on the owner's get-found stage — but
+    // only for drafts Alloro staged from a detected gap (the origin marker), never a
+    // manual owner edit, and only now that the write has actually landed on Google.
+    if (payload.origin === BUSINESS_INFO_ORIGIN_COMPLETENESS_AUTOFILL) {
+      await this.recordCompletenessFillForOwner(item, payload).catch((recordError) => {
+        // §3.2 — best-effort, never silent: the fill is live on Google regardless; a
+        // failed owner-surface record must not fail the publish that already succeeded.
+        logger.error(
+          { err: recordError, workItemId: item.id },
+          "[GBP] completeness-fill owner-surface record failed"
+        );
+      });
+    }
+
     return (await GbpWorkItemModel.findById(item.id))!;
+  }
+
+  /**
+   * Record the owner-facing "Alloro filled in X" action for a published completeness
+   * auto-fill (seam 11). Keyed to the org's project so it lands on that location's
+   * get-found stage — the SAME project the patient-journey read resolves
+   * (ProjectModel.findByOrganizationId), or the surface would never show it. No project
+   * means the journey wouldn't read it either, so there is nothing to record against.
+   *
+   * Records what Alloro DID, plainly; it never claims the fill moved a metric — the
+   * doctor rule (show the action and the trend, never a caused-lift claim).
+   */
+  private static async recordCompletenessFillForOwner(
+    item: IGbpWorkItem,
+    payload: BusinessInfoPayload
+  ): Promise<void> {
+    if (payload.updateMask.length === 0) return;
+    const project = await ProjectModel.findByOrganizationId(item.organization_id);
+    if (!project) return;
+    await MetricActionService.recordGbpCompletenessFill({
+      organizationId: item.organization_id,
+      locationId: item.location_id,
+      projectId: project.id,
+      workItemId: item.id,
+      filledFields: businessInfoFieldLabels(payload.updateMask),
+    });
+  }
+
+  /**
+   * All owner-facing bookkeeping for a completed revert, in one place: tell the
+   * owner it happened, and stop reporting the fill it undid.
+   *
+   * The second half is the other half of seam 11. Without it the dashboard keeps
+   * showing "Alloro did this: filled in your website" — and a "watching how often
+   * you show up" line beside it — for the rest of the 30-day window, describing a
+   * value no longer on the profile. The note must not outlive the thing it describes.
+   *
+   * Both halves are best-effort and non-blocking: the revert already landed on
+   * Google, and neither a failed notification nor a failed surface update may undo
+   * it (§3.2 — logged, never swallowed). The expiry is idempotent.
+   */
+  static async recordRevertForOwner(item: IGbpWorkItem): Promise<void> {
+    const revertedNotification = "gbp_business_info_reverted";
+    await GbpNotificationService.create({
+      organizationId: item.organization_id,
+      locationId: item.location_id,
+      workItemId: item.id,
+      kind: revertedNotification,
+      title: "Alloro reverted your Google profile update",
+      message:
+        "Your Business Profile information was restored to its previous values on Google.",
+    }).catch((notifyError) => {
+      logger.error(
+        { err: notifyError, workItemId: item.id, kind: revertedNotification },
+        "[GBP] business-info revert notification write failed"
+      );
+    });
+
+    await MetricActionService.expireGbpCompletenessFill(item.id).catch((expireError) => {
+      logger.error(
+        { err: expireError, workItemId: item.id },
+        "[GBP] completeness-fill owner-surface expiry failed after revert"
+      );
+    });
   }
 }
