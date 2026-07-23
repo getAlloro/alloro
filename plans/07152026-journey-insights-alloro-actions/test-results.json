@@ -1,6 +1,6 @@
 {
   "plan": "plans/07152026-journey-insights-alloro-actions",
-  "generatedAt": "2026-07-19",
+  "generatedAt": "2026-07-23",
   "status": "In Progress",
   "items": [
     {
@@ -137,9 +137,58 @@
       "expected": "No gbp_completeness_fill action is present for the owner's own edit — Alloro never claims credit for a change it did not make.",
       "status": "pending",
       "evidence": "",
-      "notes": "Derived from spec Rev 3 (\"A manual owner edit never claims Alloro's credit\").",
+      "notes": "Derived from spec Rev 3 (\"A manual owner edit never claims Alloro's credit\"). PR #208 grounds this structurally: origin is set server-side only by GbpCompletenessDraftService; the manual createDraft path writes origin solely from the typed params.origin, never client input.",
       "waiver": "",
       "layer": 2
+    },
+    {
+      "id": "T10",
+      "title": "Publishing an Alloro completeness auto-fill records exactly one owner action (the #208 producer wire), and a retry stays one row",
+      "surface": "api",
+      "precondition": "Stocked sandbox with a TEST GBP location (no real customer profile) carrying a completeness gap Alloro can fill through the owner-approved write-back path; #185's metric_action_events table + unique index on (action_type, source_type, source_id) present.",
+      "steps": [
+        "Stage a completeness auto-fill draft (GbpCompletenessDraftService — sets business_info_payload.origin = completeness_autofill), approve it, and let deployNow publish it (real PATCH to the test GBP, then finalizeProviderSuccess).",
+        "Query metric_action_events WHERE action_type='gbp_completeness_fill' AND source_type='gbp_business_info_writeback' AND source_id=<workItemId>.",
+        "Re-invoke deployNow for the same work item (retry) and re-query the same row count."
+      ],
+      "expected": "Exactly one row after publish, with project_id = ProjectModel.findByOrganizationId(org).id, metric_key/stage_key = impressions, active_until ≈ occurred_at + 30 days, metadata.filled_fields = the plain labels (e.g. [\"website\"]). After the retry the row count is still exactly 1 (status guard throws INVALID_STATUS; unique-index upsert is the backstop). No new Google write occurs on the record step.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "Core new behavior of PR #208: it supplies the only production caller of recordGbpCompletenessFill (previously zero callers on dev/dave). Layer-1 unit coverage exists in gbp-business-info-reconciliation.test.ts (\"surfaces a completeness auto-fill... once it publishes\").",
+      "waiver": "",
+      "layer": 2
+    },
+    {
+      "id": "T11",
+      "title": "Reverting a published fill closes the note's window; the Google revert still lands",
+      "surface": "api",
+      "precondition": "Continue from T10 — a published gbp_completeness_fill row is active for the location/month.",
+      "steps": [
+        "Invoke revertNow for the same work item (restores the field on the test GBP, then recordRevertForOwner → expireGbpCompletenessFill).",
+        "Re-query the metric_action_events row's active_until.",
+        "Request GET /api/patient-journey?locationId=<L>&month=<current-month> and inspect the impressions stage actions array."
+      ],
+      "expected": "The row is retained for history but active_until is pulled in to ≈ the revert time; the journey response no longer returns the gbp_completeness_fill action for the current month (findLatestActiveForMetric excludes it once now ≥ active_until). The Google revert itself succeeds regardless. A second revert is idempotent (0 rows re-expired).",
+      "status": "pending",
+      "evidence": "",
+      "notes": "The other half of seam 11, added by #208 (MetricActionModel.expireBySource / MetricActionService.expireGbpCompletenessFill). Layer-1 unit coverage: \"stops reporting the fill once it is reverted on Google\".",
+      "waiver": "",
+      "layer": 2
+    },
+    {
+      "id": "T12",
+      "title": "PR #208 best-effort isolation and guards are green in the unit suite",
+      "surface": "cli",
+      "precondition": "PR #208 branch checked out with dependencies installed.",
+      "steps": [
+        "Run: npx vitest run gbp-business-info-reconciliation metric-action.service"
+      ],
+      "expected": "All pass, proving: a failed record cannot fail a landed publish; a failed expiry cannot fail a landed revert; empty update-mask records nothing; no-project skips the record; a manual edit (no origin) records nothing. PR body reports 31/31.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "Not independently executed in this read-only review — the PR body claims 31/31 green. The human runner should re-run to confirm before promotion.",
+      "waiver": "",
+      "layer": 1
     }
   ]
 }
