@@ -36,6 +36,17 @@ vi.mock("../controllers/agents/feature-utils/agentLogger", () => ({
   isValidAgentOutput: () => true,
   logAgentOutput: () => {},
 }));
+vi.mock("../agents/service.prompt-loader", () => ({ loadPrompt: () => "SYS" }));
+vi.mock("../agents/service.prompt-substituter", () => ({
+  substitutePromptPlaceholders: (s: string) => s,
+}));
+vi.mock("../config/orgLabels", () => ({ resolveOrgType: () => "dental" }));
+vi.mock("../models/OrganizationModel", () => ({
+  OrganizationModel: { findById: async () => ({ organization_type: "dental" }) },
+}));
+vi.mock("../utils/rybbit/service.rybbit-data", () => ({
+  fetchRybbitDailyComparison: async () => null,
+}));
 
 import { processDailyAgent } from "../controllers/agents/feature-services/service.daily-agent-processor";
 
@@ -82,5 +93,77 @@ describe("processDailyAgent — unmapped location skip (no wasted Claude call, n
     expect(runAgent).not.toHaveBeenCalled();
     // It resolved the location's mapping before deciding to skip.
     expect(findByLocationId).toHaveBeenCalledWith(42);
+  });
+});
+
+/**
+ * Pins the metric-family split AT THE PROCESSOR (spec Rev 2's known gap).
+ *
+ * The selector-level tests prove families resolve independently, but they call
+ * the selector directly — so collapsing the two families back together inside
+ * the processor's wiring passed the suite. This drives the real processor with
+ * a skewed API response (interactions published two days ahead of impressions)
+ * and asserts the STORED row resolves impressions on the impressions' own newest
+ * day. If the processor stops passing IMPRESSION_METRICS / INTERACTION_METRICS
+ * separately, the stored impressions date jumps to the interactions-only day and
+ * this fails.
+ */
+describe("processDailyAgent — metric families resolve on their own dates (Rev 2)", () => {
+  const dv = (date: string, n: number) => {
+    const [year, month, day] = date.split("-").map(Number);
+    return { date: { year, month, day }, value: String(n) };
+  };
+  // impressions published through 07-18; interactions two days ahead, through 07-20.
+  const skewed = {
+    gbpData: {
+      locations: [
+        {
+          data: {
+            performance: {
+              series: [
+                {
+                  dailyMetricTimeSeries: [
+                    {
+                      dailyMetric: "BUSINESS_IMPRESSIONS_DESKTOP_MAPS",
+                      timeSeries: { datedValues: [dv("2026-07-17", 55), dv("2026-07-18", 63)] },
+                    },
+                    {
+                      dailyMetric: "CALL_CLICKS",
+                      timeSeries: { datedValues: [dv("2026-07-19", 3), dv("2026-07-20", 4)] },
+                    },
+                  ],
+                },
+              ],
+            },
+            profile: { title: "Test Practice" },
+            reviews: { allTime: { totalReviewCount: 10, averageRating: 4.8 } },
+          },
+        },
+      ],
+    },
+  };
+
+  it("stores the impressions day, never the interactions-only day, as the row's date", async () => {
+    findByLocationId.mockResolvedValue([
+      { account_id: "acc-1", external_id: "loc-1", display_name: "HQ" },
+    ]);
+    fetchAllServiceData.mockResolvedValue(skewed);
+    runAgent.mockResolvedValue({ parsed: { verdict: "ok" }, inputTokens: 1, outputTokens: 1 });
+
+    const result = await processDailyAgent(ACCOUNT, {}, DATES, WINDOW, 55);
+
+    expect(result.success).toBe(true);
+    const stored = result.rawData.gbp_data;
+    // The impressions family resolved to its own newest day...
+    expect(stored.yesterday.data_date).toBe("2026-07-18");
+    expect(stored.yesterday.visibility.impressions_maps_desktop).toBe(63);
+    // ...NOT the interactions-only day. If the processor collapsed the families,
+    // this date would be 2026-07-20 with a fabricated zero impressions.
+    expect(stored.yesterday.data_date).not.toBe("2026-07-20");
+    // The interaction family kept its own later day.
+    expect(stored.yesterday.engagement.data_date).toBe("2026-07-20");
+    expect(stored.yesterday.engagement.call_clicks).toBe(4);
+    // The row's stored end date is the impressions day (the funnel gate).
+    expect(result.rawData.date_end).toBe("2026-07-18");
   });
 });
