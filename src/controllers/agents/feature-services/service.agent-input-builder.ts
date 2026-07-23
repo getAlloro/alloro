@@ -6,33 +6,14 @@
  */
 
 import { log } from "../feature-utils/agentLogger";
+import {
+  metricValue,
+  type ResolvedMetricDay,
+} from "../feature-utils/gbpWindowSelector";
 
 // =====================================================================
 // PROOFLINE (DAILY)
 // =====================================================================
-
-/**
- * Extract a single metric's total value from the nested GBP performance series.
- * Path: data.gbpData.locations[0].data.performance.series[0].dailyMetricTimeSeries[]
- * When Google returns no interactions, datedValues[].value is undefined (= 0).
- */
-function extractMetricTotal(data: any, metricName: string): number {
-  const performanceSeries =
-    data?.gbpData?.locations?.[0]?.data?.performance?.series || [];
-  for (const multiSeries of performanceSeries) {
-    const dailyMetricList = multiSeries?.dailyMetricTimeSeries || [];
-    for (const series of dailyMetricList) {
-      if (series.dailyMetric === metricName) {
-        const datedValues = series?.timeSeries?.datedValues || [];
-        return datedValues.reduce((sum: number, dv: any) => {
-          const v = dv?.value !== undefined ? parseInt(dv.value, 10) : 0;
-          return sum + (isNaN(v) ? 0 : v);
-        }, 0);
-      }
-    }
-  }
-  return 0;
-}
 
 /** Extract profile data from the first location in GBP response */
 function extractProfile(data: any): any {
@@ -57,31 +38,86 @@ function buildAddressString(storefrontAddress: any): string | null {
   return parts.length > 0 ? parts.join(", ") : null;
 }
 
+/**
+ * Keep only reviews created on or after `since` (YYYY-MM-DD).
+ *
+ * The GBP fetch scopes its review list to the requested range, so widening the
+ * fetch to a 7-day window silently widened "new reviews" from 2 days to 7 —
+ * inflating the daily narrative ~3.5x and re-reporting the same review for a
+ * week. A review with no readable createdAt is KEPT: dropping a real review to
+ * tidy a list is a worse error than showing one an extra day.
+ */
+function filterReviewsSince(reviewDetails: unknown, since: string): unknown[] {
+  if (!Array.isArray(reviewDetails)) return [];
+  return reviewDetails.filter((review) => {
+    const createdAt = (review as { createdAt?: unknown } | null)?.createdAt;
+    if (typeof createdAt !== "string" || createdAt.length < 10) return true;
+    return createdAt.slice(0, 10) >= since;
+  });
+}
+
+/** Visibility figures for one resolved day, or null when no day reported. */
+function visibilityForDay(day: ResolvedMetricDay | null): Record<string, unknown> | null {
+  if (!day) return null;
+  return {
+    date: day.date,
+    impressions_search_desktop: metricValue(day, "BUSINESS_IMPRESSIONS_DESKTOP_SEARCH"),
+    impressions_search_mobile: metricValue(day, "BUSINESS_IMPRESSIONS_MOBILE_SEARCH"),
+    impressions_maps_desktop: metricValue(day, "BUSINESS_IMPRESSIONS_DESKTOP_MAPS"),
+    impressions_maps_mobile: metricValue(day, "BUSINESS_IMPRESSIONS_MOBILE_MAPS"),
+  };
+}
+
+/** Engagement figures for one resolved day, or null when no day reported. */
+function engagementForDay(day: ResolvedMetricDay | null): Record<string, unknown> | null {
+  if (!day) return null;
+  return {
+    date: day.date,
+    call_clicks: metricValue(day, "CALL_CLICKS"),
+    website_clicks: metricValue(day, "WEBSITE_CLICKS"),
+    direction_requests: metricValue(day, "BUSINESS_DIRECTION_REQUESTS"),
+  };
+}
+
 export function buildProoflinePayload(params: {
   domain: string;
   googleAccountId: number;
-  dates: { yesterday: string; dayBeforeYesterday: string };
-  dayBeforeYesterdayData: any;
-  yesterdayData: any;
+  /** The trailing window actually requested from the API. */
+  window: { startDate: string; endDate: string };
+  /** Days the IMPRESSION metrics covered, newest first (may be empty). */
+  impressionDays: ResolvedMetricDay[];
+  /** Days the INTERACTION metrics covered — resolved separately, see selector. */
+  interactionDays: ResolvedMetricDay[];
+  /** Reviews newer than this date are "new" (keeps the pre-window 2-day meaning). */
+  reviewsSince: string;
+  /** The single window response (profile/reviews are window-level, not per-day). */
+  windowData: any;
   locationName?: string | null;
   websiteAnalytics?: { yesterday: any; dayBefore: any } | null;
 }): any {
-  const { domain, dates, yesterdayData, dayBeforeYesterdayData, locationName, websiteAnalytics } = params;
+  const {
+    domain,
+    window,
+    impressionDays,
+    interactionDays,
+    reviewsSince,
+    windowData,
+    locationName,
+    websiteAnalytics,
+  } = params;
 
-  // Profile: extract once from yesterday (fallback to dayBefore)
-  const profile = extractProfile(yesterdayData) || extractProfile(dayBeforeYesterdayData) || {};
+  const latest = impressionDays[0] ?? null;
+  const previous = impressionDays[1] ?? null;
 
-  // Reviews: combine new reviews from both days (2-day window)
-  const yesterdayReviews = extractReviews(yesterdayData);
-  const dayBeforeReviews = extractReviews(dayBeforeYesterdayData);
-  const allNewReviews = [
-    ...(yesterdayReviews?.window?.reviewDetails || []),
-    ...(dayBeforeReviews?.window?.reviewDetails || []),
-  ];
-  const allTimeCount = yesterdayReviews?.allTime?.totalReviewCount
-    ?? dayBeforeReviews?.allTime?.totalReviewCount ?? 0;
-  const allTimeAvg = yesterdayReviews?.allTime?.averageRating
-    ?? dayBeforeReviews?.allTime?.averageRating ?? 0;
+  const profile = extractProfile(windowData) || {};
+  const reviews = extractReviews(windowData);
+  // The review list arrives scoped to the whole fetch window, which is now 7
+  // days instead of 2. Left alone the daily agent would report ~3.5x the "new"
+  // reviews and repeat the same one for a week. Re-narrow it here so "new"
+  // keeps meaning what it meant before the window change.
+  const allNewReviews = filterReviewsSince(reviews?.window?.reviewDetails, reviewsSince);
+  const allTimeCount = reviews?.allTime?.totalReviewCount ?? 0;
+  const allTimeAvg = reviews?.allTime?.averageRating ?? 0;
 
   return {
     agent: "proofline",
@@ -93,34 +129,25 @@ export function buildProoflinePayload(params: {
         address: buildAddressString(profile.storefrontAddress),
       },
       period: {
-        yesterday: dates.yesterday,
-        dayBefore: dates.dayBeforeYesterday,
+        // The window we ASKED for, and the days Google actually published in it.
+        // These differ by the API's reporting lag, and saying so is the point:
+        // the old payload reported yesterday's date beside a fabricated 0.
+        window_start: window.startDate,
+        window_end: window.endDate,
+        latest_data_date: latest?.date ?? null,
+        previous_data_date: previous?.date ?? null,
+        /** False = Google published nothing in the window. NOT "zero activity". */
+        has_recent_data: latest !== null,
       },
+      // null (not 0) when the window carried no data at all — an owner is told
+      // "we don't have recent data", never "you had zero impressions".
       visibility: {
-        yesterday: {
-          impressions_search_desktop: extractMetricTotal(yesterdayData, "BUSINESS_IMPRESSIONS_DESKTOP_SEARCH"),
-          impressions_search_mobile: extractMetricTotal(yesterdayData, "BUSINESS_IMPRESSIONS_MOBILE_SEARCH"),
-          impressions_maps_desktop: extractMetricTotal(yesterdayData, "BUSINESS_IMPRESSIONS_DESKTOP_MAPS"),
-          impressions_maps_mobile: extractMetricTotal(yesterdayData, "BUSINESS_IMPRESSIONS_MOBILE_MAPS"),
-        },
-        dayBefore: {
-          impressions_search_desktop: extractMetricTotal(dayBeforeYesterdayData, "BUSINESS_IMPRESSIONS_DESKTOP_SEARCH"),
-          impressions_search_mobile: extractMetricTotal(dayBeforeYesterdayData, "BUSINESS_IMPRESSIONS_MOBILE_SEARCH"),
-          impressions_maps_desktop: extractMetricTotal(dayBeforeYesterdayData, "BUSINESS_IMPRESSIONS_DESKTOP_MAPS"),
-          impressions_maps_mobile: extractMetricTotal(dayBeforeYesterdayData, "BUSINESS_IMPRESSIONS_MOBILE_MAPS"),
-        },
+        latest: visibilityForDay(latest),
+        previous: visibilityForDay(previous),
       },
       engagement: {
-        yesterday: {
-          call_clicks: extractMetricTotal(yesterdayData, "CALL_CLICKS"),
-          website_clicks: extractMetricTotal(yesterdayData, "WEBSITE_CLICKS"),
-          direction_requests: extractMetricTotal(yesterdayData, "BUSINESS_DIRECTION_REQUESTS"),
-        },
-        dayBefore: {
-          call_clicks: extractMetricTotal(dayBeforeYesterdayData, "CALL_CLICKS"),
-          website_clicks: extractMetricTotal(dayBeforeYesterdayData, "WEBSITE_CLICKS"),
-          direction_requests: extractMetricTotal(dayBeforeYesterdayData, "BUSINESS_DIRECTION_REQUESTS"),
-        },
+        latest: engagementForDay(interactionDays[0] ?? null),
+        previous: engagementForDay(interactionDays[1] ?? null),
       },
       reviews: {
         allTime: {
@@ -138,23 +165,50 @@ export function buildProoflinePayload(params: {
 // DAILY GBP DATA FLATTENER (for google_data_store)
 // =====================================================================
 
-/** Flatten a single day's raw GBP response into a compact storage format */
-function flattenSingleDayGbp(data: any): any {
-  const profile = extractProfile(data) || {};
-  const reviews = extractReviews(data) || {};
+/**
+ * Flatten one RESOLVED day into the stored shape.
+ *
+ * `visibility` is omitted entirely when no day reported. That is deliberate and
+ * load-bearing downstream: stageReaders' mapsImpressionsForVisibility returns
+ * null for a side with no `visibility` object ("a missing metric, not a measured
+ * zero", and excluded from day-coverage), while a present object with zeros is a
+ * real measured zero. Writing zeros here instead would relaunch the exact bug
+ * this change fixes, one layer lower and harder to see.
+ */
+function flattenResolvedDayGbp(
+  impressionDay: ResolvedMetricDay | null,
+  interactionDay: ResolvedMetricDay | null,
+  windowData: any,
+  reviewsSince: string,
+): any {
+  const profile = extractProfile(windowData) || {};
+  const reviews = extractReviews(windowData) || {};
 
   return {
-    visibility: {
-      impressions_search_desktop: extractMetricTotal(data, "BUSINESS_IMPRESSIONS_DESKTOP_SEARCH"),
-      impressions_search_mobile: extractMetricTotal(data, "BUSINESS_IMPRESSIONS_MOBILE_SEARCH"),
-      impressions_maps_desktop: extractMetricTotal(data, "BUSINESS_IMPRESSIONS_DESKTOP_MAPS"),
-      impressions_maps_mobile: extractMetricTotal(data, "BUSINESS_IMPRESSIONS_MOBILE_MAPS"),
-    },
-    engagement: {
-      call_clicks: extractMetricTotal(data, "CALL_CLICKS"),
-      website_clicks: extractMetricTotal(data, "WEBSITE_CLICKS"),
-      direction_requests: extractMetricTotal(data, "BUSINESS_DIRECTION_REQUESTS"),
-    },
+    // The impressions date is the row's date: impressions are the funnel gate
+    // this row is read for (stageReaders.readImpressions). Interactions resolve
+    // on their own dates and carry them inline.
+    data_date: impressionDay?.date ?? null,
+    ...(impressionDay
+      ? {
+          visibility: {
+            impressions_search_desktop: metricValue(impressionDay, "BUSINESS_IMPRESSIONS_DESKTOP_SEARCH"),
+            impressions_search_mobile: metricValue(impressionDay, "BUSINESS_IMPRESSIONS_MOBILE_SEARCH"),
+            impressions_maps_desktop: metricValue(impressionDay, "BUSINESS_IMPRESSIONS_DESKTOP_MAPS"),
+            impressions_maps_mobile: metricValue(impressionDay, "BUSINESS_IMPRESSIONS_MOBILE_MAPS"),
+          },
+        }
+      : {}),
+    ...(interactionDay
+      ? {
+          engagement: {
+            data_date: interactionDay.date,
+            call_clicks: metricValue(interactionDay, "CALL_CLICKS"),
+            website_clicks: metricValue(interactionDay, "WEBSITE_CLICKS"),
+            direction_requests: metricValue(interactionDay, "BUSINESS_DIRECTION_REQUESTS"),
+          },
+        }
+      : {}),
     reviews: {
       allTime: {
         count: reviews?.allTime?.totalReviewCount ?? 0,
@@ -162,7 +216,7 @@ function flattenSingleDayGbp(data: any): any {
           ? Number(reviews.allTime.averageRating.toFixed(2))
           : 0,
       },
-      newReviews: reviews?.window?.reviewDetails || [],
+      newReviews: filterReviewsSince(reviews?.window?.reviewDetails, reviewsSince),
     },
     profile: {
       title: profile.title || null,
@@ -178,10 +232,35 @@ function flattenSingleDayGbp(data: any): any {
  * Flatten daily GBP data for storage in google_data_store.
  * Converts deeply nested Google API response into compact format.
  */
-export function flattenDailyGbpData(yesterdayData: any, dayBeforeData: any): any {
+/**
+ * Flatten the window's resolved days for google_data_store.
+ *
+ * The `yesterday` / `dayBefore` key names are kept because the stored rows and
+ * their model projection are read elsewhere; what changed is their MEANING, now
+ * recorded in each side's `data_date`: they are the most-recent and
+ * second-most-recent days Google actually published, not literal calendar
+ * yesterday. Renaming the keys would be a wider migration than this fix needs
+ * (Revision Log, Rev 1).
+ */
+export function flattenDailyGbpData(
+  impressionDays: ResolvedMetricDay[],
+  interactionDays: ResolvedMetricDay[],
+  windowData: any,
+  reviewsSince: string,
+): any {
   return {
-    yesterday: flattenSingleDayGbp(yesterdayData),
-    dayBefore: flattenSingleDayGbp(dayBeforeData),
+    yesterday: flattenResolvedDayGbp(
+      impressionDays[0] ?? null,
+      interactionDays[0] ?? null,
+      windowData,
+      reviewsSince,
+    ),
+    dayBefore: flattenResolvedDayGbp(
+      impressionDays[1] ?? null,
+      interactionDays[1] ?? null,
+      windowData,
+      reviewsSince,
+    ),
   };
 }
 

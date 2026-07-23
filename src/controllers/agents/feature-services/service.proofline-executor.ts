@@ -13,7 +13,10 @@ import { GoogleDataStoreModel } from "../../../models/GoogleDataStoreModel";
 import { AgentResultModel } from "../../../models/AgentResultModel";
 import { resolveLocationId } from "../../../utils/locationResolver";
 import { log, logError } from "../feature-utils/agentLogger";
-import { getDailyDates } from "../feature-utils/dateHelpers";
+import {
+  getDailyDates,
+  getDailyTrailingWindow,
+} from "../feature-utils/dateHelpers";
 import { processDailyAgent } from "./service.agent-orchestrator";
 
 export interface ProoflineResult {
@@ -96,6 +99,9 @@ export async function executeProoflineAgent(referenceDate?: string): Promise<Pro
       const oauth2Client = await getValidOAuth2Client(googleAccountId);
 
       const dailyDates = getDailyDates(referenceDate);
+      // GBP reads a trailing window (the Performance API trails several days);
+      // Rybbit is not lagged and still uses the literal calendar days.
+      const gbpWindow = getDailyTrailingWindow(referenceDate);
 
       for (const location of locations) {
         const locationId = location.id;
@@ -104,7 +110,7 @@ export async function executeProoflineAgent(referenceDate?: string): Promise<Pro
         log(`  [LOCATION] Running Proofline for "${locationName}" (location_id: ${locationId})`);
 
         try {
-          const dailyResult = await processDailyAgent(account, oauth2Client, dailyDates, locationId);
+          const dailyResult = await processDailyAgent(account, oauth2Client, dailyDates, gbpWindow, locationId);
 
           // Location has no mapped GBP property — cleanly skipped upstream (no
           // agent call, no zeros row). Record it as skipped, not failed.
@@ -131,8 +137,11 @@ export async function executeProoflineAgent(referenceDate?: string): Promise<Pro
                 organization_id: account.organization_id,
                 location_id: locationId,
                 agent_type: "proofline",
-                date_start: dailyDates.dayBeforeYesterday,
-                date_end: dailyDates.yesterday,
+                // The days Google ACTUALLY published, resolved inside the
+                // processor — not calendar yesterday, which the API had usually
+                // not published yet (spec T3, Revision Log Rev 1).
+                date_start: dailyResult.resolvedDates?.start ?? gbpWindow.startDate,
+                date_end: dailyResult.resolvedDates?.end ?? gbpWindow.endDate,
                 agent_input: JSON.stringify(dailyResult.payload),
                 agent_output: JSON.stringify(dailyResult.output),
                 status: "success",

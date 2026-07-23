@@ -56,11 +56,11 @@
     <header class="spec-hero">
       <div class="hero-topline">
         <p class="eyebrow">Alloro Plan Spec</p>
-        <span class="status-pill status-pending">Pending Execution</span>
+        <span class="status-pill status-inprogress">In Progress</span>
       </div>
       <h1>Zero-Maps Impressions Fix</h1>
       <dl class="meta-grid">
-        <div class="status-card"><dt>Status</dt><dd>Pending Execution</dd></div>
+        <div class="status-card"><dt>Status</dt><dd>In Progress</dd></div>
         <div><dt>Plan Folder</dt><dd>plans/07202026-zero-maps-fix</dd></div>
         <div><dt>Size</dt><dd>Medium</dd></div>
         <div><dt>Risk</dt><dd>Level 3</dd></div>
@@ -273,6 +273,28 @@
         <li><input type="checkbox" disabled> <code>npm run check:conventions --strict</code> clean for the backend changes (§ citations for any residual)</li>
         <li><input type="checkbox" disabled> No regression in monthly agents (their date logic untouched)</li>
       </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-07-22</h3>
+        <p><strong>Change:</strong> Executed T1–T3. <strong>T1</strong> — <code>getDailyTrailingWindow()</code> added beside <code>getDailyDates</code> (whose shape is untouched), with the window size as the named constant <code>DAILY_TRAILING_WINDOW_DAYS = 7</code> in <code>src/config/dailyAgents.ts</code> (§4.2). <strong>T2</strong> — the two single-day fetches became ONE window fetch, and a new pure module <code>feature-utils/gbpWindowSelector.ts</code> resolves the most-recent day(s) the API actually published, plus an explicit "no data in window" signal (an empty result). No fixed offset is subtracted anywhere — the mechanism is most-recent-with-data, so it survives Google changing the lag. <strong>T3</strong> — the Proofline payload now carries <code>period.window_start/window_end</code>, <code>period.latest_data_date</code>, <code>period.previous_data_date</code> and <code>period.has_recent_data</code>, with <code>visibility.latest</code>/<code>engagement.latest</code> set to <code>null</code> (never <code>0</code>) when the window published nothing; the stored <code>google_data_store</code> row carries a per-side <code>data_date</code> and OMITS its <code>visibility</code> object entirely when no day reported.</p>
+        <p><strong>Reason:</strong> Dave's Step-1 live-API check on production CONFIRMED the hypothesis — the Business Profile Performance API trails roughly 3–4 days, so the two most-recent dates were legitimately absent and the old code summed an empty <code>datedValues</code> array to a reported <code>0</code>. That is the gate this spec set for executing the fix, and it is met.</p>
+        <p><strong>Updated Done criteria:</strong> <strong>Stored-date semantics changed</strong> — <code>agent_results.date_start/date_end</code> and the <code>google_data_store</code> row's dates now describe the days Google ACTUALLY published, not calendar yesterday and the day before. The <code>yesterday</code> / <code>dayBefore</code> keys in the stored blob keep their names (renaming them is a wider migration than this fix needs) but their MEANING is now "most-recent published day" and "the one before it"; each side's <code>data_date</code> records which day that actually was. Consumers reading those keys get real values instead of fabricated zeros. The omitted-<code>visibility</code> case is deliberate and load-bearing: <code>stageReaders.mapsImpressionsForVisibility</code> already treats a side with no <code>visibility</code> object as a MISSING metric excluded from day-coverage, and a present-but-zero object as a real measured zero — so "no recent data" and "zero impressions" stay distinct all the way to the dashboard. Still open: Dave's Step-2 live validation after deploy.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 2 - 2026-07-22</h3>
+        <p><strong>Change:</strong> Hardened after an independent adversary pass on the Rev 1 code. <strong>(a) Cross-metric lag skew.</strong> The selector originally treated a date as "covered" if ANY of the seven metrics reported it — which silently assumes Google publishes all metrics for a day atomically, something nobody measured. If the interaction metrics (<code>CALL_CLICKS</code>, <code>WEBSITE_CLICKS</code>, <code>BUSINESS_DIRECTION_REQUESTS</code>) publish even a day ahead of the impression metrics, the newest "covered" day would carry interactions but no impressions, an absent metric reads 0, and we would stamp a fabricated <em>measured zero impressions</em> onto a real date — the original zero-Maps bug wearing a verified-looking timestamp. Metrics are now split into <code>IMPRESSION_METRICS</code> and <code>INTERACTION_METRICS</code> and each family resolves against its own dates, so the assumption is removed rather than relied on. <strong>(b) Review window regression.</strong> The GBP fetch scopes its review list to the requested range, so widening the fetch from 2 days to 7 silently widened "new reviews" to 7 days — inflating the daily narrative roughly 3.5x and re-reporting the same review for a week. The list is now re-narrowed to the prior 2-day meaning (<code>filterReviewsSince</code>); a review with an unreadable timestamp is KEPT, since dropping a real review to tidy a list is the worse error. <strong>(c)</strong> Removed the now-dead <code>extractMetricTotal</code> (zero callers after T2) rather than leave the bug's own mechanism in the file as an attractive nuisance.</p>
+        <p><strong>Reason:</strong> Adversary review of the Rev 1 implementation. (a) is the finding that mattered: the fix's whole discipline is "never assume publication timing", and Rev 1 assumed it once, for cross-metric atomicity — in the one place the merged diagnostic (impressions-only) is blind to.</p>
+        <p><strong>Updated Done criteria:</strong> The stored row now carries <code>data_date</code> = the impressions day (the gate this row is read for) and a separate <code>engagement.data_date</code> when the interaction family resolved to a different day. Regression tests cover the skew case, the review-window narrowing, and the unreadable-timestamp fallbacks. <strong>Known gaps, stated:</strong> the metric-family split is now pinned at the processor too — a processor-level test drives <code>processDailyAgent</code> with a skewed response and asserts the stored row resolves impressions on their own day, so collapsing the families inside <code>service.daily-agent-processor.ts</code> fails the suite (closed in Rev 3). Also unchanged and pre-existing: only <code>locations[0]</code> is read, and the <code>setDate</code>/<code>toISOString</code> idiom shifts the REQUESTED window by a day across a DST fall-back on a non-UTC server (never the reported dates, which always come from the API's own date fields).</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 3 - 2026-07-22</h3>
+        <p><strong>Change:</strong> Closed the Rev 2 known gap. Added a processor-level test (<code>daily-agent-processor.test.ts</code>) that drives the real <code>processDailyAgent</code> with a skewed API response — interactions published two days ahead of impressions — and asserts the stored row resolves impressions on the impressions' own newest day, with the interaction family carrying its own later date. Mutation-verified: collapsing the two families inside the processor's wiring now fails the suite.</p>
+        <p><strong>Reason:</strong> The Rev 2 tests pinned the family split at the selector and builder, but called the selector directly, so the processor's wiring was unpinned — a regression there would have passed. Requested to close the gap rather than carry it.</p>
+        <p><strong>Updated Done criteria:</strong> the metric-family split is now enforced end-to-end (selector, builder, AND processor wiring); no remaining known-gap in the split.</p>
+      </article>
     </section>
   </main>
 </body>
