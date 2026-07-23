@@ -8,7 +8,8 @@
  * headline was built straight off it.
  *
  * WHAT IT DOES INSTEAD. It runs the diagnostic gait the master profiles share
- * (`alloro-artifacts/strategy/trained-business-doctor.md`, "THE CORE GAIT"):
+ * (the "THE CORE GAIT" section of the business-doctor strategy reference, held
+ * outside this repository — ask the owner for it rather than grepping):
  *
  *   Move 1 — read the constellation, never the lone number. A step is judged
  *            with the paired signals the assembler already carries, not by its

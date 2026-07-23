@@ -83,7 +83,7 @@
     <section class="spec-card" id="what">
       <h2>What</h2>
       <p>A small, backward-compatible composition layer over the existing prompt loader, plus the first curated fragment and the registry that maps agents to fragments.</p>
-      <div class="flow">library (git lattice — alloro-brain/*; Notion retired)  ── validated + distilled ──▶  src/agents/lattice/*.md   (the shipped loadout: canon-conformant fragments)
+      <div class="flow">library (held outside this repo)  ── validated + distilled ──▶  src/agents/lattice/*.md   (the shipped loadout: canon-conformant fragments)
                                                                           │
 AGENT_LATTICE_LOADOUT  { "auditAgents/gbp/TrustEngagement": ["cialdini-honest-influence"] }
                                                                           │
@@ -101,7 +101,7 @@ loadAgentPrompt(agentPath)  =  loadPrompt(agentPath)  +  mapped fragments  ─�
         <li><code>src/controllers/admin-websites/feature-utils/util.seo-section-runner.ts:105-106</code> — <strong>the reference analog for composition.</strong> Already loads a <code>base</code> prompt plus a mapped section fragment and combines them. The wiring mirrors this exactly; it invents no new pattern.</li>
         <li><code>src/agents/auditAgents/gbp/TrustEngagement.md</code> — the pilot agent instruction file (read before touching its call site).</li>
         <li>The GBP audit caller that runs <code>TrustEngagement</code> — the single call site to switch from <code>loadPrompt(...)</code> to <code>loadAgentPrompt(...)</code> (located during execution via <code>git grep "auditAgents/gbp/TrustEngagement"</code>).</li>
-        <li><code>~/code/alloro-brain/library/lattices/knowledge-lattice.md</code> (Cialdini row) — the <em>library</em> source. Not read at runtime; distilled by hand into the shipped fragment. Status <code>provisional</code> / drift-flagged — only validated, canon-conformant content crosses into the product.</li>
+        <li>The external lattice library (Cialdini row) — the <em>library</em> source, held outside this repository. Not read at runtime; distilled by hand into the shipped fragment. Status <code>provisional</code> / drift-flagged — only validated, canon-conformant content crosses into the product.</li>
       </ul>
       <h3>Patterns To Follow</h3>
       <ul>
@@ -127,7 +127,7 @@ loadAgentPrompt(agentPath)  =  loadPrompt(agentPath)  +  mapped fragments  ─�
           <h3>Must</h3>
           <ul>
             <li>Keep <code>loadPrompt()</code> unchanged and backward-compatible; add composition alongside it.</li>
-            <li>Ship the fragment <em>inside</em> the alloro repo (<code>src/agents/lattice/</code>). Deploy has no access to the sibling <code>alloro-brain</code> repo — a runtime read of it would break in prod.</li>
+            <li>Ship the fragment <em>inside</em> the alloro repo (<code>src/agents/lattice/</code>). Deploy has no access to the external library — a runtime read of it would break in prod.</li>
             <li>Author the fragment fresh and canon-conformant: no retired vocabulary, no ad/campaign/impressions-as-vanity language, no guarantees (Value #6). Validate against START HERE canon before it ships.</li>
             <li>Fail loud if a mapped fragment key is missing (reuse the loader's existing throw).</li>
             <li>Wire exactly ONE pilot agent. Prove it. Generalize later.</li>
@@ -137,7 +137,7 @@ loadAgentPrompt(agentPath)  =  loadPrompt(agentPath)  +  mapped fragments  ─�
           <h3>Must Not</h3>
           <ul>
             <li>Copy the provisional lattice wholesale into any agent prompt (drift → live agents).</li>
-            <li>Read <code>alloro-brain</code> or <code>alloro-artifacts</code> at runtime.</li>
+            <li>Read any external library or artifact store at runtime.</li>
             <li>Modify more than the one pilot call site.</li>
             <li>Add a dependency, or hand-fold the same principle into multiple agent files (that recreates the duplication this replaces).</li>
             <li>Touch <code>CtrHypothesis</code> (active Brick surface).</li>
@@ -149,7 +149,7 @@ loadAgentPrompt(agentPath)  =  loadPrompt(agentPath)  +  mapped fragments  ─�
         <li>Wiring the other agents (Schwartz→CRO/SeoGeneration, Sheridan→WebsiteAnalysis) — trivial follow-ups once the mechanism is proven, each a fragment + mapping row + test.</li>
         <li>Landing Sheridan/Schwartz/Cialdini rows into the git lattice library (human-staked, separate; Notion is being retired).</li>
         <li>Any runtime measurement of whether the wired principle improves agent output quality (that needs the measurement build; this spec only proves the principle reaches the agent).</li>
-        <li>Deleting <code>~/alloro-private/master-rubrics.md</code> (housekeeping, done once its net-new rows land in the library).</li>
+        <li>Housekeeping on the external master-rubrics doc (done once its net-new rows land in the library).</li>
       </ul>
     </section>
 
@@ -266,7 +266,7 @@ loadAgentPrompt(agentPath)  =  loadPrompt(agentPath)  +  mapped fragments  ─�
       <h2>Revision Log</h2>
       <article class="revision-entry">
         <h3>Rev 1 - 2026-07-22</h3>
-        <p><strong>Change:</strong> Source of truth for the lattice library moved from Notion to the git-tracked lattices (<code>alloro-brain/library/lattices</code>). <code>loadout.ts</code>, the README, and the AGENTS.md pointer name the git library, not Notion.</p>
+        <p><strong>Change:</strong> Source of truth for the lattice library moved from Notion to the git-tracked external lattice library. <code>loadout.ts</code>, the README, and the AGENTS.md pointer name the git library, not Notion.</p>
         <p><strong>Reason:</strong> User direction: Notion is being retired.</p>
         <p><strong>Updated Done criteria:</strong> none — the product side already ships fragments into the repo and never reads Notion at runtime, so the change is provenance-only.</p>
       </article>
@@ -281,6 +281,12 @@ loadAgentPrompt(agentPath)  =  loadPrompt(agentPath)  +  mapped fragments  ─�
         <p><strong>Change:</strong> Execution-time hardening. Added T7 — a safety net (<code>runComposedAgent</code>) that degrades a composed prompt to the base prompt if the injected rubric makes a JSON-strict agent emit unparseable output. Extracted as a tested helper (3 unit tests, model mocked) and wired into the GBP audit's <code>callPillar</code>.</p>
         <p><strong>Reason:</strong> Adversary + User QA: the pilot shipped an untested regression path — a bad fragment could break a JSON-strict pillar (the processor throws on a parse failure). Fix the system, don't scrap it: make the injection mechanism unbreakable so it can scale safely.</p>
         <p><strong>Updated Done criteria:</strong> added — a composed prompt that breaks JSON degrades to base (tested); an injected rubric can only help or no-op.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 4 - 2026-07-23</h3>
+        <p><strong>Change:</strong> The wiring recipe was incomplete — it documented three steps when four are required. Steps 1–3 (fragment, registry row, composition assertion) all pass while the rubric never reaches the running agent, because the composition test calls <code>loadAgentPrompt()</code> directly and most production call sites still use bare <code>loadPrompt()</code>. Added step 4 (switch the agent's call site) to <code>loadout.ts</code>, <code>src/agents/lattice/README.md</code>, and the AGENTS.md pointer, and added <code>src/__tests__/lattice-callsite-wiring.test.ts</code>, which fails with the exact <code>file:line</code> if a mapped agent is still loaded through bare <code>loadPrompt()</code>. Mutation-proven: mapping <code>auditAgents/WebsiteAnalysis</code> (the queued Sheridan target) turned the suite red naming <code>auditLeadgen.processor.ts:257</code>; reverting turned it green. Also verified the one currently-wired rubric is genuinely live — Cialdini reaches <code>TrustEngagement</code> via <code>runComposedAgent</code> at <code>auditLeadgen.processor.ts:518</code>. Same edit sanitized external-repo paths (the lattice library, private rubric docs) out of this spec, the README, <code>loadout.ts</code>, and AGENTS.md, since this repository is public.</p>
+        <p><strong>Reason:</strong> User QA (Dave, post-merge review of #213): the next agent to follow the recipe — Sheridan → WebsiteAnalysis — would have passed its own test while still loading base-only. A recipe whose steps can all succeed while the feature does nothing is a silent no-op, which is the failure mode this plan exists to prevent.</p>
+        <p><strong>Updated Done criteria:</strong> added — the recipe states four steps in all three places; a rubric mapped to an agent whose call site bypasses composition fails CI; no external repository path appears in any file this plan touches.</p>
       </article>
     </section>
   </main>
