@@ -39,7 +39,8 @@ import {
   scrapeCompetitorGBPs,
 } from "../../controllers/audit/audit-services/service.audit-apify";
 import { runAgent } from "../../agents/service.llm-runner";
-import { loadPrompt, loadAgentPrompt } from "../../agents/service.prompt-loader";
+import { loadPrompt } from "../../agents/service.prompt-loader";
+import { runComposedAgent } from "../../agents/service.composed-agent-runner";
 import { stripMarkupForLLM } from "../../controllers/audit/audit-utils/markupStripper";
 import { settleWebsiteBranchNonFatal } from "../../controllers/audit/audit-utils/settleWebsiteBranchNonFatal";
 import {
@@ -511,13 +512,17 @@ export async function processAuditLeadgen(
       userMessage: string,
       label: string
     ): Promise<T> => {
-      // loadAgentPrompt composes any lattice rubric mapped to this pillar in
-      // AGENT_LATTICE_LOADOUT; unmapped pillars are byte-identical to loadPrompt.
-      const prompt = loadAgentPrompt(promptPath);
-      const res = await runAgent({
-        systemPrompt: prompt,
+      // runComposedAgent injects any lattice rubric mapped to this pillar and,
+      // if the composed prompt breaks JSON parsing, degrades to the base prompt.
+      // So an injected rubric can only ever help or no-op, never break a pillar.
+      const res = await runComposedAgent({
+        agentPath: promptPath,
         userMessage,
         model: AUDIT_MODEL,
+        onDegrade: () =>
+          logger.warn(
+            `[audit-leadgen] ${label}: composed (lattice) prompt unparseable — degraded to base prompt`
+          ),
       });
       if (!res.parsed) {
         throw new Error(
