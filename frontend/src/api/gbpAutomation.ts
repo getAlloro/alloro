@@ -1,4 +1,4 @@
-import { apiDelete, apiGet, apiPatch, apiPost, apiPut } from "./index";
+import { ApiError, apiDelete, apiGet, apiPatch, apiPost, apiPut } from "./index";
 
 export type GbpReadinessStatus =
   | "ready"
@@ -17,6 +17,37 @@ export type GbpWorkItemStatus =
   | "deploying"
   | "published"
   | "rejected";
+
+/** A settable Google Business Profile category (mirrors the backend GbpCategoryRef). */
+export type GbpCategoryRef = {
+  /** Google resource name, e.g. "categories/gcid:orthodontist". */
+  name: string;
+  displayName: string;
+};
+
+/**
+ * A staged primary-category proposal: swap the current primary category for a
+ * more specific settable one. Mirrors the backend CategoryRecommendation. The
+ * `rationale` is proposal framing only (Value #6) — never a ranking promise.
+ */
+export type GbpCategoryRecommendation = {
+  current: { displayName: string | null; name: string | null };
+  proposed: GbpCategoryRef;
+  rationale: string;
+};
+
+/**
+ * Result of triggering a category proposal. Either nothing better was warranted
+ * (an honest empty — Value #6), or a draft was staged for the owner to approve.
+ * Mirrors the backend ProposeCategoryDraftResult.
+ */
+export type GbpCategoryProposalResult =
+  | { proposed: false }
+  | {
+      proposed: true;
+      recommendation: GbpCategoryRecommendation;
+      workItem: GbpWorkItem;
+    };
 
 export type GbpReview = {
   id: string;
@@ -102,7 +133,7 @@ export type GbpWorkItem = {
   draft_content: string;
   approved_content: string | null;
   published_content: string | null;
-  content_type?: "review_reply" | "local_post";
+  content_type?: "review_reply" | "local_post" | "business_info";
   source_review_id: string | null;
   local_post_payload?: Record<string, unknown> | null;
   featured_image_url?: string | null;
@@ -267,7 +298,12 @@ type ApiEnvelope<T> = {
 
 function unwrap<T>(response: ApiEnvelope<T>): T {
   if (!response?.success) {
-    throw new Error(response?.error?.message || "GBP automation request failed.");
+    // Carry the backend error `code` on the thrown error (§16.1) so callers can
+    // distinguish honest gated states (e.g. profile write-back off) from real
+    // failures without string-matching the message.
+    throw new ApiError(response?.error?.message || "GBP automation request failed.", {
+      code: response?.error?.code,
+    });
   }
   return response.data;
 }
@@ -535,6 +571,47 @@ export async function deleteGbpPublishedReply(reviewId: string, locationId: numb
   return unwrap<GbpReview>(
     await apiDelete({
       path: withLocation(`/gbp-automation/reviews/${reviewId}/published-reply`, locationId),
+    })
+  );
+}
+
+/**
+ * GF2 — the primary-category lever. Ask the backend to review this location's
+ * current Google primary category and, when a more specific one fits, stage it
+ * as an owner-approval draft. Writes NOTHING to Google; publishing is a separate
+ * A6-gated step. Returns { proposed: false } when the current category is already
+ * the best fit (an honest empty — never a manufactured change, Value #6).
+ */
+export async function proposeGbpCategory(locationId: number) {
+  return unwrap<GbpCategoryProposalResult>(
+    await apiPost({
+      path: "/gbp-automation/business-info/category-proposal",
+      passedData: { locationId },
+    })
+  );
+}
+
+/**
+ * Record the owner's approval of a staged category draft. The change is not sent
+ * to Google here — publishing stays gated by the account's profile write-back
+ * switch. When that switch is off, the backend rejects the approval with code
+ * BUSINESS_INFO_WRITEBACK_DISABLED and the draft is left untouched.
+ */
+export async function approveGbpCategoryDraft(workItemId: string, locationId: number) {
+  return unwrap<GbpWorkItem>(
+    await apiPost({
+      path: `/gbp-automation/work-items/${workItemId}/approve`,
+      passedData: { locationId },
+    })
+  );
+}
+
+/** Dismiss a staged category draft (owner declined the suggestion). */
+export async function dismissGbpCategoryDraft(workItemId: string, locationId: number) {
+  return unwrap<GbpWorkItem>(
+    await apiPost({
+      path: `/gbp-automation/work-items/${workItemId}/reject`,
+      passedData: { locationId, reason: "Category suggestion dismissed by owner." },
     })
   );
 }
