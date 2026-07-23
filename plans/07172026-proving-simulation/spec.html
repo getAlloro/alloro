@@ -1,0 +1,506 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Proving Simulation / Attributed-Lift Layer (E2) Spec</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); margin-top: 14px; }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 900px; margin-bottom: 24px; font-size: clamp(2rem, 5vw, 3.6rem); line-height: 0.98; letter-spacing: 0; }
+    h2 { font-size: 1.35rem; letter-spacing: 0; }
+    h3 { font-size: 1rem; letter-spacing: 0; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.9em; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    ul { margin: 0.4rem 0; padding-left: 1.15rem; }
+    li { margin: 0.3rem 0; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 0.92rem; }
+    th, td { border: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }
+    th { background: var(--soft); font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0; color: var(--muted); }
+    .table-wrap { overflow-x: auto; }
+    .ladder { border-left: 3px solid var(--ink); padding-left: 14px; margin: 12px 0; }
+    .callout { border: 1px solid var(--ink); border-radius: 8px; padding: 16px; background: var(--soft); margin-top: 14px; }
+    .decision { border: 1px solid var(--line); border-radius: 8px; padding: 18px; margin-top: 14px; }
+    .decision h3 { margin-bottom: 6px; }
+    .rec { font-weight: 700; }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-pending">In Progress</span>
+      </div>
+      <h1>Proving Simulation &amp; Attributed-Lift Layer (E2)</h1>
+      <p style="max-width:820px;color:var(--muted);margin-bottom:20px;">
+        Honestly measure whether an action Alloro took moved a funnel metric — reporting <strong>direction and confidence, never a promised number</strong> — and prove the whole recorded-action &rarr; measured &rarr; surfaced chain survives a simulated month before it ever speaks to a customer.
+      </p>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>In Progress</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/07172026-proving-simulation</dd></div>
+        <div><dt>Size</dt><dd>Large (spec only)</dd></div>
+        <div><dt>Risk</dt><dd>Level 3 (honesty-critical)</dd></div>
+      </dl>
+      <dl class="meta-grid" style="margin-top:12px;">
+        <div><dt>Source Branch</dt><dd>origin/dev/dave</dd></div>
+        <div><dt>Source HEAD</dt><dd>4cdb0eaf</dd></div>
+        <div><dt>Planning Branch</dt><dd>claude/proving-simulation-spec</dd></div>
+        <div><dt>Worktree</dt><dd>/Users/coreys.air/code/alloro-worktrees/proving-simulation-spec</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>
+        Alloro already <em>records</em> that an action happened — the <code>metric_action_events</code> rail stores an action's <code>occurred_at</code>, its <code>active_until</code> window, and the stage/metric it targets (<code>src/models/MetricActionModel.ts:10-27</code>, migration <code>20260715000000_create_metric_action_events.ts:26-53</code>). On the Patient Journey card it surfaces a promise-to-watch: <em>"Watching Google click-through through July&nbsp;30"</em> (<code>src/services/MetricActionService.ts:89-96</code>).
+      </p>
+      <p>
+        But nothing ever comes back and reads the metric to see if it moved. <code>findLatestForJourney</code> only re-displays the action; it never compares click-through before and after (<code>src/services/MetricActionService.ts:140-164</code>). The loop is open. A verified sweep of <code>src/</code> confirms E2 is genuinely absent — no <code>causalImpact</code>, <code>monteCarlo</code>, interrupted-time-series, holdout, difference-in-differences, or attributed-lift code exists anywhere.
+      </p>
+      <p>
+        The naive way to close it — subtract last month's CTR from this month's and say <em>"we caused +2.3%"</em> — is a fabricated causal claim. A single practice's CTR moves for a hundred reasons (seasonality, a Google core update, more branded searches, a competitor's change). We cannot honestly attribute that swing to our action without a comparison that nets out those confounds. The funnel anchor is explicit: <strong>trend is the signal, never a promised number</strong>. E2 is the layer that closes the loop <em>honestly</em>.
+      </p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>A specification (no code this pass) for three connected pieces:</p>
+      <ul>
+        <li><strong>(a) Honest measurement.</strong> A pure, DB-free measurement module that takes an action event plus the daily metric time series and returns an <em>ordinal verdict</em> (not enough data / no detectable change / trending up / trending down), with the confound it cannot rule out named alongside it. It compares the metric against a <em>baseline</em> using a proven method chosen per available signal — never emitting a point-causation number.</li>
+        <li><strong>(b) The "endures a month simulation" acceptance harness.</strong> A defined battery of fabricated 30-day daily series + an action, fed through the full connected chain (action recorded &rarr; measured &rarr; verdict surfaced). "Survives" = every scenario yields the honest expected verdict from the ladder, no scenario ever emits a promised causal number, and the chain stays connected end to end.</li>
+        <li><strong>(c) A cited method-to-signal map.</strong> Which proven measurement method fits which stored signal, and which methods are explicitly rejected for now and why.</li>
+      </ul>
+      <p><strong>Done when:</strong> this spec is committed with (a), (b), (c) fully specified, every open decision documented with a recommendation, and every method grounded in a proven technique and an existing code anchor — with zero code written.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+
+      <h3>What the funnel already stores over time (verified, file:line)</h3>
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>Signal</th><th>Where</th><th>Granularity</th><th>Carries a within-site control?</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>GSC impressions / clicks / CTR / position, per query and <strong>per page</strong></td>
+            <td><code>GscDataModel.findByProjectAndDateRange</code> (<code>src/models/website-builder/GscDataModel.ts:47-60</code>); per-page dimension rows parsed in <code>stageReaders.ts:239-244</code>, per-page CTR summarized at <code>stageReaders.ts:149-164</code></td>
+            <td><strong>Daily</strong> rows keyed <code>(project_id, report_date)</code></td>
+            <td><strong>Yes</strong> — per-page rows let untreated pages act as a control</td>
+          </tr>
+          <tr>
+            <td>Action markers (what we did, when, to how many, active window)</td>
+            <td><code>metric_action_events</code> — <code>MetricActionModel.ts:10-27</code>; written by <code>MetricActionService.recordSeoBulkUpdate</code> (<code>MetricActionService.ts:113-138</code>)</td>
+            <td>Per action, with <code>occurred_at</code> + <code>active_until</code> (30-day window, <code>metricActions.ts:17</code>)</td>
+            <td>Marks the intervention point for every method</td>
+          </tr>
+          <tr>
+            <td>Rybbit website visits / sessions</td>
+            <td><code>readVisits</code> (<code>stageReaders.ts:278-308</code>)</td>
+            <td>Site total per window (no per-page split)</td>
+            <td>No — site total only</td>
+          </tr>
+          <tr>
+            <td>Verified form submissions (leads)</td>
+            <td><code>readLeads</code> (<code>stageReaders.ts:322-363</code>), <code>FormSubmissionModel.getMonthlyStatsByProject</code></td>
+            <td><strong>Monthly</strong> counts, often tiny</td>
+            <td>No</td>
+          </tr>
+          <tr>
+            <td>Local rank, reviews, PMS patients/revenue</td>
+            <td><code>readRank</code>/<code>readReviews</code>/<code>readPms</code> (<code>stageReaders.ts:403-454, 371-394</code>), <code>google_data_store</code> daily/monthly rows (<code>GoogleDataStoreModel.ts:5-23</code>)</td>
+            <td>Latest snapshot / monthly</td>
+            <td>No</td>
+          </tr>
+        </tbody>
+      </table>
+      </div>
+
+      <h3>The funnel this measures against</h3>
+      <p>
+        The three gates are <code>impressions &rarr; visits &rarr; leads</code> (<code>src/controllers/patient-journey/feature-utils/types.ts:24-26</code>). <code>buildConversions</code> already computes each per-step rate and — critically — <strong>refuses to divide by zero or imply a real 0% from absent data</strong> (<code>funnelMath.ts:39-78</code>). E2 must inherit that honesty discipline exactly: absent/thin data is "unknown", never a fabricated zero or a fabricated lift.
+      </p>
+
+      <h3>Relevant files</h3>
+      <ul>
+        <li><code>src/services/MetricActionService.ts</code> — the action rail; the natural home to <em>call</em> the new measurement, and where the open loop lives today (lines 140-164).</li>
+        <li><code>src/models/website-builder/GscDataModel.ts</code> — daily GSC rows; a new <em>per-page daily series</em> read method belongs here (model layer, §7.4).</li>
+        <li><code>src/config/metricActions.ts</code> — the metric/stage/window constants; the sufficiency floors and verdict enum belong beside them.</li>
+        <li><code>src/controllers/patient-journey/feature-utils/funnelMath.ts</code> — the reference analog for a <strong>pure, DB-free, independently testable</strong> math module. E2's measurement math mirrors this.</li>
+      </ul>
+
+      <h3>Patterns to follow</h3>
+      <ul>
+        <li>Thin service/controller, per-concern readers, <strong>pure math in <code>feature-utils</code></strong> — the exact patient-journey shape (see the header comment in <code>funnelMath.ts:1-7</code> and <code>PatientJourneyService.ts:1-13</code>), which itself mirrors <code>src/controllers/gbp-automation/</code> (§6.1).</li>
+        <li>Honest empty states: a <code>StageRead</code>-style result with an explicit <em>reason</em> when unavailable (<code>stageReaders.ts:58-66, 192-215</code>). E2's verdict carries the same "why is this empty" discipline.</li>
+      </ul>
+      <p><strong>Reference analog:</strong> <code>src/controllers/patient-journey/feature-utils/funnelMath.ts</code> — closest existing structure for the new pure measurement util; <code>src/controllers/gbp-automation/</code> for the domain folder shape (§6.1).</p>
+    </section>
+
+    <section class="spec-card" id="method">
+      <h2>Measurement Method — Grounded in Proven Techniques</h2>
+      <p>Alloro invents no method. Each below is an established, named technique from the causal-inference / marketing-measurement literature, mapped to the signal it fits.</p>
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>Proven method</th><th>What it does</th><th>Fits which signal</th><th>Verdict</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>Difference-in-Differences (DiD)</strong> — treated vs untreated within the same site</td>
+            <td>Compares the change on <em>pages we edited</em> against the change on <em>pages we did not</em>, over the same window. Site-wide and seasonal swings hit both groups, so subtracting one from the other nets the confound out.</td>
+            <td>GSC per-page daily CTR/impressions — the untreated pages of the same project are the control (<code>stageReaders.ts:239-244</code>)</td>
+            <td><strong>Primary.</strong> Strongest method Alloro can run at single-practice scale.</td>
+          </tr>
+          <tr>
+            <td><strong>Interrupted Time Series (ITS) / causal-impact-style counterfactual</strong></td>
+            <td>Fits the pre-intervention trend, projects "what the metric would have been" forward, and compares observed vs projected after the action, with an uncertainty band. (The canonical reference is Google's <code>CausalImpact</code>; we implement a transparent, auditable version, not the black box — see Decision D4.)</td>
+            <td>Any single daily series with a clean pre-window — GSC site total, or the treated set when no untreated control exists</td>
+            <td><strong>Fallback</strong> when no usable untreated control exists.</td>
+          </tr>
+          <tr>
+            <td><strong>Holdout / geo experiment / A-B</strong></td>
+            <td>The gold standard: randomize which units get the action, measure the gap. Requires deliberately withholding the action from a control group.</td>
+            <td>Not available at single-practice scale today; DiD is the within-site stand-in. Revisit if Alloro ever holds pages out on purpose.</td>
+            <td>Deferred.</td>
+          </tr>
+          <tr>
+            <td><strong>Synthetic control</strong></td>
+            <td>Builds a counterfactual from a weighted basket of similar <em>other</em> practices (donors).</td>
+            <td>Needs a large fleet of comparable practices — future, once the fleet is big enough to form donors.</td>
+            <td>Deferred (fleet-scale).</td>
+          </tr>
+          <tr>
+            <td><strong>Marketing Mix Modeling (MMM)</strong></td>
+            <td>Regresses an outcome across many channels/spend over long history.</td>
+            <td><strong>Rejected for now:</strong> Alloro captures no spend data and single-practice history is too short. Documented so it is not re-derived.</td>
+            <td>Rejected.</td>
+          </tr>
+        </tbody>
+      </table>
+      </div>
+
+      <h3>The verdict ladder (never a promised number)</h3>
+      <p>The measurement returns exactly one rung. It never returns "+X%" as a fact.</p>
+      <div class="ladder">
+        <p style="margin:0;"><strong>Not enough data yet</strong> — pre-window, post-window, or impressions volume is below the sufficiency floor (Decision D3). The default; the honest answer while the window is still filling.</p>
+      </div>
+      <div class="ladder">
+        <p style="margin:0;"><strong>No detectable change</strong> — the post-period movement sits inside the counterfactual's uncertainty band, or DiD nets it out. We watched and it did not clearly move.</p>
+      </div>
+      <div class="ladder">
+        <p style="margin:0;"><strong>Trending up</strong> / <strong>Trending down</strong> — the post-period moved outside the band in one direction, DiD-confirmed against the control where one exists. Reported as a direction, always paired with the confound we cannot rule out.</p>
+      </div>
+      <div class="callout">
+        <strong>Honesty invariants (non-negotiable, inherited from the funnel anchor and <code>funnelMath.ts</code>):</strong>
+        <ul>
+          <li>Never present a causal point estimate ("+2.3% CTR because of us") as fact. Direction only. A magnitude <em>band</em> is allowed only when DiD control exists, only later (Decision D5), and always with the caveat.</li>
+          <li>Always name the confound the design cannot separate — e.g. "this window overlapped a Google update" when detectable, else the standing "single-practice measurement can't fully separate this from market shifts."</li>
+          <li>A drop is reported as honestly as a rise. Never suppress "trending down" to make Alloro look better (HONESTY bar).</li>
+          <li>Thin/absent data &rarr; "not enough data yet." Never a fabricated zero, never a fabricated lift (mirrors <code>funnelMath.ts:47-54</code>).</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="spec-card" id="harness">
+      <h2>The "Endures a Month Simulation" Acceptance Harness</h2>
+      <p>
+        This proves the layer behaves honestly across a full 30-day action lifecycle (the <code>METRIC_ACTION_VISIBLE_DAYS = 30</code> window, <code>metricActions.ts:17</code>) <em>before</em> any verdict reaches a customer. It feeds fabricated inputs through the <strong>whole connected chain</strong>: an action written to the rail &rarr; the daily series &rarr; the measurement module &rarr; the verdict as it would surface on the journey card. Synthetic fixtures only — no real customer data, no external calls.
+      </p>
+      <h3>What it feeds — the scenario battery</h3>
+      <p>Each scenario is a fabricated per-page daily GSC series plus an action at day D. The honest expected verdict is fixed in advance:</p>
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>#</th><th>Scenario fed</th><th>Honest expected verdict</th><th>What it guards against</th></tr></thead>
+        <tbody>
+          <tr><td>S1</td><td>Treated pages' CTR clearly rises post-action; untreated flat</td><td>Trending up (no number)</td><td>A real lift must be seen — but never quantified as causal</td></tr>
+          <tr><td>S2</td><td>Treated and untreated both flat</td><td>No detectable change</td><td>Must not manufacture a lift from noise</td></tr>
+          <tr><td>S3</td><td><strong>Seasonal confound:</strong> treated AND untreated both rise together (a holiday spike)</td><td>No detectable change (DiD nets it out)</td><td>The core honesty test — naive pre/post would falsely claim a lift; DiD must not</td></tr>
+          <tr><td>S4</td><td><strong>Regression to the mean:</strong> pre-window was an abnormal dip; post returns to normal</td><td>No detectable change / not enough data</td><td>Over-claiming a bounce-back as our win</td></tr>
+          <tr><td>S5</td><td><strong>Sparse:</strong> treated pages below the impressions floor</td><td>Not enough data yet</td><td>Emitting a direction from statistical noise</td></tr>
+          <tr><td>S6</td><td>Action taken, but post CTR falls</td><td>Trending down (reported plainly)</td><td>Hiding a decline to flatter Alloro</td></tr>
+          <tr><td>S7</td><td>Action <code>occurred_at</code> precedes GSC coverage — no clean pre-window</td><td>Not enough data yet</td><td>Fabricating a baseline that doesn't exist</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <h3>What "survives" means (the pass gate)</h3>
+      <ul>
+        <li><strong>Correct rung:</strong> every scenario's emitted verdict equals its honest expected rung.</li>
+        <li><strong>No fabricated causation:</strong> across the entire battery, the output never contains a promised point-causation number. (Asserted structurally — the verdict type cannot carry one in v1.)</li>
+        <li><strong>Chain stays connected:</strong> the action is read back from the rail, measured, and surfaced end to end — no stage silently drops the signal (guards the "rooms with no doors" decay).</li>
+        <li><strong>Confound always named:</strong> every up/down verdict ships with its un-ruled-out confound string.</li>
+      </ul>
+      <p>The harness is specified here as <strong>two layers</strong> (both required at execution time, per §20): a Layer&nbsp;1 vitest that drives the fixtures through the pure measurement function, and a Layer&nbsp;2 <code>test.html</code>/<code>test-results.json</code> acceptance artifact asserting the connected-chain behavior. This spec pass writes neither — it defines what they must feed and assert.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Keep measurement math <strong>pure and DB-free</strong> in a <code>feature-utils</code> module, mirroring <code>funnelMath.ts</code> (§2.2/§13.2).</li>
+            <li>DB reads only via a model method (§7.4) — a new per-page daily series read on <code>GscDataModel</code>, no inline knex.</li>
+            <li>Tenant scope arrives as args (org/location/project) resolved from server context; never derived in the math or service (§11.7, mirrors <code>PatientJourneyService.ts:9-13</code>).</li>
+            <li>Pino logging, not console (§9.1); no new <code>any</code> (§4.5).</li>
+            <li>Inherit the funnel-anchor vocabulary and the no-fabricated-zero rule verbatim.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>Emit a causal point estimate as fact — ever.</li>
+            <li>Add a heavy stats dependency without an explicit decision (D4).</li>
+            <li>Write to any external service; measurement is read-only over stored signals.</li>
+            <li>Touch the frontend, dev DB, or third-party integrations in this work stream (build-and-hold).</li>
+            <li>Refactor the patient-journey assembler beyond wiring the new read.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out of scope</h3>
+      <ul>
+        <li>Any dashboard/renderer change surfacing the verdict (separate frontend plan).</li>
+        <li>New action types beyond the existing <code>seo_meta_update &rarr; impressions/ctr</code> (<code>metricActions.ts:1-15</code>).</li>
+        <li>Fleet-scale synthetic control and true holdout experiments (deferred methods).</li>
+        <li>Applying the measurement to visits/leads until a daily, control-bearing signal exists for them.</li>
+      </ul>
+      <p><strong>Constitution Articles touched:</strong> §6.1 (domain folder shape), §7.4 (DB in models only), §2.2/§13.2 (thin service, pure utils), §9.1 (Pino), §4.5 (no <code>any</code>), §11.7 (tenant scope from context).</p>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 3 — Structural / honesty-critical. This layer's entire purpose is to make a claim to a customer about cause and effect; a wrong or over-confident claim is a direct honesty-bar violation and erodes the trust that is the product.</p>
+      <h3>Risks identified</h3>
+      <ul>
+        <li><strong>Over-attribution.</strong> Presenting correlation as causation. <strong>Mitigation:</strong> the verdict type structurally cannot hold a causal number in v1; DiD nets out the biggest confound; every up/down ships its un-ruled-out confound; S3 in the harness fails the build if seasonality leaks through as a false lift.</li>
+        <li><strong>Treated-set unknown (real data gap).</strong> DiD needs to know <em>which pages</em> were edited, but <code>metric_action_events.metadata</code> stores only counts, not page identifiers (<code>MetricActionService.ts:132-136</code>). <strong>Mitigation:</strong> capturing the treated page set at action time is a prerequisite (Task T1 / Decision D1); until it exists, E2 degrades to the ITS fallback on the site total, which is weaker but honest.</li>
+        <li><strong>Thin-data false confidence.</strong> CTR on a handful of impressions is noise. <strong>Mitigation:</strong> the impressions floor (D3) forces "not enough data yet"; S5 guards it.</li>
+        <li><strong>GSC ~2-day lag / partial windows.</strong> The current month trails reality (<code>stageReaders.ts:185-215</code>). <strong>Mitigation:</strong> the sufficiency check counts only settled days; a partial window stays "not enough data yet."</li>
+        <li><strong>Silent chain breakage.</strong> A future refactor could drop the measured signal before it surfaces. <strong>Mitigation:</strong> the Layer 2 connected-chain assertion is the guard.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> new read on <code>GscDataModel</code> (additive), a new pure util module, and a new call site inside <code>MetricActionService</code>/the journey assembler. Consumers of the journey response would gain an optional field; no existing field changes. No migration is required for the measurement itself; capturing the treated page set (D1) would add a column or metadata key — flagged as a schema decision, not assumed.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li><strong>Do not build the ITS counterfactual as the primary path.</strong> Single-series ITS attributes <em>all</em> post-period movement to the action — it cannot see a coincident Google update. Leading with DiD (within-site control) is the honesty-stronger design even though it costs the treated-set-capture prerequisite. Recommended: pay that cost (D1) rather than ship the weaker method as the headline.</li>
+        <li><strong>Resist showing a number at all in v1.</strong> Even a banded estimate invites screenshots that drop the band. Ship the ordinal ladder first; earn the band later only when DiD control is reliably present.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="open-decisions">
+      <h2>Open Decisions</h2>
+      <p>Each is documented with a recommendation so execution is not blocked on a guess. Decisions that are customer-facing or schema-affecting should be confirmed by a human before the execution pass.</p>
+
+      <div class="decision">
+        <h3>D1 — Primary method &amp; the treated-set prerequisite</h3>
+        <p>DiD needs the identifiers of the pages an action edited; today only counts are stored (<code>MetricActionService.ts:132-136</code>).</p>
+        <p class="rec">Recommendation: DiD as primary, ITS as fallback. This requires capturing the treated page set at action time (new metadata key or join table — a schema decision, D6). Until captured, E2 runs ITS-only on the site total and labels its own weaker confidence.</p>
+      </div>
+
+      <div class="decision">
+        <h3>D2 — Baseline definition</h3>
+        <p>Options: (A) untreated pages, same window (DiD control) · (B) same pages, pre-action window (ITS) · (C) both, DiD primary with ITS as a cross-check.</p>
+        <p class="rec">Recommendation: C — DiD is the headline baseline; ITS runs alongside as a sanity cross-check. If the two disagree sharply, downgrade to "not enough data yet" rather than pick the flattering one.</p>
+      </div>
+
+      <div class="decision">
+        <h3>D3 — Data-sufficiency floors</h3>
+        <p>Unset: minimum settled pre-days, minimum post-days, minimum impressions/day per treated set, and how many trailing GSC days to treat as unsettled.</p>
+        <p class="rec">Recommendation (starting values, tune against real data before customer exposure): &ge;14 settled pre-days, &ge;7 post-days, treated-set &ge;100 impressions across the window, drop the most recent 2 GSC days as unsettled. Encode beside <code>METRIC_ACTION_VISIBLE_DAYS</code> in <code>metricActions.ts</code>.</p>
+      </div>
+
+      <div class="decision">
+        <h3>D4 — Estimator implementation: transparent build vs library</h3>
+        <p>A full Bayesian structural time series (the <code>CausalImpact</code> approach) is an R/heavy-JS dependency and a black box to the customer.</p>
+        <p class="rec">Recommendation: build a transparent, auditable estimator in plain TS — a linear (or simple robust) pre-trend fit with a prediction interval for ITS, and a plain treated-minus-untreated delta for DiD. Auditable beats sophisticated for an honesty layer, and it adds no dependency (build-and-hold constraint).</p>
+      </div>
+
+      <div class="decision">
+        <h3>D5 — Verdict granularity: ladder only vs ladder + band</h3>
+        <p class="rec">Recommendation: ordinal ladder only in v1 (four rungs). Add a magnitude band later, DiD-backed only, always caveated. Never a point estimate.</p>
+      </div>
+
+      <div class="decision">
+        <h3>D6 — Where the treated page set lives (schema)</h3>
+        <p>If D1 is accepted: a JSON key on <code>metric_action_events.metadata</code> vs a dedicated join table.</p>
+        <p class="rec">Recommendation: start with a bounded array on <code>metadata</code> (reuses the existing <code>jsonb</code> column, <code>MetricActionModel.ts:47</code>) for the SEO-meta case; promote to a join table only if page sets grow large or need indexed lookups. Flag as a production-risk migration decision (additive, reversible) if a column/table is chosen.</p>
+      </div>
+
+      <div class="decision">
+        <h3>D7 — v1 metric/action coverage</h3>
+        <p class="rec">Recommendation: v1 covers only the one action/metric that exists today — <code>seo_meta_update &rarr; impressions/ctr</code>. The module signature stays metric-agnostic so visits/leads can be added when a daily control-bearing signal exists for them.</p>
+      </div>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <p>Sequenced for a future execution pass; T0 is spec-only and complete on commit. No code is written this pass.</p>
+
+      <article class="task-card">
+        <h3>T0: This specification</h3>
+        <dl class="meta-grid">
+          <div><dt>Do</dt><dd>Ground E2 in proven methods + code anchors; define measurement, harness, method map, and open decisions.</dd></div>
+          <div><dt>Files</dt><dd><code>plans/07172026-proving-simulation/spec.html</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: every method cited to a technique and a file:line; every open decision has a recommendation; zero code.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T1: Capture the treated page set at action time <em>(execution; gated on D1/D6)</em></h3>
+        <dl class="meta-grid">
+          <div><dt>Do</dt><dd>Extend the action-recording path so <code>metric_action_events</code> stores which pages were edited (per D6), enabling DiD. Additive, reversible.</dd></div>
+          <div><dt>Files</dt><dd><code>src/services/MetricActionService.ts</code>, <code>src/config/metricActions.ts</code>, migration if a column/table is chosen</dd></div>
+          <div><dt>Depends on</dt><dd>D1, D6 confirmed</dd></div>
+          <div><dt>Verify</dt><dd>Recorded action round-trips the treated page set through the model.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: Per-page daily series read on GscDataModel <em>(execution)</em></h3>
+        <dl class="meta-grid">
+          <div><dt>Do</dt><dd>Add a model method returning per-page daily CTR/impressions over a window (treated + untreated split). Model layer only (§7.4).</dd></div>
+          <div><dt>Files</dt><dd><code>src/models/website-builder/GscDataModel.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none (parallel with T1)</dd></div>
+          <div><dt>Verify</dt><dd>Returns daily rows for a project split by page; no inline knex outside the model.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: Pure measurement util — DiD + ITS + verdict ladder <em>(execution)</em></h3>
+        <dl class="meta-grid">
+          <div><dt>Do</dt><dd>New DB-free module mirroring <code>funnelMath.ts</code>: pre-trend fit + prediction interval (ITS), treated-minus-untreated delta (DiD), sufficiency floors (D3), and the four-rung verdict + confound string. No point estimates.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/patient-journey/feature-utils/attributionMath.ts</code> (name TBD), config additions in <code>metricActions.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>D2, D3, D4, D5</dd></div>
+          <div><dt>Verify</dt><dd>Layer 1 vitest over the S1–S7 fixtures passes.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: Wire measurement into the action rail / journey <em>(execution)</em></h3>
+        <dl class="meta-grid">
+          <div><dt>Do</dt><dd>Call the measurement from <code>MetricActionService</code>/the journey assembler, attaching an optional verdict to the existing action card. Tenant scope from args (§11.7). Additive field.</dd></div>
+          <div><dt>Files</dt><dd><code>src/services/MetricActionService.ts</code>, <code>src/controllers/patient-journey/feature-services/PatientJourneyService.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1, T2, T3</dd></div>
+          <div><dt>Verify</dt><dd>Journey response carries the verdict; no existing field changes.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T5: The month-simulation harness (Layer 1 + Layer 2) <em>(execution)</em></h3>
+        <dl class="meta-grid">
+          <div><dt>Do</dt><dd>Build the S1–S7 fixtures and the connected-chain acceptance (<code>test.html</code>/<code>test-results.json</code>) asserting correct rung, no fabricated number, chain connected, confound named.</dd></div>
+          <div><dt>Files</dt><dd><code>src/__tests__/attribution.month-simulation.test.ts</code>, <code>plans/07172026-proving-simulation/test.html</code> + <code>test-results.json</code></dd></div>
+          <div><dt>Depends on</dt><dd>T3, T4</dd></div>
+          <div><dt>Verify</dt><dd>All scenarios pass; <code>test-results.json</code> rolls up to Passed.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <p><strong>This spec pass (T0):</strong></p>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled> Measurement (a), harness (b), and method map (c) each fully specified.</li>
+        <li><input type="checkbox" disabled> Every proven method cited to a named technique AND an existing code anchor (file:line).</li>
+        <li><input type="checkbox" disabled> Honesty invariants stated: direction not causal number; confound always named; drops reported; thin data &rarr; "not enough data yet".</li>
+        <li><input type="checkbox" disabled> The month-simulation "survives" gate defined (S1–S7 + the four pass conditions).</li>
+        <li><input type="checkbox" disabled> Every open decision (D1–D7) carries a recommendation.</li>
+        <li><input type="checkbox" disabled> Zero code written; spec committed on <code>claude/proving-simulation-spec</code> as coreyw22.</li>
+      </ul>
+      <p><strong>Future execution (T1–T5), for reference:</strong></p>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled> <code>npx tsc --noEmit</code> — zero new errors.</li>
+        <li><input type="checkbox" disabled> <code>npm run check:conventions --strict</code> — no new §-violations.</li>
+        <li><input type="checkbox" disabled> Layer 1 vitest over S1–S7 passes; Layer 2 <code>test-results.json</code> rolls up to Passed.</li>
+        <li><input type="checkbox" disabled> No fabricated causal number reachable in any output path.</li>
+        <li><input type="checkbox" disabled> <strong>Uncertainty is count-based (binomial SE); abstain is MDE-gated — verified silent, never dishonest, at ~30 impressions/day (the adversary's real-scale case).</strong></li>
+        <li><input type="checkbox" disabled> <strong>BLOCKER (§20.5): thresholds calibrated against real dev-DB GSC series — NOT YET DONE. The customer surface stays dark (default-off) until this is checked.</strong></li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-07-18</h3>
+        <p><strong>Change:</strong> Executed the honesty core — <strong>T3</strong> (pure measurement util <code>src/controllers/patient-journey/feature-utils/attributionMath.ts</code>: DiD primary + ITS cross-check + four-rung verdict + sufficiency floors, no magnitude field) and <strong>T5 Layer&nbsp;1</strong> (the S1–S7 month-simulation vitest, <code>src/__tests__/attribution.month-simulation.test.ts</code>). Config added to <code>src/config/metricActions.ts</code> (<code>ATTRIBUTION_FLOORS</code>, <code>ATTRIBUTION_RUNG</code>). Built on the spec's recommended decisions: D2=C (DiD headline, ITS cross-check, conflict → no detectable change), D3 floors (14 pre / 7 post / 100 impressions / 2 unsettled), D4 transparent linear-fit estimator (no new dependency), D5 ordinal ladder only. All 10 tests pass; <code>tsc</code> clean; a fresh cross-model adversary pass on the math + fixtures is running. Build-and-hold on <code>claude/proving-simulation-spec</code>.</p>
+        <p><strong>Reason:</strong> Execution deviation: the spec was T0 (spec-only); this begins execution with the no-block slice — the pure math + the fake-month harness need neither the dev DB, a schema decision, nor Dave, and they are the DoD's "survives a fake-month simulation" line. The DB-wiring tasks (T1 treated-set capture + its D1/D6 schema decision, T2 GscDataModel read, T4 journey wiring, T5 Layer&nbsp;2) remain the next bite.</p>
+        <p><strong>Updated Done criteria:</strong> T3 done criteria met (Layer&nbsp;1 vitest over S1–S7 passes). T1/T2/T4/T5-Layer&nbsp;2 still open; the future-execution Done checklist stands.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 2 - 2026-07-18</h3>
+        <p><strong>Change:</strong> A fresh cross-model adversary <strong>broke the Rev&nbsp;1 math and the "conservative floors" plan</strong>, so the design is corrected before any commit (the Rev&nbsp;1 v1 math is superseded, never shipped). Executed proof at real scale (~30 impressions/day): a chance lucky run returned <code>trending_up</code> ≈ 1 action in 5 — a fabricated lift. Root cause (<code>attributionMath.ts:183-187</code>): the noise band was the <em>empirical daily-CTR std</em> pooled around one shared mean, which <em>shrinks</em> as data thins while true sampling noise <em>grows</em> — the band moved inverse to honest. Corrected design (supersedes D2/D4 emphasis, refines D1/D3):</p>
+        <ul>
+          <li><strong>Uncertainty from counts, not the observed series' variance</strong> — binomial standard error <code>√(p(1−p)/N)</code> on the pooled click/impression counts, so the band <em>self-widens</em> as volume thins. A wrong scale-guess can then only widen abstain — it fails silent, never dishonest.</li>
+          <li><strong>Abstain is endogenous (MDE-gated), not a floor</strong> — compute the minimum detectable effect from actual window volumes; if it exceeds a materiality cap, the rung is <code>not_enough_data</code> <em>before</em> any direction logic. Distinguish "we measured, nothing moved" (<code>no_detectable_change</code>, a real null with power) from "we were blind" (<code>not_enough_data</code>) — never report a fabricated measured-null.</li>
+          <li><strong>DiD demoted from "primary" to opportunistic-behind-a-hard-gate</strong> (minimum control impressions + coverage-stability + group-centered variance). Top-N JSONB control membership churns daily (selection bias, not missingness), so ITS/abstain is the honest default; DiD earns primacy only when real dev data shows the gate passes.</li>
+          <li><strong>Missing ≠ 0</strong> — a page dropping out of GSC top-N is an "unknown day" (reduces coverage → widens MDE → abstain), never a zero-CTR collapse (mirrors <code>funnelMath.ts</code>).</li>
+          <li><strong>Windows derived from actual coverage dates</strong> — the new-business cold-start is then automatic (no pre-coverage → <code>not_enough_data</code>, structural), not a forgettable special branch. Scale-free formulas, not constants re-tuned to "hundreds."</li>
+          <li><strong>Default-OFF / dark</strong> — the journey-card wiring stays behind a default-off flag; no verdict reaches a customer until calibrated against real dev-DB GSC series.</li>
+          <li><strong>Fixtures labeled <code>SYNTHETIC</code></strong> — passing proves verdict-logic shape, not honesty at production scale; add the adversary's real-scale + S8–S12 regression cases.</li>
+        </ul>
+        <p><strong>Reason:</strong> User QA + adversary (AGREE-WITH-CONDITIONS): "build now, calibrate later" is honest only if nothing speaks until later, and floor-based abstain fabricates at real scale. Grounding: from this machine the real data is unreachable (local <code>.env</code> = sandbox, 10 projects, no <code>gsc_data</code> table; dev SSH alias unresolved), so calibration must wait for dev access — which is exactly why the surface must stay dark.</p>
+        <p><strong>Updated Done criteria:</strong> adds a hard finalize blocker — "thresholds calibrated against real dev-DB GSC series" must be checked before <code>-d</code> (§20.5), and the customer surface stays dark until it is.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 3 - 2026-07-18</h3>
+        <p><strong>Change:</strong> Second fresh cross-model adversary on the count-based v2. Verdict: the skeleton is right and the four v1 breaks + the real-scale lucky streak are <strong>CONFIRMED-FIXED</strong> — but it found <strong>6 new confirmed holes</strong> (3 fabricate a direction, 2 hide/mislabel a real decline, 1 NaN). v2 is <strong>NOT committed</strong>. This is the turnkey fix-list for the next pass; re-adversary after, then it earns a commit:</p>
+        <ul>
+          <li><strong>F1 (fabricate, worst) — zero-variance at p=0/1.</strong> <code>ctrVariance</code> (<code>attributionMath.ts:97-101</code>) returns <code>p(1−p)/N = 0</code> when clicks=0, so a 0-click thin window reads as infinitely precise 0% CTR → band collapses → fabricated <code>trending_down</code> (0/45 clicks has ~25% chance under an unchanged 3% CTR). <strong>Fix:</strong> Agresti–Coull / Wilson variance — <code>p̃=(clicks+2)/(N+4)</code> — or a variance floor, so SE stays positive at 0 and 1 clicks.</li>
+          <li><strong>F3 (hide decline) — blind gate ordered before the observed effect.</strong> <code>verdictFromDifference</code> returns <code>not_enough_data</code> whenever <code>band &gt; material</code> WITHOUT looking at <code>diff</code>, so a decisive collapse (4.6 SE) is silenced as "can't see a move this small." <strong>Fix:</strong> test the direction FIRST (<code>|diff| &gt; band AND ≥ material → direction</code>); only if nothing clears, distinguish blind (band&gt;material → not_enough_data) from measured-null. Still abstains on the v1 lucky streak (diff ≪ band).</li>
+          <li><strong>F4 (hide decline) — a scrawny qualifying control floods the DiD SE.</strong> <code>MIN_CONTROL_IMPRESSIONS=300</code> is absolute, never compared to treated volume, and DiD never falls back to ITS when the control blinds it — so a ~310-impression control re-hides a 40% decline on a 140k-impression treated series. <strong>Fix:</strong> only USE a control when it ADDS power (control volume comparable to treated); otherwise ITS. Never let adding a control turn a clear ITS signal into "not enough."</li>
+          <li><strong>F5 (fabricate) — stationarity guard bypassable.</strong> (a) <code>MIN_PRE_DAYS=4 &lt; MIN_PRE_DAYS_FOR_STATIONARITY=6</code>, so a 4–5-day baseline is never trend-checked; (b) the two-halves test misses a symmetric V (both halves average equal). <strong>Fix:</strong> require pre-days ≥ the stationarity minimum to run ITS at all (else abstain); strengthen the trend check beyond two-halves.</li>
+          <li><strong>F2 (mislabel) — all-zero thin series claims "enough views."</strong> Same root as F1 (SE=0). The Agresti–Coull fix resolves it: SE&gt;0 → band&gt;material → not_enough_data, not a fabricated measured-null.</li>
+          <li><strong>F6 (fabricate via NaN) — no input validation.</strong> <code>clicks &gt; impressions</code> → <code>p&gt;1</code> → negative variance → <code>NaN</code> SE → all gate comparisons false → a direction slips through. <strong>Fix:</strong> validate <code>0 ≤ clicks ≤ impressions</code> per point; malformed → treat as unknown/abstain, never a verdict.</li>
+          <li><strong>F7 (fixtures) — the flagship lucky-streak fixture has NO streak</strong> (<code>round(30×0.0433)=1=round(30×0.0333)</code> — rounding erased it), and the suite can't detect the honesty band being narrowed 3× (BAND_Z÷3, materiality÷3 all pass). <strong>Fix:</strong> build fixtures from raw click/impression COUNTS at the actual abstain/direction boundary; add mutation-catching cases that fail if the band narrows.</li>
+        </ul>
+        <p><strong>Reason:</strong> User QA (verify-but-trust-the-plan) → adversary round 2. The plan (count-based/MDE) held; the implementation did not. Holding the commit is the discipline — "my tests pass" is not proof; the adversary is.</p>
+        <p><strong>Updated Done criteria:</strong> the T3/T5 Done items are NOT met until a re-adversary pass on the fixed math finds no fabricate/hide hole. v2 math stays uncommitted until then.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 4 - 2026-07-18</h3>
+        <p><strong>Change:</strong> Hardened the count-based measurement across <strong>7 independent cross-model refutation rounds</strong> and <strong>committed it dark</strong> (<code>a53d1a598</code>, <code>attributionMath.ts</code> + <code>metricActions.ts</code> + the 35-case harness). Round-by-round, each fix pinned by a regression test: R1 (4 fundamental) → R2 (approach validated, 6 impl bugs) → R3 (5, incl. the raw-diff/AC-SE thin-window fabrication) → R4 (<em>architecture ruled SOUND</em>; sign-gate hide + unsorted-input fabricate + wording) → R5 (rung-level honesty holds within contract; 3 false reason strings + duplicate-date vector) → R6 (one false DiD "moved slightly" string + point-date validation) → <strong>R7: SURVIVED</strong> — a fresh adversary, given the code without the conclusion and told to default-broken, walked all 12 return paths and could not make it fabricate a direction or hide a decline; every reason/confound string verified factually true. Final design: Agresti–Coull count-based band (self-widens as views thin → silent, never fabricates); treated-must-move before any attribution; control only adjusts a shared trend (flat control confirms, scrawny control ignored, never buries); baseline-stability checked first; missing/malformed/duplicate/impossible dates dropped-or-abstained; <code>BAND_Z=2.5</code> (~1% mid, ~3% 0-click-edge false positive); every verdict path's strings truthful (cushioned vs underperformed vs netted vs immaterial, per quadrant).</p>
+        <p><strong>Reason:</strong> User QA (don't-walk-past-issues + verify-but-trust-the-plan) → 7 adversary rounds. Honesty is the product, so the measurement had to survive independent refutation before it could be trusted at all — even dark.</p>
+        <p><strong>Updated Done criteria:</strong> T3 + T5-Layer1 DONE and committed (survived R7; 35 tests, tsc + <code>check:conventions</code> clean). STILL OPEN before any customer surface lights up: (a) <strong>real-data calibration</strong> of the thresholds against dev-DB GSC series — the hard gate, needs dev access (unreachable from this machine: local <code>.env</code> = sandbox, no <code>gsc_data</code>); (b) T2 per-page daily read + T4 journey wiring behind a default-off flag; (c) T5-Layer2 acceptance artifact. <strong>Known conservative residuals</strong> (fail-safe — they over-abstain or under-claim, never fabricate/hide, so they don't block the dark commit): gradual sub-threshold pre-trend evasion; no fleet-wide multiple-testing correction; the duplicate-date guard over-abstains when the dup is control-only or out-of-window (could degrade to ITS instead); a handful of threshold constants lack tight boundary fixtures. All to be settled in the calibration pass.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 5 - 2026-07-22</h3>
+        <p><strong>Change:</strong> Recovered the stranded branch onto current <code>dev/dave</code> (5 commits, clean replay, zero conflicts) and hardened it against a fresh adversary round (R8). Three fixes: <strong>(1)</strong> the engine measures <strong>CTR only</strong> — impressions are only the denominator — so it was renamed <code>attributionMath.ts</code> → <code>ctrAttributionMath.ts</code> and <code>measureAttribution</code> → <code>measureCtrAttribution</code>, with the wiring constraints stated in the file header. R8 demonstrated the failure it prevents: impressions ×3 with clicks +80% (CTR 5% → 3%) returns <code>trending_down</code> — a confident wrong-direction verdict blaming a get-found action that worked. <strong>(2)</strong> <code>CONFOUND_CONTROL_FLAT</code> asserted a control "did not move" when a smaller control can move by the same relative amount and remain inside its own wider noise band; now "did not move detectably", which is what the data supports. <strong>(3)</strong> <code>REASON_IMMATERIAL</code> had zero coverage — deleting the materiality bar from <code>treatedMoved</code> passed the entire suite. Added a fixture beyond the noise band but under the materiality bar (CTR 5.0% → 5.5% at 20k views/day); the mutation now fails 2 tests, verified by running it.</p>
+        <p><strong>Reason:</strong> Recovery + adversary round R8 on the rebased code. The CTR/impressions mismatch is the one that mattered: <code>metricActions.ts</code> declares an IMPRESSIONS stage/metric, so the config is broader than the engine and nothing structural stopped a caller wiring an impressions-targeted action into a CTR-only instrument.</p>
+        <p><strong>Updated Done criteria:</strong> unchanged gates, plus three <strong>wiring preconditions</strong> that now bind any future wiring task: <strong>(a)</strong> never point this engine at an impressions-targeted action (GBP completeness fill, primary-category change) — those need an impressions mode this file does not have; <strong>(b)</strong> never feed it org-wide GBP impressions to score a single-location change — the untreated locations dilute the treated series so a real local move shrinks toward zero and reads as "no detectable change" (the org-wide constraint from #183); treated and control must both be scoped to exactly what the action touched; <strong>(c)</strong> never pass "today" as <code>dataEndDate</code> when Search Console lag exceeds the trailing-day guard — fresh days under-report clicks and manufacture a false <code>trending_down</code>. <strong>Newly recorded residuals</strong> for the calibration pass, all fail-safe-or-flagged: a sub-band shared shift can leak past a control that is smaller than the treated set (systematic whenever <code>CONTROL_MIN_FRACTION_OF_TREATED</code> permits a 0.5× control); no absolute impressions floor, with a measured ~6.7% false-directional rate at 1-impression/day scale (vs ~1.1% at 10–200/day); and the control-gate and pre-day-floor constants still lack pinning fixtures.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>
