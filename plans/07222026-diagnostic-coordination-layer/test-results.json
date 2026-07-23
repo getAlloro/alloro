@@ -1,6 +1,6 @@
 {
   "plan": "plans/07222026-diagnostic-coordination-layer",
-  "generatedAt": "2026-07-22",
+  "generatedAt": "2026-07-23",
   "status": "In Progress",
   "items": [
     {
@@ -8,9 +8,7 @@
       "title": "Gait names the funnel's WORST step when it is diagnosable",
       "surface": "cli",
       "precondition": "Node 22; repo dependencies installed",
-      "steps": [
-        "1. npx vitest run src/__tests__/diagnostic-gait.test.ts -t 'names the worst step'"
-      ],
+      "steps": ["1. npx vitest run src/__tests__/diagnostic-gait.test.ts -t 'names the worst step'"],
       "expected": "On an 8000 -> 4000 -> 200 funnel the leak is 'leads', exactly one conversion carries isLeak, and basis is not 'abstained'.",
       "status": "pass",
       "evidence": "3 test files, 70 tests passed on Node 22.",
@@ -21,9 +19,7 @@
       "title": "Feature-vs-bug: click-through is not blamed when no top query reaches page one",
       "surface": "cli",
       "precondition": "as T1",
-      "steps": [
-        "1. npx vitest run src/__tests__/diagnostic-gait.test.ts -t 'first page'"
-      ],
+      "steps": ["1. npx vitest run src/__tests__/diagnostic-gait.test.ts -t 'first page'"],
       "expected": "The impressions->visits step is excluded with excludedBy 'expected-for-position' when top10QueryCount is 0, and the gait ABSTAINS rather than promoting the healthier step.",
       "status": "pass",
       "evidence": "Passed. Also covers the inverse: with top10QueryCount=5 and an average position of 14.7 the step stays diagnosable, which an average-position gate would have wrongly excluded.",
@@ -34,9 +30,7 @@
       "title": "Sample floor: a 12.5% rate on 8 visits is not diagnosed",
       "surface": "cli",
       "precondition": "as T1",
-      "steps": [
-        "1. npx vitest run src/__tests__/diagnostic-gait.test.ts -t 'too small'"
-      ],
+      "steps": ["1. npx vitest run src/__tests__/diagnostic-gait.test.ts -t 'too small'"],
       "expected": "Step excluded with 'insufficient-sample'; because it is the funnel's worst step, the gait abstains rather than naming the healthier survivor.",
       "status": "pass",
       "evidence": "Passed. The healthier 40% click-through step does not inherit the verdict.",
@@ -47,9 +41,7 @@
       "title": "Move 5: the gait abstains and reports the driving finding",
       "surface": "cli",
       "precondition": "as T1",
-      "steps": [
-        "1. npx vitest run src/__tests__/diagnostic-gait.test.ts -t 'abstains'"
-      ],
+      "steps": ["1. npx vitest run src/__tests__/diagnostic-gait.test.ts -t 'abstains'"],
       "expected": "leakStageKey null, basis 'abstained', abstainedBecause is the real finding ('expected-for-position') rather than plain 'no-data', and no conversion carries isLeak.",
       "status": "pass",
       "evidence": "Passed. abstainedBecause reports the exclusion that applied to the WORST step, not a ranked guess.",
@@ -74,9 +66,7 @@
       "title": "GSC position 0 is a no-data sentinel, not a first-place ranking",
       "surface": "cli",
       "precondition": "Node 22",
-      "steps": [
-        "1. npx vitest run src/__tests__/diagnostic-gait.test.ts -t 'position 0'"
-      ],
+      "steps": ["1. npx vitest run src/__tests__/diagnostic-gait.test.ts -t 'position 0'"],
       "expected": "With gsc {position:0, ctr:0}, the step is neither excluded as 'expected-for-position' nor given any corroboration string claiming first-page rank.",
       "status": "pass",
       "evidence": "Passed. summarizeGsc (stageReaders.ts:182-185) returns position 0 when organic impressions are 0, which a maps-only account hits while still carrying a large stage value.",
@@ -87,9 +77,7 @@
       "title": "Contract shape is unchanged — pre-existing suite passes unmodified",
       "surface": "cli",
       "precondition": "as T1",
-      "steps": [
-        "1. npx vitest run src/__tests__/patient-journey.service.test.ts"
-      ],
+      "steps": ["1. npx vitest run src/__tests__/patient-journey.service.test.ts"],
       "expected": "All pre-existing assertions pass with no edits to the test file, including the leak-selection and empty-state headline tests.",
       "status": "pass",
       "evidence": "Passed unmodified. The no-data headline string is byte-identical.",
@@ -100,10 +88,7 @@
       "title": "TypeScript build gate (backend + frontend)",
       "surface": "cli",
       "precondition": "Node 22",
-      "steps": [
-        "1. npx tsc --noEmit",
-        "2. cd frontend && npx tsc --noEmit"
-      ],
+      "steps": ["1. npx tsc --noEmit", "2. cd frontend && npx tsc --noEmit"],
       "expected": "Exit 0, no errors.",
       "status": "pass",
       "evidence": "Both exit 0, no output. The only frontend change is a corrected doc comment on the isLeak mirror.",
@@ -114,9 +99,7 @@
       "title": "Code Constitution structural check",
       "surface": "cli",
       "precondition": "Node 22",
-      "steps": [
-        "1. npm run check:conventions --strict"
-      ],
+      "steps": ["1. npm run check:conventions --strict"],
       "expected": "Zero clear structural violations for backend (size + console + db).",
       "status": "pass",
       "evidence": "CLEAR structural violations — backend: 0. Advisory Tier A and VOCAB-BYPASS items are pre-existing and touch none of the files changed here.",
@@ -151,6 +134,36 @@
       "status": "pending",
       "evidence": "",
       "notes": "Nobody has run this on production data. The abstention rate is UNKNOWN, not low. This item is a pass criterion, not an observation: 'it runs' does not close it."
+    },
+    {
+      "id": "T12",
+      "title": "Dashboard: a healthy-data account shows a diagnosed leak, and never blames a healthy step",
+      "surface": "ui",
+      "precondition": "PR merged and deployed to dev.getalloro.com; a real connected account with real funnel traffic (use the seeded Pilot flow into One Endodontics per AGENTS.md).",
+      "steps": [
+        "1. Log into https://dev.getalloro.com and open the client dashboard for One Endodontics (or admin-impersonate into it).",
+        "2. Open Patient Journey Insights and read the opportunity headline.",
+        "3. Note which step is flagged as the leak (the highlighted conversion / 'Your largest opportunity is moving people from X to Y') and read the surrounding step percentages.",
+        "4. Confirm the flagged step is the funnel's WORST measured step, not a higher-percentage downstream step."
+      ],
+      "expected": "The headline names one diagnosable step as the largest opportunity (e.g. 'Your largest opportunity is moving people from Website Visitors to Website Leads. Only N% moved through.') AND the flagged step is not a healthy/high-percentage step while a worse upstream step is ignored. If this account's worst step is undiagnosable, the headline abstains instead (see T13) — it must never name a healthy step.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "Cross-check the visible verdict against the '[patient-journey] assembled funnel' log line's diagnosisBasis + per-step eligible/excludedBy for the same request. Read-only review could not confirm this account's live funnel numbers."
+    },
+    {
+      "id": "T13",
+      "title": "Dashboard: a thin-traffic account abstains instead of asserting a leak",
+      "surface": "ui",
+      "precondition": "PR merged and deployed to dev.getalloro.com; a connected account with thin traffic or a maps-only / newly-connected account whose worst step falls below the sample floor or has no top query on page one. Candidate accounts to check: Garrison Orthodontics, Artful Orthodontics, Caswell Orthodontics, Woodbridge — pick one whose visits are low.",
+      "steps": [
+        "1. Log into https://dev.getalloro.com and open Patient Journey Insights for the thin-traffic account.",
+        "2. Read the opportunity headline and check whether any conversion step is flagged as the leak."
+      ],
+      "expected": "The headline shows one of the abstention strings — 'Too few people moved through your funnel last month to point to a single drop-off with any confidence.' (insufficient-sample), 'None of your top search terms are reaching the first page of Google yet, so the low click-through follows from where you rank rather than from your page titles.' (expected-for-position), or 'Connect more of your data...' (no-data) — and NO conversion step is highlighted as a confident leak. No invented 'Your largest opportunity is...' verdict on a handful of visitors.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "Confirm no step carries isLeak in the payload for this account. Read-only review could not confirm which live account currently has thin traffic; runner should pick one and record which."
     }
   ]
 }
