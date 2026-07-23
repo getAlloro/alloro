@@ -12,7 +12,7 @@
 import { VocabularyConfigModel } from "../models/VocabularyConfigModel";
 import logger from "../lib/logger";
 
-interface VocabularyPreset {
+export interface VocabularyPreset {
   vertical: string;
   patientTerm: string;
   referralTerm: string;
@@ -569,18 +569,59 @@ export async function autoConfigureVocabulary(
 ): Promise<VocabularyPreset> {
   const preset = detectPreset(gbpCategory, gbpTypes);
 
-  // Check if vocabulary already configured
+  // Check if vocabulary already configured (first-write-wins, idempotent)
   const existing = await VocabularyConfigModel.findByOrgId(orgId);
   if (existing) return preset;
 
-  // Insert vocabulary config
-  await VocabularyConfigModel.insertConfig({
-    org_id: orgId,
-    vertical: preset.vertical,
-    overrides: JSON.stringify(preset),
-  }).catch(() => {});
+  // Insert vocabulary config. A failed write must not break the caller's
+  // lifecycle event, but it must be visible — never a silent swallow (§3.2).
+  try {
+    await VocabularyConfigModel.insertConfig({
+      org_id: orgId,
+      vertical: preset.vertical,
+      overrides: JSON.stringify(preset),
+    });
+  } catch (error) {
+    logger.warn(
+      `[VocabMapper] Failed to persist vocabulary for org ${orgId}: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+    return preset;
+  }
 
   logger.info(`[VocabMapper] Auto-configured ${preset.vertical} vocabulary for org ${orgId} from GBP category "${gbpCategory}"`);
 
   return preset;
+}
+
+/**
+ * Read an organization's resolved vocabulary preset from the persisted config.
+ * Returns the stored VocabularyPreset, or null if none has been configured yet.
+ *
+ * This is the read side of autoConfigureVocabulary: the write path populates
+ * vocabulary_configs when GBP data lands; this serves that resolved preset back
+ * to callers (e.g. the onboarding/vocabulary read endpoint).
+ */
+export async function getResolvedVocabulary(
+  orgId: number,
+): Promise<VocabularyPreset | null> {
+  const existing = await VocabularyConfigModel.findByOrgId(orgId);
+  if (!existing) return null;
+
+  const { overrides } = existing;
+  try {
+    const preset =
+      typeof overrides === "string"
+        ? (JSON.parse(overrides) as VocabularyPreset)
+        : (overrides as VocabularyPreset);
+    return preset ?? null;
+  } catch (error) {
+    logger.warn(
+      `[VocabMapper] Failed to parse stored vocabulary overrides for org ${orgId}: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+    return null;
+  }
 }

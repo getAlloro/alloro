@@ -3,6 +3,7 @@ import { LocationModel } from "../../models/LocationModel";
 import { OrganizationModel } from "../../models/OrganizationModel";
 import { GooglePropertyModel } from "../../models/GooglePropertyModel";
 import { buildAuthHeaders } from "../gbp/gbp-services/gbp-api.service";
+import { autoConfigureVocabulary } from "../../services/vocabularyAutoMapper";
 import logger from "../../lib/logger";
 
 /**
@@ -42,7 +43,43 @@ export async function refreshLocationBusinessData(
     business_data: businessData,
   } as any);
 
+  // The GBP category just landed — this is the lifecycle point where the org's
+  // vocabulary can be resolved. Auto-configure it so Alloro speaks the owner's
+  // language. Idempotent (first-write-wins) and non-fatal.
+  await configureVocabularyFromBusinessData(organizationId, businessData);
+
   return businessData;
+}
+
+/**
+ * Derive the GBP category signal from freshly-mapped business_data and hand it
+ * to the vocabulary auto-mapper. The primary category drives detection; any
+ * additional categories are passed as extra signal. Non-fatal: a vocabulary
+ * failure must never break the business-data refresh, but it is logged (§3.2).
+ */
+async function configureVocabularyFromBusinessData(
+  organizationId: number,
+  businessData: Record<string, unknown>
+): Promise<void> {
+  const categories = Array.isArray(businessData.categories)
+    ? (businessData.categories as string[])
+    : [];
+  const [primaryCategory, ...additionalCategories] = categories;
+  if (!primaryCategory) return;
+
+  try {
+    await autoConfigureVocabulary(
+      organizationId,
+      primaryCategory,
+      additionalCategories
+    );
+  } catch (error) {
+    logger.warn(
+      `[BusinessData] Vocabulary auto-config skipped for org ${organizationId}: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+  }
 }
 
 /**
