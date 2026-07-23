@@ -10,7 +10,13 @@
 
 /** The client's Maps rank, and — only when it shares a universe — a denominator. */
 export interface RankDisplay {
-  /** True only when SerpApi actually placed the practice (status "ok" + a rank). */
+  /**
+   * True when the ranking run placed the practice with a confirmed status
+   * (searchStatus "ok" + a non-null position). Note: an "ok" position can come
+   * from the Places-text fallback, not only SerpApi Maps — the hero does not yet
+   * distinguish the source (a known follow-up), so `show` means "placed", not
+   * "placed by SerpApi Maps".
+   */
   show: boolean;
   position: number | null;
   /**
@@ -53,9 +59,11 @@ export function resolveRankDisplay(result: RankResultInput): RankDisplay {
     ? result.searchResults.length
     : null;
 
-  // Only pair when the count could actually contain this position. A universe
-  // smaller than the rank is corrupt data, not a denominator.
-  const outOf = universe !== null && universe >= position ? universe : null;
+  // Pair only when the count could contain this position AND there is more than
+  // one business in it. A universe smaller than the rank is corrupt data; a
+  // universe of exactly 1 gives "#1 of 1 nearby", where the "1 nearby" is the
+  // practice itself — absurd, so show the rank alone.
+  const outOf = universe !== null && universe > 1 && universe >= position ? universe : null;
 
   return { show: true, position, outOf };
 }

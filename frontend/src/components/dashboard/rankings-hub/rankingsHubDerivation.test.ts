@@ -52,6 +52,15 @@ describe("#2 resolveRankDisplay — position and denominator share a universe", 
     expect(d.outOf).toBeNull();
   });
 
+  it("shows the rank alone for a one-business universe — no absurd '#1 of 1'", () => {
+    const d = resolveRankDisplay(
+      okResult({ searchPosition: 1, searchResults: [{ isClient: true }] }),
+    );
+    expect(d.show).toBe(true);
+    expect(d.position).toBe(1);
+    expect(d.outOf).toBeNull();
+  });
+
   it("FALSIFIER: a null status prints no rank — never defaults to 'ok'", () => {
     // The old `searchStatus ?? "ok"` printed a confident rank on unconfirmed data.
     expect(resolveRankDisplay(okResult({ searchStatus: null })).show).toBe(false);
