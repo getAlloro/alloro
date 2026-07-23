@@ -1,8 +1,19 @@
-import { useMemo, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { ChevronRight, Star } from "lucide-react";
 import { useGbpPublishedLocalPosts } from "../../../hooks/queries/useGbpAutomationQueries";
 import { useDashboardMetrics } from "../../../hooks/queries/useDashboardMetrics";
+import { useRankingHistory } from "../../../hooks/queries/useRankingHistory";
+import { PeriodToggle } from "../PeriodToggle";
+import {
+  PERIOD_LABELS,
+  PERIOD_TOGGLE_ENABLED,
+  RANKING_PERIODS,
+  hasDatableMovement,
+  rankDeltaForPeriod,
+  type RankDelta,
+  type RankingPeriod,
+} from "./rankingPeriod";
 import {
   buildCompetitorComparisonRows,
   getComparisonInsight,
@@ -30,9 +41,12 @@ import {
  * strip, three vitals, and one action. The Visibility Score and Practice
  * Health score are dropped entirely.
  *
- * The dormant MONTH/QTR/YTD toggle was removed (feedback #5) — it rendered
- * permanently greyed (PERIOD_TOGGLE_ENABLED=false) with no wired state.
- * rankingPeriod.ts is kept as the future enable point.
+ * The MONTH/QTR/YTD toggle was removed in feedback #5 while it was still
+ * dark (PERIOD_TOGGLE_ENABLED=false, no wired state). It is now LIVE: wired to
+ * `useRankingHistory` and rendered only when the org actually has a history
+ * series, so an org with no history sees no dead toggle. Movement is dated from
+ * the real earliest point (`rankDeltaForPeriod`), and a range without two
+ * datable points reads "not enough history yet" — never a fabricated trend.
  *
  * Spec: plans/06102026-local-rankings-simplification/spec.html (T3);
  * clarity pass: plans/06132026-local-rankings-clarity (T1, T4, T5).
@@ -45,6 +59,47 @@ function daysSince(value: string | null | undefined): number | null {
   const ts = new Date(value).getTime();
   if (!Number.isFinite(ts)) return null;
   return Math.max(0, Math.floor((Date.now() - ts) / 86_400_000));
+}
+
+/** Short, human date for the "since …" movement label; "" when unparseable. */
+function formatSince(iso: string | null): string {
+  if (!iso) return "";
+  const ts = new Date(iso).getTime();
+  if (!Number.isFinite(ts)) return "";
+  return new Date(ts).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
+}
+
+/**
+ * Render the rank-over-time movement line for the selected period. Honest by
+ * construction: without two datable points it reads "not enough history yet",
+ * and any movement is dated from the real earliest point — never fabricated.
+ */
+function renderPeriodMovement(delta: RankDelta): ReactNode {
+  if (!hasDatableMovement(delta)) {
+    return <span className="text-ink-muted">Not enough ranking history yet</span>;
+  }
+  const improvement = delta.improvement as number;
+  const magnitude = Math.abs(improvement);
+  const spots = magnitude === 1 ? "spot" : "spots";
+  const since = formatSince(delta.startObservedAt);
+  if (improvement > 0) {
+    return (
+      <span style={{ color: TONE_COLOR.positive }}>
+        Up {magnitude} {spots} since {since}
+      </span>
+    );
+  }
+  if (improvement < 0) {
+    return (
+      <span className="text-alloro-navy/70">
+        Down {magnitude} {spots} since {since}
+      </span>
+    );
+  }
+  return <span className="text-ink-muted">No change since {since}</span>;
 }
 
 export function RankingsHubSurface({
@@ -103,6 +158,27 @@ export function RankingsHubSurface({
   const postOverdue = postAgeDays === null || postAgeDays > POST_OVERDUE_DAYS;
 
   const topAction = result.llmAnalysis?.top_recommendations?.[0] ?? null;
+
+  // Rank-over-time: the period toggle reads the completed-ranking history series
+  // (live-in-prod, populated by the scheduled ranking runs). We request the
+  // widest window the backend serves (6 months) and slice each period from it
+  // client-side. The toggle only appears when a series actually exists — an org
+  // with no history sees no dead toggle. YTD in the back half of the year can
+  // exceed the 6-month window; the movement is therefore dated from the real
+  // earliest point (never implied back to Jan 1).
+  const [rankPeriod, setRankPeriod] = useState<RankingPeriod>("MONTH");
+  const { data: rankingHistory } = useRankingHistory(
+    organizationId,
+    locationId,
+    "6m",
+  );
+  const showPeriodToggle =
+    PERIOD_TOGGLE_ENABLED && (rankingHistory?.length ?? 0) > 0;
+  const periodDelta = useMemo(
+    () => rankDeltaForPeriod(rankingHistory ?? [], rankPeriod),
+    [rankingHistory, rankPeriod],
+  );
+  const movementNode = renderPeriodMovement(periodDelta);
 
   const comparisonInsight = useMemo(() => {
     const rows = buildCompetitorComparisonRows(result);
@@ -181,6 +257,21 @@ export function RankingsHubSurface({
                 </span>
                 .
               </p>
+            </div>
+          )}
+
+          {showPeriodToggle && (
+            <div className="mt-5 flex flex-col gap-2">
+              <PeriodToggle
+                options={RANKING_PERIODS.map((p) => ({
+                  key: p,
+                  label: PERIOD_LABELS[p],
+                }))}
+                active={rankPeriod}
+                onChange={setRankPeriod}
+                ariaLabel="Ranking period"
+              />
+              <div className="text-[12px] font-semibold">{movementNode}</div>
             </div>
           )}
         </div>
