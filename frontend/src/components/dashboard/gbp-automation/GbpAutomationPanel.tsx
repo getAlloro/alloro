@@ -11,6 +11,7 @@ import {
   GbpClientAutomationHeader,
   type ClientGbpView,
 } from "./GbpClientAutomationHeader";
+import { GbpCategoryProposalPanel } from "./GbpCategoryProposalPanel";
 import { GbpClientDraftsPanel } from "./GbpClientDraftsPanel";
 import { GbpClientReviewsPanel } from "./GbpClientReviewsPanel";
 import { GbpEngagementTrendCard } from "./GbpEngagementTrendCard";
@@ -486,7 +487,11 @@ export function GbpAutomationPanel({
           isGeneratingPostDraft={actions.generatePostDraftNow.isPending}
         />
       ) : (
-        <div className="mt-4">
+        <div className="mt-4 space-y-4">
+          <GbpCategoryProposalPanel
+            organizationId={organizationId}
+            locationId={locationId}
+          />
           <GbpSettingsSection
             settingsDraft={settingsDraft}
             readiness={readiness}

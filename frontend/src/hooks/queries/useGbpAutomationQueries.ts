@@ -1,13 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  approveGbpCategoryDraft,
   approveGbpReply,
   createGbpPostDraftFromReview,
   deleteGbpPublishedReply,
   deleteGbpPublishedLocalPost,
   deployGbpReply,
+  dismissGbpCategoryDraft,
   generateGbpPostDraftNow,
   generateGbpReplyDraft,
   getGbpAutomation,
+  proposeGbpCategory,
   getGbpDeployPreview,
   getGbpPublishedLocalPosts,
   regenerateGbpPostDraft,
@@ -74,6 +77,42 @@ export function useGbpPublishedLocalPosts(
     enabled: Boolean(enabled && organizationId && locationId),
     placeholderData: (previousData) => previousData,
   });
+}
+
+/**
+ * GF2 — primary-category proposal actions, kept as their own hook so the
+ * category panel owns a focused surface (§13.3) instead of pulling the whole
+ * automation-actions object. `propose` stages an owner-approval draft; `approve`
+ * records the owner's decision (publishing stays A6-gated server-side); `dismiss`
+ * declines it. Each invalidates the automation query so any staged draft the
+ * response carries stays in sync.
+ */
+export function useGbpCategoryProposalActions(
+  organizationId: number | null,
+  locationId?: number | null
+) {
+  const queryClient = useQueryClient();
+  const invalidate = () =>
+    queryClient.invalidateQueries({
+      queryKey: QUERY_KEYS.gbpAutomationAll(organizationId),
+    });
+
+  return {
+    propose: useMutation({
+      mutationFn: () => proposeGbpCategory(locationId!),
+      onSuccess: invalidate,
+    }),
+    approve: useMutation({
+      mutationFn: (workItemId: string) =>
+        approveGbpCategoryDraft(workItemId, locationId!),
+      onSuccess: invalidate,
+    }),
+    dismiss: useMutation({
+      mutationFn: (workItemId: string) =>
+        dismissGbpCategoryDraft(workItemId, locationId!),
+      onSuccess: invalidate,
+    }),
+  };
 }
 
 export function useGbpAutomationActions(
