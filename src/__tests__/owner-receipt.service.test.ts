@@ -40,6 +40,7 @@ vi.mock("../lib/logger", () => ({
 }));
 
 import { OwnerReceiptService } from "../controllers/owner-receipt/feature-services/OwnerReceiptService";
+import logger from "../lib/logger";
 
 const PRE = { start: "2026-05-01", end: "2026-05-31" };
 const POST = { start: "2026-06-01", end: "2026-06-30" };
@@ -194,5 +195,40 @@ describe("OwnerReceiptService.getReceipt", () => {
     expect(receipt.diagnosis.primaryDriver).toBeNull();
     // But the real, measured leads change is still reported.
     expect(receipt.diagnosis.leadsChange).toBe(6);
+  });
+
+  it("(d) a failed dated-actions read degrades honestly — no throw, empty actions, trend + diagnosis intact", async () => {
+    // The actions read throws; every other seam is healthy (the Artful pattern).
+    getReceipt.mockRejectedValue(new Error("dated-actions read failed"));
+    const lift: ImpressionsLiftResult = {
+      organizationId: 8,
+      projectId: "proj-8",
+      source: "gsc_organic",
+      pre: covered(PRE, 3418, 31),
+      post: covered(POST, 2856, 30),
+      delta: -562,
+      pctChange: -562 / 3418,
+      sufficient: true,
+      reason: null,
+      history: { earliest: "2026-05-01", latest: "2026-06-30" },
+    };
+    readImpressionsLift.mockResolvedValue(lift);
+    readVisits
+      .mockResolvedValueOnce(stageRead(461))
+      .mockResolvedValueOnce(stageRead(428));
+    countVerifiedBetween.mockResolvedValueOnce(6).mockResolvedValueOnce(12);
+    countVerifiedAllTime.mockResolvedValue(40);
+
+    // Never throws (§3.1): the whole receipt still resolves.
+    const receipt = await OwnerReceiptService.getReceipt(INPUT);
+
+    // Actions degrade to an empty list — nothing fabricated, over the real window.
+    expect(receipt.actions.items).toEqual([]);
+    expect(receipt.actions.summary.total).toBe(0);
+    // The honest trend + diagnosis survive the dark actions read.
+    expect(receipt.impressionsTrend.delta).toBe(-562);
+    expect(receipt.diagnosis.primaryDriver).toBe("CRO");
+    // The failure was logged, not swallowed (§3.2).
+    expect(logger.warn).toHaveBeenCalled();
   });
 });

@@ -22,6 +22,7 @@
  */
 
 import { ProofReceiptService } from "../../proof-receipt/feature-services/ProofReceiptService";
+import type { ProofReceipt } from "../../proof-receipt/ProofReceiptTypes";
 import { FormSubmissionModel } from "../../../models/website-builder/FormSubmissionModel";
 import {
   readImpressionsLift,
@@ -51,6 +52,28 @@ function dayStartUtc(day: string): Date {
 /** UTC midnight of the day AFTER `day` — the exclusive upper bound of `[.. , )`. */
 function dayEndExclusiveUtc(day: string): Date {
   return new Date(dayStartUtc(day).getTime() + 86_400_000);
+}
+
+/**
+ * An honest empty actions receipt for when the dated-actions read fails. It
+ * fabricates NO action — an empty list over the real receipt window — so a dark
+ * actions read degrades (§3.1) instead of sinking the whole receipt. Paired with
+ * a logged warning at the call site (§3.2): the failure is recorded, not swallowed.
+ */
+function emptyActionsReceipt(
+  input: GetOwnerReceiptInput,
+  preWindow: DateWindow,
+  postWindow: DateWindow
+): ProofReceipt {
+  return {
+    organizationId: input.organizationId,
+    ...(input.locationId !== undefined ? { locationId: input.locationId } : {}),
+    since: dayStartUtc(preWindow.start),
+    until: dayEndExclusiveUtc(postWindow.end),
+    items: [],
+    summary: { reviewReplies: 0, localPosts: 0, total: 0 },
+    pagination: { page: input.page, limit: input.limit, total: 0, totalPages: 1 },
+  };
 }
 
 /**
@@ -156,15 +179,27 @@ export class OwnerReceiptService {
 
     // Dated actions span the whole receipt window [pre.start, post.end]. This
     // read is org-scoped (not project-scoped), so it stands even with no project.
-    const actions = await ProofReceiptService.getReceipt({
-      organizationId: input.organizationId,
-      accessibleLocationIds: input.accessibleLocationIds,
-      locationId: input.locationId,
-      since: dayStartUtc(preWindow.start),
-      until: dayEndExclusiveUtc(postWindow.end),
-      page: input.page,
-      limit: input.limit,
-    });
+    // Best-effort (§3.1/§3.2): a failed actions read degrades to an empty list —
+    // logged, never swallowed — so one dark read can't sink the honest trend +
+    // diagnosis. The docstring's "never throws" promise depends on this guard.
+    let actions: ProofReceipt;
+    try {
+      actions = await ProofReceiptService.getReceipt({
+        organizationId: input.organizationId,
+        accessibleLocationIds: input.accessibleLocationIds,
+        locationId: input.locationId,
+        since: dayStartUtc(preWindow.start),
+        until: dayEndExclusiveUtc(postWindow.end),
+        page: input.page,
+        limit: input.limit,
+      });
+    } catch (err) {
+      logger.warn(
+        { err, organizationId: input.organizationId },
+        "[owner-receipt] dated-actions read failed; degrading actions to empty"
+      );
+      actions = emptyActionsReceipt(input, preWindow, postWindow);
+    }
 
     // Honest before -> after impressions (organic, coverage-guarded). Reused —
     // never re-derived. This alone gives both windows' organic impression sums.
