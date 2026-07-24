@@ -10,6 +10,7 @@
  *   <PracticeHubHeader />     (PRACTICE HUB · YEAR TO DATE + greeting)
  *   <ProductionPanel />       (one YTD production chart)
  *   <OneThingBanner />        (the single top action — useTopAction)
+ *   <ProofReceiptFeed />      (dated "what Alloro did for you" history — useProofReceipt)
  *   <ChoosableComparisonStrip /> (newest grounded Summary comparison)
  *   <StatCardRow />           (Referrals · Local rank · Reviews · Form subs)
  *
@@ -38,6 +39,7 @@ import { DashboardAlertStack } from "./alerts/DashboardAlertStack";
 import { showErrorToast, showSparkleToast } from "../../lib/toast";
 import { ProductionPanel } from "./focus/ProductionPanel";
 import { OneThingBanner } from "./focus/OneThingBanner";
+import { ProofReceiptFeed } from "./focus/ProofReceiptFeed";
 import { ChoosableComparisonStrip } from "./focus/ChoosableComparisonStrip";
 import { PatientJourneyCard } from "./focus/PatientJourneyCard";
 import { StatCardRow } from "./focus/StatCardRow";
@@ -156,6 +158,7 @@ export function DashboardOverview(props: DashboardOverviewProps) {
 
       <ProductionPanel />
       <OneThingBanner />
+      <ProofReceiptFeed />
       <ChoosableComparisonStrip />
       <PatientJourneyCard />
       <StatCardRow />
