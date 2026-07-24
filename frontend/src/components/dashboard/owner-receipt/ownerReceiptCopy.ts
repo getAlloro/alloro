@@ -22,6 +22,58 @@ import type {
 /** The words shown wherever a number is genuinely absent. Never "0", never "—". */
 export const NOT_MEASURED = "not measured";
 
+/*
+ * ── Static card copy, in the owner's voice ────────────────────────────────
+ *
+ * These live here (not inline in the card) for the same reason the helpers do:
+ * so the voice + honesty rules are testable apart from React. The owner is the
+ * hero; Alloro is the quiet guide (StoryBrand). The voice is honest-but-
+ * intentional — it names a worry before the owner voices it (accusation audit),
+ * names a feeling plainly to take its charge off (affect labeling), and never
+ * hands the owner homework: an empty or not-ready state closes with "Nothing
+ * for you to do," never "take a look" or "check on it". No line claims Alloro
+ * caused anything (Value #6) — the dated actions beside the dated numbers are
+ * the only witness.
+ */
+
+/** Card eyebrow. */
+export const RECEIPT_EYEBROW = "Your receipt";
+
+/** Headline — the guide, plain, not a brag. */
+export const RECEIPT_HEADLINE =
+  "Here's what we did, and here's where your numbers went.";
+
+/**
+ * Accusation-audit subline — names the owner's likely worry first, in their own
+ * words, so the numbers that follow read as an honest answer, not a sales pitch.
+ */
+export const RECEIPT_SUBLINE =
+  "You might wonder if any of this is really working. Here's the honest answer. These are the days we worked, right next to your numbers.";
+
+/** Section heading over the impressions before -> after. */
+export const TREND_HEADING = "Search impressions";
+
+/** Section heading over the dated action list. */
+export const ACTIONS_HEADING = "What we did";
+
+/**
+ * Empty action list. Affect-labeled, no homework, closes reassuring: the owner
+ * has nothing to chase — when the work happens, it appears here on its own.
+ */
+export const ACTIONS_EMPTY =
+  "Nothing is logged for these dates yet. When we do the work, it lands right here. Nothing for you to do.";
+
+/** Not-ready card title. */
+export const NOT_READY_TITLE = "Your receipt isn't ready yet.";
+
+/**
+ * Not-ready card body. Accusation audit ("you might worry…") + affect labeling +
+ * the handled reassurance. It never asks the owner to look, wait-and-check, or
+ * do anything.
+ */
+export const NOT_READY_BODY =
+  "You might worry that means something is wrong. It doesn't. We're still gathering your numbers, and the moment they're in we'll show what we did and how they moved. Nothing for you to do.";
+
 /** Group a real number ("27,151"); an absent value becomes the honest words. */
 export function formatMetricValue(value: number | null): string {
   if (value === null) return NOT_MEASURED;
@@ -117,7 +169,7 @@ export function buildImpressionsTrendView(
       hasDelta: false,
       reason:
         trend.reason ??
-        "We don't have enough stored history yet to show a before-and-after.",
+        "We don't have enough saved history yet to show a fair before-and-after. That's normal this early. Nothing for you to do.",
     };
   }
   const change =
@@ -156,23 +208,23 @@ export function diagnosisSentence(diagnosis: FunnelMovementDiagnosis): string {
   ) {
     return (
       diagnosis.reason ??
-      "We can't yet say which part of your funnel moved your leads."
+      "We can't yet say which part of your funnel moved the people who reached out."
     );
   }
   const rose = change > 0;
   switch (diagnosis.primaryDriver) {
     case "impressions":
       return rose
-        ? "More people reached out, and it's because more people saw you."
-        : "Fewer people reached out, and it's because fewer people saw you.";
+        ? "More people reached out. What moved is the top of the funnel — more people saw you than before."
+        : "Fewer people reached out. What moved is the top of the funnel — fewer people saw you than before.";
     case "CTR":
       return rose
-        ? "More people reached out — more of the people who saw you clicked through to your site."
-        : "Fewer people reached out — fewer of the people who saw you clicked through to your site.";
+        ? "More people reached out. More of the people who saw you clicked through to your site than before."
+        : "Fewer people reached out. Fewer of the people who saw you clicked through to your site than before.";
     case "CRO":
       return rose
-        ? "More people reached out after they landed on your site — not more traffic."
-        : "Fewer people reached out after they landed on your site — traffic wasn't the cause.";
+        ? "More people reached out once they were on your site — the same visits did more this time."
+        : "Fewer people reached out once they were on your site. The visits held; fewer of them turned into someone reaching out.";
   }
 }
 

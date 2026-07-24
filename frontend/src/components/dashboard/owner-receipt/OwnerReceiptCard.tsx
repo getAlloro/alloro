@@ -8,6 +8,8 @@ import type {
 } from "../../../api/ownerReceipt";
 import {
   actionLabel,
+  ACTIONS_EMPTY,
+  ACTIONS_HEADING,
   actionsTruncationNote,
   buildImpressionsTrendView,
   diagnosisSentence,
@@ -15,7 +17,13 @@ import {
   formatMetricValue,
   gateLabel,
   metricSourceNote,
+  NOT_READY_BODY,
+  NOT_READY_TITLE,
+  RECEIPT_EYEBROW,
+  RECEIPT_HEADLINE,
+  RECEIPT_SUBLINE,
   receiptErrorCopy,
+  TREND_HEADING,
 } from "./ownerReceiptCopy";
 
 /**
@@ -54,7 +62,7 @@ function Eyebrow() {
   return (
     <span className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-ink-muted">
       <span className="inline-block h-1.5 w-1.5 rounded-full bg-alloro-navy" />
-      Your receipt
+      {RECEIPT_EYEBROW}
     </span>
   );
 }
@@ -76,7 +84,7 @@ function TrendBlock({ receipt }: { receipt: OwnerReceipt }) {
   return (
     <div className="mt-4 border-t border-line-soft pt-4">
       <span className="block text-[10px] font-bold uppercase tracking-[0.08em] text-ink-muted">
-        Search impressions
+        {TREND_HEADING}
       </span>
       {view.hasDelta ? (
         <div className="mt-2 flex flex-wrap items-end gap-x-6 gap-y-2">
@@ -153,16 +161,14 @@ function ActionsBlock({ receipt }: { receipt: OwnerReceipt }) {
     <div className="mt-4 border-t border-line-soft pt-4">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <span className="block text-[10px] font-bold uppercase tracking-[0.08em] text-ink-muted">
-          What Alloro did
+          {ACTIONS_HEADING}
         </span>
         <span className="text-[11px] text-ink-muted tabular-nums">
           {formatDay(since)} – {formatDay(until)}
         </span>
       </div>
       {items.length === 0 ? (
-        <p className="mt-1.5 text-[13px] text-ink-muted">
-          No actions are logged for these dates yet.
-        </p>
+        <p className="mt-1.5 text-[13px] text-ink-muted">{ACTIONS_EMPTY}</p>
       ) : (
         <>
           <ul className="mt-2 flex flex-col gap-1.5">
@@ -239,12 +245,9 @@ export function OwnerReceiptCard({
       <Shell>
         <Eyebrow />
         <h3 className="mt-3 font-display text-lg leading-snug text-alloro-navy">
-          Your receipt isn't ready yet.
+          {NOT_READY_TITLE}
         </h3>
-        <p className="mt-1 text-[13px] text-ink-muted">
-          We'll show what we did and how your numbers moved as soon as the data
-          is in. Nothing for you to do.
-        </p>
+        <p className="mt-1 text-[13px] text-ink-muted">{NOT_READY_BODY}</p>
       </Shell>
     );
   }
@@ -259,8 +262,11 @@ export function OwnerReceiptCard({
       </div>
 
       <h3 className="mt-3 font-display text-lg leading-snug text-alloro-navy">
-        Here's what changed, and here's your number.
+        {RECEIPT_HEADLINE}
       </h3>
+      <p className="mt-1.5 text-[13px] leading-snug text-ink-muted">
+        {RECEIPT_SUBLINE}
+      </p>
 
       <TrendBlock receipt={receipt} />
       <DiagnosisBlock receipt={receipt} />

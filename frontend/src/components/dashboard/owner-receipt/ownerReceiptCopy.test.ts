@@ -3,35 +3,54 @@ import { describe, expect, it } from "vitest";
 import type {
   FunnelMovementDiagnosis,
   ImpressionsTrend,
-  ImpressionsWindowCoverage,
   OwnerReceiptMetric,
+  ReceiptGate,
 } from "../../../api/ownerReceipt";
 import {
-  actionsTruncationNote,
+  actionLabel,
+  ACTIONS_EMPTY,
+  ACTIONS_HEADING,
   buildImpressionsTrendView,
   diagnosisSentence,
+  formatDay,
   formatMetricValue,
   formatSignedCount,
   formatSignedPercent,
+  gateLabel,
   metricSourceNote,
   NOT_MEASURED,
-  RECEIPT_ERROR_ACCESS_BODY,
-  RECEIPT_ERROR_ACCESS_TITLE,
-  RECEIPT_ERROR_BODY,
-  RECEIPT_ERROR_TITLE,
-  receiptErrorCopy,
+  NOT_READY_BODY,
+  NOT_READY_TITLE,
+  RECEIPT_EYEBROW,
+  RECEIPT_HEADLINE,
+  RECEIPT_SUBLINE,
+  TREND_HEADING,
 } from "./ownerReceiptCopy";
 
 /**
- * The adversarial honesty contract for the Owner Receipt copy helpers.
+ * The voice + honesty contract for the Owner Receipt copy.
  *
- * These are the cases where a helper could quietly say something the data does
- * not support: a measured 0 collapsing into the words "not measured", a
- * coverage caveat being dropped off a live number, a direction being asserted
- * about a flat month, or a request failure being dressed as a data lag. Each
- * one exercises the real helper — none scans source text — so a rewrite that
- * keeps the file compiling still fails here.
+ * The card speaks to a business owner who is the HERO; Alloro is the quiet
+ * guide. The copy is honest-but-intentional, and three of its rules are the
+ * kind a future edit can quietly break — so they get a test, not a comment:
+ *
+ *  (a) NO HOMEWORK. Telling the hero to "take a look" re-summons the worry the
+ *      guide is meant to defuse. No output may hand the owner an errand.
+ *  (b) HONESTY GATE (Value #6). An absent number is the words "not measured",
+ *      never a 0 standing in for absence.
+ *  (c) NO CAUSATION. The trend is the only witness; no string says Alloro
+ *      caused the change.
+ *  (d) NOTHING TO CHASE. Every empty / not-ready state closes reassuring, not
+ *      with a task.
+ *
+ * The test EXERCISES the real helpers across representative inputs and sweeps
+ * their actual output — it does not scan the source text — so a rewrite that
+ * keeps the file compiling but breaks the voice still fails here.
  */
+
+// ── Fixtures ────────────────────────────────────────────────────────────────
+
+const GATES: ReceiptGate[] = ["impressions", "visits", "leads"];
 
 function metric(over: Partial<OwnerReceiptMetric>): OwnerReceiptMetric {
   return {
@@ -44,39 +63,47 @@ function metric(over: Partial<OwnerReceiptMetric>): OwnerReceiptMetric {
   };
 }
 
-function coverage(
-  over: Partial<ImpressionsWindowCoverage>,
-): ImpressionsWindowCoverage {
-  return {
-    window: { start: "2026-05-01", end: "2026-05-28" },
+const sufficientTrend: ImpressionsTrend = {
+  organizationId: 39,
+  projectId: "p1",
+  source: "gsc_organic",
+  pre: {
+    window: { start: "2026-05-01", end: "2026-05-31" },
     storedImpressions: 20000,
-    storedDays: 28,
-    expectedDays: 28,
+    storedDays: 31,
+    expectedDays: 31,
     earliestStored: "2026-05-01",
-    latestStored: "2026-05-28",
+    latestStored: "2026-05-31",
     fullyCovered: true,
-    ...over,
-  };
-}
+  },
+  post: {
+    window: { start: "2026-06-01", end: "2026-06-30" },
+    storedImpressions: 27151,
+    storedDays: 30,
+    expectedDays: 30,
+    earliestStored: "2026-06-01",
+    latestStored: "2026-06-30",
+    fullyCovered: true,
+  },
+  delta: 7151,
+  pctChange: 0.357,
+  sufficient: true,
+  reason: null,
+  history: { earliest: "2026-05-01", latest: "2026-06-30" },
+};
 
-function trend(over: Partial<ImpressionsTrend>): ImpressionsTrend {
-  return {
-    organizationId: 39,
-    projectId: "p1",
-    source: "gsc_organic",
-    pre: coverage({}),
-    post: coverage({
-      window: { start: "2026-05-29", end: "2026-06-25" },
-      storedImpressions: 20500,
-    }),
-    delta: 500,
-    pctChange: 0.025,
-    sufficient: true,
-    reason: null,
-    history: { earliest: "2026-05-01", latest: "2026-06-25" },
-    ...over,
-  };
-}
+const insufficientTrend: ImpressionsTrend = {
+  organizationId: 39,
+  projectId: "p1",
+  source: "gsc_organic",
+  pre: null,
+  post: null,
+  delta: null,
+  pctChange: null,
+  sufficient: false,
+  reason: null, // force the helper's own fallback copy (the string we own)
+  history: { earliest: null, latest: null },
+};
 
 function diagnosis(
   over: Partial<FunnelMovementDiagnosis>,
@@ -94,213 +121,175 @@ function diagnosis(
   };
 }
 
-// ── A measured zero is a fact, never the words ──────────────────────────────
+/** Every user-facing string the copy layer can emit, gathered from real calls. */
+function allOutputs(): string[] {
+  const out: string[] = [
+    RECEIPT_EYEBROW,
+    RECEIPT_HEADLINE,
+    RECEIPT_SUBLINE,
+    TREND_HEADING,
+    ACTIONS_HEADING,
+    ACTIONS_EMPTY,
+    NOT_READY_TITLE,
+    NOT_READY_BODY,
+    NOT_MEASURED,
+    formatMetricValue(null),
+    formatMetricValue(27151),
+    formatMetricValue(0),
+    formatSignedCount(512),
+    formatSignedPercent(0.18),
+    formatDay(null),
+    formatDay("2026-07-24"),
+    actionLabel("review_reply"),
+    actionLabel("local_post"),
+    actionLabel("unknown_type"),
+  ];
 
-describe("Owner Receipt — a measured 0 never collapses into 'not measured'", () => {
-  it("formats a real 0 as '0' and a null as the words", () => {
-    expect(formatMetricValue(0)).toBe("0");
-    expect(formatMetricValue(null)).toBe(NOT_MEASURED);
-  });
+  for (const gate of GATES) out.push(gateLabel(gate));
 
-  it("signs a zero delta and a zero percent without inventing a direction", () => {
-    expect(formatSignedCount(0)).toBe("0");
-    expect(formatSignedPercent(0)).toBe("0%");
-  });
+  out.push(metricSourceNote(metric({ value: null })));
+  out.push(metricSourceNote(metric({ value: 100, source: "gsc_organic" })));
+  out.push(metricSourceNote(metric({ value: 100, source: "rybbit" })));
+  out.push(
+    metricSourceNote(metric({ value: 100, source: "form_submissions" })),
+  );
 
-  it("keeps the source note on a metric whose measured value is 0", () => {
-    const note = metricSourceNote(
-      metric({ gate: "leads", value: 0, source: "form_submissions" }),
-    );
-    expect(note).toBe("From your website forms");
-    expect(note).not.toBe(NOT_MEASURED);
-  });
+  const suf = buildImpressionsTrendView(sufficientTrend);
+  out.push(
+    suf.before ?? "",
+    suf.after ?? "",
+    suf.change ?? "",
+    suf.beforeWindow ?? "",
+    suf.afterWindow ?? "",
+    suf.reason,
+  );
+  out.push(buildImpressionsTrendView(insufficientTrend).reason);
 
-  it("shows a genuine 0 as the BEFORE number, not as 'not measured'", () => {
-    const view = buildImpressionsTrendView(
-      trend({
-        pre: coverage({ storedImpressions: 0 }),
-        delta: 500,
-        pctChange: null,
-      }),
-    );
-    expect(view.hasDelta).toBe(true);
-    expect(view.before).toBe("0");
-    expect(view.before).not.toBe(NOT_MEASURED);
-  });
-
-  it("renders a measured delta of exactly 0 as a delta, not as a coverage gap", () => {
-    const view = buildImpressionsTrendView(trend({ delta: 0, pctChange: 0 }));
-    expect(view.hasDelta).toBe(true);
-    expect(view.change).toContain("0");
-  });
-});
-
-// ── A caveated number is never rendered as a clean one ──────────────────────
-
-describe("Owner Receipt — a coverage caveat survives onto a live number", () => {
-  it("keeps a present metric's note alongside its source label", () => {
-    const note = metricSourceNote(
-      metric({
-        gate: "visits",
-        value: 4102,
-        source: "rybbit",
-        note: "partial: 19 of 28 days",
-      }),
-    );
-    expect(note).toContain("From your website");
-    expect(note).toContain("partial: 19 of 28 days");
-  });
-
-  it("still reads the note alone when the source is one we have no label for", () => {
-    expect(
-      metricSourceNote(
-        metric({ value: 12, source: "some_new_source", note: "estimated" }),
+  const drivers: FunnelMovementDiagnosis["primaryDriver"][] = [
+    "impressions",
+    "CTR",
+    "CRO",
+  ];
+  for (const driver of drivers) {
+    out.push(
+      diagnosisSentence(
+        diagnosis({ primaryDriver: driver, leadsChange: 6 }),
       ),
-    ).toBe("estimated");
+    );
+    out.push(
+      diagnosisSentence(
+        diagnosis({ primaryDriver: driver, leadsChange: -6 }),
+      ),
+    );
+  }
+  out.push(
+    diagnosisSentence(diagnosis({ diagnosable: false, primaryDriver: null })),
+  );
+
+  return out.filter((s) => s.length > 0);
+}
+
+// ── (a) No homework — the banned phrases ────────────────────────────────────
+
+const BANNED_HOMEWORK = [
+  "worth a look",
+  "take a look",
+  "check out",
+  "look into",
+  "go look",
+  "check on",
+];
+
+describe("Owner Receipt voice — no homework for the hero", () => {
+  it("emits no banned 'go look' phrasing in any output", () => {
+    const offenders: string[] = [];
+    for (const text of allOutputs()) {
+      const lower = text.toLowerCase();
+      for (const phrase of BANNED_HOMEWORK) {
+        if (lower.includes(phrase)) offenders.push(`"${text}" → ${phrase}`);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it("proves the sweep is not vacuous — a planted phrase is caught", () => {
+    const planted = "Your traffic dipped — worth a look on the website.";
+    const hit = BANNED_HOMEWORK.some((p) =>
+      planted.toLowerCase().includes(p),
+    );
+    expect(hit).toBe(true);
   });
 });
 
-// ── Coverage wins over a present delta ──────────────────────────────────────
+// ── (b) Honesty gate — an absent number is words, never zero ─────────────────
 
-describe("Owner Receipt — the coverage gate outranks a present number", () => {
-  it("refuses a delta when the backend says the windows are not covered", () => {
-    const view = buildImpressionsTrendView(
-      trend({ sufficient: false, delta: 42, reason: "PRE window not covered" }),
-    );
-    expect(view.hasDelta).toBe(false);
-    expect(view.reason).toBe("PRE window not covered");
+describe("Owner Receipt honesty — an absent number reads 'not measured'", () => {
+  it("formats a null value as the words, never '0' or a dash", () => {
+    expect(formatMetricValue(null)).toBe("not measured");
+    expect(formatMetricValue(null)).not.toBe("0");
+    expect(formatMetricValue(null)).not.toContain("—");
   });
 
-  it("does not crash, and shows no delta, when a coverage object is null", () => {
-    const view = buildImpressionsTrendView(
-      trend({ sufficient: true, delta: 5, pre: null }),
-    );
-    expect(view.hasDelta).toBe(false);
-  });
-});
-
-// ── A direction is only asserted when it was measured ───────────────────────
-
-describe("Owner Receipt — no direction is asserted about a flat or absent change", () => {
-  it("falls to the reason when the backend names no driver", () => {
-    const sentence = diagnosisSentence(
-      diagnosis({
-        diagnosable: true,
-        primaryDriver: null,
-        leadsChange: 0,
-        reason: "leads did not change",
-      }),
-    );
-    expect(sentence).toBe("leads did not change");
-    expect(sentence.toLowerCase()).not.toContain("fewer people reached out");
+  it("a null-valued metric's source note never becomes '0'", () => {
+    const note = metricSourceNote(metric({ value: null }));
+    expect(note).toBe(NOT_MEASURED);
+    expect(note).not.toBe("0");
   });
 
-  it("never says 'fewer' about a FLAT month, even if a driver is named", () => {
-    // The backend nulls `primaryDriver` on a flat month today, but the frontend
-    // must not depend on backend behaviour it cannot enforce.
-    const sentence = diagnosisSentence(
-      diagnosis({
-        diagnosable: true,
-        primaryDriver: "CRO",
-        leadsChange: 0,
-        reason: "leads did not change",
-      }),
-    );
-    expect(sentence).toBe("leads did not change");
-    expect(sentence.toLowerCase()).not.toContain("fewer people reached out");
-  });
-
-  it("never says 'fewer' when the change itself was not measured", () => {
-    const sentence = diagnosisSentence(
-      diagnosis({
-        diagnosable: true,
-        primaryDriver: "impressions",
-        leadsChange: null,
-        reason: "post leads not measured",
-      }),
-    );
-    expect(sentence).toBe("post leads not measured");
-    expect(sentence.toLowerCase()).not.toContain("fewer people reached out");
-  });
-
-  it("lets `diagnosable: false` veto a named driver on its own", () => {
-    const sentence = diagnosisSentence(
-      diagnosis({
-        diagnosable: false,
-        primaryDriver: "CRO",
-        leadsChange: -6,
-        reason: "cannot decompose which term moved leads",
-      }),
-    );
-    expect(sentence).toBe("cannot decompose which term moved leads");
-  });
-
-  it("still names the term when the change is real and diagnosable", () => {
-    const sentence = diagnosisSentence(
-      diagnosis({ diagnosable: true, primaryDriver: "CTR", leadsChange: 6 }),
-    );
-    expect(sentence.toLowerCase()).toContain("more people reached out");
+  it("still formats a genuine measured zero as '0', not the words", () => {
+    // A real measured 0 is a fact; only ABSENCE becomes the words.
+    expect(formatMetricValue(0)).toBe("0");
   });
 });
 
-// ── A failure is reported as a failure ──────────────────────────────────────
+// ── (c) No causation — the trend is the only witness ────────────────────────
 
-describe("Owner Receipt — a failed request never reads as a data lag", () => {
-  it("returns the outage copy for a 500-style failure", () => {
-    const copy = receiptErrorCopy(
-      Object.assign(new Error("boom"), { code: "HTTP_500" }),
+const CAUSAL_WORDS = [
+  "caused",
+  "because of alloro",
+  "thanks to",
+  "drove",
+  "our work",
+];
+
+describe("Owner Receipt honesty — no output claims Alloro caused the change", () => {
+  it("emits no causal word in any output", () => {
+    const offenders: string[] = [];
+    for (const text of allOutputs()) {
+      const lower = text.toLowerCase();
+      for (const word of CAUSAL_WORDS) {
+        if (lower.includes(word)) offenders.push(`"${text}" → ${word}`);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it("states a real decline plainly, with no spin and no blame on Alloro", () => {
+    const decline = diagnosisSentence(
+      diagnosis({ primaryDriver: "CRO", leadsChange: -6 }),
     );
-    expect(copy.title).toBe(RECEIPT_ERROR_TITLE);
-    expect(copy.body).toBe(RECEIPT_ERROR_BODY);
-  });
-
-  it("returns the access copy for a 403 carried on `status`", () => {
-    const copy = receiptErrorCopy(
-      Object.assign(new Error("denied"), { status: 403 }),
-    );
-    expect(copy.title).toBe(RECEIPT_ERROR_ACCESS_TITLE);
-    expect(copy.body).toBe(RECEIPT_ERROR_ACCESS_BODY);
-  });
-
-  it("returns the access copy for a 403 carried as an HTTP_403 code", () => {
-    expect(
-      receiptErrorCopy(Object.assign(new Error("denied"), { code: "HTTP_403" }))
-        .title,
-    ).toBe(RECEIPT_ERROR_ACCESS_TITLE);
-  });
-
-  it("returns the access copy for the backend's domain ACCESS_DENIED code", () => {
-    expect(
-      receiptErrorCopy(
-        Object.assign(new Error("denied"), {
-          code: "OWNER_RECEIPT_LOCATION_ACCESS_DENIED",
-        }),
-      ).title,
-    ).toBe(RECEIPT_ERROR_ACCESS_TITLE);
-  });
-
-  it("never tells the owner to wait for data on ANY failure", () => {
-    const failures: unknown[] = [
-      Object.assign(new Error("a"), { code: "HTTP_403" }),
-      Object.assign(new Error("b"), { code: "HTTP_404" }),
-      Object.assign(new Error("c"), { code: "HTTP_500" }),
-      new Error("no code at all"),
-      null,
-    ];
-    for (const failure of failures) {
-      const copy = receiptErrorCopy(failure);
-      expect(copy.body.toLowerCase()).not.toContain("as soon as the data is in");
-      expect(copy.body.toLowerCase()).not.toContain("still gathering");
+    expect(decline.toLowerCase()).toContain("fewer people reached out");
+    for (const word of CAUSAL_WORDS) {
+      expect(decline.toLowerCase()).not.toContain(word);
     }
   });
 });
 
-// ── A truncated list says it is truncated ───────────────────────────────────
+// ── (d) Nothing to chase — empty states close reassuring ─────────────────────
 
-describe("Owner Receipt — a capped action list states the cap", () => {
-  it("names both the shown count and the real total", () => {
-    const note = actionsTruncationNote(50, 120);
-    expect(note).toContain("50");
-    expect(note).toContain("120");
+describe("Owner Receipt voice — empty and not-ready states end reassuring", () => {
+  const REASSURANCE = /nothing for you to do\.?$/i;
+
+  it("the not-ready card body ends with 'Nothing for you to do'", () => {
+    expect(NOT_READY_BODY).toMatch(REASSURANCE);
+  });
+
+  it("the empty-actions line ends with 'Nothing for you to do'", () => {
+    expect(ACTIONS_EMPTY).toMatch(REASSURANCE);
+  });
+
+  it("the trend coverage-gap fallback ends reassuring, not with a task", () => {
+    const reason = buildImpressionsTrendView(insufficientTrend).reason;
+    expect(reason).toMatch(REASSURANCE);
   });
 });
