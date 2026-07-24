@@ -12,11 +12,12 @@
  * Endpoints (mounted under /api/admin/websites/:id, super-admin auth hoisted):
  *   POST /:id/seo/metadata-proposals                       stage a proposal (pending)
  *   GET  /:id/seo/metadata-proposals                       list proposals for review
- *   POST /:id/seo/metadata-proposals/:proposalId/approve   approve — stages the rewrite
+ *   POST /:id/seo/metadata-proposals/:proposalId/approve   record an approval
  *   POST /:id/seo/metadata-proposals/:proposalId/reject    reject
  *
- * Approve/reject STAGE a decision only. Publishing the approved metadata to the live
- * page is a separate, already-gated step and is not driven from here.
+ * Approve/reject RECORD A DECISION only — they write to this table and nothing
+ * else. No live page changes. Publishing an approved title/description into the
+ * page's seo_data is a separate, already-gated step and is not driven from here.
  */
 
 import { Request, Response } from "express";
@@ -24,8 +25,10 @@ import type { RBACRequest } from "../../middleware/rbac";
 import type { PageMetadataProposalStatus } from "../../models/website-builder/PageMetadataProposalModel";
 import * as proposals from "./feature-services/service.page-metadata-proposals";
 import { PageMetadataProposalError } from "./feature-services/service.page-metadata-proposals";
-import { failPageMetadataProposalError } from "./feature-utils/util.page-metadata-proposal-responses";
-import { ok } from "./feature-utils/util.integration-responses";
+import {
+  ok,
+  failPageMetadataProposalError,
+} from "./feature-utils/util.page-metadata-proposal-responses";
 
 /** The authenticated super-admin acting as the reviewer (§5.4 — server-derived). */
 function reviewerId(req: Request): number {
@@ -84,7 +87,12 @@ export async function listProposals(
   }
 }
 
-/** POST /:id/seo/metadata-proposals/:proposalId/approve — stages the rewrite. */
+/**
+ * POST /:id/seo/metadata-proposals/:proposalId/approve
+ *
+ * Records an approval on the proposal row. Publishing is a separate step — no
+ * live page is touched here.
+ */
 export async function approveProposal(
   req: Request,
   res: Response,

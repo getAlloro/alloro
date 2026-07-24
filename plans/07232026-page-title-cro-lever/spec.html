@@ -35,7 +35,7 @@
     <header class="spec-hero">
       <div class="hero-topline">
         <p class="eyebrow">Alloro Plan Spec · Funnel Engine · GC1 (get-considered / CTR)</p>
-        <span class="status-pill">In Progress — Backend Landed, UI Follow-up</span>
+        <span class="status-pill">In Progress — Backend Reviewed, UI Follow-up</span>
       </div>
       <h1>Page Title / Meta-Description Review-and-Approve</h1>
       <dl class="meta-grid">
@@ -135,6 +135,37 @@
         <li><input type="checkbox" disabled> Behavioral run against a running app (Layer 2) — pending; needs the app</li>
         <li><input type="checkbox" disabled> Owner-facing UI — follow-up (needs an owner website-SEO surface)</li>
       </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-07-24</h3>
+        <p><strong>Change:</strong> Review-round fixes on the backend slice.
+        (1) <code>reviewed_by</code> changed from <code>bigInteger</code> to <code>integer</code> to
+        match <code>users.id</code> — node-postgres returns <code>int8</code> as a JavaScript string,
+        so the column would have handed every client <code>"7"</code> while the model type said
+        <code>number</code>, silently breaking any <code>reviewed_by === currentUser.id</code> check.
+        (2) Route <em>params</em> are now validated (<code>§11.2</code>): a non-UUID <code>:id</code> or
+        <code>:proposalId</code> reached a UUID-column query and surfaced as a 500 instead of a 400
+        (<code>§8.4</code>). (3) All four endpoints now emit the canonical <code>§8.1</code> shape —
+        <code>{ success, data, error }</code> with <code>error: null</code> on success and
+        <code>{ code, message, details }</code> on failure — via a domain-local builder instead of the
+        older <code>util.integration-responses</code> helper, which emits <code>error</code> as a bare
+        string. (4) <code>rationale</code> is now bounded by key count and serialized length, matching
+        the bounds already on the two text fields. (5) <code>up()</code> gained a
+        <code>hasTable</code> idempotency guard and the migration header now states production impact
+        and rollback plainly. (6) "approve stages the rewrite" reworded to "records an approval" —
+        the old phrasing read to a non-engineer as if the rewrite were queued to go live.</p>
+        <p><strong>Reason:</strong> User QA: batch review round on PR #226. The response-contract
+        change (3) is an owner decision — <code>§8.1</code> wins over local precedent so a
+        bare-string error shape does not spread to whatever is built on this next.</p>
+        <p><strong>Updated Done criteria:</strong> a new acceptance item T4 (every response uses the
+        <code>§8.1</code> contract) and T5 (approving changes no live page); T3 extended to cover
+        malformed route params. New Layer-1 suite
+        <code>src/__tests__/page-metadata-proposals-contract.test.ts</code> — 17 tests, 14 of which
+        fail against the pre-fix code.</p>
+      </article>
     </section>
   </main>
 </body>
