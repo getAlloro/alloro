@@ -3,11 +3,17 @@ import { LocationModel } from "../../models/LocationModel";
 import { OrganizationModel } from "../../models/OrganizationModel";
 import { GooglePropertyModel } from "../../models/GooglePropertyModel";
 import { buildAuthHeaders } from "../gbp/gbp-services/gbp-api.service";
+import { autoConfigureVocabulary } from "../../services/vocabularyAutoMapper";
 import logger from "../../lib/logger";
 
 /**
- * Fetch location profile from Google Business Profile API
- * and persist as business_data on the location row.
+ * Fetch a location's profile from the Google Business Profile API, persist it
+ * as `business_data` on the location row, and — because the org's GBP primary
+ * category only becomes known here — resolve the org's vocabulary from it.
+ *
+ * The vocabulary resolution is a deliberate second responsibility on this
+ * lifecycle point, not an oversight (§2.1): this is where the category lands.
+ * It is non-fatal and first-write-wins, so it cannot break or alter a refresh.
  */
 export async function refreshLocationBusinessData(
   locationId: number,
@@ -42,7 +48,100 @@ export async function refreshLocationBusinessData(
     business_data: businessData,
   } as any);
 
+  // The GBP category just landed — this is the lifecycle point where the org's
+  // vocabulary can be resolved. Auto-configure it so Alloro speaks the owner's
+  // language. Idempotent (first-write-wins) and non-fatal.
+  //
+  // Read the category off the RAW profile, not off businessData.categories[0]:
+  // that array only receives the primary category when it has a displayName,
+  // so a primary category without one silently promotes the first ADDITIONAL
+  // category into position 0. Combined with first-write-wins, that would label
+  // the org from a secondary category permanently.
+  await configureVocabularyFromBusinessData(
+    organizationId,
+    readCategoryDisplayNames(profileData)
+  );
+
   return businessData;
+}
+
+interface GbpCategoryDisplayNames {
+  /** null when Google returned no usable primary-category display name. */
+  primary: string | null;
+  additional: string[];
+}
+
+/**
+ * Read the GBP category display names off a raw profile response BY NAME.
+ *
+ * The primary category is identified by its field, never by array position:
+ * Google can return a `primaryCategory` that carries a resource `name` but no
+ * `displayName`, and a position-based read would then hand an additional
+ * category to the mapper as if it were the primary one.
+ */
+function readCategoryDisplayNames(profile: unknown): GbpCategoryDisplayNames {
+  const categories = (
+    profile as {
+      categories?: {
+        primaryCategory?: { displayName?: unknown };
+        additionalCategories?: { displayName?: unknown }[];
+      };
+    } | null
+  )?.categories;
+
+  const primaryRaw = categories?.primaryCategory?.displayName;
+  const primary =
+    typeof primaryRaw === "string" && primaryRaw.trim().length > 0
+      ? primaryRaw.trim()
+      : null;
+
+  const additional = Array.isArray(categories?.additionalCategories)
+    ? categories.additionalCategories
+        .map((category) => category?.displayName)
+        .filter(
+          (name): name is string =>
+            typeof name === "string" && name.trim().length > 0
+        )
+        .map((name) => name.trim())
+    : [];
+
+  return { primary, additional };
+}
+
+/**
+ * Hand the GBP category signal to the vocabulary auto-mapper. The primary
+ * category drives detection; additional categories are extra signal.
+ *
+ * Writes nothing when there is no primary category display name. The mapper is
+ * first-write-wins, so a guess made from a secondary category would be
+ * permanent — better to leave the org unconfigured and resolve it on a later
+ * refresh. Non-fatal: a vocabulary failure must never break the business-data
+ * refresh, but it is logged (§3.2).
+ */
+async function configureVocabularyFromBusinessData(
+  organizationId: number,
+  categories: GbpCategoryDisplayNames
+): Promise<void> {
+  if (!categories.primary) {
+    logger.warn(
+      `[BusinessData] No GBP primary category display name for org ${organizationId}; skipping vocabulary auto-config rather than guessing from an additional category`
+    );
+    return;
+  }
+
+  try {
+    await autoConfigureVocabulary(
+      organizationId,
+      categories.primary,
+      categories.additional
+    );
+  } catch (error) {
+    logger.warn(
+      `[BusinessData] Vocabulary auto-config skipped for org ${organizationId}: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+  }
 }
 
 /**

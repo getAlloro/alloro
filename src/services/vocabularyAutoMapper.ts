@@ -12,7 +12,7 @@
 import { VocabularyConfigModel } from "../models/VocabularyConfigModel";
 import logger from "../lib/logger";
 
-interface VocabularyPreset {
+export interface VocabularyPreset {
   vertical: string;
   patientTerm: string;
   referralTerm: string;
@@ -26,8 +26,15 @@ interface VocabularyPreset {
   intelligenceMode: "referral_based" | "direct_acquisition" | "hybrid";
 }
 
-// GBP category patterns mapped to vocabulary presets
-const CATEGORY_MAP: { patterns: string[]; preset: VocabularyPreset }[] = [
+/**
+ * GBP category patterns mapped to vocabulary presets.
+ *
+ * Exported so the conformance test can assert every entry's `vertical` against
+ * a closed allow-list. Two entries used to claim `endodontics` for oral surgery
+ * and prosthodontics; that was invisible while the mapper had no callers, and
+ * this PR is what makes it live and (via first-write-wins) permanent.
+ */
+export const CATEGORY_MAP: { patterns: string[]; preset: VocabularyPreset }[] = [
   {
     patterns: ["endodontist", "root canal"],
     preset: {
@@ -63,7 +70,7 @@ const CATEGORY_MAP: { patterns: string[]; preset: VocabularyPreset }[] = [
   {
     patterns: ["oral surg", "maxillofac"],
     preset: {
-      vertical: "endodontics",
+      vertical: "oral_surgery",
       patientTerm: "patient",
       referralTerm: "referring dentist",
       caseType: "surgical case",
@@ -79,7 +86,10 @@ const CATEGORY_MAP: { patterns: string[]; preset: VocabularyPreset }[] = [
   {
     patterns: ["periodont"],
     preset: {
-      vertical: "general_dentistry", // Dental specialist; overrides ensure perio-specific terms
+      // Deliberately grouped with general dental; the overrides below carry the
+      // perio-specific terms. Spelled "general_dental" to match the other two
+      // entries — one concept must not have two spellings.
+      vertical: "general_dental",
       patientTerm: "patient",
       referralTerm: "referring dentist",
       caseType: "periodontal case",
@@ -95,7 +105,7 @@ const CATEGORY_MAP: { patterns: string[]; preset: VocabularyPreset }[] = [
   {
     patterns: ["prosthodont"],
     preset: {
-      vertical: "endodontics",
+      vertical: "prosthodontics",
       patientTerm: "patient",
       referralTerm: "referring dentist",
       caseType: "prosthetic case",
@@ -560,7 +570,14 @@ export function detectPreset(gbpCategory: string, gbpTypes?: string[]): Vocabula
 
 /**
  * Auto-configure vocabulary for an organization based on GBP data.
- * Called at account creation after checkup completes.
+ * Called when the org's GBP category lands (see controllers/locations).
+ *
+ * First-write-wins: an existing config is never overwritten, so this can be
+ * called on every refresh safely. The cost of that guard is that a practice
+ * which later corrects its Google category keeps its original label forever —
+ * there is no re-resolve and no admin correction path yet. When the freshly
+ * detected vertical disagrees with the stored one, that drift is logged at
+ * `info` so it is visible before anyone decides what the policy should be.
  */
 export async function autoConfigureVocabulary(
   orgId: number,
@@ -569,18 +586,66 @@ export async function autoConfigureVocabulary(
 ): Promise<VocabularyPreset> {
   const preset = detectPreset(gbpCategory, gbpTypes);
 
-  // Check if vocabulary already configured
+  // Check if vocabulary already configured (first-write-wins, idempotent)
   const existing = await VocabularyConfigModel.findByOrgId(orgId);
-  if (existing) return preset;
+  if (existing) {
+    if (existing.vertical !== preset.vertical) {
+      logger.info(
+        `[VocabMapper] Detected vertical "${preset.vertical}" for org ${orgId} from GBP category "${gbpCategory}", but the stored vertical is "${existing.vertical}" — keeping the stored value (first-write-wins; no re-resolve path yet)`,
+      );
+    }
+    return preset;
+  }
 
-  // Insert vocabulary config
-  await VocabularyConfigModel.insertConfig({
-    org_id: orgId,
-    vertical: preset.vertical,
-    overrides: JSON.stringify(preset),
-  }).catch(() => {});
+  // Insert vocabulary config. A failed write must not break the caller's
+  // lifecycle event, but it must be visible — never a silent swallow (§3.2).
+  try {
+    await VocabularyConfigModel.insertConfig({
+      org_id: orgId,
+      vertical: preset.vertical,
+      overrides: JSON.stringify(preset),
+    });
+  } catch (error) {
+    logger.warn(
+      `[VocabMapper] Failed to persist vocabulary for org ${orgId}: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+    return preset;
+  }
 
   logger.info(`[VocabMapper] Auto-configured ${preset.vertical} vocabulary for org ${orgId} from GBP category "${gbpCategory}"`);
 
   return preset;
+}
+
+/**
+ * Read an organization's resolved vocabulary preset from the persisted config.
+ * Returns the stored VocabularyPreset, or null if none has been configured yet.
+ *
+ * This is the read side of autoConfigureVocabulary: the write path populates
+ * vocabulary_configs when GBP data lands; this serves that resolved preset back
+ * to callers (e.g. the onboarding/vocabulary read endpoint).
+ */
+export async function getResolvedVocabulary(
+  orgId: number,
+): Promise<VocabularyPreset | null> {
+  const existing = await VocabularyConfigModel.findByOrgId(orgId);
+  if (!existing) return null;
+
+  const { overrides } = existing;
+  try {
+    const preset =
+      typeof overrides === "string"
+        ? (JSON.parse(overrides) as VocabularyPreset)
+        : (overrides as VocabularyPreset);
+    return preset ?? null;
+  } catch (error) {
+    logger.warn(
+      `[VocabMapper] Failed to parse stored vocabulary overrides for org ${orgId}: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+    return null;
+  }
 }
