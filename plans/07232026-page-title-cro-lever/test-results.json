@@ -1,0 +1,83 @@
+{
+  "plan": "plans/07232026-page-title-cro-lever",
+  "generatedAt": "2026-07-24",
+  "status": "In Progress",
+  "items": [
+    {
+      "id": "T1",
+      "title": "Stage a proposal \u2014 captures live before-state, persists pending, tenant-scoped",
+      "surface": "api",
+      "precondition": "Super-admin session; a website project with a page carrying seo_data.",
+      "steps": [
+        "1. POST /api/admin/websites/:id/seo/metadata-proposals with { pageId, proposedTitle, proposedDescription, rationale }.",
+        "2. GET /api/admin/websites/:id/seo/metadata-proposals?status=pending."
+      ],
+      "expected": "201 with a pending row whose before_title/before_description come from the page's live seo_data; a pageId outside the project returns 404 PAGE_NOT_FOUND.",
+      "status": "pass",
+      "evidence": "Layer 1: src/__tests__/page-metadata-proposals.test.ts \u2014 stageProposal suite (live before-state, null before-state, EMPTY_PROPOSAL, tenant-scoped PAGE_NOT_FOUND) all pass.",
+      "notes": "Layer-1 verified. Layer-2 (live HTTP) pending \u2014 needs the running app.",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Approve records an approval; reject closes it; review is idempotent",
+      "surface": "api",
+      "precondition": "A pending proposal id from T1.",
+      "steps": [
+        "1. POST .../metadata-proposals/:proposalId/approve.",
+        "2. POST .../metadata-proposals/:proposalId/approve again."
+      ],
+      "expected": "First call returns the row at status=approved with reviewed_by set as a JSON NUMBER (not \"7\"); second call returns 409 PROPOSAL_ALREADY_REVIEWED; an unknown id returns 404 PROPOSAL_NOT_FOUND. No live page changes (publishing is a separate step).",
+      "status": "pass",
+      "evidence": "Layer 1: page-metadata-proposals.test.ts \u2014 approve/reject suite (approve records reviewer, reject, PROPOSAL_NOT_FOUND, 409 PROPOSAL_ALREADY_REVIEWED) all pass. reviewed_by is proven numeric by page-metadata-proposals-contract.test.ts, and the column is declared integer (not bigInteger, which node-postgres returns as a string).",
+      "notes": "Layer-1 verified. Layer-2 (live HTTP) pending \u2014 needs the running app.",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "Boundary validation rejects malformed input",
+      "surface": "api",
+      "precondition": "Super-admin session.",
+      "steps": [
+        "1. POST .../metadata-proposals with a non-uuid pageId or an empty proposedTitle.",
+        "2. GET .../metadata-proposals?status=bogus."
+      ],
+      "expected": "400 VALIDATION_ERROR on a bad body, a bad ?status, AND a non-uuid :id or :proposalId route param (schemas are .strict(), enforce mode, applied to body, query, and params).",
+      "status": "pending",
+      "evidence": "Layer 1: page-metadata-proposals-contract.test.ts \u2014 the params schemas reject a non-uuid :id and :proposalId, all four routes carry a params-target validate(), and the rationale bounds reject an over-key and multi-megabyte blob.",
+      "notes": "Layer-1 verified at the schema and route-wiring level. Layer-2 (a live 400 over HTTP) still pending \u2014 needs the running app.",
+      "waiver": ""
+    },
+    {
+      "id": "T4",
+      "title": "Every response uses the \u00a78.1 contract",
+      "surface": "api",
+      "precondition": "Super-admin session.",
+      "steps": [
+        "1. POST .../metadata-proposals (success) and inspect the JSON body.",
+        "2. POST .../metadata-proposals/:proposalId/approve twice and inspect the 409 body."
+      ],
+      "expected": "Success is exactly { success: true, data, error: null }. Failure is exactly { success: false, data: null, error: { code, message, details } } \u2014 never `error` as a bare string, never a sibling top-level `message`.",
+      "status": "pass",
+      "evidence": "Layer 1: page-metadata-proposals-contract.test.ts \u2014 the \u00a78.1 suite asserts both shapes exactly and that an unrecognized driver error becomes a generic 500 with no internal detail (\u00a73.4).",
+      "notes": "These four endpoints deliberately do NOT use the domain's older util.integration-responses helper, which emits a non-\u00a78.1 shape. Layer-2 (live HTTP) pending.",
+      "waiver": ""
+    },
+    {
+      "id": "T5",
+      "title": "Approving changes no live page",
+      "surface": "api",
+      "precondition": "A pending proposal and its page id.",
+      "steps": [
+        "1. Record SELECT seo_data FROM website_builder.pages WHERE id = :pageId.",
+        "2. Approve the proposal.",
+        "3. Re-read the same row."
+      ],
+      "expected": "Byte-identical seo_data. This is the claim the whole scope boundary rests on.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "Layer 1 proves the service only calls PageMetadataProposalModel on the review path; a live read/write comparison needs the running app.",
+      "waiver": ""
+    }
+  ]
+}

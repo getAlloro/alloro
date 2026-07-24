@@ -13,8 +13,15 @@
 import express from "express";
 import * as controller from "../../../controllers/admin-websites/SeoController";
 import * as ctrHypothesisController from "../../../controllers/admin-websites/CtrHypothesisController";
+import * as metadataProposalsController from "../../../controllers/admin-websites/PageMetadataProposalsController";
 import { validate } from "../../../middleware/validate";
 import { ctrHypothesisBodySchema } from "../../../validation/ctrHypothesis.schemas";
+import {
+  listPageMetadataProposalsQuerySchema,
+  pageMetadataProposalParamsSchema,
+  pageMetadataProposalReviewParamsSchema,
+  stagePageMetadataProposalBodySchema,
+} from "../../../validation/pageMetadataProposal.schemas";
 
 const router = express.Router();
 
@@ -76,6 +83,43 @@ router.post(
   "/:id/seo/ctr-hypothesis",
   validate(ctrHypothesisBodySchema, { target: "body", mode: "enforce" }), // §11.2
   ctrHypothesisController.proposeCtrHypothesis,
+);
+
+// =====================================================================
+// Page metadata proposals — review & approve a title / meta-description
+// rewrite (the persisted "brick 3" of the CTR loop). Approve/reject RECORD a
+// decision; publishing to the live page stays a separate, already-gated step.
+// =====================================================================
+
+// POST /:id/seo/metadata-proposals — Stage a produced rewrite as a pending proposal
+router.post(
+  "/:id/seo/metadata-proposals",
+  validate(pageMetadataProposalParamsSchema, { target: "params", mode: "enforce" }), // §11.2
+  validate(stagePageMetadataProposalBodySchema, { target: "body", mode: "enforce" }), // §11.2
+  metadataProposalsController.stageProposal,
+);
+
+// GET  /:id/seo/metadata-proposals — List proposals for review (optional ?status=)
+router.get(
+  "/:id/seo/metadata-proposals",
+  validate(pageMetadataProposalParamsSchema, { target: "params", mode: "enforce" }), // §11.2
+  validate(listPageMetadataProposalsQuerySchema, { target: "query", mode: "enforce" }), // §11.2
+  metadataProposalsController.listProposals,
+);
+
+// POST /:id/seo/metadata-proposals/:proposalId/approve — record an approval
+// (publishing to the live page is a separate step)
+router.post(
+  "/:id/seo/metadata-proposals/:proposalId/approve",
+  validate(pageMetadataProposalReviewParamsSchema, { target: "params", mode: "enforce" }), // §11.2
+  metadataProposalsController.approveProposal,
+);
+
+// POST /:id/seo/metadata-proposals/:proposalId/reject — Reject the proposal
+router.post(
+  "/:id/seo/metadata-proposals/:proposalId/reject",
+  validate(pageMetadataProposalReviewParamsSchema, { target: "params", mode: "enforce" }), // §11.2
+  metadataProposalsController.rejectProposal,
 );
 
 export default router;
