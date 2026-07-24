@@ -18,14 +18,19 @@ import { GbpAutomationError } from "../controllers/gbp-automation/feature-utils/
 const h = vi.hoisted(() => ({
   queueAdd: vi.fn(),
   getReadiness: vi.fn(),
+  getEffectiveSettings: vi.fn(),
   findReviewIds: vi.fn(),
   generateDraft: vi.fn(),
   loggerError: vi.fn(),
   loggerInfo: vi.fn(),
+  loggerWarn: vi.fn(),
 }));
 
 vi.mock("../workers/queues", () => ({
   getGbpAutomationQueue: () => ({ add: h.queueAdd }),
+}));
+vi.mock("../controllers/gbp-automation/feature-services/GbpCustomizationService", () => ({
+  GbpCustomizationService: { getEffectiveSettings: h.getEffectiveSettings },
 }));
 vi.mock("../controllers/gbp-automation/feature-services/GbpReadinessService", () => ({
   GbpReadinessService: { getLocationReadiness: h.getReadiness },
@@ -37,7 +42,7 @@ vi.mock("../controllers/gbp-automation/feature-services/GbpReviewReplyService", 
   GbpReviewReplyService: { generateDraft: h.generateDraft },
 }));
 vi.mock("../lib/logger", () => ({
-  default: { error: h.loggerError, warn: vi.fn(), info: h.loggerInfo, debug: vi.fn() },
+  default: { error: h.loggerError, warn: h.loggerWarn, info: h.loggerInfo, debug: vi.fn() },
 }));
 
 import { GbpReviewReplyAutoDraftService } from "../controllers/gbp-automation/feature-services/GbpReviewReplyAutoDraftService";
@@ -72,6 +77,10 @@ function review(overrides: Record<string, unknown> = {}) {
 beforeEach(() => {
   vi.clearAllMocks();
   h.getReadiness.mockResolvedValue({ ready: true, status: "ready" });
+  // The activation switch is OFF in the schema default; these tests describe an
+  // account where an operator has deliberately turned it ON. The off-by-default
+  // behavior is asserted explicitly in its own tests below.
+  h.getEffectiveSettings.mockResolvedValue({ review_reply_autodraft_enabled: true });
   h.findReviewIds.mockResolvedValue(new Set());
   h.queueAdd.mockResolvedValue(undefined);
   h.generateDraft.mockResolvedValue({ id: "wi-1" });
@@ -143,6 +152,96 @@ describe("enqueueForIngestedReviews", () => {
     expect(h.queueAdd.mock.calls[0][1].reviewId).toBe("rev-2");
   });
 
+  it("stays dark when the activation switch is off — the default for every account", async () => {
+    // The point of the switch: a location that is fully READY for manual replies
+    // must still auto-draft NOTHING until someone turns auto-draft on for it.
+    h.getEffectiveSettings.mockResolvedValue({
+      review_reply_autodraft_enabled: false,
+    });
+    h.getReadiness.mockResolvedValue({ ready: true, status: "ready" });
+
+    const result = await GbpReviewReplyAutoDraftService.enqueueForIngestedReviews({
+      organizationId: ORG,
+      locationId: LOC,
+      reviews: [review({ id: "rev-1" }), review({ id: "rev-2" })],
+    });
+
+    expect(result.candidates).toBe(2);
+    expect(result.skippedDisabled).toBe(true);
+    expect(result.enqueued).toBe(0);
+    expect(h.queueAdd).not.toHaveBeenCalled();
+    // Nothing is even looked up past the switch — no readiness read, no dedup
+    // read, no LLM call.
+    expect(h.getReadiness).not.toHaveBeenCalled();
+    expect(h.findReviewIds).not.toHaveBeenCalled();
+  });
+
+  it("stays dark when no settings row exists yet (absence is not consent)", async () => {
+    h.getEffectiveSettings.mockResolvedValue(undefined);
+
+    const result = await GbpReviewReplyAutoDraftService.enqueueForIngestedReviews({
+      organizationId: ORG,
+      locationId: LOC,
+      reviews: [review()],
+    });
+
+    expect(result.skippedDisabled).toBe(true);
+    expect(result.enqueued).toBe(0);
+    expect(h.queueAdd).not.toHaveBeenCalled();
+  });
+
+  it("caps how many drafts one sync may queue, deferring the rest to the next run", async () => {
+    // The catch-up burst: 200 unreplied reviews on a freshly-enabled location.
+    // Uncapped, that is 200 LLM calls queued at once onto the concurrency-1
+    // queue that also carries owner-initiated publishes.
+    const reviews = Array.from({ length: 200 }, (_, i) =>
+      review({ id: `rev-${i}` })
+    );
+
+    const result = await GbpReviewReplyAutoDraftService.enqueueForIngestedReviews({
+      organizationId: ORG,
+      locationId: LOC,
+      reviews,
+    });
+
+    expect(result.candidates).toBe(200);
+    expect(result.enqueued).toBe(10);
+    expect(h.queueAdd).toHaveBeenCalledTimes(10);
+    // Deferred, not dropped — dedup is by existing work item, so the next sync
+    // re-offers these same reviews.
+    expect(result.deferredOverCap).toBe(190);
+    expect(h.loggerWarn).toHaveBeenCalledWith(
+      expect.stringContaining("190 replyable review(s) deferred")
+    );
+  });
+
+  it("retains a failed job for less than the sync interval so it stays retryable", async () => {
+    // BullMQ ignores `add` for a jobId that still exists in ANY state, including
+    // `failed`. Retention longer than the daily sync would make a permanently
+    // failed review un-retryable until the record aged out.
+    await GbpReviewReplyAutoDraftService.enqueueForIngestedReviews({
+      organizationId: ORG,
+      locationId: LOC,
+      reviews: [review()],
+    });
+
+    const opts = h.queueAdd.mock.calls[0][2];
+    const ONE_DAY_SECONDS = 86400;
+    expect(opts.removeOnFail.age).toBeLessThan(ONE_DAY_SECONDS);
+  });
+
+  it("scopes the dedup read to the caller's org + location (§11.7)", async () => {
+    await GbpReviewReplyAutoDraftService.enqueueForIngestedReviews({
+      organizationId: ORG,
+      locationId: LOC,
+      reviews: [review({ id: "rev-1" })],
+    });
+
+    // Tenant ids are the FIRST two arguments — a required part of the call, not
+    // an optional filter the caller may forget.
+    expect(h.findReviewIds).toHaveBeenCalledWith(ORG, LOC, ["rev-1"]);
+  });
+
   it("never throws when the queue fails — ingestion must not break", async () => {
     h.queueAdd.mockRejectedValue(new Error("redis down"));
 
@@ -185,6 +284,16 @@ describe("autoDraftForReview", () => {
     expect(result.drafted).toBe(false);
     expect(result.reason).toBe("already_drafted");
     expect(h.generateDraft).not.toHaveBeenCalled();
+  });
+
+  it("scopes its own dedup read to the job's org + location (§11.7)", async () => {
+    await GbpReviewReplyAutoDraftService.autoDraftForReview({
+      organizationId: ORG,
+      locationId: LOC,
+      reviewId: "rev-1",
+    });
+
+    expect(h.findReviewIds).toHaveBeenCalledWith(ORG, LOC, ["rev-1"]);
   });
 
   it("treats a no-longer-applicable outcome as a clean skip, not a retry", async () => {
