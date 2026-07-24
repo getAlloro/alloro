@@ -3,7 +3,7 @@ import type { LucideIcon } from "lucide-react";
 import { useAuth } from "../../../hooks/useAuth";
 import { useLocationContext } from "../../../contexts/locationContext";
 import { useProofReceipt } from "../../../hooks/queries/useProofReceipt";
-import type { ProofReceiptItem } from "../../../types/proofReceipt";
+import type { ProofReceiptItem, ProofReceiptItemType } from "../../../types/proofReceipt";
 
 /**
  * ProofReceiptFeed — the owner-facing "what Alloro did for you" feed: the dated,
@@ -31,17 +31,24 @@ import type { ProofReceiptItem } from "../../../types/proofReceipt";
 
 const HEADING_ID = "proof-receipt-feed-heading";
 
-const WORK_ITEM_LABEL: Record<string, string> = {
+// Keyed by the content-type union, not by `string`, so a new backend work-item
+// type fails the typecheck here instead of silently falling through to the
+// generic label. The `??` fallbacks below stay anyway: the wire is untyped JSON,
+// and a type this build has never heard of must render as generic work.
+const WORK_ITEM_LABEL: Record<ProofReceiptItemType, string> = {
   review_reply: "Review reply posted",
   local_post: "Local post published",
   business_info: "Business info updated",
 };
 
-const WORK_ITEM_ICON: Record<string, LucideIcon> = {
+const WORK_ITEM_ICON: Record<ProofReceiptItemType, LucideIcon> = {
   review_reply: MessageSquare,
   local_post: FileText,
   business_info: Building2,
 };
+
+/** Shown on a row whose `at` we cannot read — never a silently undated row. */
+const UNKNOWN_DATE_LABEL = "Date unknown";
 
 // The receipt window is a UTC calendar month (backend since = 1st-of-month UTC).
 // Every date the feed shows — the month header AND each row — is formatted in
@@ -75,17 +82,29 @@ function formatWorkItemDate(at: string, now = new Date()): string {
   return DAY_LABEL_FORMAT.format(date);
 }
 
-/** "June 2026" for the receipt window, formatted in UTC (see note above). */
-function formatMonthLabel(iso: string | undefined): string {
-  const date = iso ? new Date(iso) : new Date();
-  if (Number.isNaN(date.getTime())) return "";
+/**
+ * "June 2026" for the receipt window, formatted in UTC (see note above), or
+ * `null` when the response carried no readable window.
+ *
+ * Returning the CLIENT's current month for a missing `since` would put a
+ * factual frame on the card that the response never sent — "Nothing published
+ * yet in July 2026" is a claim about a window nobody measured. Abstain instead:
+ * every caller below drops the month from its sentence rather than guessing it.
+ */
+function formatMonthLabel(iso: string | undefined): string | null {
+  if (!iso) return null;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return null;
   return MONTH_LABEL_FORMAT.format(date);
 }
 
 function ProofReceiptRow({ item }: { item: ProofReceiptItem }) {
   const Icon = WORK_ITEM_ICON[item.type] ?? CheckCircle2;
   const label = WORK_ITEM_LABEL[item.type] ?? "Work published";
-  const when = formatWorkItemDate(item.at);
+  // An unreadable timestamp says so. Rendering the row undated would make it
+  // look like every other row while quietly dropping the one thing this card
+  // promises — a date.
+  const when = formatWorkItemDate(item.at) || UNKNOWN_DATE_LABEL;
 
   return (
     <li className="flex items-center gap-3 py-2.5">
@@ -93,11 +112,9 @@ function ProofReceiptRow({ item }: { item: ProofReceiptItem }) {
         <Icon size={14} strokeWidth={2} className="text-alloro-navy" aria-hidden />
       </span>
       <span className="flex-1 text-[13.5px] font-medium text-alloro-navy">{label}</span>
-      {when ? (
-        <span className="shrink-0 text-[12px] font-medium text-ink-muted tabular-nums">
-          {when}
-        </span>
-      ) : null}
+      <span className="shrink-0 text-[12px] font-medium text-ink-muted tabular-nums">
+        {when}
+      </span>
     </li>
   );
 }
@@ -170,9 +187,9 @@ export function ProofReceiptFeed() {
     return (
       <FeedShell>
         <p className="py-1 text-[13.5px] text-ink-muted">
-          Nothing published yet in {monthLabel}. When Alloro posts a review reply
-          or a local post for you, it shows up here — dated, so you can see exactly
-          what got done.
+          {monthLabel ? `Nothing published yet in ${monthLabel}.` : "Nothing published yet."}{" "}
+          When Alloro posts a review reply or a local post for you, it shows up
+          here — dated, so you can see exactly what got done.
         </p>
       </FeedShell>
     );
@@ -182,7 +199,9 @@ export function ProofReceiptFeed() {
 
   return (
     <FeedShell>
-      <p className="mb-1 text-[12px] font-medium text-ink-muted">{monthLabel}</p>
+      {monthLabel ? (
+        <p className="mb-1 text-[12px] font-medium text-ink-muted">{monthLabel}</p>
+      ) : null}
       <ul className="divide-y divide-line-soft">
         {items.map((item) => (
           <ProofReceiptRow key={item.workItemId} item={item} />
@@ -190,7 +209,9 @@ export function ProofReceiptFeed() {
       </ul>
       {hiddenCount > 0 ? (
         <p className="mt-2 border-t border-line-soft pt-2 text-[12px] font-medium text-ink-muted">
-          Showing your {items.length} most recent · {total} in {monthLabel}.
+          {monthLabel
+            ? `Showing your ${items.length} most recent · ${total} in ${monthLabel}.`
+            : `Showing your ${items.length} most recent · ${total} published.`}
         </p>
       ) : null}
     </FeedShell>

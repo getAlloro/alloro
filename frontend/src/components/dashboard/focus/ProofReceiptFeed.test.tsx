@@ -1,6 +1,7 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { ProofReceiptFeed } from "./ProofReceiptFeed";
+import type { ProofReceipt } from "../../../types/proofReceipt";
 
 // Mock the hook so we control the data without a full QueryClient stack —
 // mirrors AlloroActivitySummary.test.tsx, the sibling proof-receipt consumer.
@@ -160,5 +161,112 @@ describe("ProofReceiptFeed", () => {
 
     const { container } = render(<ProofReceiptFeed />);
     expect(container).toBeEmptyDOMElement();
+  });
+
+});
+
+// -----------------------------------------------------------------------------
+// The receipt window (`since`) is typed non-optional and the backend always
+// sets it, but the component formats it defensively. These pin what that
+// defence must do: abstain from naming a month, never substitute the CLIENT's
+// current month for a window the response never described.
+// -----------------------------------------------------------------------------
+describe("ProofReceiptFeed when a date is not readable", () => {
+  beforeEach(() => {
+    mockUseAuth.mockReturnValue({
+      userProfile: { organizationId: 1 },
+    } as ReturnType<typeof useAuth>);
+    // Freeze "now" in July so an accidental fallback to the client clock is
+    // detectable, and the assertion does not drift with the calendar.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-15T12:00:00.000Z"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("marks a row whose timestamp is unreadable as 'Date unknown'", () => {
+    mockUseProofReceipt.mockReturnValue({
+      receipt: {
+        organizationId: 1,
+        since: "2026-06-01",
+        until: "2026-06-30",
+        items: [
+          { type: "local_post", at: "garbage", workItemId: "a", locationId: 10 },
+        ],
+        summary: { reviewReplies: 0, localPosts: 1, total: 1 },
+      },
+      isLoading: false,
+      error: null,
+    });
+
+    render(<ProofReceiptFeed />);
+    // The card's whole promise is "dated". A row we cannot date says so out
+    // loud rather than rendering undated and looking like every other row.
+    expect(screen.getByText("Local post published")).toBeInTheDocument();
+    expect(screen.getByText("Date unknown")).toBeInTheDocument();
+  });
+
+  it("does not name a month when the receipt window is missing", () => {
+    mockUseProofReceipt.mockReturnValue({
+      receipt: {
+        organizationId: 1,
+        until: "2026-06-30",
+        items: [],
+        summary: { reviewReplies: 0, localPosts: 0, total: 0 },
+      } as unknown as ProofReceipt,
+      isLoading: false,
+      error: null,
+    });
+
+    render(<ProofReceiptFeed />);
+
+    // FALSIFIER: fabricating the client's current month would render "July 2026".
+    expect(screen.queryByText(/July|June/)).toBeNull();
+    expect(screen.getByText(/Nothing published yet\./)).toBeInTheDocument();
+    expect(screen.queryByText(/Nothing published yet in/)).toBeNull();
+  });
+
+  it("does not name a month when the receipt window is unparseable", () => {
+    mockUseProofReceipt.mockReturnValue({
+      receipt: {
+        organizationId: 1,
+        since: "not-a-date",
+        until: "2026-06-30",
+        items: [],
+        summary: { reviewReplies: 0, localPosts: 0, total: 0 },
+      },
+      isLoading: false,
+      error: null,
+    });
+
+    render(<ProofReceiptFeed />);
+
+    expect(screen.queryByText(/July|June/)).toBeNull();
+    expect(screen.getByText(/Nothing published yet\./)).toBeInTheDocument();
+    // FALSIFIER: an empty month label used to render "Nothing published yet in ."
+    expect(screen.queryByText(/yet in \./)).toBeNull();
+  });
+
+  it("drops the month from the footer rather than naming a window it does not have", () => {
+    mockUseProofReceipt.mockReturnValue({
+      receipt: {
+        organizationId: 1,
+        since: "not-a-date",
+        until: "2026-06-30",
+        items: [
+          { type: "local_post", at: "2026-06-15T12:00:00.000Z", workItemId: "a", locationId: 10 },
+        ],
+        summary: { reviewReplies: 0, localPosts: 1, total: 51 },
+      },
+      isLoading: false,
+      error: null,
+    });
+
+    render(<ProofReceiptFeed />);
+
+    expect(screen.getByText("Showing your 1 most recent · 51 published.")).toBeInTheDocument();
+    expect(screen.queryByText(/July|June/)).toBeNull();
   });
 });

@@ -7,9 +7,15 @@
  * review reply posted, a local post published — no causal claim, nothing modelled.
  */
 
+/**
+ * Work-item content type. Mirrors the backend `GbpContentType` union
+ * (`src/models/GbpWorkItemModel.ts`) so a consumer keying a lookup off this
+ * gets a compile error when a new type is added instead of a silent default.
+ */
+export type ProofReceiptItemType = "review_reply" | "local_post" | "business_info";
+
 export interface ProofReceiptItem {
-  /** Work-item content type, e.g. "review_reply" | "local_post". */
-  type: string;
+  type: ProofReceiptItemType;
   /** published_at (ISO string) — when Alloro did it. */
   at: string;
   workItemId: string;
