@@ -112,6 +112,34 @@ describe("readImpressionsLift — provenance is fixed GSC-organic, Maps never fo
     expect(res.delta).toBeNull();
     expect(res.reason).toMatch(/no stored GSC-organic history/);
   });
+
+  it("carries the Maps exclusion on the result, on BOTH the sufficient and insufficient paths", async () => {
+    // `AGENTS.md` defines Get Found as map + organic + AI answers; this reader
+    // answers one of the three. The exclusion has to ride on the object, or a
+    // downstream label quietly presents a partial measure as the whole gate —
+    // "Search impressions: 27,151" with no caveat.
+    routeWindows({
+      [PRE.start]: [
+        legacyDay("2026-06-01", 100),
+        legacyDay("2026-06-02", 100),
+        legacyDay("2026-06-03", 100),
+      ],
+      [POST.start]: [
+        legacyDay("2026-06-08", 150),
+        legacyDay("2026-06-09", 150),
+        legacyDay("2026-06-10", 150),
+      ],
+    });
+    const sufficient = await readImpressionsLift(ORG, PRE, POST);
+
+    routeWindows({ [PRE.start]: [], [POST.start]: [] });
+    const insufficient = await readImpressionsLift(ORG, PRE, POST);
+
+    expect(sufficient.sufficient).toBe(true);
+    expect(sufficient.excludes).toEqual(["gbp_maps"]);
+    expect(insufficient.sufficient).toBe(false);
+    expect(insufficient.excludes).toEqual(["gbp_maps"]);
+  });
 });
 
 describe("readImpressionsLift — a partial window is never subtracted into a fake total", () => {
