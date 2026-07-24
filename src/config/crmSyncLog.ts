@@ -23,3 +23,20 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
 export function crmSyncLogRetentionCutoff(now: Date = new Date()): Date {
   return new Date(now.getTime() - CRM_SYNC_LOG_RETENTION_DAYS * MS_PER_DAY);
 }
+
+/**
+ * Rows deleted per statement by the prune. The first run on a table that has
+ * never been pruned can face millions of eligible rows; one unbounded DELETE
+ * would take row locks on all of them in a single transaction and can outlive
+ * the BullMQ lock, which marks the job stalled and starts a second identical
+ * DELETE against a table already holding those locks. Batching bounds the lock
+ * regardless of what indexes exist.
+ */
+export const CRM_SYNC_LOG_PRUNE_BATCH_SIZE = 10_000;
+
+/**
+ * Hard bound on batches per run, so one job can never run unboundedly long.
+ * Reaching it is not an error: the prune is a time-cutoff delete, so the next
+ * daily run simply continues where this one stopped.
+ */
+export const CRM_SYNC_LOG_PRUNE_MAX_BATCHES = 500;

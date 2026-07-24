@@ -1,4 +1,8 @@
 import { BaseModel, PaginatedResult, PaginationParams, QueryContext } from "../BaseModel";
+import {
+  CRM_SYNC_LOG_PRUNE_BATCH_SIZE,
+  CRM_SYNC_LOG_PRUNE_MAX_BATCHES,
+} from "../../config/crmSyncLog";
 
 export type CrmSyncOutcome =
   | "success"
@@ -81,14 +85,43 @@ export class CrmSyncLogModel extends BaseModel {
   }
 
   /**
-   * Retention housekeeping. Deletes log rows older than the given date.
-   * Not yet wired to a cron in v1; v1.1 will schedule it. Tests must verify
-   * correctness so the wiring is a one-line change later.
+   * Retention housekeeping. Deletes log rows strictly older than the given
+   * date and returns how many were removed.
+   *
+   * The comparison is strict `<`: a row whose `attempted_at` is exactly the
+   * cutoff — and every newer row — is inside the retention window and must
+   * survive. Do not relax this to `<=`.
+   *
+   * Deletion runs in bounded batches (§10.4 / lock safety) rather than one
+   * unbounded statement, so the first run against a never-pruned table cannot
+   * hold row locks on millions of rows for the length of a single transaction.
+   * Each batch is its own statement; a run that hits the batch ceiling leaves
+   * the remainder for the next scheduled run.
    */
   static async pruneOlderThan(
     cutoff: Date,
     trx?: QueryContext,
   ): Promise<number> {
-    return this.table(trx).where("attempted_at", "<", cutoff).del();
+    let totalDeleted = 0;
+
+    for (let batch = 0; batch < CRM_SYNC_LOG_PRUNE_MAX_BATCHES; batch += 1) {
+      const deleted = await this.table(trx)
+        .whereIn(
+          "id",
+          this.table(trx)
+            .select("id")
+            .where("attempted_at", "<", cutoff)
+            .limit(CRM_SYNC_LOG_PRUNE_BATCH_SIZE),
+        )
+        .del();
+
+      totalDeleted += deleted;
+
+      if (deleted < CRM_SYNC_LOG_PRUNE_BATCH_SIZE) {
+        break;
+      }
+    }
+
+    return totalDeleted;
   }
 }

@@ -215,6 +215,11 @@ export async function setupCrmSyncLogPruneSchedule(): Promise<void> {
           tz: "UTC",
         },
         jobId: "daily-sync-log-prune",
+        // §21.2 — bounded retries with backoff. A failed prune must not be
+        // dropped silently: the table keeps growing and nothing surfaces it.
+        // Matches the two sibling schedules in this file.
+        attempts: 3,
+        backoff: { type: "exponential", delay: 60000 },
       }
     );
     logger.info("[MINDS-WORKER] Daily CRM sync-log prune scheduled (3:15 AM UTC)");
