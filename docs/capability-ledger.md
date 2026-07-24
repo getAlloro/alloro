@@ -21,6 +21,84 @@
 
 ---
 
+## ⚡ ACTIVATION QUEUE — what's BUILT but not LIVE, and who flips it
+
+**Derived view, not a second catalog.** Every row below is BUILT (code exists) and OFF. Fully-live capabilities are not here — they're in the sections below. Each row carries a receipt (ledger label · `file:line` · PR# · branch).
+
+**Swept 2026-07-23** across four independent surfaces: code flags (`src/` + `frontend/`), git branches + open/merged PRs, plan specs + `BUILD-QUESTIONS.md`, this ledger + memory. **"Complete" = these four surfaces on this date — not "everything."** Blind spots are listed at the end; re-run the four-surface sweep to refresh, and update the date. **Adversary-refuted 2026-07-23 (BROKE-IT, then repaired):** one bad row removed (GBP completeness auto-fill-at-audit — its receipt proved it's a deliberate owner-OFF non-build, and the manual path is already live), a receipt line corrected; one claimed "missed switch" was checked against the code and found to be a per-org opt-in with a wired UI, so correctly excluded.
+
+⛔ **CP7 cleared — and prod has since moved AHEAD.** `#220` rode dev→main (20:37Z). Git fact, stored as a re-runnable predicate so it fails loudly instead of rotting silently (this is hardening item **D** applied to the paragraph that motivated it — re-run the command; if the value differs, this paragraph is stale and the ahead/behind conclusion below must be re-derived, not trusted):
+
+> `git rev-list --left-right --count origin/main...origin/dev/dave` = `7  0` @2026-07-24T09:15:51Z
+
+So `origin/main` is **7 commits ahead** of `origin/dev/dave`, and dev/dave is **0** ahead of main — which **inverts** this file's old "dev/dave is 13 ahead / batch is dev-only" premise. The #208–#219 batch is on prod. ⚠️ **dev/dave being *behind* main needs reconciliation** (normal flow is dev→main; main-ahead means direct-to-main commits or an un-back-merged state — flag to Dave). The ledger head + **GF1** still say "dev-only" and are now **wrong** — pending a refresh pass.
+
+### The chokepoints — one action each, many features behind it
+
+| CP | The one action | Owner | Unblocks | Receipt |
+|---|---|---|---|---|
+| **CP1** | Flip the A6 write-back master switch `business_info_writeback_enabled` (per account) | **Dave** | GBP business-info write-back (GF5), GBP completeness detect-to-fix, better-category publish (GF2) | migration `20260716000000`; PR #168; specs `07152026-gbp-writeback`, `07182026-gbp-completeness-detect-to-fix`, `07202026-category-value-source` |
+| **CP2** | Clone dev/dave DB into sandbox (or grant read-only) | **Dave** | Attributed-lift calibration (H5/#209) → the whole proving-simulation verdict surface | `BUILD-QUESTIONS.md` Q2 |
+| **CP3** | Fix Clarity capture + name "snippet vs mapping" | **Dave** | #215 CRO signals (rage-click / scroll-depth wired into the diagnosis) | `BUILD-QUESTIONS.md` Q3; PR #215 |
+| **CP4** | Open a PR from `origin/checkup-upgrade` and land it | **Dave** | Review REQUESTS engine (CH2), SMS infra (S2), plus a checkup-report upgrade bundle (recognition scoring + report generators) | branch `origin/checkup-upgrade` |
+| **CP5** | Review + land the two re-applied seam PRs (#229, #230); the 3rd branch is HELD | **Dave** (review/merge) | GBP scheduled-post drafts, review-reply auto-draft, verified-leads-by-source (attribution). *Note: scheduled-post generation ALSO needs the per-org `local_post_generation_enabled` opt-in on — a normal wired-UI toggle, not a build gate. Review-reply auto-draft (#230) likewise needs **CP8** — landing the PR ships it dark.* | Updated 2026-07-23: `seam-source-to-reader`→**#229** (CH5), `seam-review-reply-autodraft`→**#230** (CH4) — both re-applied to trunk + verified; the stale 161-behind branches are retired. `origin/claude/seam-scheduled-post-unneuter` still stranded + **HELD** (the scheduled-post neuter looks intentional — posts need a per-post image). |
+| **CP6** | Grant `website-renderer` repo access | **Dave/Corey** | B1 preview-snippet verify, B1-R form/contact events, M0 first-touch source sender | specs `07152026-instrument-site`, `07152026-m0-submission-source-capture` |
+| **CP7** | ✅ CLEARED — prod promotion (#220) | Dave | Maps gauge reads true (GF1/#211), diagnostic-gait abstention confirm (#214) — **now: first prod daily run + Dave Step-1/2 check** | #220 (20:37Z); spec `07202026-zero-maps-fix` |
+| **CP8** | Flip the review-reply auto-draft switch `review_reply_autodraft_enabled` (per account, one practice at a time) | **Dave** | Review-reply auto-draft (CH4) — the drafts do not start until this is on | Added 2026-07-24: migration `20260724000000`, default **false**; PR #230. Same shape as CP1 (`business_info_writeback_enabled`): not client-toggleable, enabled per account by Alloro. Landing #230 does **not** activate it — that is deliberate, so this row exists rather than the feature starting itself on the next nightly sync. |
+
+**The bottleneck is activation, not build.** Most of the queue sits behind **Dave** — two per-account switches (CP1, CP8), a DB clone (CP2), a capture fix (CP3), and four "open the PR" lands (CP4/CP5).
+
+### BUILT-BUT-OFF — standalone rows (own switch, not behind a shared chokepoint)
+
+| Capability | State | The one step | Receipt |
+|---|---|---|---|
+| Preview Analytics env gate | GATED-OFF | set `PREVIEW_ANALYTICS_ENABLED=true` after renderer PII check | `src/config/rybbit.ts:23` |
+| Service-token enforcement | GATED-OFF | set `ALLORO_SERVICE_TOKEN_ENFORCE=true` after observation window | `src/config/serviceToken.ts:46` |
+| Findability Sensor (geo-grid rank) | GATED-OFF | set a location keyword config `enabled=true` | migration `20260715000000` |
+| Local Rankings period toggle | BUILT-DARK | `PERIOD_TOGGLE_ENABLED=true` + wire `useRankingHistory` | `frontend/.../rankingPeriod.ts:20` |
+| Client Taste Profile | BUILT–NOT-WIRED | add a prod caller to `composeTasteProfile()` | `service.taste-profile.ts:30` |
+| CRM sync-log pruning | BUILT–NOT-WIRED | schedule `CrmSyncLogModel.pruneOlderThan` on cron | `CrmSyncLogModel.ts:88` |
+| Patient-Journey velocity rung | GATED-OFF | provide real `review_created_at` reliability signal | `PatientJourneyService.ts:243` |
+| Freshness guard reach (I2) | PARTIAL | point `isMonthStale/withFreshness` at Rankings Hub + PJ | `#210`; `statusRules.ts:138` |
+| Rank-tone age-gate (I2 facet) | BUILT-DARK | add created-at to ranking projection + `as_of` field | `#210 body` |
+| Page-title / meta edits (GC1) | BUILT–NOT-WIRED | build draft-approve flow over `meta_title/meta_description` | migration `20260308000001` |
+| Vocabulary — frontend half | BUILT–NOT-WIRED | wire `useVocabulary()` into post-login components | `project_vocabulary_system` |
+| Routes API drive-time market | GATED-OFF (ext) | Dave enables Routes API in Cloud Console + wire consumer | `driveTimeMarket.ts:125` |
+| Email delivered/opened metrics | BUILT–NOT-WIRED | set Mailgun webhook key + configure event/open tracking | spec `07062026-email-logs-dashboard:259` |
+| AEO visibility observation | BUILT-DARK | build executor slice + pre-enable smoke tests | spec `07152026-aeo-visibility-observation:147` |
+| Responder V1 (lead auto-reply, OFF) | HELD-PR | promote draft, open PR, merge | `#176` (`claude/responder-v1`) |
+| Test-worktree adapter | HELD-PR | review + merge draft | `#180` |
+| Proof-receipt rollup | BUILT-DARK | land the frontend follow-up (backend is fetch-only) | `#177` |
+| Lattice residual bindings | BUILT-DARK | land 2 fragments (Schwartz→SeoGeneration, Sheridan→WebsiteAnalysis) | `#213 body` |
+| Alloro-OS admin SSE flush | TODO | Dave adds Apache SSE flush block on both vhosts | spec `07042026-alloro-os-admin-port:266` |
+| Dark detectors → owner surface | BUILT-DARK | build the follow-on slice wiring 3 detectors to the surface | spec `07182026-ranking-owner-surface:113` |
+| Ranking-owner-surface slice | STRANDED | Dave reviews held branch + merges | branch `claude/ranking-owner-surface` |
+| Practice-Hub Hero (Path D F1) | STRANDED | open PR + merge | `origin/feature/practice-hub-hero` |
+| Growth-Opportunities filter (Path D F2) | STRANDED | open PR + merge | `origin/feature/caroline-empty-state` |
+| Fireflies→Substrate pipeline | STRANDED | open PR + merge | `origin/fireflies-pipeline-build` |
+| Sandbox "Wave" cards (specialty competitors, referrals rescope) | STRANDED | promote via dev/dave batch | `origin/sandbox`, `origin/lattice-load-wave2` |
+| Marketing-loop dormant agents (~46) | BUILT–NOT-WIRED (low-conf) | wire diagnose→write→publish→measure on one client | `project_marketing_loop_state` (re-verify vs trunk) |
+
+### NOT-BUILT — identified, deliberately not started (separate roadmap — do not confuse with the above)
+
+Sikka PMS bridge (gates CH2's trigger) · Welcome-Intelligence processor · CRO v2 LLM honesty judge (gates Taste-rewrite B2) · Taste-profile producer slice · M0 hosted-form source sender (needs renderer access) · Findability scientist agents · Diagnostic exam-gate · Audit cohort-cap fix (owner decision) · GBP auto-fill-at-audit trigger (deliberate owner-OFF; the manual fill path is already LIVE at `GbpAutomationController.ts:142`) · Reviews "this month" calendar metric (owner decision) · Page-label rename persistence · `checkup.ts` refactor-or-delete · Handoff-enforcement remaining gates · BUILD-QUESTIONS Q1 (review agents → `.claude/`), Q4 (credential rotation — ⛔ Corey).
+
+### Blind spots this sweep flagged (where a missed item could still hide)
+- The **~46 dormant `websiteAgents/` agents** — no per-agent itemization; a single stranded agent could be uncounted.
+- **Per-row/per-org DB column defaults** (`enabled`/`is_enabled` defaulting false, filtered by a worker) — not named flags. Checked to ground: `local_post_generation_enabled` / `review_reply_enabled` (`GbpAutomationSettingsModel.ts:105`) are per-org **opt-ins with a wired admin UI** (`OrgGbpAutomationTab.tsx:180,200`) — customer choices, not activation gates, so excluded by design (an adversary flagged these as "missed"; the wired toggle proves they're not). Findability Sensor's `enabled` is the one true build-gate of this shape found.
+- **Pre-June `plans/**/*.md`** with looser "feature flag off" language — grep-covered, not read line-by-line for activation status.
+- **Sandbox-lineage Wave cards** possibly already promoted to main under reworded commit hashes — needs a per-file `git diff origin/main` on each sandbox tip to rule out.
+
+### Hardening path — make this queue self-checking, not self-asserting (adversary partner-rebuild, 2026-07-23)
+
+The three defects the adversary found share one root: **a row stores a conclusion, not a re-runnable check** — so it rots silently the moment code or git state moves (the same disease P3 spec-parity already mechanizes). To fix the *method*, not just this pass, build a PR-gated `verify-ledger.sh`:
+- **A. Derive `State` from two greps** — does a non-test *definition* exist? does a non-test *caller* exist? → `!built` = NOT-BUILT, `built && !caller` = BUILT-NOT-WIRED, `built && caller` = LIVE. A deliberate non-build has no symbol to cite; a comment-receipt yields a real caller — both self-contradict and fail the check. *(Grep is a backstop, not proof — same caveat as §11.7.)*
+- **B. Receipts become typed predicates** the script re-runs (e.g. `callers(stageFillForLocation, exclude=__tests__) == 0`); a receipt pointing at prose fails its own predicate.
+- **C. Add an `Off-reason` column** with a closed vocabulary `{no-caller, off-trunk, env-flag, per-org-optin, master-switch}` — separates a real build-gate from a customer opt-in (the `review_reply_enabled` confusion this pass).
+- **D. Store git facts as `command = value @timestamp`**; the preflight recomputes and FAILs when stored ≠ live (what would have caught the inverted head).
+
+---
+
 ## Honesty / instrument (fix first — a lying gauge is worse than a missing one)
 
 | # | Capability | Moves | State | Where you see it | Lives (receipt) |
@@ -68,6 +146,8 @@
 | CH1 | **Review REPLIES** (respond to existing reviews) | Prominence | **LIVE** | Reviews & Posts | `GbpReviewReplyService` + siblings (merged) |
 | CH2 | **Review REQUESTS / velocity** (get more, fresher reviews) — top competitive lever | Prominence → impressions | **STRANDED + Sikka-gated** | — | `ReviewRequestModel.ts` + `ReviewRequestEmail.ts` exist **stranded on `origin/checkup-upgrade`** (not on trunk) — NOT greenfield; PMS-trigger substrate = Sikka ([[project_sikka_integration]]); sandbox free-to-start, paid trigger = cash |
 | CH3 | **Form-submission confirmation email** (lead reassurance) | Submissions (trust) | **LIVE — conditional** | hosted lead forms | Updated 2026-07-23: built by #204, contrary to this row's "none". `formSubmissionController.ts` `buildConfirmationReceiptBody` sends *"We received your message"* to the submitter on the **form** path (distinct from the newsletter double-opt-in). Two conditions must hold or nothing sends: the form carries an email-like field, and the submission is not spam-flagged. |
+| CH4 | **Review-reply auto-draft** (draft a reply when a new review is ingested) | Prominence (impressions) + trust (CTR) — **two gates, both named** | **PR #230 open (dev/dave)** — was STRANDED (161-behind); **ships OFF, needs CP8 to activate** | Reviews & Posts (a staged draft work item) | Added 2026-07-23: **PR #230** re-applies `seam-review-reply-autodraft` onto current trunk (`923f35440`). `GbpReviewReplyAutoDraftService.enqueueForIngestedReviews` (called from the review-sync processor) stages a review-reply **draft** work item — owner-approval pending; it never sends (the existing CH1 human-approval gate is unchanged). Idempotent (skips already-drafted reviews), readiness-gated, degrades to 0 on failure (§3.1). Updated 2026-07-24 (review round): it had **no switch of its own** — the only gate was the readiness the MANUAL path uses, so merging would have started it on the next nightly sync for every location already replying manually. Now gated on a per-scope `review_reply_autodraft_enabled` (migration `20260724000000`, default **false**, not client-toggleable — mirrors `business_info_writeback_enabled`), plus a per-sync cap of 10 so a catch-up burst cannot queue in front of an owner's publish. Verified: tsc 0 · 17 tests · `check:conventions` 0 structural · full unit suite (2,306) green. Awaiting Dave review+merge. |
+| CH5 | **Verified leads by source** (which channel a raised hand came from — the attribution read) | Submissions (attribution) | **PR #229 open (dev/dave)** — was BUILT-STRANDED (161-behind) | Patient Journey leads stage (`bySource` on the leads metadata) | Added 2026-07-23: **PR #229** re-applies `seam-source-to-reader` onto trunk (`923f35440`). `FormSubmissionModel.getVerifiedStatsBySource` + `readLeadsBySource` read the captured `source`/`source_method` into the leads stage — closes the source→measurement seam (source was persisted on the write side but read by no consumer, so attribution was inert). Honest: per-source counts sum to the headline verified total (shared month-bucket SQL, session-TZ aligned); `source: null` is its own unknown bucket (Value #6); a client claim reads *reported as*, not *verified*. Verified: tsc 0 · 9 tests · `check:conventions` 0 structural · full unit suite (2,300) green. Awaiting Dave review+merge. |
 
 ## Send infrastructure
 
