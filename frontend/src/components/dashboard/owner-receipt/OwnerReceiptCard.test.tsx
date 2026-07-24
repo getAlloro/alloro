@@ -6,6 +6,7 @@ import type {
   OwnerReceiptActionItem,
   OwnerReceiptWindows,
 } from "../../../api/ownerReceipt";
+import { NOT_READY_BODY, NOT_READY_TITLE } from "./ownerReceiptCopy";
 
 /**
  * The card's own honesty contract — the parts the pure helpers cannot prove.
@@ -113,10 +114,10 @@ describe("OwnerReceiptCard — a failed request is not a data lag", () => {
     renderCard();
 
     expect(screen.getByRole("alert")).toBeInTheDocument();
-    expect(
-      screen.queryByText(/as soon as the data\s+is in/i),
-    ).not.toBeInTheDocument();
-    expect(screen.queryByText(/isn't ready yet/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(NOT_READY_BODY)).not.toBeInTheDocument();
+    expect(screen.queryByText(NOT_READY_TITLE)).not.toBeInTheDocument();
+    // The specific denial NOT_READY_BODY makes — false on this branch.
+    expect(screen.queryByText(/it doesn't/i)).not.toBeInTheDocument();
   });
 
   it("renders a failure state on a 404 (endpoint not deployed)", () => {
@@ -129,9 +130,7 @@ describe("OwnerReceiptCard — a failed request is not a data lag", () => {
     renderCard();
 
     expect(screen.getByRole("alert")).toBeInTheDocument();
-    expect(
-      screen.queryByText(/as soon as the data\s+is in/i),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText(NOT_READY_BODY)).not.toBeInTheDocument();
   });
 
   it("still renders the not-ready copy when the request SUCCEEDED with nothing in it", () => {
@@ -143,7 +142,8 @@ describe("OwnerReceiptCard — a failed request is not a data lag", () => {
 
     renderCard();
 
-    expect(screen.getByText(/isn't ready yet/i)).toBeInTheDocument();
+    expect(screen.getByText(NOT_READY_TITLE)).toBeInTheDocument();
+    expect(screen.getByText(NOT_READY_BODY)).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });

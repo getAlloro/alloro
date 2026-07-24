@@ -101,7 +101,15 @@ function TrendBlock({ receipt }: { receipt: OwnerReceipt }) {
           </span>
         </div>
       ) : (
-        <p className="mt-1.5 text-[13px] text-ink-muted">{view.reason}</p>
+        // The owner reads `view.reason`, written here in their words. The
+        // backend's own machine-ish reason rides along on `title` so support can
+        // read it without it ever being the sentence on the card.
+        <p
+          className="mt-1.5 text-[13px] text-ink-muted"
+          title={view.debugReason ?? undefined}
+        >
+          {view.reason}
+        </p>
       )}
     </div>
   );
@@ -110,7 +118,10 @@ function TrendBlock({ receipt }: { receipt: OwnerReceipt }) {
 /** Plain doctor-language for which funnel term moved leads (gated upstream). */
 function DiagnosisBlock({ receipt }: { receipt: OwnerReceipt }) {
   return (
-    <p className="mt-4 text-[14px] leading-snug text-alloro-navy">
+    <p
+      className="mt-4 text-[14px] leading-snug text-alloro-navy"
+      title={receipt.diagnosis.reason ?? undefined}
+    >
       {diagnosisSentence(receipt.diagnosis)}
     </p>
   );

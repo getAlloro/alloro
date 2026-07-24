@@ -14,7 +14,9 @@
 
 import type {
   FunnelMovementDiagnosis,
+  FunnelTerm,
   ImpressionsTrend,
+  ImpressionsWindowCoverage,
   OwnerReceiptMetric,
   ReceiptGate,
 } from "../../../api/ownerReceipt";
@@ -152,14 +154,56 @@ export interface ImpressionsTrendView {
   change?: string;
   beforeWindow?: string;
   afterWindow?: string;
-  /** Present only when NOT hasDelta: the plain coverage-gap reason. */
+  /** Present only when NOT hasDelta: the plain coverage-gap reason, in owner voice. */
   reason: string;
+  /**
+   * The backend's own machine-ish reason, carried for support (a `title`
+   * attribute / a log line) and never used as the owner-facing sentence.
+   */
+  debugReason?: string | null;
+}
+
+/** No coverage numbers to work from — the earliest, most common empty state. */
+const NO_HISTORY_SENTENCE =
+  "We don't have enough saved history yet to show a fair before-and-after. That's normal this early. Nothing for you to do.";
+
+/** How many of a window's days we hold, as an owner-readable noun phrase. */
+function coverageGapPhrase(
+  label: string,
+  window: ImpressionsWindowCoverage | null,
+): string | null {
+  if (window === null) return `no days saved for ${label}`;
+  if (window.fullyCovered) return null;
+  return `${window.storedDays} of the ${window.expectedDays} days saved for ${label}`;
+}
+
+/**
+ * The coverage sentence, built from the backend's structured numbers rather
+ * than from its `reason` string.
+ *
+ * The backend's `reason` is engineer prose — "PRE window is only partially
+ * covered (12 of 28 days stored); POST window has no stored GSC-organic
+ * history" — and it is what an owner actually reads on the branch that fires
+ * most often in production. #233 states plainly that owner-facing prose is the
+ * frontend's job, so it is written here from `storedDays`/`expectedDays`, and
+ * the raw string is carried on `debugReason` for support instead.
+ */
+function coverageGapSentence(trend: ImpressionsTrend): string {
+  // Nothing saved on either side — a brand-new org, not a partial window.
+  if (trend.pre === null && trend.post === null) return NO_HISTORY_SENTENCE;
+  const gaps = [
+    coverageGapPhrase("the earlier stretch", trend.pre),
+    coverageGapPhrase("the recent stretch", trend.post),
+  ].filter((phrase): phrase is string => phrase !== null);
+  if (gaps.length === 0) return NO_HISTORY_SENTENCE;
+  const listed = gaps.length === 1 ? gaps[0] : `${gaps[0]}, and ${gaps[1]}`;
+  return `We have ${listed}. A fair before-and-after needs all of them. We'll show it the moment they're in. Nothing for you to do.`;
 }
 
 /**
  * Gate the impressions trend (rule 3): a before -> after delta is built ONLY
- * when `sufficient` is true; otherwise we surface the plain `reason` and no
- * number pretends to be a measured change.
+ * when `sufficient` is true; otherwise we surface the coverage gap in the
+ * owner's own words and no number pretends to be a measured change.
  */
 export function buildImpressionsTrendView(
   trend: ImpressionsTrend,
@@ -167,9 +211,8 @@ export function buildImpressionsTrendView(
   if (!trend.sufficient || trend.delta === null || !trend.pre || !trend.post) {
     return {
       hasDelta: false,
-      reason:
-        trend.reason ??
-        "We don't have enough saved history yet to show a fair before-and-after. That's normal this early. Nothing for you to do.",
+      reason: coverageGapSentence(trend),
+      debugReason: trend.reason,
     };
   }
   const change =
@@ -187,10 +230,55 @@ export function buildImpressionsTrendView(
   };
 }
 
+/** Leads were measured in both windows and did not move. True regardless of diagnosability. */
+export const LEADS_FLAT_SENTENCE =
+  "The same number of people reached out as the stretch before. Nothing for you to do.";
+
+/** Owner words for each funnel term — used when we have to say what's missing. */
+const TERM_PHRASES: Record<FunnelTerm, string> = {
+  impressions: "how many people saw you",
+  CTR: "how many of them clicked through to your site",
+  CRO: "how many of your site's visitors reached out",
+};
+
+/** Generic fallback when the decomposition failed for a reason we can't itemise. */
+const UNDIAGNOSABLE_SENTENCE =
+  "We can't yet say which part moved the people who reached out. Nothing for you to do.";
+
+/**
+ * The undiagnosable sentence, built from the term decomposition rather than
+ * from the backend's `reason` string — same argument as `coverageGapSentence`.
+ * "cannot decompose which term moved leads: pre visits is zero; post leads not
+ * measured" is what an owner reads today; it is engineer prose and it is not
+ * this card's voice.
+ *
+ * A term the backend could not form (`logContribution: null`) is one we are
+ * missing a number for, so the sentence names those in owner words. When every
+ * term IS formed and the backend still declines to diagnose — which is what a
+ * future equal-window guard or a near-tie margin will produce — there is
+ * nothing to itemise and the plain sentence stands on its own.
+ */
+function undiagnosableSentence(diagnosis: FunnelMovementDiagnosis): string {
+  const missing = diagnosis.terms
+    .filter((term) => term.logContribution === null)
+    .map((term) => TERM_PHRASES[term.term]);
+  if (missing.length === 0) return UNDIAGNOSABLE_SENTENCE;
+  const listed =
+    missing.length === 1
+      ? missing[0]
+      : `${missing.slice(0, -1).join(", ")} and ${missing[missing.length - 1]}`;
+  return `We can't yet say which part moved the people who reached out. We're still missing ${listed}. Nothing for you to do.`;
+}
+
 /**
  * Plain doctor-language for which funnel term moved leads (rule 4). Names the
- * term, in the direction leads actually moved, without any causal claim. Falls
- * back to the backend's plain `reason` when it isn't honestly diagnosable.
+ * term that moved MOST, in the direction leads actually moved, without any
+ * causal claim and without asserting that the other two terms held.
+ *
+ * That last part matters: the backend picks the largest log-contribution, which
+ * can be a near-tie. A sentence like "the visits held" would be false whenever
+ * the margin is thin, so every sentence below says only what the ranking
+ * supports — which change was biggest.
  */
 export function diagnosisSentence(diagnosis: FunnelMovementDiagnosis): string {
   // Each sentence below asserts a DIRECTION ("More"/"Fewer people reached out"),
@@ -200,31 +288,26 @@ export function diagnosisSentence(diagnosis: FunnelMovementDiagnosis): string {
   // own — it does not rely on the backend happening to null `primaryDriver`
   // when leads are flat, which is backend behaviour this layer cannot enforce.
   const change = diagnosis.leadsChange;
-  if (
-    !diagnosis.diagnosable ||
-    diagnosis.primaryDriver === null ||
-    change === null ||
-    change === 0
-  ) {
-    return (
-      diagnosis.reason ??
-      "We can't yet say which part of your funnel moved the people who reached out."
-    );
+  // A measured 0 change means both windows' leads were counted and matched —
+  // honest to state whether or not the decomposition worked.
+  if (change === 0) return LEADS_FLAT_SENTENCE;
+  if (!diagnosis.diagnosable || diagnosis.primaryDriver === null || change === null) {
+    return undiagnosableSentence(diagnosis);
   }
   const rose = change > 0;
   switch (diagnosis.primaryDriver) {
     case "impressions":
       return rose
-        ? "More people reached out. What moved is the top of the funnel — more people saw you than before."
-        : "Fewer people reached out. What moved is the top of the funnel — fewer people saw you than before.";
+        ? "More people reached out. The biggest change was how many people saw you — more than before."
+        : "Fewer people reached out. The biggest change was how many people saw you — fewer than before.";
     case "CTR":
       return rose
-        ? "More people reached out. More of the people who saw you clicked through to your site than before."
-        : "Fewer people reached out. Fewer of the people who saw you clicked through to your site than before.";
+        ? "More people reached out. The biggest change was how many of the people who saw you clicked through to your site — more than before."
+        : "Fewer people reached out. The biggest change was how many of the people who saw you clicked through to your site — fewer than before.";
     case "CRO":
       return rose
-        ? "More people reached out once they were on your site — the same visits did more this time."
-        : "Fewer people reached out once they were on your site. The visits held; fewer of them turned into someone reaching out.";
+        ? "More people reached out. The biggest change happened on your site — a bigger share of the people who visited reached out than before."
+        : "Fewer people reached out. The biggest change happened on your site — a smaller share of the people who visited reached out than before.";
   }
 }
 
