@@ -56,12 +56,46 @@ export interface FormSubmissionFormStats {
   unread_count: number;
 }
 
+/**
+ * One verified-submission bucket grouped by (source, source_method) — the
+ * by-CHANNEL read of raised hands (the connection-measurement moat, Slice 4).
+ *
+ * `source` is returned AS captured: null means unknown (Value #6), never folded
+ * into a real channel and never zero-filled. `source_method` is the PROVENANCE
+ * that rides with the label so a reader can pick the honest confidence tier via
+ * `sourceConfidence()` — a client CLAIM is never presented as verified
+ * attribution. `verified` counts the same rows as the `verified` column of
+ * getMonthlyStatsByProject (non-flagged, non-newsletter), so the per-source
+ * counts SUM to that window's verified total.
+ */
+export interface FormSubmissionSourceStat {
+  source: string | null;
+  source_method: string | null;
+  verified: number;
+}
+
 type FormSubmissionFilters = {
   is_read?: boolean;
   is_flagged?: boolean;
   form_name?: string;
   form_name_not?: string;
 };
+
+/**
+ * The month-bucket expression, shared by the headline monthly stats and the
+ * by-source breakdown so they CANNOT drift. `date_trunc('month', submitted_at)`
+ * on a `timestamptz` is evaluated in the DB SESSION timezone — the by-source
+ * read must bucket on the exact same expression, or a row that sits on a UTC
+ * month boundary (but a different calendar month in a non-UTC session TZ) would
+ * land in different buckets for the two queries and break the honesty invariant
+ * `sum(bySource.verified) === headline.verified`. Single source, so alignment is
+ * guaranteed by construction regardless of the DB session TZ.
+ */
+const MONTH_BUCKET_SQL = "date_trunc('month', submitted_at)";
+/** The `YYYY-MM` label of the month bucket, in the same session-TZ basis. */
+const MONTH_KEY_SQL = `to_char(${MONTH_BUCKET_SQL}, 'YYYY-MM')`;
+
+export { MONTH_BUCKET_SQL, MONTH_KEY_SQL };
 
 export class FormSubmissionModel extends BaseModel {
   protected static tableName = "website_builder.form_submissions";
@@ -407,9 +441,7 @@ export class FormSubmissionModel extends BaseModel {
   > {
     return (trx || db)("website_builder.form_submissions")
       .select(
-        db.raw(
-          "to_char(date_trunc('month', submitted_at), 'YYYY-MM') AS month"
-        ),
+        db.raw(`${MONTH_KEY_SQL} AS month`),
         db.raw(
           `COUNT(*) FILTER (WHERE form_name <> 'Newsletter Signup')::int AS total`
         ),
@@ -423,8 +455,63 @@ export class FormSubmissionModel extends BaseModel {
       )
       .where("project_id", projectId)
       .andWhere("submitted_at", ">=", rangeStartIso)
-      .groupBy(db.raw("date_trunc('month', submitted_at)"))
+      .groupBy(db.raw(MONTH_BUCKET_SQL))
       .orderBy("month", "asc");
+  }
+
+  /**
+   * Verified (non-flagged, non-newsletter) submission counts grouped by
+   * (source, source_method) for a project's month bucket. Tenant-scoped by
+   * project_id (§11.7).
+   *
+   * The verified predicate AND the month bucketing mirror
+   * getMonthlyStatsByProject EXACTLY: same `is_flagged = false` +
+   * `form_name <> 'Newsletter Signup'` filter, same `submitted_at >=
+   * rangeStartIso` lower bound, and the same `MONTH_KEY_SQL` month expression —
+   * so the per-source counts SUM to that month's verified total for ANY DB
+   * session timezone. Matching the month on `date_trunc('month', submitted_at)`
+   * (session-TZ) rather than a UTC instant window is the fix: a boundary row is
+   * bucketed identically by both queries, so the honesty invariant
+   * `sum(bySource.verified) === headline.verified` holds by construction (a
+   * by-channel breakdown that doesn't reconcile with the headline lead count
+   * would be worse than none).
+   *
+   * `monthKey` is the `YYYY-MM` label the caller reads from the headline row, so
+   * the two reads are keyed to the same bucket. A null `source`/`source_method`
+   * is returned AS null (unknown) — its own honest bucket, never folded into a
+   * real channel and never zero-filled (Value #6).
+   */
+  static async getVerifiedStatsBySource(
+    projectId: string,
+    rangeStartIso: string,
+    monthKey: string,
+    trx?: QueryContext,
+  ): Promise<FormSubmissionSourceStat[]> {
+    const rows = await this.table(trx)
+      .select("source", "source_method")
+      .count<
+        Array<{
+          source: string | null;
+          source_method: string | null;
+          count: string | number;
+        }>
+      >("* as count")
+      .where("project_id", projectId)
+      .andWhere("is_flagged", false)
+      .andWhereNot("form_name", "Newsletter Signup")
+      .andWhere("submitted_at", ">=", rangeStartIso)
+      .andWhereRaw(`${MONTH_KEY_SQL} = ?`, [monthKey])
+      .groupBy("source", "source_method")
+      .orderBy("count", "desc");
+
+    return rows.map((row) => ({
+      source: row.source ?? null,
+      source_method: row.source_method ?? null,
+      verified:
+        typeof row.count === "number"
+          ? row.count
+          : parseInt(String(row.count), 10) || 0,
+    }));
   }
 
   /**

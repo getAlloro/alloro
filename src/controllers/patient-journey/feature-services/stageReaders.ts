@@ -22,7 +22,36 @@ import { MAPS_IMPRESSIONS_TRUSTED_FROM } from "../../../config/patientJourney";
 import { aggregatePmsData } from "../../../utils/pms/pmsAggregator";
 import { fetchRybbitOverview } from "../../admin-websites/feature-services/service.rybbit-performance";
 import { resolveRybbitTimeZone } from "../../../utils/rybbit/rybbit-time-zone";
+import {
+  sourceConfidence,
+  type SourceConfidence,
+} from "../../websiteContact/feature-utils/sourceAttribution";
 import logger from "../../../lib/logger";
+
+/**
+ * One verified-leads bucket per (`source`, `method`) PAIR — NOT one per channel.
+ * The query groups by both columns, so a channel legitimately appears MORE THAN
+ * ONCE: UTM-labelled Google (`client_label`), referrer-header Google
+ * (`header_referrer`) and pre-`source_method` historical Google (`null`) are
+ * three separate `source: "google"` buckets at three confidence tiers. A
+ * per-channel total therefore requires a roll-up by `source`;
+ * `bySource.find(b => b.source === "google")` reads only the first pair and
+ * under-reports the channel with no error. The split is deliberate — collapsing
+ * it would destroy the provenance distinction `source_method` exists to keep,
+ * and would force one tier onto rows we know different amounts about.
+ *
+ * `confidence` comes from stored provenance (`sourceConfidence`), so a client
+ * CLAIM reads "reported as", never "verified: came from" (Value #6).
+ * `source: null` is the honest unknown bucket — never folded into a real
+ * channel, never zero-filled. `method: null` on a REAL channel also grades
+ * `"unknown"`, so `confidence` alone does not mean "no channel" — `source` does.
+ */
+export interface LeadSourceBreakdown {
+  source: string | null;
+  method: string | null;
+  confidence: SourceConfidence;
+  verified: number;
+}
 
 export type StageReadMetadata = {
   gsc?: {
@@ -55,6 +84,17 @@ export type StageReadMetadata = {
   };
   leads?: {
     verified: number;
+    /**
+     * Verified leads broken down by (source, method) PAIR — see
+     * `LeadSourceBreakdown`. One channel may occupy several entries; roll up by
+     * `source` for a per-channel total. Omitted when the breakdown read fails
+     * OR when the buckets do not sum to `verified` — a by-source failure or
+     * mismatch drops only the breakdown, never the headline `verified` count.
+     * When present, the bucket `verified` counts ALWAYS sum to the top-level
+     * `verified` (enforced at runtime in `readLeadsBySource`, not just by
+     * construction in the SQL).
+     */
+    bySource?: LeadSourceBreakdown[];
   };
   /**
    * Whole-practice GBP Maps/local impressions folded into the "Get Found" gate
@@ -505,6 +545,58 @@ function clampAsOfToToday(dateStr: string | null): string | null {
   return dateStr < today ? dateStr : today;
 }
 
+/**
+ * Verified leads broken down by (source, method) pair for the reported month —
+ * keyed to the SAME `startIso` lower bound and `monthKey` bucket as the headline
+ * lead count (not a UTC instant window), so the buckets reconcile with the
+ * headline total for any DB session timezone. Best-effort (§3.1): a failed
+ * by-source read degrades to `undefined` (breakdown dropped) rather than
+ * throwing and losing the working verified count. Each bucket's honesty tier is
+ * from stored provenance.
+ *
+ * The buckets reconcile with `headlineVerified` BY CONSTRUCTION today (both
+ * queries share one verified predicate and one month expression) — but that
+ * rests on two SQL builders staying in lockstep across future edits, which no
+ * type holds. So it is CHECKED, not assumed: a divergent sum drops the breakdown
+ * and logs, because a split that doesn't add up to the headline is worse than no
+ * split (it invites trusting a wrong breakdown of a right total). The headline
+ * count is never affected.
+ */
+async function readLeadsBySource(
+  projectId: string,
+  startIso: string,
+  monthKey: string,
+  headlineVerified: number,
+): Promise<LeadSourceBreakdown[] | undefined> {
+  try {
+    const rows = await FormSubmissionModel.getVerifiedStatsBySource(
+      projectId,
+      startIso,
+      monthKey,
+    );
+    const bucketSum = rows.reduce((acc, row) => acc + row.verified, 0);
+    if (bucketSum !== headlineVerified) {
+      logger.warn(
+        { projectId, monthKey, bucketSum, headlineVerified },
+        "[patient-journey] leads by-source buckets do not sum to the headline verified count — breakdown dropped",
+      );
+      return undefined;
+    }
+    return rows.map((row) => ({
+      source: row.source,
+      method: row.source_method,
+      confidence: sourceConfidence(row.source_method),
+      verified: row.verified,
+    }));
+  } catch (err) {
+    logger.warn(
+      { err, projectId },
+      "[patient-journey] leads by-source read failed",
+    );
+    return undefined;
+  }
+}
+
 /** Lead count = non-flagged form submissions for the project in the month. */
 export async function readLeads(
   projectId: string,
@@ -537,11 +629,22 @@ export async function readLeads(
         : { ...emptyRead(), unavailableReason: "no_data" };
     }
     const verified = Number(row.verified) || 0;
+    const bySource = await readLeadsBySource(
+      projectId,
+      startIso,
+      monthKey,
+      verified,
+    );
+    // Only attach a non-empty breakdown. An empty [] beside a nonzero headline
+    // would read as a breakdown that sums to zero — dishonest; drop it instead.
+    const hasBreakdown = Array.isArray(bySource) && bySource.length > 0;
     return {
       value: verified,
       available: true,
       asOf: leadsAsOf,
-      metadata: { leads: { verified } },
+      metadata: {
+        leads: { verified, ...(hasBreakdown ? { bySource } : {}) },
+      },
     };
   } catch (err) {
     logger.warn({ err, projectId }, "[patient-journey] leads read failed");
