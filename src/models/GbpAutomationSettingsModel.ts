@@ -8,6 +8,13 @@ export interface IGbpAutomationSettings {
   organization_id: number;
   location_id: number | null;
   review_reply_enabled: boolean;
+  /**
+   * Activation switch for AUTO-drafting a reply when a review is ingested,
+   * separate from `review_reply_enabled` (which gates the manual path). Default
+   * false — auto-draft stays dark until it is turned on for one account at a
+   * time. Not client-toggleable, like `business_info_writeback_enabled`.
+   */
+  review_reply_autodraft_enabled: boolean;
   review_reply_customizations: string | null;
   local_post_customizations: string | null;
   review_reply_voice_examples: string[];
@@ -28,6 +35,7 @@ export type GbpAutomationSettingsUpsert = Partial<
   Pick<
     IGbpAutomationSettings,
     | "review_reply_enabled"
+    | "review_reply_autodraft_enabled"
     | "review_reply_customizations"
     | "local_post_customizations"
     | "review_reply_voice_examples"

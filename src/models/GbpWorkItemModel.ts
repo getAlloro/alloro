@@ -135,6 +135,33 @@ export class GbpWorkItemModel extends BaseModel {
     return row ? this.deserializeJsonFields(row) : undefined;
   }
 
+  /**
+   * Dedup for review-reply auto-draft: the subset of `reviewIds` that ALREADY has
+   * a review_reply work item in ANY status (draft → published/rejected) for this
+   * org+location — so a review is drafted at most once ever, and a prior
+   * rejected/published draft is never re-drafted. Empty input → empty set.
+   * organizationId/locationId are REQUIRED args, not optional filters a caller may
+   * forget (§11.7): gbp_work_items is tenant-scoped, so an unscoped read would let
+   * another tenant's review ids match rows this caller must not see.
+   */
+  static async findReviewIdsWithReviewReply(
+    organizationId: number,
+    locationId: number,
+    reviewIds: string[],
+    trx?: QueryContext
+  ): Promise<Set<string>> {
+    if (reviewIds.length === 0) return new Set();
+    const rows: Array<Pick<IGbpWorkItem, "source_review_id">> = await this.table(trx)
+      .whereIn("source_review_id", reviewIds)
+      .where({ organization_id: organizationId, location_id: locationId, content_type: "review_reply" })
+      .select("source_review_id");
+    return new Set(
+      rows
+        .map((row) => row.source_review_id)
+        .filter((id): id is string => Boolean(id))
+    );
+  }
+
   static async findLocalPostForGenerationWindow(
     organizationId: number,
     locationId: number,

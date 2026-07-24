@@ -4,6 +4,7 @@ import { GbpLocalPostDeploymentService } from "../../controllers/gbp-automation/
 import { GbpLocalPostDraftService } from "../../controllers/gbp-automation/feature-services/GbpLocalPostDraftService";
 import { GbpLocalPostScheduleService } from "../../controllers/gbp-automation/feature-services/GbpLocalPostScheduleService";
 import { GbpPublishedLocalPostService } from "../../controllers/gbp-automation/feature-services/GbpPublishedLocalPostService";
+import { GbpReviewReplyAutoDraftService } from "../../controllers/gbp-automation/feature-services/GbpReviewReplyAutoDraftService";
 import { GbpReviewReplyService } from "../../controllers/gbp-automation/feature-services/GbpReviewReplyService";
 import { GbpSyncSource } from "../../models/GbpSyncHealthModel";
 
@@ -14,6 +15,7 @@ export interface GbpAutomationJobData {
   limit?: number;
   organizationId?: number;
   locationId?: number;
+  reviewId?: string;
   syncSource?: GbpSyncSource;
 }
 
@@ -58,6 +60,19 @@ export async function processGbpAutomationJob(
       workItemId: job.data.workItemId,
       userId: job.data.userId || null,
       actorEmail: job.data.actorEmail || null,
+    });
+    return;
+  }
+
+  if (job.name === "autodraft-review-reply") {
+    const { organizationId, locationId, reviewId } = job.data;
+    if (!organizationId || !locationId || !reviewId) {
+      throw new Error("Missing organizationId/locationId/reviewId for GBP review-reply auto-draft.");
+    }
+    await GbpReviewReplyAutoDraftService.autoDraftForReview({
+      organizationId,
+      locationId,
+      reviewId,
     });
     return;
   }
