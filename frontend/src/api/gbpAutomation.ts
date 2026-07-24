@@ -1,4 +1,4 @@
-import { ApiError, apiDelete, apiGet, apiPatch, apiPost, apiPut } from "./index";
+import { apiDelete, apiGet, apiPatch, apiPost, apiPut, unwrap } from "./index";
 
 export type GbpReadinessStatus =
   | "ready"
@@ -289,24 +289,6 @@ export type GbpReviewSyncJob = {
   organizationId: number;
   locationId: number;
 };
-
-type ApiEnvelope<T> = {
-  success: boolean;
-  data: T;
-  error: { code: string; message: string; details?: unknown } | null;
-};
-
-function unwrap<T>(response: ApiEnvelope<T>): T {
-  if (!response?.success) {
-    // Carry the backend error `code` on the thrown error (§16.1) so callers can
-    // distinguish honest gated states (e.g. profile write-back off) from real
-    // failures without string-matching the message.
-    throw new ApiError(response?.error?.message || "GBP automation request failed.", {
-      code: response?.error?.code,
-    });
-  }
-  return response.data;
-}
 
 const withLocation = (path: string, locationId: number) =>
   `${path}${path.includes("?") ? "&" : "?"}locationId=${locationId}`;

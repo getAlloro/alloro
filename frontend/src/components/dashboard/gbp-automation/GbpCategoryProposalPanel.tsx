@@ -148,8 +148,20 @@ function PanelShell({ children }: { children: ReactNode }) {
  * review their Google primary category and, when a more specific one fits, review
  * and approve the staged change. It never publishes: approving records the owner's
  * decision, and sending it to Google is a separate step gated server-side.
+ *
+ * Remounts on every location change. React Query mutation state is not keyed by
+ * locationId and nothing resets it when the office selector moves, so without
+ * this key a proposal staged for office A stays on screen under office B's
+ * frame — and approving it would record the owner's consent against the office
+ * they were not looking at (the backend authorizes against every accessible
+ * location, so nothing server-side rejects it). Keying here rather than at the
+ * mount sites means a future third mount site cannot reintroduce the bug.
  */
-export function GbpCategoryProposalPanel({
+export function GbpCategoryProposalPanel(props: GbpCategoryProposalPanelProps) {
+  return <CategoryProposalPanelForLocation key={props.locationId ?? "none"} {...props} />;
+}
+
+function CategoryProposalPanelForLocation({
   organizationId,
   locationId,
 }: GbpCategoryProposalPanelProps) {
@@ -158,6 +170,10 @@ export function GbpCategoryProposalPanel({
     locationId
   );
   const result: GbpCategoryProposalResult | undefined = propose.data;
+
+  // Every proposal call asserts `locationId!`. `== null` rather than `!locationId`
+  // so a falsy-but-real id is never read as "no location selected".
+  const noLocationSelected = locationId == null;
 
   const runProposal = () => {
     approve.reset();
@@ -171,10 +187,11 @@ export function GbpCategoryProposalPanel({
         <ResultNotice
           tone="success"
           title="Change approved"
-          body={`Switching your primary category to "${result.recommendation.proposed.displayName}" is saved and ready to publish to your Google profile.`}
+          body={`Your decision to switch the primary category to "${result.recommendation.proposed.displayName}" is recorded. Nothing has been sent to Google — publishing a profile change is a separate step that stays switched off until profile updates are enabled for your account.`}
           onRetry={runProposal}
           retryLabel="Review again"
           isRetrying={propose.isPending}
+          retryDisabled={noLocationSelected}
         />
       ) : dismiss.isSuccess ? (
         <ResultNotice
@@ -184,6 +201,7 @@ export function GbpCategoryProposalPanel({
           onRetry={runProposal}
           retryLabel="Review again"
           isRetrying={propose.isPending}
+          retryDisabled={noLocationSelected}
         />
       ) : result?.proposed ? (
         <ProposalCard
@@ -204,6 +222,7 @@ export function GbpCategoryProposalPanel({
           onRetry={runProposal}
           retryLabel="Check again"
           isRetrying={propose.isPending}
+          retryDisabled={noLocationSelected}
         />
       ) : errorCode(propose.error) === WRITEBACK_DISABLED_CODE ? (
         <ResultNotice
@@ -213,6 +232,7 @@ export function GbpCategoryProposalPanel({
           onRetry={runProposal}
           retryLabel="Check again"
           isRetrying={propose.isPending}
+          retryDisabled={noLocationSelected}
         />
       ) : propose.isError ? (
         <ResultNotice
@@ -222,12 +242,13 @@ export function GbpCategoryProposalPanel({
           onRetry={runProposal}
           retryLabel="Try again"
           isRetrying={propose.isPending}
+          retryDisabled={noLocationSelected}
         />
       ) : (
         <IntroCard
           onReview={runProposal}
           isReviewing={propose.isPending}
-          disabled={!locationId}
+          disabled={noLocationSelected}
         />
       )}
     </PanelShell>
@@ -275,6 +296,13 @@ type ResultNoticeProps = {
   onRetry?: () => void;
   retryLabel?: string;
   isRetrying?: boolean;
+  /**
+   * Blocks the retry when no location is selected. Every retry runs the SAME
+   * location-scoped proposal call the primary trigger is already guarded on —
+   * an unguarded one POSTs `{ locationId: undefined }` and surfaces a raw
+   * MISSING_CONTEXT backend message.
+   */
+  retryDisabled?: boolean;
 };
 
 /** Terminal-state card: approved, dismissed, no-change, or a failed review. */
@@ -285,6 +313,7 @@ function ResultNotice({
   onRetry,
   retryLabel,
   isRetrying,
+  retryDisabled,
 }: ResultNoticeProps) {
   const titleColor =
     tone === "success"
@@ -303,7 +332,7 @@ function ResultNotice({
       {onRetry ? (
         <button
           type="button"
-          disabled={isRetrying}
+          disabled={isRetrying || retryDisabled}
           onClick={onRetry}
           className={`${SECONDARY_BUTTON} mt-4`}
         >
