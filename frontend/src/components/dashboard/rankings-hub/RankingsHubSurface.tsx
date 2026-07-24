@@ -167,7 +167,11 @@ export function RankingsHubSurface({
                   {result.searchQuery ?? "your tracked search"}
                 </span>
               </p>
-              {rankDisplay.stale && rankDisplay.checkedAt && (
+              {/* The caption gates on showCheckedDate, NOT on stale: a rank
+                  can be two months old and still inside isMonthStale's grace
+                  window, where it would render confident and undated. The tone
+                  above stays on `stale` — one staleness policy, two rules. */}
+              {rankDisplay.showCheckedDate && rankDisplay.checkedAt && (
                 <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
                   Last checked {formatDataMonth(rankDisplay.checkedAt)} · may be out of date
                 </p>
