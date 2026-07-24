@@ -9,12 +9,12 @@ import {
   PERIOD_LABELS,
   PERIOD_TOGGLE_ENABLED,
   RANKING_PERIODS,
-  hasDatableMovement,
   hasEnoughRankingHistory,
-  rankDeltaForPeriod,
-  type RankDelta,
+  rankDeltasForAllPeriods,
+  shouldShowPeriodToggle,
   type RankingPeriod,
 } from "./rankingPeriod";
+import { renderPeriodMovement } from "./rankingsHubSurface.utils";
 import {
   buildCompetitorComparisonRows,
   getComparisonInsight,
@@ -44,10 +44,12 @@ import {
  *
  * The MONTH/QTR/YTD toggle was removed in feedback #5 while it was still
  * dark (PERIOD_TOGGLE_ENABLED=false, no wired state). It is now LIVE: wired to
- * `useRankingHistory` and rendered only when the org actually has a history
- * series, so an org with no history sees no dead toggle. Movement is dated from
- * the real earliest point (`rankDeltaForPeriod`), and a range without two
- * datable points reads "not enough history yet" — never a fabricated trend.
+ * `useRankingHistory` and rendered only when at least one period can actually
+ * report movement (`shouldShowPeriodToggle`) — "has history" alone is not
+ * enough, because an org whose latest run found no position has history and
+ * would get three tabs reading the same dead line. That org gets the one thing
+ * that IS news instead: "current position unknown". Movement is dated from the
+ * real earliest point used, in UTC to match how periods are classified.
  *
  * Spec: plans/06102026-local-rankings-simplification/spec.html (T3);
  * clarity pass: plans/06132026-local-rankings-clarity (T1, T4, T5).
@@ -60,47 +62,6 @@ function daysSince(value: string | null | undefined): number | null {
   const ts = new Date(value).getTime();
   if (!Number.isFinite(ts)) return null;
   return Math.max(0, Math.floor((Date.now() - ts) / 86_400_000));
-}
-
-/** Short, human date for the "since …" movement label; "" when unparseable. */
-function formatSince(iso: string | null): string {
-  if (!iso) return "";
-  const ts = new Date(iso).getTime();
-  if (!Number.isFinite(ts)) return "";
-  return new Date(ts).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-  });
-}
-
-/**
- * Render the rank-over-time movement line for the selected period. Honest by
- * construction: without two datable points it reads "not enough history yet",
- * and any movement is dated from the real earliest point — never fabricated.
- */
-function renderPeriodMovement(delta: RankDelta): ReactNode {
-  if (!hasDatableMovement(delta)) {
-    return <span className="text-ink-muted">Not enough ranking history yet</span>;
-  }
-  const improvement = delta.improvement as number;
-  const magnitude = Math.abs(improvement);
-  const spots = magnitude === 1 ? "spot" : "spots";
-  const since = formatSince(delta.startObservedAt);
-  if (improvement > 0) {
-    return (
-      <span style={{ color: TONE_COLOR.positive }}>
-        Up {magnitude} {spots} since {since}
-      </span>
-    );
-  }
-  if (improvement < 0) {
-    return (
-      <span className="text-alloro-navy/70">
-        Down {magnitude} {spots} since {since}
-      </span>
-    );
-  }
-  return <span className="text-ink-muted">No change since {since}</span>;
 }
 
 export function RankingsHubSurface({
@@ -173,13 +134,27 @@ export function RankingsHubSurface({
     locationId,
     "6m",
   );
-  const showPeriodToggle =
-    PERIOD_TOGGLE_ENABLED && hasEnoughRankingHistory(rankingHistory ?? []);
-  const periodDelta = useMemo(
-    () => rankDeltaForPeriod(rankingHistory ?? [], rankPeriod),
-    [rankingHistory, rankPeriod],
+  const periodDeltas = useMemo(
+    () => rankDeltasForAllPeriods(rankingHistory ?? []),
+    [rankingHistory],
   );
-  const movementNode = renderPeriodMovement(periodDelta);
+  const hasSeries = hasEnoughRankingHistory(rankingHistory ?? []);
+  // hasEnoughRankingHistory is only the cheap precondition. The toggle also has
+  // to be able to SAY something: an org whose latest run found no position has
+  // history and no usable delta in any period, and would get three tabs all
+  // reading the same dead line.
+  const showPeriodToggle =
+    PERIOD_TOGGLE_ENABLED && hasSeries && shouldShowPeriodToggle(periodDeltas);
+  // …but that org's news is worth telling. Drop the control, keep the line.
+  const showPositionUnknownNotice =
+    PERIOD_TOGGLE_ENABLED &&
+    hasSeries &&
+    !showPeriodToggle &&
+    periodDeltas.YTD.noMovementReason === "current-position-unknown";
+  const movementNode = useMemo(
+    () => renderPeriodMovement(periodDeltas[rankPeriod]),
+    [periodDeltas, rankPeriod],
+  );
 
   const comparisonInsight = useMemo(() => {
     const rows = buildCompetitorComparisonRows(result);
@@ -273,6 +248,12 @@ export function RankingsHubSurface({
                 ariaLabel="Ranking period"
               />
               <div className="text-[12px] font-semibold">{movementNode}</div>
+            </div>
+          )}
+
+          {showPositionUnknownNotice && (
+            <div className="mt-5 text-[12px] font-semibold">
+              {renderPeriodMovement(periodDeltas.YTD)}
             </div>
           )}
         </div>

@@ -6,6 +6,8 @@ import {
   hasEnoughRankingHistory,
   periodStart,
   rankDeltaForPeriod,
+  rankDeltasForAllPeriods,
+  shouldShowPeriodToggle,
 } from "./rankingPeriod";
 
 /**
@@ -148,5 +150,82 @@ describe("hasEnoughRankingHistory — no permanently-dead toggle", () => {
     expect(
       hasEnoughRankingHistory([point("2026-06-01", 5), point("2026-07-01", 4)]),
     ).toBe(true);
+  });
+});
+
+/**
+ * F1 — the toggle's mount gate asked the wrong question.
+ *
+ * hasEnoughRankingHistory asks "is there history?"; the render asks "is there a
+ * usable delta in the selected period?". An org that HAS history but whose most
+ * recent run found no position answers yes to the first and no to all three of
+ * the second, so the toggle rendered with the identical dead line on every tab.
+ * That is exactly the empty control the PR claimed it prevented.
+ */
+describe("F1 shouldShowPeriodToggle — no toggle that is dead on every tab", () => {
+  // History present and healthy, then the org drops out of the top 20 on the
+  // most recent run. An ordinary occurrence, not an edge case.
+  const droppedOut = [
+    point("2026-06-01T00:00:00.000Z", 5),
+    point("2026-06-15T00:00:00.000Z", 4),
+    point("2026-07-10T00:00:00.000Z", null),
+  ];
+
+  it("FALSIFIER: hides the toggle when every period is undatable", () => {
+    // The old gate said yes: two distinct dated points DO carry positions.
+    expect(hasEnoughRankingHistory(droppedOut)).toBe(true);
+
+    const deltas = rankDeltasForAllPeriods(droppedOut, NOW);
+    expect(hasDatableMovement(deltas.MONTH)).toBe(false);
+    expect(hasDatableMovement(deltas.QTR)).toBe(false);
+    expect(hasDatableMovement(deltas.YTD)).toBe(false);
+
+    expect(shouldShowPeriodToggle(deltas)).toBe(false);
+  });
+
+  it("shows the toggle as soon as one period carries real movement", () => {
+    const healthy = [
+      point("2026-06-01T00:00:00.000Z", 8),
+      point("2026-07-05T00:00:00.000Z", 6),
+      point("2026-07-12T00:00:00.000Z", 4),
+    ];
+    const deltas = rankDeltasForAllPeriods(healthy, NOW);
+    expect(shouldShowPeriodToggle(deltas)).toBe(true);
+    expect(deltas.MONTH.improvement).toBe(2);
+  });
+});
+
+/**
+ * F3 — "not enough ranking history yet" was asserted about orgs with plenty of
+ * it. Two different pieces of news collapsed into one sentence, and the one
+ * that got dropped ("we could not find you in the top 20 this run") is arguably
+ * the more important of the two.
+ */
+describe("F3 rankDeltaForPeriod — an unknown position is not thin history", () => {
+  it("FALSIFIER: reports current-position-unknown when the latest run found nothing", () => {
+    const droppedOut = [
+      point("2026-06-01T00:00:00.000Z", 5),
+      point("2026-06-15T00:00:00.000Z", 4),
+      point("2026-07-10T00:00:00.000Z", null),
+    ];
+    const deltas = rankDeltasForAllPeriods(droppedOut, NOW);
+
+    // There IS history — saying otherwise is false.
+    expect(deltas.YTD.noMovementReason).toBe("current-position-unknown");
+    expect(deltas.MONTH.noMovementReason).toBe("current-position-unknown");
+  });
+
+  it("still calls a genuinely thin series thin", () => {
+    const oneRun = [point("2026-07-12T00:00:00.000Z", 4)];
+    expect(rankDeltaForPeriod(oneRun, "MONTH", NOW).noMovementReason).toBe("thin-history");
+    expect(rankDeltaForPeriod([], "MONTH", NOW).noMovementReason).toBe("thin-history");
+  });
+
+  it("reports no reason at all when movement is real", () => {
+    const healthy = [
+      point("2026-07-02T00:00:00.000Z", 8),
+      point("2026-07-12T00:00:00.000Z", 4),
+    ];
+    expect(rankDeltaForPeriod(healthy, "MONTH", NOW).noMovementReason).toBeNull();
   });
 });

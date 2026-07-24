@@ -46,6 +46,17 @@ export function periodStart(period: RankingPeriod, now: Date): Date {
   return new Date(Date.UTC(year, now.getUTCMonth(), 1)); // MONTH
 }
 
+/**
+ * Why a period can show no movement. Two genuinely different pieces of news
+ * that a single "not enough history yet" sentence used to collapse:
+ *
+ *  - `thin-history` — we really do not hold enough runs yet.
+ *  - `current-position-unknown` — we hold plenty, but the most recent check did
+ *    not place the practice at all. Telling that owner they have no history is
+ *    false, and it buries the news they actually needed.
+ */
+export type NoMovementReason = "thin-history" | "current-position-unknown";
+
 export interface RankDelta {
   /** Rank position at (or just after) the start of the period. */
   startRank: number | null;
@@ -57,6 +68,8 @@ export interface RankDelta {
   startObservedAt: string | null;
   /** observedAt of the latest point in the series. */
   latestObservedAt: string | null;
+  /** Null when movement IS showable; otherwise which of the two reasons it is not. */
+  noMovementReason: NoMovementReason | null;
 }
 
 /**
@@ -90,13 +103,57 @@ export function rankDeltaForPeriod(
   const improvement =
     startRank !== null && latestRank !== null ? startRank - latestRank : null;
 
-  return {
+  const delta: RankDelta = {
     startRank,
     latestRank,
     improvement,
     startObservedAt: firstInPeriod?.observedAt ?? null,
     latestObservedAt: latest?.observedAt ?? null,
+    noMovementReason: null,
   };
+
+  if (hasDatableMovement(delta)) return delta;
+
+  // A latest run that placed nobody is not thin history — it is a different
+  // fact, and it is period-independent (`latest` is the last point in the whole
+  // series). Only claim it when the series HAS placed the practice before;
+  // otherwise there is genuinely nothing to compare against.
+  const everPlaced = sorted.some((p) => p.searchPosition !== null);
+  delta.noMovementReason =
+    latestRank === null && everPlaced ? "current-position-unknown" : "thin-history";
+  return delta;
+}
+
+/**
+ * Every period's delta, computed once. The surface needs all three to decide
+ * whether the toggle is worth rendering at all (see shouldShowPeriodToggle).
+ */
+export function rankDeltasForAllPeriods(
+  history: RankingHistoryPoint[],
+  now: Date = new Date(),
+): Record<RankingPeriod, RankDelta> {
+  return {
+    MONTH: rankDeltaForPeriod(history, "MONTH", now),
+    QTR: rankDeltaForPeriod(history, "QTR", now),
+    YTD: rankDeltaForPeriod(history, "YTD", now),
+  };
+}
+
+/**
+ * Whether a three-way toggle earns its place: at least ONE period must carry
+ * real movement.
+ *
+ * hasEnoughRankingHistory is the cheap precondition and asks the wrong
+ * question on its own — "is there history?" rather than "is there a usable
+ * delta in any period?". An org whose latest run found no position answers yes
+ * to the first and no to every period, and the toggle then renders the same
+ * dead line on all three tabs. That is the empty control, arrived at from the
+ * other direction.
+ */
+export function shouldShowPeriodToggle(
+  deltas: Record<RankingPeriod, RankDelta>,
+): boolean {
+  return RANKING_PERIODS.some((period) => hasDatableMovement(deltas[period]));
 }
 
 /**
@@ -104,7 +161,13 @@ export function rankDeltaForPeriod(
  * honest precondition for showing any movement. A single snapshot (start point
  * === latest point) is "not enough history yet", never "no change".
  */
-export function hasDatableMovement(delta: RankDelta): boolean {
+export function hasDatableMovement(
+  delta: RankDelta,
+): delta is RankDelta & {
+  improvement: number;
+  startObservedAt: string;
+  latestObservedAt: string;
+} {
   return (
     delta.improvement !== null &&
     delta.startObservedAt !== null &&
