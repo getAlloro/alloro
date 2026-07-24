@@ -58,6 +58,36 @@ export const TREND_HEADING = "Search impressions";
 /** Section heading over the dated action list. */
 export const ACTIONS_HEADING = "What we did";
 
+/*
+ * ── Transparency-control microcopy ────────────────────────────────────────
+ *
+ * Labels for the owner's controls (pick the window, filter the actions). These
+ * change only WHICH honest number shows — never whether it's honest — so they
+ * are plain chrome, not gated prose. The filter's empty line is the owner's own
+ * doing (they typed the filter), so it states the fact without the "worry"
+ * framing the not-ready/empty states carry.
+ */
+
+/** Label over the window selector. */
+export const WINDOW_CONTROL_LABEL = "Compare";
+
+/** The custom-range toggle. */
+export const WINDOW_CUSTOM_LABEL = "Custom";
+
+/** Custom-range field labels. */
+export const WINDOW_CUSTOM_START_LABEL = "From";
+export const WINDOW_CUSTOM_END_LABEL = "To";
+
+/** One-line note under a custom range, so the equal-length pairing is visible. */
+export const WINDOW_CUSTOM_NOTE =
+  "We compare this range against the same number of days just before it.";
+
+/** Placeholder + aria-label for the actions filter. */
+export const ACTIONS_FILTER_PLACEHOLDER = "Filter what we did";
+
+/** Shown when the owner's own filter matches none of the logged actions. */
+export const ACTIONS_FILTER_EMPTY = "Nothing matches that filter.";
+
 /**
  * Empty action list. Affect-labeled, no homework, closes reassuring: the owner
  * has nothing to chase — when the work happens, it appears here on its own.
