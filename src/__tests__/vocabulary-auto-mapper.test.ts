@@ -20,7 +20,9 @@ vi.mock("../models/VocabularyConfigModel", () => ({
 }));
 
 import { VocabularyConfigModel } from "../models/VocabularyConfigModel";
+import logger from "../lib/logger";
 import {
+  CATEGORY_MAP,
   detectPreset,
   autoConfigureVocabulary,
   getResolvedVocabulary,
@@ -130,5 +132,129 @@ describe("getResolvedVocabulary (read path)", () => {
 
     const preset = await getResolvedVocabulary(7);
     expect(preset?.patientTerm).toBe("client");
+  });
+});
+
+describe("CATEGORY_MAP — vertical labels", () => {
+  /**
+   * Closed allow-list. A vertical is read back through GET /api/vocabulary and
+   * stored denormalized in its own column, so anything branching on it treats a
+   * wrong label as fact. First-write-wins makes a wrong label permanent for the
+   * org that received it, so the guard belongs here, not in review.
+   */
+  const ALLOWED_VERTICALS = new Set([
+    "endodontics",
+    "orthodontics",
+    "oral_surgery",
+    "prosthodontics",
+    "general_dental",
+    "veterinary",
+    "legal",
+    "accounting",
+    "chiropractic",
+    "physical_therapy",
+    "optometry",
+    "beauty",
+    "home_services",
+    "food_service",
+    "automotive",
+    "real_estate",
+    "fitness",
+    "medspa",
+    "financial_advisor",
+    "general",
+  ]);
+
+  it("every preset's vertical is in the allow-list", () => {
+    const offenders = CATEGORY_MAP.filter(
+      (entry) => !ALLOWED_VERTICALS.has(entry.preset.vertical)
+    ).map((entry) => `${entry.patterns.join("|")} → ${entry.preset.vertical}`);
+
+    expect(offenders).toEqual([]);
+  });
+
+  it("does not spell one concept two ways", () => {
+    const verticals = new Set(CATEGORY_MAP.map((e) => e.preset.vertical));
+    // "general_dentistry" and "general_dental" both existed. One concept, one
+    // spelling — otherwise a consumer branching on the string misses half.
+    expect(verticals.has("general_dentistry")).toBe(false);
+    expect(verticals.has("general_dental")).toBe(true);
+  });
+
+  it("does not label a non-endodontic specialty as endodontics", () => {
+    // Regression guard: an oral-surgery or prosthodontic practice reading
+    // `vertical: "endodontics"` is a wrong fact about the practice.
+    expect(detectPreset("Oral and Maxillofacial Surgeon").vertical).toBe("oral_surgery");
+    expect(detectPreset("Prosthodontist").vertical).toBe("prosthodontics");
+    expect(detectPreset("Periodontist").vertical).toBe("general_dental");
+    // The one that genuinely is endodontics still is.
+    expect(detectPreset("Endodontist").vertical).toBe("endodontics");
+  });
+});
+
+describe("autoConfigureVocabulary — an existing config is never overwritten", () => {
+  it("skips the insert and returns the freshly detected preset", async () => {
+    findByOrgId.mockResolvedValue({
+      id: 1,
+      org_id: 7,
+      vertical: "general_dental",
+      overrides: {},
+    } as Awaited<ReturnType<typeof VocabularyConfigModel.findByOrgId>>);
+
+    const preset = await autoConfigureVocabulary(7, "Orthodontist");
+
+    // Documented explicitly: the STORED row stays general_dental even though
+    // the practice now reads as an orthodontist. There is no re-resolve path.
+    expect(insertConfig).not.toHaveBeenCalled();
+    expect(preset.vertical).toBe("orthodontics");
+  });
+
+  it("logs the disagreement so the drift is visible", async () => {
+    const infoSpy = vi.spyOn(logger, "info");
+    findByOrgId.mockResolvedValue({
+      id: 1,
+      org_id: 7,
+      vertical: "general_dental",
+      overrides: {},
+    } as Awaited<ReturnType<typeof VocabularyConfigModel.findByOrgId>>);
+
+    await autoConfigureVocabulary(7, "Orthodontist");
+
+    const logged = infoSpy.mock.calls.map((c) => String(c[0])).join("\n");
+    expect(logged).toContain("orthodontics");
+    expect(logged).toContain("general_dental");
+    infoSpy.mockRestore();
+  });
+
+  it("stays quiet when the detected vertical agrees with the stored one", async () => {
+    const infoSpy = vi.spyOn(logger, "info");
+    findByOrgId.mockResolvedValue({
+      id: 1,
+      org_id: 7,
+      vertical: "orthodontics",
+      overrides: {},
+    } as Awaited<ReturnType<typeof VocabularyConfigModel.findByOrgId>>);
+
+    await autoConfigureVocabulary(7, "Orthodontist");
+
+    expect(infoSpy).not.toHaveBeenCalled();
+    infoSpy.mockRestore();
+  });
+
+  it("catches a unique-violation on insert, logs it, and does not throw", async () => {
+    findByOrgId.mockResolvedValue(undefined as never);
+    const uniqueViolation = Object.assign(
+      new Error('duplicate key value violates unique constraint "vocabulary_configs_org_id_unique"'),
+      { code: "23505" }
+    );
+    insertConfig.mockRejectedValue(uniqueViolation);
+    const warnSpy = vi.spyOn(logger, "warn");
+
+    // The concurrent-write loser must degrade, not break the caller's refresh.
+    await expect(autoConfigureVocabulary(7, "Endodontist")).resolves.toMatchObject({
+      vertical: "endodontics",
+    });
+    expect(warnSpy).toHaveBeenCalled();
+    warnSpy.mockRestore();
   });
 });

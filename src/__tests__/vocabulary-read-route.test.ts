@@ -74,3 +74,76 @@ describe("GET /api/vocabulary", () => {
     expect(res.status).toBe(401);
   });
 });
+
+describe("GET /api/vocabulary — tenant scope comes from auth, never the request", () => {
+  it("ignores an organizationId supplied in the query string and body", async () => {
+    setOrg(); // rbacMiddleware attaches org 7
+    setTableResult("vocabulary_configs", {
+      id: 1,
+      org_id: 7,
+      vertical: "legal",
+      overrides: { vertical: "legal", patientTerm: "client" },
+    });
+
+    // A caller trying to read another org's vocabulary by asking for it.
+    const res = await request(app)
+      .get(`${BASE}?organizationId=999`)
+      .send({ organizationId: 999 })
+      .set(authHeader());
+
+    expect(res.status).toBe(200);
+    // Still the caller's own org (§5.5) — the request-supplied id is ignored.
+    expect(res.body.data.vertical).toBe("legal");
+    expect(res.body.data.configured).toBe(true);
+  });
+
+  it("reports unconfigured — never an unscoped read — when the session carries no org", async () => {
+    // No organization_users row → rbacMiddleware attaches no organizationId.
+    resetTableResults();
+    setTableResult("vocabulary_configs", {
+      id: 99,
+      org_id: 123,
+      vertical: "legal",
+      overrides: { vertical: "legal" },
+    });
+
+    const res = await request(app).get(BASE).set(authHeader());
+
+    // If the controller queried without a tenant it would return the legal row.
+    expect(res.body.data.configured).toBe(false);
+    expect(res.body.data.vertical).toBeNull();
+    expect(res.body.data.preset).toBeNull();
+  });
+
+  it("returns the full { success, data, error } contract on success (§8.1)", async () => {
+    setOrg();
+    setTableResult("vocabulary_configs", {
+      id: 1,
+      org_id: 7,
+      vertical: "legal",
+      overrides: { vertical: "legal", patientTerm: "client" },
+    });
+
+    const res = await request(app).get(BASE).set(authHeader());
+
+    expect(Object.keys(res.body).sort()).toEqual(["data", "error", "success"]);
+    expect(res.body.success).toBe(true);
+    expect(res.body.error).toBeNull();
+  });
+
+  it("degrades to configured:false — not a 500 — when the stored overrides are corrupt", async () => {
+    setOrg();
+    setTableResult("vocabulary_configs", {
+      id: 1,
+      org_id: 7,
+      vertical: "legal",
+      overrides: "{not valid json",
+    });
+
+    const res = await request(app).get(BASE).set(authHeader());
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.configured).toBe(false);
+  });
+});
