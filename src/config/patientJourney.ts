@@ -32,3 +32,19 @@
  * See `plans/07202026-pr-merge-remediation/pr-183-impressions.spec.html` (T6).
  */
 export const MAPS_IMPRESSIONS_TRUSTED_FROM = "2026-07-21";
+
+/**
+ * Longest single receipt window (inclusive days) a before/after read will
+ * accept.
+ *
+ * Two reasons, both concrete. (1) Amplification: `readImpressionsLift` pulls
+ * one JSONB `gsc_data` row per day into Node memory, and each row carries the
+ * day's `summary`, `queries` and `pages` arrays — an uncapped
+ * `?preStart=2000-01-01` is thousands of rows per request from any
+ * authenticated org member. (2) Meaning: a multi-year "before" window averages
+ * away the very change a receipt exists to show.
+ *
+ * 366 days covers a full year plus a leap day, which is the longest window any
+ * receipt surface asks for today.
+ */
+export const MAX_RECEIPT_WINDOW_DAYS = 366;
