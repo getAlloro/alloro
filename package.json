@@ -13,6 +13,7 @@
     "test:taste-profile:pg": "tsx scripts/verify-taste-profile-postgres.ts",
     "test:integration:findability-sensor": "vitest run -c vitest.integration.config.ts src/integration-tests/findability-sensor-postgres.itest.ts",
     "billing:reset-test-org": "tsx scripts/billing-reset-test-org.ts",
+    "preview:owner-receipt": "tsx scripts/preview-owner-receipt.ts",
     "check:conventions": "bash scripts/check-conventions.sh",
     "check:env": "bash scripts/check-env-placeholders.sh",
     "audit:constitution": "bash scripts/check-conventions.sh --audit",

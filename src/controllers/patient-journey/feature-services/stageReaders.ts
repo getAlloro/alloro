@@ -186,6 +186,24 @@ function summarizeGsc(
   };
 }
 
+/**
+ * Pure per-day GSC-**organic** impressions sum from ONE stored `gsc_data` row's
+ * `data` payload — the canonical organic parse shared with `readImpressions`
+ * above. Handles both payload shapes (legacy `{ rows }` and versioned
+ * `{ schemaVersion>=2, summary:{ rows } }`) via `summaryRows`, and sums only the
+ * summary rows' `impressions`. No clicks/position/dimensions, no Maps, no DB, no
+ * Google call — stored web-search organic impressions only. Exported additively
+ * so the impressions-lift reader reuses this exact arithmetic rather than
+ * re-deriving it; nothing about `readImpressions`' behaviour or shape changes.
+ */
+export function sumOrganicImpressionsForDay(data: unknown): number {
+  let impressions = 0;
+  for (const row of summaryRows(data as GscDayPayload)) {
+    impressions += readNumber(row.impressions);
+  }
+  return impressions;
+}
+
 function addGscDimension(
   map: Map<string, GscMetricAccumulator>,
   key: string | null,

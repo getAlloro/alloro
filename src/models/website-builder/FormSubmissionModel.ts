@@ -231,6 +231,30 @@ export class FormSubmissionModel extends BaseModel {
   }
 
   /**
+   * Count verified (non-flagged, non-newsletter) submissions for a project in a
+   * half-open window `[since, until)`. The window-scoped sibling of
+   * countVerifiedSinceByProjectId — the owner-receipt read-model needs a
+   * PRE-window and a POST-window lead count that are directly comparable, which
+   * the month-keyed getMonthlyStatsByProject cannot answer for an arbitrary
+   * window. Additive; no existing caller changes.
+   */
+  static async countVerifiedBetweenByProjectId(
+    projectId: string,
+    since: Date,
+    until: Date,
+    trx?: QueryContext,
+  ): Promise<number> {
+    const result = await this.table(trx)
+      .where({ project_id: projectId, is_flagged: false })
+      .whereNot("form_name", "Newsletter Signup")
+      .where("submitted_at", ">=", since)
+      .where("submitted_at", "<", until)
+      .count<{ count: string }[]>("* as count")
+      .first();
+    return parseInt(result?.count as string, 10) || 0;
+  }
+
+  /**
    * submitted_at of the oldest unread submission for a project (raw row, or
    * undefined). Mirrors the oldestUnreadRow query in
    * utils/dashboard-metrics/service.dashboard-metrics.buildFormSubmissionsMetrics.
