@@ -18,6 +18,7 @@ import type {
   ImpressionsTrend,
   ImpressionsWindowCoverage,
   OwnerReceiptMetric,
+  OwnerReceiptWindows,
   ReceiptGate,
 } from "../../../api/ownerReceipt";
 
@@ -81,6 +82,21 @@ export const WINDOW_CUSTOM_END_LABEL = "To";
 /** One-line note under a custom range, so the equal-length pairing is visible. */
 export const WINDOW_CUSTOM_NOTE =
   "We compare this range against the same number of days just before it.";
+
+/**
+ * Why the windows stop short of today.
+ *
+ * A preset labelled "28 days" that silently means "28 days ending four days ago"
+ * would be a new piece of opacity inside a transparency control, so the reason
+ * is stated and the concrete dates are shown beside it.
+ */
+export const WINDOW_LAG_NOTE =
+  "Windows stop a few days short of today. That's the last day Google has finished counting. Nothing for you to do.";
+
+/** "Jun 23, 2026 – Jul 20, 2026 vs May 26, 2026 – Jun 22, 2026" — a preset made concrete. */
+export function windowRangeLabel(windows: OwnerReceiptWindows): string {
+  return `${formatDay(windows.postStart)} – ${formatDay(windows.postEnd)} vs ${formatDay(windows.preStart)} – ${formatDay(windows.preEnd)}`;
+}
 
 /** Placeholder + aria-label for the actions filter. */
 export const ACTIONS_FILTER_PLACEHOLDER = "Filter what we did";
@@ -346,6 +362,18 @@ export function actionLabel(type: string): string {
   if (type === "review_reply") return "Replied to a review";
   if (type === "local_post") return "Published a post";
   return type;
+}
+
+/**
+ * "Searched the 50 most recent of 120." — rendered when a filter runs over a
+ * page the backend truncated.
+ *
+ * The filter searches the FETCHED rows only. A search box over a hidden
+ * truncation is exactly the cherry-pick the transparency control claims to
+ * disprove, so the scope of the search is named rather than implied.
+ */
+export function actionsSearchScopeNote(fetched: number, total: number): string {
+  return `Searched the ${formatMetricValue(fetched)} most recent of ${formatMetricValue(total)}.`;
 }
 
 /**

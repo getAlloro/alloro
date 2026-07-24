@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useOwnerReceipt } from "../../../hooks/queries/useOwnerReceipt";
 import type {
   OwnerReceipt,
@@ -12,6 +12,7 @@ import {
   ACTIONS_FILTER_EMPTY,
   ACTIONS_FILTER_PLACEHOLDER,
   ACTIONS_HEADING,
+  actionsSearchScopeNote,
   actionsTruncationNote,
   buildImpressionsTrendView,
   diagnosisSentence,
@@ -26,20 +27,18 @@ import {
   RECEIPT_SUBLINE,
   receiptErrorCopy,
   TREND_HEADING,
-  WINDOW_CONTROL_LABEL,
-  WINDOW_CUSTOM_END_LABEL,
-  WINDOW_CUSTOM_LABEL,
-  WINDOW_CUSTOM_NOTE,
-  WINDOW_CUSTOM_START_LABEL,
 } from "./ownerReceiptCopy";
 import {
   buildWindowPresets,
   deriveWindowsFromPost,
   filterActionItems,
   isoDayLocal,
+  latestCoverableDay,
   matchPresetId,
+  windowsEqual,
   type WindowPreset,
 } from "./ownerReceiptControls";
+import { WindowSelector } from "./WindowSelector";
 
 /**
  * OwnerReceiptCard — the CMO's report, honesty-gated, with owner controls.
@@ -99,102 +98,6 @@ function Shell({ children }: { children: ReactNode }) {
     >
       {children}
     </section>
-  );
-}
-
-const PILL_BASE =
-  "rounded-full px-3 py-1 text-[11px] font-semibold transition-colors";
-const PILL_ON = "bg-alloro-navy text-white";
-const PILL_OFF = "border border-line-soft text-ink-muted hover:text-alloro-navy";
-
-/**
- * The window selector — the primary transparency control. Honest presets plus a
- * custom range; picking any of them recomputes the card. Always visible, in
- * every card state, because the control is the point.
- */
-function WindowSelector({
-  presets,
-  activePresetId,
-  customOpen,
-  customStart,
-  customEnd,
-  onPickPreset,
-  onToggleCustom,
-  onCustomStartChange,
-  onCustomEndChange,
-}: {
-  presets: WindowPreset[];
-  activePresetId: string | null;
-  customOpen: boolean;
-  customStart: string;
-  customEnd: string;
-  onPickPreset: (preset: WindowPreset) => void;
-  onToggleCustom: () => void;
-  onCustomStartChange: (value: string) => void;
-  onCustomEndChange: (value: string) => void;
-}) {
-  return (
-    <div className="mt-4 border-t border-line-soft pt-4">
-      <span className="block text-[10px] font-bold uppercase tracking-[0.08em] text-ink-muted">
-        {WINDOW_CONTROL_LABEL}
-      </span>
-      <div
-        role="group"
-        aria-label={WINDOW_CONTROL_LABEL}
-        className="mt-2 flex flex-wrap gap-1.5"
-      >
-        {presets.map((preset) => {
-          const on = !customOpen && activePresetId === preset.id;
-          return (
-            <button
-              key={preset.id}
-              type="button"
-              aria-pressed={on}
-              onClick={() => onPickPreset(preset)}
-              className={`${PILL_BASE} ${on ? PILL_ON : PILL_OFF}`}
-            >
-              {preset.shortLabel}
-            </button>
-          );
-        })}
-        <button
-          type="button"
-          aria-pressed={customOpen}
-          onClick={onToggleCustom}
-          className={`${PILL_BASE} ${customOpen ? PILL_ON : PILL_OFF}`}
-        >
-          {WINDOW_CUSTOM_LABEL}
-        </button>
-      </div>
-
-      {customOpen && (
-        <div className="mt-3">
-          <div className="flex flex-wrap items-end gap-3">
-            <label className="flex flex-col gap-1 text-[10px] font-bold uppercase tracking-[0.08em] text-ink-muted">
-              {WINDOW_CUSTOM_START_LABEL}
-              <input
-                type="date"
-                value={customStart}
-                max={customEnd || undefined}
-                onChange={(event) => onCustomStartChange(event.target.value)}
-                className="rounded-[8px] border border-line-soft px-2 py-1 text-[12px] font-medium text-alloro-navy"
-              />
-            </label>
-            <label className="flex flex-col gap-1 text-[10px] font-bold uppercase tracking-[0.08em] text-ink-muted">
-              {WINDOW_CUSTOM_END_LABEL}
-              <input
-                type="date"
-                value={customEnd}
-                min={customStart || undefined}
-                onChange={(event) => onCustomEndChange(event.target.value)}
-                className="rounded-[8px] border border-line-soft px-2 py-1 text-[12px] font-medium text-alloro-navy"
-              />
-            </label>
-          </div>
-          <p className="mt-2 text-[11px] text-ink-muted">{WINDOW_CUSTOM_NOTE}</p>
-        </div>
-      )}
-    </div>
   );
 }
 
@@ -275,15 +178,24 @@ function MetricTile({ metric }: { metric: OwnerReceiptMetric }) {
  * The dated list of actions Alloro took, or an honest empty line, plus a plain
  * filter over them (the secondary transparency control).
  *
- * The list is labelled with its OWN span (`actions.since` – `actions.until`),
- * not the post window in the card header, and a backend-capped page states its
- * cap rather than reading as the complete record.
+ * Three honesty rules meet here:
+ *  - the list is labelled with its OWN span (`actions.since` – `actions.until`),
+ *    not the post window in the card header. The backend reads actions over
+ *    `[preWindow.start, postWindow.end]`, so on a 28/28 comparison this list
+ *    covers 56 days, and heading it with 28 days makes an owner counting the
+ *    rows double-count the period;
+ *  - the backend caps the page (50 by default), and the cap is stated — a
+ *    truncated list presented as the complete record understates the work;
+ *  - the filter runs over the FETCHED page only, so when that page is capped the
+ *    search scope is stated too. A search box over a hidden truncation is the
+ *    cherry-pick this control claims to disprove.
  */
 function ActionsBlock({ receipt }: { receipt: OwnerReceipt }) {
   const [query, setQuery] = useState("");
   const { items, since, until, summary, pagination } = receipt.actions;
   const total = pagination?.total ?? summary.total;
   const isTruncated = total > items.length;
+  const isFiltering = query.trim() !== "";
   const filtered = filterActionItems(items, query, (item) =>
     actionLabel(item.type),
   );
@@ -310,7 +222,14 @@ function ActionsBlock({ receipt }: { receipt: OwnerReceipt }) {
       {items.length === 0 ? (
         <p className="mt-1.5 text-[13px] text-ink-muted">{ACTIONS_EMPTY}</p>
       ) : filtered.length === 0 ? (
-        <p className="mt-1.5 text-[13px] text-ink-muted">{ACTIONS_FILTER_EMPTY}</p>
+        <>
+          <p className="mt-1.5 text-[13px] text-ink-muted">{ACTIONS_FILTER_EMPTY}</p>
+          {isTruncated ? (
+            <p className="mt-2 text-[11px] text-ink-muted tabular-nums">
+              {actionsSearchScopeNote(items.length, total)}
+            </p>
+          ) : null}
+        </>
       ) : (
         <>
           <ul className="mt-2 flex flex-col gap-1.5">
@@ -328,14 +247,12 @@ function ActionsBlock({ receipt }: { receipt: OwnerReceipt }) {
           </ul>
           {isTruncated ? (
             <p className="mt-2 text-[11px] text-ink-muted tabular-nums">
-              {actionsTruncationNote(items.length, total)}
+              {isFiltering
+                ? actionsSearchScopeNote(items.length, total)
+                : actionsTruncationNote(items.length, total)}
             </p>
           ) : null}
         </>
-      )}
-    </div>
-  );
-}
       )}
     </div>
   );
@@ -347,8 +264,12 @@ export function OwnerReceiptCard({
   windows,
   enabled,
 }: OwnerReceiptCardProps) {
-  const today = useMemo(() => isoDayLocal(new Date()), []);
+  // Read each render rather than memoised on `[]`: a dashboard left open
+  // overnight would otherwise keep yesterday's presets, and the active pill
+  // would stop matching the window the owner is actually looking at.
+  const today = isoDayLocal(new Date());
   const presets = useMemo(() => buildWindowPresets(today), [today]);
+  const maxDay = useMemo(() => latestCoverableDay(today), [today]);
 
   // The window prop is the initial choice; from here the owner drives it.
   const [selected, setSelected] = useState<OwnerReceiptWindows>(windows);
@@ -357,6 +278,20 @@ export function OwnerReceiptCard({
   );
   const [customStart, setCustomStart] = useState(windows.postStart);
   const [customEnd, setCustomEnd] = useState(windows.postEnd);
+
+  // Reconcile the prop when the PARENT changes it. Without this the `windows`
+  // prop is inert after first mount: a dashboard-level period switcher would
+  // move the parent's UI while the card kept fetching the old window — a
+  // plausible-looking wrong number, which is the worst kind.
+  const lastWindowsProp = useRef(windows);
+  useEffect(() => {
+    if (windowsEqual(lastWindowsProp.current, windows)) return;
+    lastWindowsProp.current = windows;
+    setSelected(windows);
+    setCustomOpen(matchPresetId(windows, presets) === null);
+    setCustomStart(windows.postStart);
+    setCustomEnd(windows.postEnd);
+  }, [windows, presets]);
 
   const activePresetId = matchPresetId(selected, presets);
 
@@ -372,10 +307,13 @@ export function OwnerReceiptCard({
     setCustomEnd(selected.postEnd);
   };
 
-  // Recompute only from a valid range; otherwise keep the last honest windows.
-  const applyCustom = (start: string, end: string) => {
-    const derived = deriveWindowsFromPost(start, end);
-    if (derived) setSelected(derived);
+  // Commit-only, never on keystroke. `<input type="date">` emits a valid value
+  // for every arrow-key step, and each one used to re-key the query and fire a
+  // fresh receipt request — five parallel backend reads per intermediate value.
+  // An invalid or reversed range simply keeps the last honest windows.
+  const commitCustom = () => {
+    const derived = deriveWindowsFromPost(customStart, customEnd);
+    if (derived && !windowsEqual(derived, selected)) setSelected(derived);
   };
 
   const { receipt, isLoading, error } = useOwnerReceipt(
@@ -389,19 +327,16 @@ export function OwnerReceiptCard({
     <WindowSelector
       presets={presets}
       activePresetId={activePresetId}
+      selected={selected}
       customOpen={customOpen}
       customStart={customStart}
       customEnd={customEnd}
+      maxDay={maxDay}
       onPickPreset={pickPreset}
       onToggleCustom={() => (customOpen ? setCustomOpen(false) : openCustom())}
-      onCustomStartChange={(value) => {
-        setCustomStart(value);
-        applyCustom(value, customEnd);
-      }}
-      onCustomEndChange={(value) => {
-        setCustomEnd(value);
-        applyCustom(customStart, value);
-      }}
+      onCustomStartChange={setCustomStart}
+      onCustomEndChange={setCustomEnd}
+      onCommitCustom={commitCustom}
     />
   );
 
@@ -422,10 +357,27 @@ export function OwnerReceiptCard({
           <div className="mt-4 h-9 w-full animate-pulse rounded bg-neutral-100" />
           <div className="mt-4 h-16 w-full animate-pulse rounded bg-neutral-100" />
         </>
-      ) : error || !receipt ? (
-        // Honest not-yet-available state. Renders live only after the backend
-        // endpoint is merged + deployed; until then this shows. Controls stay
-        // available so the owner can still pick the window.
+      ) : error ? (
+        // FAILURE — the request threw (403 tenant denial, 404 before the
+        // endpoint is deployed, 500, no response). Said as a fault, never as the
+        // not-ready copy below, which would tell the owner to wait for data that
+        // will never arrive (§16.1). Controls stay available so a different
+        // window can still be asked for.
+        <>
+          <h3
+            role="alert"
+            className="mt-3 font-display text-lg leading-snug text-alloro-navy"
+          >
+            {receiptErrorCopy(error).title}
+          </h3>
+          <p className="mt-1 text-[13px] text-ink-muted">
+            {receiptErrorCopy(error).body}
+          </p>
+          {controls}
+        </>
+      ) : !receipt ? (
+        // NOT READY — the request SUCCEEDED and there is simply nothing to show
+        // yet. Controls stay available so the owner can still pick the window.
         <>
           <h3 className="mt-3 font-display text-lg leading-snug text-alloro-navy">
             {NOT_READY_TITLE}

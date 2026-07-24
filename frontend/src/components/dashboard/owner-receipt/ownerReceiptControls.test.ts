@@ -10,7 +10,9 @@ import {
   filterActionItems,
   isoDayLocal,
   isValidIsoDay,
+  latestCoverableDay,
   matchPresetId,
+  RECEIPT_DATA_LAG_DAYS,
   windowsEqual,
 } from "./ownerReceiptControls";
 
@@ -85,18 +87,98 @@ describe("deriveWindowsFromPost (custom range)", () => {
 });
 
 describe("buildWindowPresets", () => {
-  it("produces the 28- and 90-day presets ending today, longest last", () => {
+  it("produces the 28- and 90-day presets, longest last", () => {
     const presets = buildWindowPresets("2026-07-24");
     expect(presets.map((p) => p.id)).toEqual(["28", "90"]);
     expect(presets[0].days).toBe(28);
-    expect(presets[0].windows.postEnd).toBe("2026-07-24");
     expect(presets[1].days).toBe(90);
-    expect(presets[1].windows.postEnd).toBe("2026-07-24");
     // each preset's two windows are equal length
     for (const p of presets) {
       expect(daysInclusive(p.windows.postStart, p.windows.postEnd)).toBe(p.days);
       expect(daysInclusive(p.windows.preStart, p.windows.preEnd)).toBe(p.days);
     }
+  });
+
+  /**
+   * The regression guard for the defect that made this whole control moot.
+   *
+   * A window ending on TODAY can never be `fullyCovered`: the GSC harvest's
+   * newest target is yesterday and it refuses to write a day GSC returned 0 rows
+   * for, which is GSC's normal behaviour for its last few unfinalized days. Both
+   * presets used to end on today, so both resolved to "not measured" every
+   * time — no trend, no diagnosis, nothing to watch recompute.
+   */
+  it("anchors BOTH presets behind the harvest lag, never on today", () => {
+    const presets = buildWindowPresets("2026-07-24");
+    expect(presets[0].windows.postEnd).toBe("2026-07-20");
+    expect(presets[1].windows.postEnd).toBe("2026-07-20");
+    for (const p of presets) {
+      expect(p.windows.postEnd).not.toBe("2026-07-24");
+    }
+  });
+
+  it("keeps both windows full-length and strictly adjacent after the shift", () => {
+    for (const p of buildWindowPresets("2026-07-24")) {
+      expect(daysInclusive(p.windows.postStart, p.windows.postEnd)).toBe(p.days);
+      expect(daysInclusive(p.windows.preStart, p.windows.preEnd)).toBe(p.days);
+      expect(addDays(p.windows.preEnd, 1)).toBe(p.windows.postStart);
+    }
+  });
+
+  it("shifts the anchor across a month boundary without drifting", () => {
+    // 2026-08-02 minus the 4-day lag lands in July.
+    expect(latestCoverableDay("2026-08-02")).toBe("2026-07-29");
+    expect(buildWindowPresets("2026-08-02")[0].windows.postEnd).toBe(
+      "2026-07-29",
+    );
+  });
+
+  it("matches the harvest's own freshness window", () => {
+    // Mirrors GSC_FRESHNESS_DAYS in dataHarvest.processor.ts. If that moves,
+    // this fails and the constant has to move with it.
+    expect(RECEIPT_DATA_LAG_DAYS).toBe(4);
+  });
+});
+
+describe("date arithmetic — the edges the original suite did not reach", () => {
+  it("rolls a NON-leap February over correctly", () => {
+    expect(addDays("2026-02-28", 1)).toBe("2026-03-01");
+  });
+
+  it("advances by exactly one calendar day across both US DST transitions", () => {
+    // The chain is Date.UTC -> setUTCDate -> toISOString, so a local-time DST
+    // shift cannot reach it. This locks that property in.
+    expect(addDays("2026-03-08", 1)).toBe("2026-03-09");
+    expect(addDays("2026-11-01", 1)).toBe("2026-11-02");
+    expect(addDays("2026-03-07", 1)).toBe("2026-03-08");
+  });
+
+  it("derives a one-day leap-day window", () => {
+    expect(deriveWindowsFromPost("2024-02-29", "2024-02-29")).toEqual({
+      preStart: "2024-02-28",
+      preEnd: "2024-02-28",
+      postStart: "2024-02-29",
+      postEnd: "2024-02-29",
+    });
+  });
+
+  it("derives a one-day window across a year boundary", () => {
+    expect(deriveWindowsFromPost("2026-01-01", "2026-01-01")).toEqual({
+      preStart: "2025-12-31",
+      preEnd: "2025-12-31",
+      postStart: "2026-01-01",
+      postEnd: "2026-01-01",
+    });
+  });
+
+  it("counts a leap-month span inclusively", () => {
+    expect(daysInclusive("2024-02-01", "2024-03-01")).toBe(30);
+  });
+
+  it("rejects a malformed day with a message that names the input", () => {
+    expect(() => addDays("not-a-day", 1)).toThrow(RangeError);
+    expect(() => addDays("not-a-day", 1)).toThrow(/not-a-day/);
+    expect(() => addDays("2026-02-30", 1)).toThrow(RangeError);
   });
 });
 

@@ -40,8 +40,17 @@ export function isValidIsoDay(iso: string): boolean {
   );
 }
 
-/** `iso` shifted by `delta` whole days, still `YYYY-MM-DD`. UTC math, no clock. */
+/**
+ * `iso` shifted by `delta` whole days, still `YYYY-MM-DD`. UTC math, no clock.
+ *
+ * Rejects a malformed day up front: without the guard an invalid input reaches
+ * `toISOString()` on an Invalid Date and throws an opaque `RangeError` from deep
+ * inside the call, which is a bad thing to debug from a stack trace alone.
+ */
 export function addDays(iso: string, delta: number): string {
+  if (!isValidIsoDay(iso)) {
+    throw new RangeError(`addDays: expected a YYYY-MM-DD day, received "${iso}"`);
+  }
   const [y, m, d] = iso.split("-").map(Number);
   const dt = new Date(Date.UTC(y, m - 1, d));
   dt.setUTCDate(dt.getUTCDate() + delta);
@@ -89,6 +98,35 @@ export function deriveWindowsFromPost(
   return { preStart, preEnd, postStart, postEnd };
 }
 
+/**
+ * How far behind today a window has to end before its days can be covered.
+ *
+ * This is not cosmetic — it is the difference between a control that works and
+ * one that is permanently empty. `fullyCovered` needs a stored GSC row for EVERY
+ * calendar day in the window (`impressionsLiftReader.ts`), the harvest worker's
+ * newest target is yesterday, and it refuses to write a day GSC returned 0 rows
+ * for — which is GSC's normal behaviour for its last two or three unfinalized
+ * days. A window ending on today can therefore never be fully covered, so a
+ * preset anchored on today resolves to "not measured" every single time: no
+ * trend, no diagnosis, and nothing for the owner to watch recompute.
+ *
+ * The value matches `GSC_FRESHNESS_DAYS` in
+ * `src/workers/processors/dataHarvest.processor.ts` — the same lag the harvest
+ * itself assumes. If that constant moves, this one moves with it.
+ */
+export const RECEIPT_DATA_LAG_DAYS = 4;
+
+/** The preset comparison lengths, in days. Longest last. */
+export const RECEIPT_WINDOW_PRESET_DAYS = [28, 90];
+
+/**
+ * The newest day a window may end on and still stand a chance of being covered.
+ * Every preset is anchored here rather than on `today`.
+ */
+export function latestCoverableDay(today: string): string {
+  return addDays(today, -RECEIPT_DATA_LAG_DAYS);
+}
+
 /** A named comparison window the owner can pick. */
 export interface WindowPreset {
   /** Stable id (the day-length as a string), also the segmented-control value. */
@@ -101,14 +139,21 @@ export interface WindowPreset {
   windows: OwnerReceiptWindows;
 }
 
-/** The honest presets, computed from `today` (`YYYY-MM-DD`). Longest last. */
+/**
+ * The honest presets, computed from `today` (`YYYY-MM-DD`).
+ *
+ * Anchored on `latestCoverableDay(today)`, NOT on today — see
+ * `RECEIPT_DATA_LAG_DAYS`. Both windows keep their full length and stay
+ * adjacent; the whole pair simply sits `RECEIPT_DATA_LAG_DAYS` further back.
+ */
 export function buildWindowPresets(today: string): WindowPreset[] {
-  return [28, 90].map((days) => ({
+  const anchor = latestCoverableDay(today);
+  return RECEIPT_WINDOW_PRESET_DAYS.map((days) => ({
     id: String(days),
     label: `Last ${days} days vs previous ${days}`,
     shortLabel: `${days} days`,
     days,
-    windows: deriveAdjacentWindows(today, days),
+    windows: deriveAdjacentWindows(anchor, days),
   }));
 }
 
