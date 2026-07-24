@@ -279,7 +279,92 @@ describe("readImpressionsLift — partial/absent coverage returns the honest ins
 
     expect(res.sufficient).toBe(false);
     expect(res.delta).toBeNull();
-    expect(res.pre?.fullyCovered).toBe(false);
+    // An un-spannable window is refused at the comparability gate, before any
+    // row is read — there is nothing to report coverage for.
+    expect(res.failureKind).toBe("invalid_window");
+    expect(findByProjectAndDateRange).not.toHaveBeenCalled();
+  });
+});
+
+describe("readImpressionsLift — refuses windows it cannot honestly compare", () => {
+  it("refuses a delta when the windows are different lengths", async () => {
+    // The load-bearing case: a practice whose daily performance did not change
+    // at all. Every day in both windows is stored, so the coverage guard is
+    // fully satisfied — and a raw subtraction still reports "+100%".
+    const shortPre: DateWindow = { start: "2026-06-01", end: "2026-06-03" }; // 3d
+    const longPost: DateWindow = { start: "2026-06-08", end: "2026-06-13" }; // 6d
+    routeWindows({
+      [shortPre.start]: [
+        legacyDay("2026-06-01", 100),
+        legacyDay("2026-06-02", 100),
+        legacyDay("2026-06-03", 100),
+      ],
+      [longPost.start]: [
+        legacyDay("2026-06-08", 100),
+        legacyDay("2026-06-09", 100),
+        legacyDay("2026-06-10", 100),
+        legacyDay("2026-06-11", 100),
+        legacyDay("2026-06-12", 100),
+        legacyDay("2026-06-13", 100),
+      ],
+    });
+
+    const res = await readImpressionsLift(ORG, shortPre, longPost);
+
+    expect(res.sufficient).toBe(false);
+    expect(res.delta).toBeNull();
+    expect(res.pctChange).toBeNull();
+    expect(res.failureKind).toBe("unequal_length");
+    expect(res.reason).toMatch(/different lengths/);
+    expect(res.reason).toMatch(/3 vs 6 days/);
+  });
+
+  it("refuses a delta when the windows overlap", async () => {
+    const overlapPre: DateWindow = { start: "2026-06-01", end: "2026-06-10" };
+    const overlapPost: DateWindow = { start: "2026-06-05", end: "2026-06-14" };
+
+    const res = await readImpressionsLift(ORG, overlapPre, overlapPost);
+
+    expect(res.sufficient).toBe(false);
+    expect(res.delta).toBeNull();
+    expect(res.failureKind).toBe("overlapping");
+    expect(res.reason).toMatch(/overlap/);
+  });
+
+  it("refuses a window longer than the configured maximum before querying", async () => {
+    const huge: DateWindow = { start: "2000-01-01", end: "2013-01-01" };
+    const alsoHuge: DateWindow = { start: "2013-01-02", end: "2026-07-24" };
+
+    const res = await readImpressionsLift(ORG, huge, alsoHuge);
+
+    expect(res.sufficient).toBe(false);
+    expect(res.delta).toBeNull();
+    expect(res.failureKind).toBe("window_too_long");
+    // Fail BEFORE the query, not after: an uncapped span is the amplification
+    // vector (one JSONB row per day), so it must never reach the model.
+    expect(findByProjectAndDateRange).not.toHaveBeenCalled();
+  });
+
+  it("still measures an equal-length, non-overlapping pair", async () => {
+    // The guard must refuse only what it should — this is the control case.
+    routeWindows({
+      [PRE.start]: [
+        legacyDay("2026-06-01", 100),
+        legacyDay("2026-06-02", 100),
+        legacyDay("2026-06-03", 100),
+      ],
+      [POST.start]: [
+        legacyDay("2026-06-08", 150),
+        legacyDay("2026-06-09", 150),
+        legacyDay("2026-06-10", 150),
+      ],
+    });
+
+    const res = await readImpressionsLift(ORG, PRE, POST);
+
+    expect(res.sufficient).toBe(true);
+    expect(res.delta).toBe(150);
+    expect(res.failureKind).toBeNull();
   });
 });
 
@@ -304,7 +389,45 @@ describe("readImpressionsLift — degrades honestly, never throws", () => {
 
     expect(res.sufficient).toBe(false);
     expect(res.delta).toBeNull();
-    expect(res.reason).toBe("impressions-lift read failed");
+    expect(res.failureKind).toBe("read_failed");
     expect(loggerWarn).toHaveBeenCalled();
+  });
+
+  it("returns an owner-safe reason when the DB throws", async () => {
+    findByProjectAndDateRange.mockRejectedValue(new Error("db down"));
+
+    const res = await readImpressionsLift(ORG, PRE, POST);
+
+    // The reason string is rendered verbatim in an owner-facing card, so it
+    // must not carry an internal symbol name. The detail belongs in the log
+    // line and in `failureKind`.
+    expect(res.reason).not.toMatch(/impressions-lift/);
+    expect(res.reason).not.toMatch(/db down/);
+    expect(res.reason).toMatch(/could not read/i);
+  });
+
+  it("counts equal storedDays as covered only when every day is in-window", async () => {
+    // Locks the invariant the coverage proof rests on: storedDays <= expected
+    // BECAUSE every returned row is in-window. Simulate a model that widened
+    // its range and returned a day outside the window — the count matches the
+    // expected span numerically, but a day inside the window is missing.
+    routeWindows({
+      [PRE.start]: [
+        legacyDay("2026-06-01", 10),
+        legacyDay("2026-06-02", 10),
+        legacyDay("2026-05-31", 10), // outside PRE (2026-06-01..06-03)
+      ],
+      [POST.start]: [
+        legacyDay("2026-06-08", 10),
+        legacyDay("2026-06-09", 10),
+        legacyDay("2026-06-10", 10),
+      ],
+    });
+
+    const res = await readImpressionsLift(ORG, PRE, POST);
+
+    expect(res.pre?.fullyCovered).toBe(false);
+    expect(res.sufficient).toBe(false);
+    expect(res.delta).toBeNull();
   });
 });

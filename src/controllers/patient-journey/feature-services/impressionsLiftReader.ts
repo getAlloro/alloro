@@ -26,7 +26,13 @@
  *     boolean. A `delta` is produced ONLY when BOTH windows are fully covered;
  *     a partial or empty window returns a null delta with a plain-words reason,
  *     never a delta summed over missing days dressed up as real.
- *  4. It claims NO causation. It returns the measured rise plus coverage; the
+ *  4. Completeness is not comparability. Two fully-covered windows of DIFFERENT
+ *     lengths still produce a delta that measures the calendar — impressions
+ *     are a count, so a 28-day POST against a 14-day PRE reads "+100%" for a
+ *     practice that did not move by one point. The pair is checked for
+ *     comparability (equal length, no overlap, within the max span) BEFORE any
+ *     row is read; see `compareReceiptWindows`.
+ *  5. It claims NO causation. It returns the measured rise plus coverage; the
  *     "Alloro caused this" framing is a downstream human / receipt concern, not
  *     this reader's to assert.
  *
@@ -37,13 +43,15 @@
 import { GscDataModel } from "../../../models/website-builder/GscDataModel";
 import { ProjectModel } from "../../../models/website-builder/ProjectModel";
 import { sumOrganicImpressionsForDay } from "./stageReaders";
+import {
+  compareReceiptWindows,
+  inclusiveDaySpan,
+  isoDay,
+  type DateWindow,
+} from "../../../utils/receiptWindows";
 import logger from "../../../lib/logger";
 
-/** A closed date window, inclusive of both ends, as `YYYY-MM-DD` strings. */
-export interface DateWindow {
-  start: string;
-  end: string;
-}
+export type { DateWindow };
 
 /**
  * Honest coverage + value for a single window. `storedImpressions` is the sum of
@@ -67,12 +75,37 @@ export interface ImpressionsWindowCoverage {
   fullyCovered: boolean;
 }
 
+/**
+ * Why a lift result is insufficient, as a machine-readable code.
+ *
+ * The `reason` string is what a human reads; this is what a caller BRANCHES on.
+ * Without it, every consumer has to guess from a null value whether the source
+ * is disconnected, the history is short, the request was bad, or the read
+ * failed — and guessing wrong turns a read failure into a false statement about
+ * the practice ("you have no search history").
+ */
+export type ImpressionsLiftFailureKind =
+  | "no_project"
+  | "invalid_window"
+  | "window_too_long"
+  | "unequal_length"
+  | "overlapping"
+  | "partial_coverage"
+  | "read_failed";
+
 export interface ImpressionsLiftResult {
   organizationId: number;
   /** The org's website project, or `null` when it has none. */
   projectId: string | null;
   /** Fixed provenance — this reader is GSC web-search organic, never Maps/GBP. */
   source: "gsc_organic";
+  /**
+   * Surfaces deliberately NOT counted in this number. `AGENTS.md` defines the
+   * Get Found gate as map + organic + AI answers; this reader answers organic
+   * only (see honesty note 2 above). Carrying the exclusion on the result means
+   * a downstream label cannot quietly present it as the whole gate.
+   */
+  excludes: readonly ["gbp_maps"];
   pre: ImpressionsWindowCoverage | null;
   post: ImpressionsWindowCoverage | null;
   /**
@@ -91,32 +124,10 @@ export interface ImpressionsLiftResult {
   sufficient: boolean;
   /** Plain-words reason the result is insufficient; `null` when sufficient. */
   reason: string | null;
+  /** Machine-readable cause behind `reason`; `null` when sufficient. */
+  failureKind: ImpressionsLiftFailureKind | null;
   /** The stored GSC-organic history bounds for the org's project. */
   history: { earliest: string | null; latest: string | null };
-}
-
-/** Trim a text / timestamp date to `YYYY-MM-DD`, or `null` if unusable. */
-function isoDay(value: string | null | undefined): string | null {
-  if (!value) return null;
-  const day = String(value).split(/[T ]/)[0];
-  return /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : null;
-}
-
-/**
- * Inclusive count of calendar days in [start, end]. Returns `null` for a
- * malformed or inverted window (start after end) — a null span makes the window
- * un-coverable, which surfaces honestly rather than inventing a span.
- */
-function inclusiveDaySpan(start: string, end: string): number | null {
-  const s = isoDay(start);
-  const e = isoDay(end);
-  if (!s || !e) return null;
-  const startMs = Date.parse(`${s}T00:00:00Z`);
-  const endMs = Date.parse(`${e}T00:00:00Z`);
-  if (Number.isNaN(startMs) || Number.isNaN(endMs) || endMs < startMs) {
-    return null;
-  }
-  return Math.round((endMs - startMs) / 86_400_000) + 1;
 }
 
 /**
@@ -139,12 +150,25 @@ async function readWindowCoverage(
     window.end,
   );
 
+  const windowStart = isoDay(window.start);
+  const windowEnd = isoDay(window.end);
+
   const perDay = new Map<string, number>();
   for (const row of rows) {
     const day = isoDay(row.report_date);
     if (!day) continue;
-    // Last write wins per calendar day — the sum is stable regardless of the
-    // query's row order, and a duplicated report_date can never double-count.
+    // Only count days that are actually IN the window. The model's
+    // `whereBetween` already guarantees this, but the coverage proof rests on
+    // `storedDays <= expectedDays` — which only holds while every counted day
+    // is in-window. Re-checking here means a widened query can never make a
+    // window with a MISSING day read as fully covered.
+    if (windowStart !== null && day < windowStart) continue;
+    if (windowEnd !== null && day > windowEnd) continue;
+    // Keying by day makes the sum stable regardless of the query's row order.
+    // The table's UNIQUE (project_id, report_date) constraint already makes a
+    // duplicate impossible, so this is defence-in-depth, not a live concern —
+    // note that if duplicates ever DID occur, last-write-wins would silently
+    // drop one rather than surface it.
     perDay.set(day, sumOrganicImpressionsForDay(row.data));
   }
 
@@ -202,8 +226,9 @@ function insufficientReason(
  * @param preWindow   the "before" window, inclusive `YYYY-MM-DD` bounds
  * @param postWindow  the "after" window, inclusive `YYYY-MM-DD` bounds
  *
- * Never throws: a missing project, an empty history, or a DB failure all
- * degrade to a `sufficient: false` result carrying a plain-words `reason`.
+ * Never throws: a missing project, an incomparable window pair, an empty
+ * history, or a DB failure all degrade to a `sufficient: false` result carrying
+ * a plain-words `reason` and a machine-readable `failureKind`.
  */
 export async function readImpressionsLift(
   orgId: number,
@@ -214,14 +239,29 @@ export async function readImpressionsLift(
     organizationId: orgId,
     projectId: null,
     source: "gsc_organic",
+    excludes: ["gbp_maps"],
     pre: null,
     post: null,
     delta: null,
     pctChange: null,
     sufficient: false,
     reason: null,
+    failureKind: null,
     history: { earliest: null, latest: null },
   };
+
+  // Comparability is decided BEFORE any row is read, for two reasons: an
+  // incomparable pair can never produce an honest delta no matter what the
+  // rows say, and an oversized window must not reach the query at all (it is
+  // the amplification vector — one JSONB row per day, unbounded).
+  const comparability = compareReceiptWindows(preWindow, postWindow);
+  if (!comparability.comparable) {
+    return {
+      ...base,
+      reason: comparability.reason,
+      failureKind: comparability.kind,
+    };
+  }
 
   try {
     const project = await ProjectModel.findByOrganizationId(orgId);
@@ -229,6 +269,7 @@ export async function readImpressionsLift(
       return {
         ...base,
         reason: "organization has no website project with stored GSC history",
+        failureKind: "no_project",
       };
     }
     const projectId = project.id;
@@ -256,10 +297,13 @@ export async function readImpressionsLift(
         pre,
         post,
         reason: insufficientReason(pre, post),
+        failureKind: "partial_coverage",
         history,
       };
     }
 
+    // Safe to subtract: both windows are fully covered AND comparable (equal
+    // length, non-overlapping, within the max span — checked above).
     const delta = post.storedImpressions - pre.storedImpressions;
     const pctChange =
       pre.storedImpressions > 0 ? delta / pre.storedImpressions : null;
@@ -268,12 +312,14 @@ export async function readImpressionsLift(
       organizationId: orgId,
       projectId,
       source: "gsc_organic",
+      excludes: ["gbp_maps"],
       pre,
       post,
       delta,
       pctChange,
       sufficient: true,
       reason: null,
+      failureKind: null,
       history,
     };
   } catch (err) {
@@ -283,7 +329,11 @@ export async function readImpressionsLift(
     );
     return {
       ...base,
-      reason: "impressions-lift read failed",
+      // Owner-safe wording: this string can be rendered verbatim in a card, so
+      // it says what happened in plain words. The internal detail lives in the
+      // Pino line above and in `failureKind`, not in prose shown to a practice.
+      reason: "we could not read your search history just now",
+      failureKind: "read_failed",
     };
   }
 }
