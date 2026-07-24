@@ -1,8 +1,20 @@
-import { useMemo, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { ChevronRight, Star } from "lucide-react";
 import { useGbpPublishedLocalPosts } from "../../../hooks/queries/useGbpAutomationQueries";
 import { useDashboardMetrics } from "../../../hooks/queries/useDashboardMetrics";
+import { useRankingHistory } from "../../../hooks/queries/useRankingHistory";
+import { PeriodToggle } from "../PeriodToggle";
+import {
+  PERIOD_LABELS,
+  PERIOD_TOGGLE_ENABLED,
+  RANKING_PERIODS,
+  hasEnoughRankingHistory,
+  rankDeltasForAllPeriods,
+  shouldShowPeriodToggle,
+  type RankingPeriod,
+} from "./rankingPeriod";
+import { renderPeriodMovement } from "./rankingsHubSurface.utils";
 import {
   buildCompetitorComparisonRows,
   getComparisonInsight,
@@ -30,9 +42,14 @@ import {
  * strip, three vitals, and one action. The Visibility Score and Practice
  * Health score are dropped entirely.
  *
- * The dormant MONTH/QTR/YTD toggle was removed (feedback #5) — it rendered
- * permanently greyed (PERIOD_TOGGLE_ENABLED=false) with no wired state.
- * rankingPeriod.ts is kept as the future enable point.
+ * The MONTH/QTR/YTD toggle was removed in feedback #5 while it was still
+ * dark (PERIOD_TOGGLE_ENABLED=false, no wired state). It is now LIVE: wired to
+ * `useRankingHistory` and rendered only when at least one period can actually
+ * report movement (`shouldShowPeriodToggle`) — "has history" alone is not
+ * enough, because an org whose latest run found no position has history and
+ * would get three tabs reading the same dead line. That org gets the one thing
+ * that IS news instead: "current position unknown". Movement is dated from the
+ * real earliest point used, in UTC to match how periods are classified.
  *
  * Spec: plans/06102026-local-rankings-simplification/spec.html (T3);
  * clarity pass: plans/06132026-local-rankings-clarity (T1, T4, T5).
@@ -103,6 +120,41 @@ export function RankingsHubSurface({
   const postOverdue = postAgeDays === null || postAgeDays > POST_OVERDUE_DAYS;
 
   const topAction = result.llmAnalysis?.top_recommendations?.[0] ?? null;
+
+  // Rank-over-time: the period toggle reads the completed-ranking history series
+  // (live-in-prod, populated by the scheduled ranking runs). We request the
+  // widest window the backend serves (6 months) and slice each period from it
+  // client-side. The toggle only appears when a series actually exists — an org
+  // with no history sees no dead toggle. YTD in the back half of the year can
+  // exceed the 6-month window; the movement is therefore dated from the real
+  // earliest point (never implied back to Jan 1).
+  const [rankPeriod, setRankPeriod] = useState<RankingPeriod>("MONTH");
+  const { data: rankingHistory } = useRankingHistory(
+    organizationId,
+    locationId,
+    "6m",
+  );
+  const periodDeltas = useMemo(
+    () => rankDeltasForAllPeriods(rankingHistory ?? []),
+    [rankingHistory],
+  );
+  const hasSeries = hasEnoughRankingHistory(rankingHistory ?? []);
+  // hasEnoughRankingHistory is only the cheap precondition. The toggle also has
+  // to be able to SAY something: an org whose latest run found no position has
+  // history and no usable delta in any period, and would get three tabs all
+  // reading the same dead line.
+  const showPeriodToggle =
+    PERIOD_TOGGLE_ENABLED && hasSeries && shouldShowPeriodToggle(periodDeltas);
+  // …but that org's news is worth telling. Drop the control, keep the line.
+  const showPositionUnknownNotice =
+    PERIOD_TOGGLE_ENABLED &&
+    hasSeries &&
+    !showPeriodToggle &&
+    periodDeltas.YTD.noMovementReason === "current-position-unknown";
+  const movementNode = useMemo(
+    () => renderPeriodMovement(periodDeltas[rankPeriod]),
+    [periodDeltas, rankPeriod],
+  );
 
   const comparisonInsight = useMemo(() => {
     const rows = buildCompetitorComparisonRows(result);
@@ -181,6 +233,27 @@ export function RankingsHubSurface({
                 </span>
                 .
               </p>
+            </div>
+          )}
+
+          {showPeriodToggle && (
+            <div className="mt-5 flex flex-col gap-2">
+              <PeriodToggle
+                options={RANKING_PERIODS.map((p) => ({
+                  key: p,
+                  label: PERIOD_LABELS[p],
+                }))}
+                active={rankPeriod}
+                onChange={setRankPeriod}
+                ariaLabel="Ranking period"
+              />
+              <div className="text-[12px] font-semibold">{movementNode}</div>
+            </div>
+          )}
+
+          {showPositionUnknownNotice && (
+            <div className="mt-5 text-[12px] font-semibold">
+              {renderPeriodMovement(periodDeltas.YTD)}
             </div>
           )}
         </div>
