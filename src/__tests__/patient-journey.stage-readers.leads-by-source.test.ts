@@ -46,6 +46,7 @@ vi.mock("../lib/logger", () => ({
 }));
 
 import { readLeads } from "../controllers/patient-journey/feature-services/stageReaders";
+import logger from "../lib/logger";
 
 const PROJECT = "proj-1";
 // A completed past month so the "as of" clamp doesn't interfere.
@@ -185,6 +186,87 @@ describe("readLeads — by-source breakdown", () => {
     expect(read.available).toBe(true);
     expect(read.metadata?.leads?.verified).toBe(9);
     expect(read.metadata?.leads?.bySource).toBeUndefined();
+  });
+
+  it("keeps one channel's provenance tiers as SEPARATE buckets — never silently collapsed", async () => {
+    // The contract is one bucket per (source, method) PAIR, not per channel.
+    // Google arrives three ways in the same month: a UTM label (claimed), a
+    // referrer header (observed), and a pre-source_method historical row
+    // (unknown). All three are real Google leads and all three stay distinct —
+    // a later "helpful" roll-up to one row per channel would break this and
+    // would flatten three different amounts of knowledge into one tier.
+    getMonthlyStatsByProject.mockResolvedValue([
+      { month: "2026-06", total: 6, verified: 6, unread: 0, flagged: 0, blocked: 0 },
+    ]);
+    getVerifiedStatsBySource.mockResolvedValue([
+      { source: "google", source_method: "client_label", verified: 3 },
+      { source: "google", source_method: "header_referrer", verified: 2 },
+      { source: "google", source_method: null, verified: 1 },
+    ]);
+
+    const read = await readLeads(PROJECT, MONTH_START, MONTH_END);
+
+    const bySource = read.metadata!.leads!.bySource!;
+    expect(bySource).toHaveLength(3);
+    expect(bySource.every((b) => b.source === "google")).toBe(true);
+    expect(bySource.map((b) => b.confidence)).toEqual([
+      "claimed",
+      "observed",
+      "unknown",
+    ]);
+    // The consumer trap this pins: reading only the FIRST google bucket reports
+    // 3 of the channel's 6 leads. The rolled-up total is the sum of all pairs.
+    expect(bySource.find((b) => b.source === "google")!.verified).toBe(3);
+    const googleTotal = bySource
+      .filter((b) => b.source === "google")
+      .reduce((acc, b) => acc + b.verified, 0);
+    expect(googleTotal).toBe(6);
+    // A real channel at method:null grades "unknown" but is NOT the unknown
+    // bucket — `source` is what says "we don't know the channel", not
+    // `confidence`.
+    expect(bySource[2]).toEqual({
+      source: "google",
+      method: null,
+      confidence: "unknown",
+      verified: 1,
+    });
+    expect(
+      bySource.reduce((acc, b) => acc + b.verified, 0),
+    ).toBe(read.metadata!.leads!.verified);
+  });
+
+  it("drops a breakdown whose buckets do not sum to the headline verified count", async () => {
+    // The reconciliation invariant holds by construction today (one shared
+    // verified predicate, one shared month expression). This proves it is also
+    // CHECKED — the failure mode is a future edit to one predicate and not the
+    // other, which no type and no mocked test would otherwise catch. A split
+    // that doesn't add up to the total must never reach the owner.
+    getMonthlyStatsByProject.mockResolvedValue([
+      { month: "2026-06", total: 10, verified: 10, unread: 0, flagged: 0, blocked: 0 },
+    ]);
+    getVerifiedStatsBySource.mockResolvedValue([
+      { source: "google", source_method: "client_label", verified: 4 },
+      { source: "referral", source_method: "header_referrer", verified: 3 },
+    ]); // sums to 7, not 10
+
+    const read = await readLeads(PROJECT, MONTH_START, MONTH_END);
+
+    // The headline survives untouched — only the breakdown is dropped.
+    expect(read.value).toBe(10);
+    expect(read.available).toBe(true);
+    expect(read.metadata?.leads?.verified).toBe(10);
+    expect(read.metadata?.leads?.bySource).toBeUndefined();
+
+    const warn = vi.mocked(logger.warn);
+    expect(warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectId: PROJECT,
+        monthKey: "2026-06",
+        bucketSum: 7,
+        headlineVerified: 10,
+      }),
+      expect.stringContaining("do not sum to the headline verified count"),
+    );
   });
 
   it("does not attach a breakdown for a month with no verified row", async () => {
