@@ -44,16 +44,23 @@ function stubLocations(rows = [{ id: 100, is_primary: true }, { id: 200, is_prim
 
 function stubMembers(
   rows = [
-    { user_id: 1, organization_id: ORG_ID, role: "admin", name: "Dr. Rivera", email: "owner@practice.test" },
-    { user_id: 2, organization_id: ORG_ID, role: "viewer", name: "Front Desk", email: "desk@practice.test" },
+    { id: 1, role: "admin", name: "Dr. Rivera", email: "owner@practice.test" },
+    { id: 2, role: "viewer", name: "Front Desk", email: "desk@practice.test" },
   ]
 ) {
-  vi.spyOn(OrganizationUserModel, "listByOrgWithUsers").mockResolvedValue(
-    rows as Awaited<ReturnType<typeof OrganizationUserModel.listByOrgWithUsers>>
+  // listUsersForOrg — id/email/name/role. Deliberately NOT listByOrgWithUsers,
+  // which also selects users.password_hash (§5.3).
+  vi.spyOn(OrganizationUserModel, "listUsersForOrg").mockResolvedValue(
+    rows as Awaited<ReturnType<typeof OrganizationUserModel.listUsersForOrg>>
   );
 }
 
-function stubReceipt(total: number, localPosts = total, reviewReplies = 0): void {
+function stubReceipt(
+  total: number,
+  localPosts = total,
+  reviewReplies = 0,
+  businessInfo = Math.max(0, total - localPosts - reviewReplies)
+): void {
   const receipt: ProofReceipt = {
     organizationId: ORG_ID,
     since: new Date(),
@@ -62,7 +69,7 @@ function stubReceipt(total: number, localPosts = total, reviewReplies = 0): void
       total > 0
         ? [{ type: "local_post", at: new Date(Date.UTC(2026, 6, 20)), workItemId: "w1", locationId: 100 }]
         : [],
-    summary: { reviewReplies, localPosts, total },
+    summary: { reviewReplies, localPosts, businessInfo, total },
     pagination: { page: 1, limit: 25, total, totalPages: 1 },
   };
   vi.spyOn(ProofReceiptService, "getReceipt").mockResolvedValue(receipt);
@@ -171,7 +178,7 @@ describe("OwnerDigestService.composeForOrg — recipient scope + honesty", () =>
     stubOrg();
     stubLocations();
     stubMembers([
-      { user_id: 2, organization_id: ORG_ID, role: "viewer", name: "Front Desk", email: "desk@practice.test" },
+      { id: 2, role: "viewer", name: "Front Desk", email: "desk@practice.test" },
     ]);
     stubReceipt(3);
     stubFunnel(true);
@@ -215,15 +222,47 @@ describe("OwnerDigestService.composeForOrg — recipient scope + honesty", () =>
     expect(composed?.data.funnel.gates.map((g) => g.value)).toEqual([1436, 275, 7]);
   });
 
-  it("derives business-info updates as the honest remainder (total − posts − replies)", async () => {
+  it("reads the MEASURED business-info count, never a remainder", async () => {
     stubOrg();
     stubLocations();
     stubMembers();
-    stubReceipt(5, 2, 1); // total 5, 2 posts, 1 reply → 2 business-info updates
+    stubReceipt(5, 2, 1, 2); // measured: 2 posts, 1 reply, 2 business-info
     stubFunnel(true);
 
     const composed = await OwnerDigestService.composeForOrg(ORG_ID, NOW);
     expect(composed?.data.work.businessInfoUpdates).toBe(2);
+  });
+
+  it("does not invent a business-info update when total outruns the per-type counts", async () => {
+    // ProofReceiptService reads `total` and the per-type counts in two separate
+    // queries with no transaction. A local post published between them makes
+    // total = 11 while the per-type sum is 10. Deriving the third count by
+    // subtraction reports 4 business-info updates — one of which never
+    // happened — in the first sentence the owner reads.
+    stubOrg();
+    stubLocations();
+    stubMembers();
+    stubReceipt(11, 4, 3, 3); // measured business-info is 3; the remainder is 4
+    stubFunnel(true);
+
+    const composed = await OwnerDigestService.composeForOrg(ORG_ID, NOW);
+    expect(composed?.data.work.businessInfoUpdates).toBe(3);
+    expect(composed?.data.work.businessInfoUpdates).not.toBe(4);
+  });
+
+  it("never reads password_hash into the digest service (§5.3)", async () => {
+    stubOrg();
+    stubLocations();
+    stubMembers();
+    stubReceipt(3);
+    stubFunnel(true);
+    const leakySpy = vi.spyOn(OrganizationUserModel, "listByOrgWithUsers");
+
+    await OwnerDigestService.composeForOrg(ORG_ID, NOW);
+
+    // listByOrgWithUsers SELECTs users.password_hash. The digest needs three
+    // fields; it must not pull bcrypt hashes into a service that logs.
+    expect(leakySpy).not.toHaveBeenCalled();
   });
 
   it("degrades the funnel to unavailable gates when assembly throws, but still sends on work", async () => {
@@ -245,5 +284,141 @@ describe("OwnerDigestService.composeForOrg — recipient scope + honesty", () =>
 
     const composed = await OwnerDigestService.composeForOrg(ORG_ID, NOW);
     expect(composed).toBeNull();
+  });
+});
+
+describe("OwnerDigestService.runWeeklyDigest — kill-switch depth", () => {
+  // Every falsy spelling an operator could plausibly type. Only the exact
+  // string "true" (trimmed, case-insensitive) may enable a live send.
+  const OFF_VALUES = ["", "false", "FALSE", "0", "1", "yes", "no", "off", "TRUE_", "tru"];
+
+  for (const value of OFF_VALUES) {
+    it(`sends nothing and reads no org data for OWNER_WEEKLY_DIGEST_ENABLED=${JSON.stringify(value)}`, async () => {
+      process.env.OWNER_WEEKLY_DIGEST_ENABLED = value;
+      const eligibleSpy = vi.spyOn(OrganizationModel, "findWeeklyDigestEligibleIds");
+
+      const result = await OwnerDigestService.runWeeklyDigest(NOW);
+
+      expect(result.enabled).toBe(false);
+      expect(result.sent).toBe(0);
+      // The gate short-circuits before any database read, not merely before
+      // the send.
+      expect(eligibleSpy).not.toHaveBeenCalled();
+      expect(emailService.sendEmail).not.toHaveBeenCalled();
+    });
+  }
+
+  it("is unset by default — the flag must be set deliberately", async () => {
+    delete process.env.OWNER_WEEKLY_DIGEST_ENABLED;
+    const result = await OwnerDigestService.runWeeklyDigest(NOW);
+    expect(result.enabled).toBe(false);
+    expect(emailService.sendEmail).not.toHaveBeenCalled();
+  });
+
+  it("accepts 'true' with surrounding whitespace and any casing", async () => {
+    process.env.OWNER_WEEKLY_DIGEST_ENABLED = "  TRUE ";
+    vi.spyOn(OrganizationModel, "findWeeklyDigestEligibleIds").mockResolvedValue([]);
+
+    const result = await OwnerDigestService.runWeeklyDigest(NOW);
+    expect(result.enabled).toBe(true);
+  });
+});
+
+describe("OwnerDigestService.runWeeklyDigest — batch isolation", () => {
+  const ORG_A = 39;
+  const ORG_B = 44;
+
+  function stubTwoOrgs(): void {
+    vi.spyOn(OrganizationModel, "findById").mockImplementation(
+      (async (id: number) =>
+        ({
+          id,
+          name: id === ORG_A ? "One Endodontics" : "Garrison Orthodontics",
+          archived_at: null,
+        })) as unknown as typeof OrganizationModel.findById
+    );
+    vi.spyOn(LocationModel, "findByOrganizationId").mockImplementation(
+      (async (id: number) =>
+        [{ id: id * 10, is_primary: true }]) as unknown as typeof LocationModel.findByOrganizationId
+    );
+    vi.spyOn(OrganizationUserModel, "listUsersForOrg").mockImplementation(
+      (async (id: number) =>
+        [
+          {
+            id,
+            role: "admin",
+            name: id === ORG_A ? "Dr. Rivera" : "Dr. Chen",
+            email: id === ORG_A ? "a@practice.test" : "b@practice.test",
+          },
+        ]) as unknown as typeof OrganizationUserModel.listUsersForOrg
+    );
+    vi.spyOn(ProofReceiptService, "getReceipt").mockImplementation(
+      (async (input: { organizationId: number }) => {
+        const isA = input.organizationId === ORG_A;
+        const total = isA ? 3 : 9;
+        return {
+          organizationId: input.organizationId,
+          since: new Date(),
+          until: new Date(),
+          items: [],
+          summary: {
+            reviewReplies: isA ? 1 : 4,
+            localPosts: isA ? 2 : 5,
+            businessInfo: 0,
+            total,
+          },
+          pagination: { page: 1, limit: 25, total, totalPages: 1 },
+        };
+      }) as unknown as typeof ProofReceiptService.getReceipt
+    );
+    stubFunnel(true);
+  }
+
+  it("never lets one org's data reach another org's email", async () => {
+    process.env.OWNER_WEEKLY_DIGEST_ENABLED = "true";
+    vi.spyOn(OrganizationModel, "findWeeklyDigestEligibleIds").mockResolvedValue([ORG_A, ORG_B]);
+    stubTwoOrgs();
+
+    const result = await OwnerDigestService.runWeeklyDigest(NOW);
+    expect(result.sent).toBe(2);
+
+    const calls = vi.mocked(emailService.sendEmail).mock.calls;
+    expect(calls).toHaveLength(2);
+
+    const payloads = calls.map(([payload]) => payload as { recipients: string[]; body: string });
+    const forA = payloads.find((p) => p.recipients.includes("a@practice.test"));
+    const forB = payloads.find((p) => p.recipients.includes("b@practice.test"));
+
+    expect(forA).toBeDefined();
+    expect(forB).toBeDefined();
+    // Each email carries exactly one org's recipients and exactly one org's name.
+    expect(forA?.recipients).toEqual(["a@practice.test"]);
+    expect(forB?.recipients).toEqual(["b@practice.test"]);
+    expect(forA?.body).toContain("One Endodontics");
+    expect(forA?.body).not.toContain("Garrison Orthodontics");
+    expect(forB?.body).toContain("Garrison Orthodontics");
+    expect(forB?.body).not.toContain("One Endodontics");
+  });
+
+  it("a failure on one org does not sink the rest of the batch", async () => {
+    process.env.OWNER_WEEKLY_DIGEST_ENABLED = "true";
+    vi.spyOn(OrganizationModel, "findWeeklyDigestEligibleIds").mockResolvedValue([ORG_A, 999, ORG_B]);
+    stubTwoOrgs();
+    vi.mocked(OrganizationModel.findById).mockImplementation(
+      (async (id: number) => {
+        if (id === 999) throw new Error("org read failed");
+        return {
+          id,
+          name: id === ORG_A ? "One Endodontics" : "Garrison Orthodontics",
+          archived_at: null,
+        };
+      }) as unknown as typeof OrganizationModel.findById
+    );
+
+    const result = await OwnerDigestService.runWeeklyDigest(NOW);
+
+    expect(result.eligible).toBe(3);
+    expect(result.sent).toBe(2);
+    expect(result.failed).toBe(1);
   });
 });

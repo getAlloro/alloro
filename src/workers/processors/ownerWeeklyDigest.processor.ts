@@ -12,15 +12,14 @@
  * feature ships flag-gated off, so this is not a live risk.) A thrown error here
  * is a genuine batch-level failure and is surfaced (re-thrown) so BullMQ retries
  * and, once exhausted, keeps the failed job for inspection.
+ *
+ * The repeatable schedule that feeds this queue lives with the other twelve in
+ * `workers/schedules.ts` (§2.1 — registering a schedule and consuming its jobs
+ * are two responsibilities).
  */
 
-import { Job, Queue } from "bullmq";
+import { Job } from "bullmq";
 import { OwnerDigestService } from "../../services/owner-digest/OwnerDigestService";
-import {
-  OWNER_WEEKLY_DIGEST_CRON,
-  OWNER_WEEKLY_DIGEST_TZ,
-  OWNER_WEEKLY_DIGEST_JOB_ID,
-} from "../../config/ownerWeeklyDigest";
 import logger from "../../lib/logger";
 
 export async function processOwnerWeeklyDigest(job: Job): Promise<void> {
@@ -45,39 +44,5 @@ export async function processOwnerWeeklyDigest(job: Job): Promise<void> {
       "[OWNER-DIGEST] Weekly owner digest run failed"
     );
     throw err;
-  }
-}
-
-/**
- * Register the weekly repeatable schedule on the given queue. Lives here rather
- * than inline in worker.ts to keep that orchestration file under the §2.4 size
- * ceiling. Registering the schedule emails no owner on its own — the send is
- * gated by OWNER_WEEKLY_DIGEST_ENABLED inside the service.
- */
-export async function registerOwnerWeeklyDigestSchedule(
-  queue: Queue
-): Promise<void> {
-  try {
-    await queue.add(
-      OWNER_WEEKLY_DIGEST_JOB_ID,
-      {},
-      {
-        repeat: {
-          pattern: OWNER_WEEKLY_DIGEST_CRON,
-          tz: OWNER_WEEKLY_DIGEST_TZ,
-        },
-        jobId: OWNER_WEEKLY_DIGEST_JOB_ID,
-        attempts: 2,
-        backoff: { type: "exponential", delay: 60000 },
-      }
-    );
-    logger.info(
-      "[MINDS-WORKER] Weekly owner digest job scheduled (Mondays 13:00 UTC; send gated by OWNER_WEEKLY_DIGEST_ENABLED)"
-    );
-  } catch (err) {
-    logger.error(
-      { err },
-      "[MINDS-WORKER] Failed to set up owner weekly digest schedule:"
-    );
   }
 }

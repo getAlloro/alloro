@@ -9,6 +9,18 @@
  *
  * Named constants per §4.2 so the cadence and limits are read here, not buried
  * as literals in the worker and service.
+ *
+ * OPERATOR NOTE — `OWNER_WEEKLY_DIGEST_ENABLED`
+ *   default: unset (off). Set to exactly `true` in the server env file
+ *   (`/etc/alloro/dev.env` or `/etc/alloro/app.env`) to enable. There is no
+ *   `.env.example` in this repo to document it in.
+ *
+ *   Setting it `true` does NOT by itself reach a practice owner. The email
+ *   interceptor (src/emails/emailInterceptor.ts) allows a live send only when
+ *   the machine's own public IP is a DNS A record of app.getalloro.com; every
+ *   other machine — dev, localhost, CI — is rerouted to dave@getalloro.com with
+ *   the subject prefixed. So on dev, `true` means "send me the copies";
+ *   on the production box it means real owner inboxes.
  */
 
 /** Cron: 13:00 UTC every Monday (≈ start of the US work-week morning). */

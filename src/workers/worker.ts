@@ -11,10 +11,7 @@ import {
   processDeadLetterCheck,
 } from "./processors/skillTrigger.processor";
 import { processWorksDigest } from "./processors/worksDigest.processor";
-import {
-  processOwnerWeeklyDigest,
-  registerOwnerWeeklyDigestSchedule,
-} from "./processors/ownerWeeklyDigest.processor";
+import { processOwnerWeeklyDigest } from "./processors/ownerWeeklyDigest.processor";
 import { processSeoBulkGenerate } from "./processors/seoBulkGenerate.processor";
 import { processExtractPracticeFacts } from "./processors/extractPracticeFacts.processor";
 import { processReviewSync } from "./processors/reviewSync.processor";
@@ -47,6 +44,7 @@ import {
   setupDiscoverySchedule,
   setupSkillTriggerSchedule,
   setupWorksDigestSchedule,
+  setupOwnerWeeklyDigestSchedule,
   setupReviewSyncSchedule,
   setupGbpLocalPostSyncSchedule,
   setupLocationCancellationFinalizer,
@@ -177,7 +175,16 @@ const ownerWeeklyDigestWorker = new Worker(
   {
     connection: makeConnection(),
     concurrency: 1,
+    // 30 min — the batch walks every eligible org serially, doing several DB
+    // reads plus one email send each. The default 30s lock would expire
+    // mid-batch, mark the job stalled, and re-run it from the top, re-sending
+    // to every org the killed run already emailed. Sized well above the
+    // worst-case batch; weekly cadence, so no overlap risk. (§21.2 —
+    // per-org sent-state is the durable fix and is tracked as follow-up.)
+    lockDuration: 1800000,
     prefix: '{minds}',
+    removeOnComplete: { count: 50 },
+    removeOnFail: { count: 25 },
   }
 );
 
@@ -570,7 +577,7 @@ process.on("SIGTERM", shutdown);
 setupDiscoverySchedule();
 setupSkillTriggerSchedule();
 setupWorksDigestSchedule();
-registerOwnerWeeklyDigestSchedule(getMindsQueue("owner-weekly-digest"));
+setupOwnerWeeklyDigestSchedule();
 setupReviewSyncSchedule();
 setupSchedulerTick();
 setupLocationCancellationFinalizer();

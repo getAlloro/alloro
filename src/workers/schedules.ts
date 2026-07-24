@@ -19,6 +19,11 @@ import {
   getGbpAutomationQueue,
   getOsQueue,
 } from "./queues";
+import {
+  OWNER_WEEKLY_DIGEST_CRON,
+  OWNER_WEEKLY_DIGEST_TZ,
+  OWNER_WEEKLY_DIGEST_JOB_ID,
+} from "../config/ownerWeeklyDigest";
 import logger from "../lib/logger";
 
 // Set up repeatable discovery job (every 24 hours)
@@ -92,6 +97,33 @@ export async function setupWorksDigestSchedule(): Promise<void> {
     logger.info("[MINDS-WORKER] Weekly works digest job scheduled (3 AM UTC Sundays)");
   } catch (err: any) {
     logger.error({ err: err }, "[MINDS-WORKER] Failed to set up works digest schedule:");
+  }
+}
+
+// Set up owner weekly digest schedule (Mondays 13:00 UTC).
+// Registering the schedule emails no owner on its own — the send is gated by
+// OWNER_WEEKLY_DIGEST_ENABLED inside OwnerDigestService.
+export async function setupOwnerWeeklyDigestSchedule(): Promise<void> {
+  try {
+    const queue = getMindsQueue("owner-weekly-digest");
+    await queue.add(
+      OWNER_WEEKLY_DIGEST_JOB_ID,
+      {},
+      {
+        repeat: {
+          pattern: OWNER_WEEKLY_DIGEST_CRON,
+          tz: OWNER_WEEKLY_DIGEST_TZ,
+        },
+        jobId: OWNER_WEEKLY_DIGEST_JOB_ID,
+        attempts: 2,
+        backoff: { type: "exponential", delay: 60000 },
+      }
+    );
+    logger.info(
+      "[MINDS-WORKER] Weekly owner digest job scheduled (Mondays 13:00 UTC; send gated by OWNER_WEEKLY_DIGEST_ENABLED)"
+    );
+  } catch (err: unknown) {
+    logger.error({ err }, "[MINDS-WORKER] Failed to set up owner weekly digest schedule:");
   }
 }
 

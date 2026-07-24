@@ -73,6 +73,7 @@ export class ProofReceiptService {
       summary: {
         reviewReplies: countFor("review_reply"),
         localPosts: countFor("local_post"),
+        businessInfo: countFor("business_info"),
         total,
       },
       pagination: buildProofReceiptPaginationMeta(

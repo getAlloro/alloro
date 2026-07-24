@@ -151,3 +151,92 @@ describe("OwnerWeeklyDigest — email payload", () => {
     expect(email.body).toContain("<!DOCTYPE html");
   });
 });
+
+describe("OwnerWeeklyDigest — headline matches the sentence under it", () => {
+  it("claims work only when there was work", () => {
+    const html = buildOwnerWeeklyDigestContent(baseData());
+    expect(html).toContain("Here's what Alloro did this week");
+  });
+
+  it("does not claim work when nothing was published", () => {
+    // An org can reach this email on a connected funnel gate alone. The
+    // headline must not say "here's what Alloro did" above "Alloro didn't
+    // publish anything new for you this week."
+    const html = buildOwnerWeeklyDigestContent(
+      baseData({
+        work: { total: 0, localPosts: 0, reviewReplies: 0, businessInfoUpdates: 0, recentItems: [] },
+      })
+    );
+    expect(html).not.toContain("Here's what Alloro did this week");
+    expect(html).toContain("Your week with Alloro");
+  });
+});
+
+describe("OwnerWeeklyDigest — standing guards on owner-facing copy", () => {
+  function allSurfaces(data: OwnerWeeklyDigestData): string {
+    const email = buildOwnerWeeklyDigestEmail(data);
+    return [
+      buildOwnerWeeklyDigestContent(data),
+      email.body,
+      email.subject,
+      email.preheader ?? "",
+    ].join("\n");
+  }
+
+  it("uses no retired funnel vocabulary", () => {
+    // AGENTS.md retires: "get converted", "booked" as a stage, and the
+    // Findable/Choosable/Bookable/Memorable ladder.
+    const rendered = allSurfaces(baseData());
+    expect(rendered).not.toMatch(/get converted|\bbooked\b|Findable|Choosable|Bookable|Memorable/i);
+  });
+
+  it("makes no causal claim about what Alloro produced", () => {
+    // Every sentence describes an action Alloro took, never an outcome it
+    // caused. The work half and the funnel half are deliberately not joined.
+    const rendered = allSurfaces(baseData());
+    expect(rendered).not.toMatch(
+      /Alloro\s+(drove|caused|increased|improved|boosted|generated|grew|lifted)/i
+    );
+    expect(rendered).not.toMatch(/(because of|thanks to|as a result of)\s+Alloro/i);
+  });
+
+  it("renders 0 for a connected source that measured zero", () => {
+    // A connected gate reading zero is a fact and must show zero. This must
+    // not be conflated with an unconnected gate.
+    const html = buildOwnerWeeklyDigestContent(
+      baseData({
+        funnel: {
+          monthLabel: "July 2026",
+          gates: [
+            { label: "Website Leads", metaLabel: "Verified submissions", value: 0, available: true },
+          ],
+        },
+      })
+    );
+    expect(html).toContain(">0<");
+    expect(html).not.toContain("Not connected yet");
+  });
+
+  it("renders 'Not connected yet' — never a 0 — for an unconnected source", () => {
+    const html = buildOwnerWeeklyDigestContent(
+      baseData({
+        funnel: {
+          monthLabel: "July 2026",
+          gates: [
+            { label: "Website Leads", metaLabel: "Verified submissions", value: 0, available: false },
+          ],
+        },
+      })
+    );
+    expect(html).toContain("Not connected yet");
+    expect(html).not.toContain(">0<");
+  });
+
+  it("escapes an org name that contains markup", () => {
+    const html = buildOwnerWeeklyDigestContent(
+      baseData({ organizationName: "<script>alert(1)</script>" })
+    );
+    expect(html).not.toContain("<script>");
+    expect(html).toContain("&lt;script&gt;");
+  });
+});

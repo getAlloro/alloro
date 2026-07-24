@@ -200,7 +200,13 @@ export function buildOwnerWeeklyDigestContent(
       <h1 style="margin: 0 0 6px 0; font-size: 24px; font-weight: 700; color: ${
         BRAND_COLORS.navy
       }; font-family: ${EMAIL_FONT_STACKS.display};">
-        Here's what Alloro did this week
+        ${
+          // The headline must not contradict the sentence under it: an org can
+          // reach this email on a funnel gate alone, with zero published work.
+          data.work.total > 0
+            ? "Here's what Alloro did this week"
+            : "Your week with Alloro"
+        }
       </h1>
       <p style="margin: 0; font-size: 14px; color: ${
         BRAND_COLORS.mediumGray

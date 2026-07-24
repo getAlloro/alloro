@@ -119,13 +119,18 @@ function fallbackMonthLabel(now: Date): string {
   return `${LONG_MONTHS[now.getUTCMonth()]} ${now.getUTCFullYear()}`;
 }
 
-/** Admin members with a usable email, de-duplicated (case-insensitive). */
+/**
+ * Admin members with a usable email, de-duplicated (case-insensitive).
+ *
+ * Reads through `listUsersForOrg`, which selects id/email/name/role — not
+ * `listByOrgWithUsers`, which also selects `users.password_hash` (§5.3). This
+ * service needs three fields; pulling bcrypt hashes into it is one stray
+ * `logger.info({ members })` away from writing them to the worker log.
+ */
 async function resolveAdminRecipients(
   organizationId: number
 ): Promise<{ email: string; name: string | null }[]> {
-  const members = await OrganizationUserModel.listByOrgWithUsers(
-    organizationId
-  );
+  const members = await OrganizationUserModel.listUsersForOrg(organizationId);
   const seen = new Set<string>();
   const recipients: { email: string; name: string | null }[] = [];
   for (const member of members) {
@@ -148,21 +153,16 @@ function buildWorkSummary(receipt: ProofReceipt): OwnerWeeklyDigestData["work"] 
       label: WORK_ITEM_LABELS[item.type] ?? "Work published",
       date: formatShortDate(new Date(item.at)),
     }));
-  // The receipt's item list (and total) can include GBP business-info updates —
-  // a third published type the summary breaks out only as review replies and
-  // local posts. Deriving the remainder keeps the "what Alloro did" sentence
-  // consistent with the dated item list rather than silently dropping a type.
-  const businessInfoUpdates = Math.max(
-    0,
-    receipt.summary.total -
-      receipt.summary.localPosts -
-      receipt.summary.reviewReplies
-  );
+  // Every count in the owner's first sentence is read straight off the
+  // receipt's measured per-type counts. This number was previously derived as
+  // `total - localPosts - reviewReplies`; `total` and the per-type counts come
+  // from two separate queries, so a row published between them would have made
+  // the subtraction claim a business-info update that never happened.
   return {
     total: receipt.summary.total,
     localPosts: receipt.summary.localPosts,
     reviewReplies: receipt.summary.reviewReplies,
-    businessInfoUpdates,
+    businessInfoUpdates: receipt.summary.businessInfo,
     recentItems,
   };
 }
