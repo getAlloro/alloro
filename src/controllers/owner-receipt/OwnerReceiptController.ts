@@ -32,6 +32,7 @@ import {
   OWNER_RECEIPT_LIMIT_MAX,
   OWNER_RECEIPT_PAGE_DEFAULT,
 } from "../../validation/ownerReceipt.schemas";
+import { compareReceiptWindows } from "../../utils/receiptWindows";
 import type { ReceiptWindow } from "./OwnerReceiptTypes";
 
 const OWNER_RECEIPT_ROUTE = "GET /api/owner-receipt";
@@ -91,6 +92,13 @@ function requireDay(value: unknown, field: string): string {
  * Parse and sanity-check the two windows from raw query strings (Express 5:
  * req.query is a read-only getter, so validate()'s coercions don't land). The
  * ordering checks the schema can't express live here.
+ *
+ * COMPARABILITY IS VALIDATION (§11.2). The windows must be the same length, not
+ * overlap, and stay within the max span — a request that fails any of those can
+ * never produce an honest before/after, so it is refused at the boundary rather
+ * than measured and caveated. Two of the three gates are counts: a 14-day PRE
+ * against a 28-day POST reports "+100%, driven by impressions" for a practice
+ * that did not change at all.
  */
 function parseWindows(req: Request): { preWindow: ReceiptWindow; postWindow: ReceiptWindow } {
   const preWindow: ReceiptWindow = {
@@ -113,6 +121,17 @@ function parseWindows(req: Request): { preWindow: ReceiptWindow; postWindow: Rec
       "The post window must not start before the pre window."
     );
   }
+
+  const comparability = compareReceiptWindows(preWindow, postWindow);
+  if (!comparability.comparable) {
+    throw new OwnerReceiptError(
+      "OWNER_RECEIPT_WINDOW_INVALID",
+      // The helper's reasons are already owner-safe plain words.
+      comparability.reason ?? "The two windows cannot be compared.",
+      { kind: comparability.kind, preDays: comparability.preDays, postDays: comparability.postDays }
+    );
+  }
+
   return { preWindow, postWindow };
 }
 

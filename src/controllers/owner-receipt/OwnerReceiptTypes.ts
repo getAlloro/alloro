@@ -51,7 +51,21 @@ export interface OwnerReceiptMetric {
  */
 export interface OwnerReceipt {
   organizationId: number;
-  /** Set when scoped to one office; omitted = every accessible location. */
+  /**
+   * Set when scoped to one office; omitted = every accessible location.
+   *
+   * ⚠️ KNOWN ASYMMETRY — this scopes the ACTIONS ONLY. `metrics`,
+   * `impressionsTrend` and `diagnosis` are read per website PROJECT, and
+   * `ProjectModel.findByOrganizationId` returns one project per org, so those
+   * numbers are practice-wide regardless of this field. A multi-location
+   * practice scoping to office B therefore sees office-B actions beside
+   * org-wide numbers, with this field echoed back as if it scoped everything.
+   *
+   * Resolving it means either refusing `locationId` outright or carrying a
+   * per-metric scope, both of which change the contract the card renders — a
+   * product decision, deliberately not made here. Until it is settled, a
+   * consumer must NOT present these numbers as belonging to one office.
+   */
   locationId?: number;
   /** The org's website project id, or `null` when it has none (all gates null). */
   projectId: string | null;
@@ -59,6 +73,18 @@ export interface OwnerReceipt {
   postWindow: ReceiptWindow;
   /** Dated actions Alloro took over [preWindow.start, postWindow.end] (reused). */
   actions: ProofReceipt;
+  /**
+   * False when the dated-actions read FAILED and `actions` is a placeholder.
+   *
+   * This exists because the degraded placeholder is byte-identical to a true
+   * "Alloro did nothing this window": both are `items: []` and
+   * `summary.total: 0`. Without this flag a failed read renders to the owner as
+   * a measured zero — Value #6 exactly. A consumer must check this before
+   * showing the count, and show "we could not load the action list" instead.
+   */
+  actionsAvailable: boolean;
+  /** Plain-words note when `actionsAvailable` is false; `null` otherwise. */
+  actionsNote: string | null;
   /** Post-window gate numbers, honesty-labelled. */
   metrics: OwnerReceiptMetric[];
   /** Honest before -> after impressions delta + coverage (reused, GSC-organic). */
