@@ -109,6 +109,15 @@ export {
   type SystemTestEmailData,
 } from "./templates/SystemTestEmail";
 
+export {
+  sendOwnerWeeklyDigest,
+  buildOwnerWeeklyDigestEmail,
+  buildOwnerWeeklyDigestContent,
+  type OwnerWeeklyDigestData,
+  type OwnerWeeklyDigestGate,
+  type OwnerWeeklyDigestWorkItem,
+} from "./templates/OwnerWeeklyDigest";
+
 // Base template utilities (for custom emails)
 export {
   wrapInBaseTemplate,

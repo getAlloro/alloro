@@ -136,6 +136,8 @@ describe("GET /api/proof-receipt — response contract", () => {
     expect(res.body.data.summary).toEqual({
       reviewReplies: TOTAL_REVIEW_REPLIES,
       localPosts: TOTAL_LOCAL_POSTS,
+      // Measured from the same grouped query, not `total` minus the other two.
+      businessInfo: 0,
       total: TOTAL_PUBLISHED,
     });
   });

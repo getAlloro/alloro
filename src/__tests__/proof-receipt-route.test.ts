@@ -51,7 +51,7 @@ const EMPTY_RECEIPT: ProofReceipt = {
   since: new Date("2026-07-01T00:00:00.000Z"),
   until: new Date("2026-07-20T00:00:00.000Z"),
   items: [],
-  summary: { reviewReplies: 0, localPosts: 0, total: 0 },
+  summary: { reviewReplies: 0, localPosts: 0, businessInfo: 0, total: 0 },
   pagination: { page: 1, limit: 50, total: 0, totalPages: 1 },
 };
 

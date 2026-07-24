@@ -25,6 +25,13 @@ export interface ProofReceiptItem {
 export interface ProofReceiptSummary {
   reviewReplies: number;
   localPosts: number;
+  /**
+   * Measured count of published `business_info` work items — not `total` minus
+   * the other two. `total` and the per-type counts come from two separate
+   * queries, so a row published between them would make a subtraction invent a
+   * business-info update that never happened. Consumers must read this field.
+   */
+  businessInfo: number;
   total: number;
 }
 
