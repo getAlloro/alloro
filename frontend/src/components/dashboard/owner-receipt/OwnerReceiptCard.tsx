@@ -8,12 +8,14 @@ import type {
 } from "../../../api/ownerReceipt";
 import {
   actionLabel,
+  actionsTruncationNote,
   buildImpressionsTrendView,
   diagnosisSentence,
   formatDay,
   formatMetricValue,
   gateLabel,
   metricSourceNote,
+  receiptErrorCopy,
 } from "./ownerReceiptCopy";
 
 /**
@@ -130,32 +132,58 @@ function MetricTile({ metric }: { metric: OwnerReceiptMetric }) {
   );
 }
 
-/** The dated list of actions Alloro took, or an honest empty line. */
+/**
+ * The dated list of actions Alloro took, or an honest empty line.
+ *
+ * The list is labelled with its OWN span (`actions.since` – `actions.until`),
+ * not the post window in the card header: the backend reads actions over
+ * `[preWindow.start, postWindow.end]`, so on a 28/28 comparison this list covers
+ * 56 days. Heading a 56-day list with a 28-day date range makes an owner
+ * counting the rows double-count the period.
+ *
+ * The backend also caps the page (50 by default). When it does, the cap is
+ * stated — a truncated list presented as the complete record is a quiet
+ * understatement of the work.
+ */
 function ActionsBlock({ receipt }: { receipt: OwnerReceipt }) {
-  const items = receipt.actions.items;
+  const { items, since, until, summary, pagination } = receipt.actions;
+  const total = pagination?.total ?? summary.total;
+  const isTruncated = total > items.length;
   return (
     <div className="mt-4 border-t border-line-soft pt-4">
-      <span className="block text-[10px] font-bold uppercase tracking-[0.08em] text-ink-muted">
-        What Alloro did
-      </span>
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <span className="block text-[10px] font-bold uppercase tracking-[0.08em] text-ink-muted">
+          What Alloro did
+        </span>
+        <span className="text-[11px] text-ink-muted tabular-nums">
+          {formatDay(since)} – {formatDay(until)}
+        </span>
+      </div>
       {items.length === 0 ? (
         <p className="mt-1.5 text-[13px] text-ink-muted">
           No actions are logged for these dates yet.
         </p>
       ) : (
-        <ul className="mt-2 flex flex-col gap-1.5">
-          {items.map((item: OwnerReceiptActionItem) => (
-            <li
-              key={item.workItemId}
-              className="flex items-baseline justify-between gap-4 text-[13px] text-alloro-navy"
-            >
-              <span className="truncate">{actionLabel(item.type)}</span>
-              <span className="shrink-0 text-[12px] text-ink-muted tabular-nums">
-                {formatDay(item.at)}
-              </span>
-            </li>
-          ))}
-        </ul>
+        <>
+          <ul className="mt-2 flex flex-col gap-1.5">
+            {items.map((item: OwnerReceiptActionItem) => (
+              <li
+                key={item.workItemId}
+                className="flex items-baseline justify-between gap-4 text-[13px] text-alloro-navy"
+              >
+                <span className="truncate">{actionLabel(item.type)}</span>
+                <span className="shrink-0 text-[12px] text-ink-muted tabular-nums">
+                  {formatDay(item.at)}
+                </span>
+              </li>
+            ))}
+          </ul>
+          {isTruncated ? (
+            <p className="mt-2 text-[11px] text-ink-muted tabular-nums">
+              {actionsTruncationNote(items.length, total)}
+            </p>
+          ) : null}
+        </>
       )}
     </div>
   );
@@ -185,9 +213,28 @@ export function OwnerReceiptCard({
     );
   }
 
-  // Honest error / not-yet-available state. The read-model renders live only
-  // after its backend endpoint is merged + deployed; until then this shows.
-  if (error || !receipt) {
+  // FAILURE — the request threw (403 tenant denial, 404 before the endpoint is
+  // deployed, 500, no response). This is a fault, and it gets said as one. It
+  // must never fall through to the not-ready copy below, which tells the owner
+  // to wait for data that will never arrive (§16.1).
+  if (error) {
+    const failure = receiptErrorCopy(error);
+    return (
+      <Shell>
+        <Eyebrow />
+        <h3
+          role="alert"
+          className="mt-3 font-display text-lg leading-snug text-alloro-navy"
+        >
+          {failure.title}
+        </h3>
+        <p className="mt-1 text-[13px] text-ink-muted">{failure.body}</p>
+      </Shell>
+    );
+  }
+
+  // NOT READY — the request SUCCEEDED and there is simply nothing to show yet.
+  if (!receipt) {
     return (
       <Shell>
         <Eyebrow />

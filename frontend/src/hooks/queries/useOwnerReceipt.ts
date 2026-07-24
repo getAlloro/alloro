@@ -33,6 +33,8 @@ export function useOwnerReceipt(
       windows?.postStart ?? "",
       windows?.postEnd ?? "",
       locationId,
+      options?.page,
+      options?.limit,
     ),
     queryFn: () =>
       getOwnerReceipt(windows!, locationId, {

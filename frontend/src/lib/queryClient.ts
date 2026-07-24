@@ -336,6 +336,9 @@ export const QUERY_KEYS = {
     ["summary-dashboard", orgId, locationId] as const,
   proofReceipt: (orgId: number | null, locationId?: number | null) =>
     ["proof-receipt", orgId, locationId] as const,
+  // `page`/`limit` are part of the key because they are part of the request:
+  // React Query caches by key, so omitting them would serve page 1's rows from
+  // cache for a page-2 request.
   ownerReceipt: (
     orgId: number | null,
     preStart: string,
@@ -343,6 +346,8 @@ export const QUERY_KEYS = {
     postStart: string,
     postEnd: string,
     locationId?: number | null,
+    page?: number | null,
+    limit?: number | null,
   ) =>
     [
       "owner-receipt",
@@ -352,6 +357,8 @@ export const QUERY_KEYS = {
       postStart,
       postEnd,
       locationId,
+      page ?? null,
+      limit ?? null,
     ] as const,
   pmsFocusPeriod: (orgId: number | null, locationId?: number | null) =>
     ["pms-focus-period", orgId, locationId] as const,

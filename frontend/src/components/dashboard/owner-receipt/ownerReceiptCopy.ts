@@ -67,13 +67,28 @@ export function gateLabel(gate: ReceiptGate): string {
   }
 }
 
-/** A plain one-line source note for a metric, or empty when there's nothing to add. */
+/** Plain owner-facing provenance for each source the backend can stamp. */
+const SOURCE_LABELS: Record<string, string> = {
+  gsc_organic: "From Google Search",
+  rybbit: "From your website",
+  form_submissions: "From your website forms",
+};
+
+/**
+ * A plain one-line source note for a metric, or empty when there's nothing to add.
+ *
+ * A present value can still carry a coverage caveat — the contract documents
+ * `note` as "why null, OR a coverage caveat", and the backend does return a
+ * value and a note together (e.g. `{value: 4102, note: "partial: 19 of 28
+ * days"}`). Dropping the note there would render a caveated number as a clean
+ * one, so both are shown.
+ */
 export function metricSourceNote(metric: OwnerReceiptMetric): string {
   if (metric.value === null) return metric.note ?? NOT_MEASURED;
-  if (metric.source === "gsc_organic") return "From Google Search";
-  if (metric.source === "rybbit") return "From your website";
-  if (metric.source === "form_submissions") return "From your website forms";
-  return metric.note ?? "";
+  const sourceLabel =
+    metric.source === null ? "" : (SOURCE_LABELS[metric.source] ?? "");
+  if (sourceLabel && metric.note) return `${sourceLabel} · ${metric.note}`;
+  return sourceLabel || metric.note || "";
 }
 
 export interface ImpressionsTrendView {
@@ -126,13 +141,25 @@ export function buildImpressionsTrendView(
  * back to the backend's plain `reason` when it isn't honestly diagnosable.
  */
 export function diagnosisSentence(diagnosis: FunnelMovementDiagnosis): string {
-  if (!diagnosis.diagnosable || diagnosis.primaryDriver === null) {
+  // Each sentence below asserts a DIRECTION ("More"/"Fewer people reached out"),
+  // so the direction has to be measured here, not inferred. `leadsChange ?? 0`
+  // would call an absent change a fall and a flat month a fall; both are false
+  // statements about a month nothing happened in. This gate is the frontend's
+  // own — it does not rely on the backend happening to null `primaryDriver`
+  // when leads are flat, which is backend behaviour this layer cannot enforce.
+  const change = diagnosis.leadsChange;
+  if (
+    !diagnosis.diagnosable ||
+    diagnosis.primaryDriver === null ||
+    change === null ||
+    change === 0
+  ) {
     return (
       diagnosis.reason ??
       "We can't yet say which part of your funnel moved your leads."
     );
   }
-  const rose = (diagnosis.leadsChange ?? 0) > 0;
+  const rose = change > 0;
   switch (diagnosis.primaryDriver) {
     case "impressions":
       return rose
@@ -154,4 +181,90 @@ export function actionLabel(type: string): string {
   if (type === "review_reply") return "Replied to a review";
   if (type === "local_post") return "Published a post";
   return type;
+}
+
+/**
+ * "Showing 50 of 120." — rendered ONLY when the fetched page is genuinely
+ * shorter than the total the backend reports. A capped list presented as the
+ * complete record understates the work and reads as the whole truth; naming the
+ * cap is the honest alternative to silently dropping rows.
+ */
+export function actionsTruncationNote(shown: number, total: number): string {
+  return `Showing ${formatMetricValue(shown)} of ${formatMetricValue(total)}.`;
+}
+
+/*
+ * ── Failure copy ──────────────────────────────────────────────────────────
+ *
+ * A failed request is a FAILURE, not a data lag. The not-ready copy is honest
+ * only when the request SUCCEEDED and there is simply nothing to show yet;
+ * rendering it on a 403/404/500 tells a paying owner to wait for data that will
+ * never arrive, and support reads the ticket as a data-lag complaint. These
+ * strings are what the card shows instead (§16.1).
+ */
+
+/** Title for a plain request failure (endpoint down, 500, no response). */
+export const RECEIPT_ERROR_TITLE = "We couldn't load your receipt.";
+
+/**
+ * Body for a plain request failure. Names the fault as ours, refuses to guess a
+ * number, and still hands the owner no errand — there is genuinely nothing they
+ * can do about our outage.
+ */
+export const RECEIPT_ERROR_BODY =
+  "This one is on us — the request didn't come back, so we won't guess at your numbers. We're on it. Nothing for you to do.";
+
+/** Title for an access failure (401/403) — a different fault with a different fix. */
+export const RECEIPT_ERROR_ACCESS_TITLE = "We can't show you this receipt.";
+
+/**
+ * Body for an access failure. Unlike an outage, there IS an honest next step
+ * here, so we name it rather than pretending nothing is wrong.
+ */
+export const RECEIPT_ERROR_ACCESS_BODY =
+  "Your sign-in doesn't have access to these numbers right now. That's a permissions setting, not a gap in your data. Tell us and we'll open it up.";
+
+export interface ReceiptErrorCopy {
+  title: string;
+  body: string;
+}
+
+/**
+ * HTTP status behind a thrown error, read from `ApiError.status` when the client
+ * set one, else from the `HTTP_nnn` code `normalizeApiFailure` stamps. Duck-typed
+ * so this module stays framework- and api-layer-free (§13.3) and `unknown`-safe.
+ */
+function errorStatus(error: unknown): number | null {
+  if (typeof error !== "object" || error === null) return null;
+  const carrier = error as { status?: unknown; code?: unknown };
+  if (typeof carrier.status === "number") return carrier.status;
+  if (typeof carrier.code === "string") {
+    const match = /^HTTP_(\d{3})$/.exec(carrier.code);
+    if (match) return Number(match[1]);
+  }
+  return null;
+}
+
+/** True when the thrown error is a tenant/permission denial rather than an outage. */
+function isAccessDenied(error: unknown): boolean {
+  const status = errorStatus(error);
+  if (status === 401 || status === 403) return true;
+  if (typeof error !== "object" || error === null) return false;
+  const carrier = error as { code?: unknown };
+  return typeof carrier.code === "string" && carrier.code.includes("ACCESS_DENIED");
+}
+
+/**
+ * The title/body the card shows for a FAILED request. Never returns the
+ * not-ready copy — that branch is reserved for a successful request with nothing
+ * in it yet.
+ */
+export function receiptErrorCopy(error: unknown): ReceiptErrorCopy {
+  if (isAccessDenied(error)) {
+    return {
+      title: RECEIPT_ERROR_ACCESS_TITLE,
+      body: RECEIPT_ERROR_ACCESS_BODY,
+    };
+  }
+  return { title: RECEIPT_ERROR_TITLE, body: RECEIPT_ERROR_BODY };
 }
