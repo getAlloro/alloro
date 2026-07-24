@@ -36,6 +36,7 @@ function sufficientTrend(): ImpressionsLiftResult {
     organizationId: 39,
     projectId: "proj-1",
     source: "gsc_organic",
+    excludes: ["gbp_maps"],
     pre: {
       window: { start: "2026-06-01", end: "2026-06-28" },
       storedImpressions: 1000,
@@ -58,6 +59,7 @@ function sufficientTrend(): ImpressionsLiftResult {
     pctChange: 0.5,
     sufficient: true,
     reason: null,
+    failureKind: null,
     history: { earliest: "2026-06-01", latest: "2026-07-26" },
   };
 }
@@ -68,6 +70,7 @@ function insufficientTrend(): ImpressionsLiftResult {
     organizationId: 39,
     projectId: "proj-1",
     source: "gsc_organic",
+    excludes: ["gbp_maps"],
     pre: {
       window: { start: "2026-06-01", end: "2026-06-28" },
       storedImpressions: 0,
@@ -89,6 +92,7 @@ function insufficientTrend(): ImpressionsLiftResult {
     delta: null,
     pctChange: null,
     sufficient: false,
+    failureKind: "partial_coverage",
     reason: "pre window has no stored GSC-organic history",
     history: { earliest: "2026-07-17", latest: "2026-07-26" },
   };
@@ -102,8 +106,11 @@ function diagnosable(): FunnelMovementDiagnosis {
     leadsChangeFactor: 2,
     primaryDriver: "CRO",
     terms: [],
+    margin: 0.5,
+    marginRatio: 0.6,
     diagnosable: true,
     reason: null,
+    outcome: "driver",
   };
 }
 
@@ -115,6 +122,9 @@ function notDiagnosable(): FunnelMovementDiagnosis {
     leadsChangeFactor: null,
     primaryDriver: null,
     terms: [],
+    margin: null,
+    marginRatio: null,
+    outcome: "undiagnosable",
     diagnosable: false,
     reason: "cannot decompose which term moved leads: pre impressions not measured",
   };
@@ -139,6 +149,8 @@ function baseReceipt(overrides: Partial<OwnerReceipt> = {}): OwnerReceipt {
       summary: { reviewReplies: 3, localPosts: 2, total: 5 },
       pagination: { total: 5, page: 1, limit: 500, totalPages: 1 },
     },
+    actionsAvailable: true,
+    actionsNote: null,
     metrics,
     impressionsTrend: sufficientTrend(),
     diagnosis: diagnosable(),
@@ -147,7 +159,17 @@ function baseReceipt(overrides: Partial<OwnerReceipt> = {}): OwnerReceipt {
 }
 
 /** No causal claim may ever reach a human's eyes (Value #6). */
-const CAUSAL_WORDS = ["caused", "drove", "because of alloro", "thanks to", "attributable to", "responsible for"];
+const CAUSAL_WORDS = [
+  "caused",
+  "drove",
+  "because of alloro",
+  "thanks to",
+  "attributable to",
+  "responsible for",
+  "as a result",
+  "led to",
+  "resulted in",
+];
 
 function assertNoCausation(output: string): void {
   const lower = output.toLowerCase();
@@ -181,7 +203,9 @@ describe("formatOwnerReceiptReport — honesty guarantees", () => {
     expect(output).not.toContain("change :");
     expect(output).toContain("post-window coverage : 10 of 28 days stored");
     // Diagnosis degrades honestly too.
-    expect(output).toContain("not diagnosable:");
+    // "no term named" rather than "not diagnosable": a near-tie IS decomposable
+    // and still names no term, so the old label was wrong for that case.
+    expect(output).toContain("no term named:");
     assertNoCausation(output);
   });
 
@@ -228,8 +252,103 @@ describe("formatOwnerReceiptReport — honesty guarantees", () => {
     for (const receipt of [
       baseReceipt(),
       baseReceipt({ impressionsTrend: insufficientTrend(), diagnosis: notDiagnosable() }),
+      baseReceipt({ actionsAvailable: false, actionsNote: "we could not load it" }),
     ]) {
       assertNoCausation(formatOwnerReceiptReport(receipt));
     }
+  });
+
+  it("prints 'not read' rather than 0 when the actions read was unavailable", async () => {
+    // The degraded actions receipt still carries summary.total: 0. Printing
+    // that 0 would be a failed read rendering as a measured zero, at the print
+    // layer this formatter exists to defend.
+    const output = formatOwnerReceiptReport(
+      baseReceipt({
+        actionsAvailable: false,
+        actionsNote: "we could not load the list of actions just now",
+        actions: {
+          organizationId: 39,
+          since: new Date("2026-06-01T00:00:00.000Z"),
+          until: new Date("2026-07-27T00:00:00.000Z"),
+          items: [],
+          summary: { reviewReplies: 0, localPosts: 0, total: 0 },
+          pagination: { total: 0, page: 1, limit: 500, totalPages: 1 },
+        },
+      })
+    );
+
+    expect(output).not.toMatch(/DATED ACTIONS ALLORO TOOK: 0/);
+    expect(output).toContain("DATED ACTIONS ALLORO TOOK: not read");
+  });
+
+  it("still prints a genuine zero as 0 when the actions read succeeded", async () => {
+    // The inverse: a real "Alloro did nothing this window" must stay a real 0.
+    const output = formatOwnerReceiptReport(
+      baseReceipt({
+        actionsAvailable: true,
+        actionsNote: null,
+        actions: {
+          organizationId: 39,
+          since: new Date("2026-06-01T00:00:00.000Z"),
+          until: new Date("2026-07-27T00:00:00.000Z"),
+          items: [],
+          summary: { reviewReplies: 0, localPosts: 0, total: 0 },
+          pagination: { total: 0, page: 1, limit: 500, totalPages: 1 },
+        },
+      })
+    );
+
+    expect(output).toContain("DATED ACTIONS ALLORO TOOK: 0");
+  });
+
+  it("never prints a delta when the trend is insufficient, even with large partial sums", async () => {
+    const trend = insufficientTrend();
+    const output = formatOwnerReceiptReport(
+      baseReceipt({
+        impressionsTrend: {
+          ...trend,
+          pre: { ...trend.pre!, storedImpressions: 5000, storedDays: 10 },
+          post: { ...trend.post!, storedImpressions: 300, storedDays: 4 },
+        },
+        diagnosis: notDiagnosable(),
+      })
+    );
+
+    // A consumer must not be able to reconstruct the refused delta from the
+    // printed coverage sums, and no percentage may appear anywhere.
+    expect(output).not.toContain("-4700");
+    expect(output).not.toContain("4700");
+    expect(output).not.toContain("%");
+  });
+
+  it("prints a real measured 0 and an absent value as 'not measured' in the same report", async () => {
+    // The distinction the whole stack turns on, asserted in one render.
+    const output = formatOwnerReceiptReport(
+      baseReceipt({
+        metrics: [
+          {
+            gate: "impressions",
+            value: 0,
+            source: "gsc_organic",
+            asOf: "2026-07-26",
+            note: null,
+          },
+          {
+            gate: "visits",
+            value: null,
+            source: "rybbit",
+            asOf: null,
+            note: "not measured: we could not read your website visits just now",
+          },
+        ],
+      })
+    );
+
+    const line = (label: string) =>
+      output.split("\n").find((l) => l.includes(label))!;
+    expect(line("Impressions (Get Found)")).toContain(": 0");
+    expect(line("Impressions (Get Found)")).not.toContain("not measured");
+    expect(line("Visits (Get Considered)")).toContain("not measured");
+    expect(line("Visits (Get Considered)")).not.toMatch(/:\s*0\b/);
   });
 });

@@ -2,17 +2,23 @@
  * preview-owner-receipt — READ-ONLY dev CLI to print an org's honest Owner
  * Receipt from already-stored data, so a human can SEE the real numbers.
  *
- * It reads nothing new and writes nothing: it resolves the org's accessible
- * locations through existing models (§7.4 — no db() of its own, no inline SQL),
- * calls OwnerReceiptService.getReceipt (the read-only assembler), and prints the
- * pure text report from ownerReceiptReport.ts.
+ * It writes NOTHING. It is not, however, purely local: the composed read path
+ * calls OwnerReceiptService, whose `readVisits` issues two GET requests to the
+ * Rybbit analytics API (one per window) using the project's stored integration.
+ * Everything else is read from our own database through existing models
+ * (§7.4 — no db() of its own, no inline SQL), and printed via the pure text
+ * report in formatOwnerReceiptReport.ts.
  *
  * HONESTY (Value #6): the formatter prints "not measured" (never 0) for absent
  * values, shows the impressions delta only when coverage is sufficient, shows
  * the diagnosis only when honestly decomposable, and asserts NO causation. This
  * CLI adds no claims of its own — it prints what the read-model returns.
  *
- * A dev tool run against a DEV database only — it must never be pointed at prod.
+ * TARGET SAFETY (§5.6): it refuses to run unless DB_HOST is a local database.
+ * That is a guard, not a comment — see scripts/previewDatabaseTarget.ts. The
+ * resolved target is printed above every report, so a wrong run is visible in
+ * its own output and not merely preventable. Override deliberately with
+ * ALLOW_NON_LOCAL_DB=1.
  *
  * Usage:
  *   npm run preview:owner-receipt -- --org 39
@@ -20,7 +26,10 @@
  *     --pre-start 2026-06-01 --pre-end 2026-06-28 \
  *     --post-start 2026-06-29 --post-end 2026-07-26
  *
- * Default windows: post = last 28 days (ending today), pre = the 28 days before.
+ * Default windows: post = the 28 days ending YESTERDAY, pre = the 28 days
+ * before that. Yesterday, not today: GSC rows for the current day do not exist
+ * yet, so a today-anchored window is never fully covered and the tool's most
+ * likely first run would report a false coverage gap on a healthy org.
  */
 import dotenv from "dotenv";
 dotenv.config();
@@ -30,8 +39,19 @@ import { OrganizationModel } from "../src/models/OrganizationModel";
 import { LocationModel } from "../src/models/LocationModel";
 import type { ReceiptWindow } from "../src/controllers/owner-receipt/OwnerReceiptTypes";
 import { formatOwnerReceiptReport } from "../src/controllers/owner-receipt/feature-utils/formatOwnerReceiptReport";
+import {
+  checkDatabaseTarget,
+  describeDatabaseTarget,
+} from "../src/config/previewDatabaseTarget";
 
 const WINDOW_DAYS = 28;
+
+/**
+ * Page size for the dated-actions list. Large on purpose: this is a preview of
+ * one org over one window, and a truncated list would make the printed report
+ * look emptier than the data is.
+ */
+const PREVIEW_ACTIONS_LIMIT = 500;
 
 /** Parse `--flag value` pairs from argv into a plain record. */
 function parseArgs(argv: string[]): Record<string, string> {
@@ -100,8 +120,8 @@ function resolveWindows(args: Record<string, string>): { pre: ReceiptWindow; pos
     };
   }
 
-  const today = isoDay(new Date());
-  const postEnd = today;
+  // Yesterday, not today: today's GSC row does not exist yet.
+  const postEnd = shiftDay(isoDay(new Date()), -1);
   const postStart = shiftDay(postEnd, -(WINDOW_DAYS - 1));
   const preEnd = shiftDay(postStart, -1);
   const preStart = shiftDay(preEnd, -(WINDOW_DAYS - 1));
@@ -113,6 +133,15 @@ function resolveWindows(args: Record<string, string>): { pre: ReceiptWindow; pos
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
+
+  // §5.6 — fail fast, before anything opens a connection or reads a row.
+  const target = checkDatabaseTarget(process.env);
+  if (!target.allowed) {
+    console.error(`[preview-owner-receipt] ${target.reason}`);
+    process.exitCode = 1;
+    return;
+  }
+
   const orgId = parseInt(args["org"] ?? "", 10);
 
   if (Number.isNaN(orgId)) {
@@ -144,11 +173,13 @@ async function main(): Promise<void> {
     preWindow: pre,
     postWindow: post,
     page: 1,
-    // A large page keeps the dated-actions summary total honest for the preview;
-    // the summary total is computed over the whole range regardless of page.
-    limit: 500,
+    // The summary total is computed over the whole range regardless of page.
+    limit: PREVIEW_ACTIONS_LIMIT,
   });
 
+  // Printed by the CLI, not the formatter: the formatter is pure (no clock, no
+  // environment) and its tests assert that.
+  process.stdout.write(`${describeDatabaseTarget(target)}\n`);
   process.stdout.write(formatOwnerReceiptReport(receipt));
 }
 

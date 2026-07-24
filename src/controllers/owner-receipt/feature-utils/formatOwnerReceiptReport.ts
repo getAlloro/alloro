@@ -105,9 +105,32 @@ function formatDiagnosis(diagnosis: FunnelMovementDiagnosis): string[] {
     lines.push(`  leads change : ${change}`);
     lines.push(`  term that moved leads the most : ${driver}`);
   } else {
-    lines.push(`  not diagnosable: ${diagnosis.reason ?? "decomposition not honest"}`);
+    lines.push(`  no term named: ${diagnosis.reason ?? "decomposition not honest"}`);
+    if (diagnosis.marginRatio !== null) {
+      lines.push(
+        `  how close the top two were : ${(diagnosis.marginRatio * 100).toFixed(1)}% of total movement`
+      );
+    }
   }
   return lines;
+}
+
+/**
+ * The dated-actions count — or an explicit "not read" when the actions read
+ * failed.
+ *
+ * The degraded actions receipt carries `summary.total: 0`, byte-identical to a
+ * true "Alloro did nothing this window". Printing that 0 is a missing value
+ * rendering as zero, at the very print layer this file exists to defend.
+ */
+function formatActions(receipt: OwnerReceipt): string[] {
+  if (!receipt.actionsAvailable) {
+    return [
+      `DATED ACTIONS ALLORO TOOK: not read` +
+        (receipt.actionsNote ? ` (${receipt.actionsNote})` : ""),
+    ];
+  }
+  return [`DATED ACTIONS ALLORO TOOK: ${receipt.actions.summary.total}`];
 }
 
 /** The post-window gate numbers, each with a "not measured" fallback. */
@@ -145,7 +168,13 @@ export function formatOwnerReceiptReport(receipt: OwnerReceipt): string {
 
   blocks.push(formatImpressionsTrend(receipt.impressionsTrend));
   blocks.push(formatDiagnosis(receipt.diagnosis));
-  blocks.push([`DATED ACTIONS ALLORO TOOK: ${receipt.actions.summary.total}`]);
+  blocks.push(formatActions(receipt));
+  // Adjacency is an argument even when no sentence makes one: "here is what
+  // Alloro did (N)" printed beside "here is which term moved your leads" reads
+  // as cause and effect. Say plainly that it is not.
+  blocks.push([
+    "These are separate readings shown side by side. Nothing here links one to the other.",
+  ]);
   blocks.push(formatMetrics(receipt));
 
   return blocks.map((block) => block.join("\n")).join("\n\n") + "\n";
