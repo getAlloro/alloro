@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   formatRatingVsMarket,
@@ -24,6 +24,9 @@ const okResult = (over: Partial<Parameters<typeof resolveRankDisplay>[0]> = {}) 
   searchPosition: 4,
   // A SerpApi Maps set of 12 businesses, client included.
   searchResults: Array.from({ length: 12 }, (_, i) => ({ isClient: i === 3 })),
+  // Checked this month by default so the existing (freshness-agnostic) cases
+  // stay fresh — the stale-reach suite below overrides this with an old date.
+  searchCheckedAt: new Date().toISOString().slice(0, 10),
   ...over,
 });
 
@@ -74,6 +77,139 @@ describe("#2 resolveRankDisplay — position and denominator share a universe", 
 
   it("shows no rank when status is ok but the position is null", () => {
     expect(resolveRankDisplay(okResult({ searchPosition: null })).show).toBe(false);
+  });
+});
+
+describe("I2 resolveRankDisplay — freshness reaches the rank hero", () => {
+  it("a rank checked this month is fresh — the guard does not over-fire", () => {
+    const d = resolveRankDisplay(okResult());
+    expect(d.show).toBe(true);
+    expect(d.stale).toBe(false);
+  });
+
+  it("FALSIFIER: a rank last checked months ago is stale, not silently current", () => {
+    // The bug this closes: a scheduled ranking run that stopped leaves "#4"
+    // reading as today's rank. The SAME isMonthStale the focus surface uses
+    // now flags it — the position still shows, but the surface strips its
+    // confident color and dates it.
+    const d = resolveRankDisplay(okResult({ searchCheckedAt: "2020-01-15" }));
+    expect(d.show).toBe(true);
+    expect(d.position).toBe(4);
+    expect(d.stale).toBe(true);
+    expect(d.checkedAt).toBe("2020-01-15");
+  });
+
+  it("a missing check date is unknown age, never invented as stale", () => {
+    // Mirrors useStageTones' `latestMonth != null && isMonthStale`: a null date
+    // must not hide a fresh rank behind a missing timestamp.
+    const d = resolveRankDisplay(okResult({ searchCheckedAt: null }));
+    expect(d.show).toBe(true);
+    expect(d.stale).toBe(false);
+    expect(d.checkedAt).toBeNull();
+  });
+
+  it("an empty check date is unknown age too — no silent mute without a caption", () => {
+    // "" is falsy: isMonthStale("") would say stale, but the hero caption only
+    // renders on a truthy date, so a bare `!== null` guard would mute the rank
+    // with no explanation. Treat empty as unknown age, like null.
+    const d = resolveRankDisplay(okResult({ searchCheckedAt: "" }));
+    expect(d.stale).toBe(false);
+  });
+
+  it("handles the PRODUCTION full-ISO datetime format, not just date-only", () => {
+    // res.json serializes searchCheckedAt as a full ISO datetime with Z
+    // (e.g. "2020-01-15T08:30:00.000Z"); parseYM's unanchored regex reads the
+    // month off the prefix. Pin the real contract, not only the date-only form.
+    const staleIso = resolveRankDisplay(
+      okResult({ searchCheckedAt: "2020-01-15T08:30:00.000Z" }),
+    );
+    expect(staleIso.stale).toBe(true);
+    expect(staleIso.checkedAt).toBe("2020-01-15T08:30:00.000Z");
+
+    const freshIso = resolveRankDisplay(
+      okResult({ searchCheckedAt: new Date().toISOString() }),
+    );
+    expect(freshIso.stale).toBe(false);
+  });
+
+  it("carries stale=false when no rank is shown at all", () => {
+    const d = resolveRankDisplay(
+      okResult({ searchStatus: null, searchCheckedAt: "2020-01-15" }),
+    );
+    expect(d.show).toBe(false);
+    expect(d.stale).toBe(false);
+    expect(d.showCheckedDate).toBe(false);
+  });
+});
+
+/**
+ * The tone rule and the caption rule are NOT the same rule.
+ *
+ * isMonthStale carries a grace window (STALE_GRACE_DAYS = 10) because monthly
+ * PMS files land late — "last month's file may not be in yet". A
+ * `search_checked_at` is not a file that lands; it is the timestamp of a check
+ * that either ran or did not, so that grace buys nothing here and costs a long
+ * silent window: a rank measured May 1 is still 2 months behind on July 8, and
+ * the grace rule calls it fresh.
+ *
+ * I2 forbids inventing a SECOND staleness policy, so the tone stays on
+ * isMonthStale. The caption does not: a date is a fact, not a policy, and
+ * showCheckedDate names it whenever the rank is 2+ whole months behind.
+ */
+describe("I2 resolveRankDisplay — the caption rule outlives the grace window", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const freezeAt = (iso: string) => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(iso));
+  };
+
+  it("FALSIFIER: a rank two months behind is dated even inside the grace window", () => {
+    // May 1 measured, read on July 8: monthsBehind = 2 and getUTCDate() = 8,
+    // which is inside STALE_GRACE_DAYS — so isMonthStale says fresh. Before
+    // this flag existed, a ~10-week-old rank rendered confident AND uncaptioned.
+    freezeAt("2026-07-08T12:00:00.000Z");
+    const d = resolveRankDisplay(okResult({ searchCheckedAt: "2026-05-01" }));
+
+    expect(d.show).toBe(true);
+    expect(d.position).toBe(4);
+    // The tone rule is deliberately unchanged — one staleness policy, not two.
+    expect(d.stale).toBe(false);
+    // The caption rule fires anyway.
+    expect(d.showCheckedDate).toBe(true);
+    expect(d.checkedAt).toBe("2026-05-01");
+  });
+
+  it("past the grace window the same rank is both dated and stale", () => {
+    freezeAt("2026-07-18T12:00:00.000Z");
+    const d = resolveRankDisplay(okResult({ searchCheckedAt: "2026-05-01" }));
+    expect(d.stale).toBe(true);
+    expect(d.showCheckedDate).toBe(true);
+  });
+
+  it("a rank one month behind is neither dated nor stale — the caption does not over-fire", () => {
+    freezeAt("2026-07-08T12:00:00.000Z");
+    const d = resolveRankDisplay(okResult({ searchCheckedAt: "2026-06-20" }));
+    expect(d.stale).toBe(false);
+    expect(d.showCheckedDate).toBe(false);
+  });
+
+  it("an unreadable but present date is stale AND dated — never muted without a caption", () => {
+    // isMonthStale treats an unreadable month as stale (abstain over guess), so
+    // the color mutes. The caption must follow, or the owner sees a greyed rank
+    // with no explanation of why.
+    freezeAt("2026-07-08T12:00:00.000Z");
+    const d = resolveRankDisplay(okResult({ searchCheckedAt: "zzzz" }));
+    expect(d.stale).toBe(true);
+    expect(d.showCheckedDate).toBe(true);
+  });
+
+  it("unknown age (null / empty) is neither stale nor dated", () => {
+    freezeAt("2026-07-08T12:00:00.000Z");
+    expect(resolveRankDisplay(okResult({ searchCheckedAt: null })).showCheckedDate).toBe(false);
+    expect(resolveRankDisplay(okResult({ searchCheckedAt: "" })).showCheckedDate).toBe(false);
   });
 });
 

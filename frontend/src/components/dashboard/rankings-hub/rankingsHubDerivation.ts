@@ -8,6 +8,19 @@
  * is never shown as a measured one.
  */
 
+// The SAME shared freshness guard the focus dashboard uses (invariant I2 — one
+// code path, never re-implemented per surface). A rank is a latest-snapshot: if
+// the ranking run that produced it stopped months ago, "#4" reads as current
+// when it is not. isMonthStale answers that on month cadence.
+import { isMonthStale, monthsBehind } from "../focus/statusRules";
+
+/**
+ * How many whole months behind a check date has to be before the hero names it
+ * out loud. Matches isMonthStale's own "2+ months behind" threshold — the two
+ * rules differ only in the grace window, not in what counts as old.
+ */
+const MONTHS_BEHIND_TO_DATE_A_RANK = 2;
+
 /** The client's Maps rank, and — only when it shares a universe — a denominator. */
 export interface RankDisplay {
   /**
@@ -24,6 +37,30 @@ export interface RankDisplay {
    * when we cannot pair honestly. Never the curated competitor count.
    */
   outOf: number | null;
+  /**
+   * True when the run behind this position is 2+ whole months old (the same
+   * month-cadence staleness the focus surface applies via isMonthStale). The
+   * rank still shows — the surface strips its confident color and dates it —
+   * because hiding it entirely would lose a real, if old, measurement.
+   */
+  stale: boolean;
+  /**
+   * True when the check date is old enough to name out loud — 2+ whole months
+   * behind, or present but unreadable (which `stale` already treats as old).
+   *
+   * This is a superset of `stale`, and the difference is deliberate.
+   * isMonthStale carries a 10-day grace window because monthly PMS files land
+   * late; a `search_checked_at` is not a file that lands, so that grace buys
+   * nothing here while costing a long silence — a rank measured May 1 is 2
+   * months behind on July 8 and the grace rule still calls it fresh, leaving a
+   * ~10-week-old number rendering confident and undated.
+   *
+   * I2 forbids a second staleness POLICY, so the tone stays on isMonthStale.
+   * A date is not a policy: the caption fires on this flag instead.
+   */
+  showCheckedDate: boolean;
+  /** The check date behind the shown position (searchCheckedAt), or null. */
+  checkedAt: string | null;
 }
 
 interface RankResultInput {
@@ -31,6 +68,8 @@ interface RankResultInput {
   searchPosition: number | null;
   /** The full SerpApi Maps result set, client included (isClient). */
   searchResults: Array<{ isClient?: boolean }> | null;
+  /** When the shown position was last checked — the freshness anchor. */
+  searchCheckedAt: string | null;
 }
 
 /**
@@ -51,7 +90,14 @@ interface RankResultInput {
  */
 export function resolveRankDisplay(result: RankResultInput): RankDisplay {
   if (result.searchStatus !== "ok" || result.searchPosition === null) {
-    return { show: false, position: null, outOf: null };
+    return {
+      show: false,
+      position: null,
+      outOf: null,
+      stale: false,
+      showCheckedDate: false,
+      checkedAt: null,
+    };
   }
 
   const position = result.searchPosition;
@@ -65,7 +111,24 @@ export function resolveRankDisplay(result: RankResultInput): RankDisplay {
   // practice itself — absurd, so show the rank alone.
   const outOf = universe !== null && universe > 1 && universe >= position ? universe : null;
 
-  return { show: true, position, outOf };
+  // Only call it stale when there IS a readable check date. A null or empty date
+  // is "unknown age", not "old" — inventing staleness there would hide a fresh
+  // rank behind a missing timestamp (and mute it with no caption, since the
+  // caption gates on a truthy date). Mirrors useStageTones' own
+  // `latestMonth != null && isMonthStale(...)` discipline.
+  const checkedAt = result.searchCheckedAt;
+  const stale = Boolean(checkedAt) && isMonthStale(checkedAt);
+
+  // The caption rule (see showCheckedDate above): everything `stale` covers,
+  // plus the months isMonthStale forgives inside its grace window. `behind` is
+  // null for an unreadable date, which `stale` has already called old — the ||
+  // keeps those captioned rather than muting them with no explanation.
+  const behind = monthsBehind(checkedAt);
+  const showCheckedDate =
+    Boolean(checkedAt) &&
+    (stale || (behind !== null && behind >= MONTHS_BEHIND_TO_DATE_A_RANK));
+
+  return { show: true, position, outOf, stale, showCheckedDate, checkedAt };
 }
 
 /**
